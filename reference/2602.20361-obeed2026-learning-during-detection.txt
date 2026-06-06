@@ -1,0 +1,646 @@
+1
+Learning During Detection: Continual Learning for
+Neural OFDM Receivers via DMRS
+Mohanad Obeed,Member , IEEEand Ming Jian,Member , IEEE
+Abstract—Deep neural networks (DNNs) have been increas-
+ingly explored for receiver design because they can handle
+complex environments without relying on explicit channel models.
+Nevertheless, because communication channels change rapidly,
+their distributions can shift over time, often making periodic
+retraining necessary. This paper proposes a zero-overhead online
+and continual learning framework for orthogonal frequency-
+division multiplexing (OFDM) neural receivers that directly detect
+the soft bits of received signals. Unlike conventional fine-tuning
+methods that rely on dedicated training intervals or full resource
+grids, our approach leverages existing demodulation reference
+signals (DMRS) to simultaneously enable signal demodulation
+and model adaptation. We introduce three pilot designs: fully
+randomized, hybrid, and additional pilots that flexibly support
+joint demodulation and learning. To accommodate these pilot
+designs, we develop two receiver architectures: (i) a parallel
+design that separates inference and fine-tuning for uninterrupted
+operation, and (ii) a forward-pass–reusing design that reduces
+computational complexity. Simulation results show that the
+proposed method effectively tracks both slow and fast channel
+distribution variations without additional overhead, service
+interruption, or catastrophic performance degradation under
+distribution shift.
+Keywords:Online learning, continual learning, neural re-
+ceivers, orthogonal frequency division multiplexing, distribution
+shift, wireless communications.
+I. INTRODUCTION
+In wireless systems, the communication channel between
+transmitters and receivers is inherently uncontrollable as it
+continuously varies over time, frequency, and location. To
+ensure reliable data transmission, both ends of the link must
+be designed to cope with these fluctuations and reduce the
+uncertainty introduced by the channel. A common solution is
+to transmit known pilot signals at regular intervals, which the
+receiver uses to estimate the channel, equalize the received
+signal, and correctly demodulate the transmitted data. Typically,
+least squares (LS) methods are applied for channel estimation,
+followed by linear minimum mean square error (LMMSE)
+equalization. However, LS-LMMSE techniques cannot fully
+exploit temporal, spectral, or spatial correlations, and they lack
+the ability to identify or mitigate interference patterns.
+Deep learning (DL) has recently emerged as a promising
+alternative for joint channel estimation and signal detection. DL-
+based receivers have demonstrated significant improvements in
+reducing bit-error rate (BER) in orthogonal frequency-division
+multiplexing (OFDM) systems [1]–[3]. These performance
+gains come from neural networks’ ability to capture hidden
+The authors are with the Advanced Wireless Technology Lab, Huawei
+Technologies Canada Co. Ltd, ON K2K 3J1, Canada (e-mail: mo-
+hanad.obeed@huawei.com, ming.jian@gmail.com).
+correlations such as temporal dependencies and to recognize
+and mitigate noise and interference. Neural models can either
+replace individual receiver functions (e.g., channel estimation)
+or replace multiple functions such as estimation, equalization,
+and demapping into a unified framework.
+Despite their strong performance, DL-based receivers often
+fail when the statistical properties of the operating channel
+deviate from those encountered during training [4], [5]. As
+demonstrated in [6], models trained solely on simulated datasets
+can exhibit significant performance degradation when evaluated
+on real-world data. Because such models rely entirely on
+training data to learn patterns, they implicitly assume that
+the training distribution accurately represents the deployment
+environment. When factors such as fading characteristics,
+interference, or user mobility differ from those in the training
+data, the receiver’s performance deteriorates sharply.
+This issue, known as distribution shift (or domain shift),
+occurs when the model fails to generalize beyond its training
+domain. In [7], it was shown that a neural receiver can even
+underperform a conventional receiver (e.g., LS-LMMSE) under
+distribution shifts. To mitigate this, the authors proposed a
+hybrid receiver architecture that integrates the neural and
+traditional receivers, using a learnable decider to select the
+most suitable receiver for a given input distribution. While this
+approach enhances robustness, the overall performance remains
+constrained by the traditional receiver’s limitations when the
+distribution shift is large. Therefore, achieving robust perfor-
+mance under varying channel conditions requires adaptation
+mechanisms such as online learning, transfer learning, domain
+adaptation, or retraining with more diverse datasets.
+Several studies have investigated online fine-tuning to adapt
+neural receivers to distribution shifts. A common strategy
+alternates between training and inference: dedicated pilot
+symbols transmitted over multiple transmission time intervals
+(TTIs) are used for training, while subsequent TTIs carry data
+[8]. While effective, this alternating scheme has three key
+drawbacks: it introduces high pilot overhead, interrupts user
+data transmission during training phases, and fails to track
+rapid channel variations that occur between updates.
+Online learning approaches were proposed to fine-tune the
+neural networks at the receiver that are used for channel
+estimation [9], [10], channel state information (CSI) feedback
+[11]–[13], or signal detection [14]–[17]. For channel estimation,
+the authors of [9] introduced additional pilots with higher power
+compared to the demodulation pilots that can be used to fine-
+tune the neural network at the receiver. The increased power
+of the added pilots guarantees low channel estimation error for
+such pilots. The authors of [18] proposed to reduce the training
+arXiv:2602.20361v1  [cs.IT]  23 Feb 2026
+=== PAGE BREAK ===
+2
+data needed for new environments by leveraging knowledge
+from known environments. A few-shot learning approach was
+proposed, enabled by an attention-based method, to help the
+communication model generalize to new environments in a
+continual learning context. The authors of [10] proposed an
+online learning approach where the channel coefficients are
+learned through the symbols detection loss. They leveraged the
+repetitive pattern of modulation constellation and interference
+invariant properties to efficiently fine-tune the neural networks
+using reference signals.
+To reduce the training burden, compact models such as MM-
+Net [14] were proposed, with only ∼40k parameters to enable
+efficient fine-tuning with fewer samples. Similarly, SwitchNet
+[15] introduced fine-tuning of only a subset of parameters ( α’s),
+significantly reducing the number of training batches required.
+However, SwitchNet relies on offline-pretrained subnetworks,
+limiting adaptability to unseen channels. Although both MMNet
+and SwitchNet reduce complexity, they still require complete
+training samples, leading to non-negligible overhead and delays.
+Other works [16], [17] proposed on-the-fly fine-tuning, where
+training labels are recovered using error-correcting codes rather
+than dedicated pilots. While this removes the need for extra
+pilots, it has two drawbacks: (i) including the decoder in the
+learning loop increases latency, and (ii) the decoder’s success
+depends on accurate log-likelihood ratios (LLRs) from the
+neural receiver, which are themselves vulnerable to degradation
+under distribution shift.
+In this paper, we propose a zero-overhead online and
+continual learning approach for neural OFDM receivers that
+adapts without interrupting inference. The key idea is to
+redesign demodulation pilots so they support both signal
+demodulation and model fine-tuning. Three pilot designs are
+introduced: (i) fully randomized learning-demodulation pilots,
+(ii) hybrid pilots combining learning and conventional roles,
+and (iii) additional pilots added alongside standard ones. To
+exploit these, two receiver architectures are developed: one
+enabling parallel fine-tuning and inference, and another that
+reuses the forward pass to reduce computation but requires
+brief pauses during backpropagation.
+In summary, this paper makes the following contributions:
+• We introduce a zero-overhead online learning strategy for
+neural OFDM receivers, where demodulation pilots are re-
+designed to serve simultaneously for signal demodulation
+and neural fine-tuning.
+• We propose three flexible pilot designs: fully scattered
+learning-demodulation pilots, partially-scattered pilots,
+and additional pilots that enable robust adaptation under
+diverse channel conditions.
+• We develop two receiver architectures that allow online
+fine-tuning without interrupting inference: (i) fully parallel
+demodulation and training, and (ii) a forward-pass–reusing
+design that reduces computation.
+• We analyze the latency in the communication link that
+is introduced by the DL model updates caused by the
+forward and backward passes.
+• Through simulations, we demonstrate that the proposed
+approach effectively tracks both slow and fast channel
+variations without service interruption or additional over-
+head.
+II. SYSTEM MODEL
+We consider an uplink communication system consisting of
+a single-antenna user transmitting to a base station equipped
+with K receive antennas. OFDM is employed with T OFDM
+symbols per frame and F subcarriers. A random sequence
+of uniformly distributed information bits is generated at the
+transmitter. These bits are encoded using a low-density parity-
+check (LDPC) code and then converted into symbols. The
+symbols are then mapped into a two-dimensional resource
+grid (RG) of size T×F in the OFDM frame. A subset of
+resource elements is reserved for demodulation pilots, while
+the remaining elements carry data symbols. Traditionally, fixed
+pilots are placed at specific OFDM symbols (e.g., the 2nd and
+11th symbols), spanning all subcarriers. Before transmission,
+the inter-symbol interference is reduced by adding a cyclic
+prefix to the start of each OFDM symbol.
+Let Y∈C T×F×K denote the received resource grid at the
+base station. After removing the cyclic prefix and applying
+fast Fourier transform (FFT), each resource element can be
+expressed as
+yt,f,k =h t,f,k st,f +w t,f,k ,(1)
+where st,f is the transmitted symbol located in the RG at the
+tth symbol and at the f th subcarrier, ht,f,k is the channel
+coefficient at antennak, andw t,f,k is additive noise.
+Traditionally, channel estimation is performed using the
+received pilot symbols, followed by equalizing the frequency-
+domain signal using the estimated channel. The equalized
+symbols are then demapped into their corresponding con-
+stellation points. In contrast, our approach employs a single
+neural network that directly processes the input resource grids
+(RGs) to generate soft bits (LLRs), effectively replacing the
+conventional channel estimation, equalization, and demapping
+stages. To form the input tensor, we concatenate the following
+along the feature dimension: Real and imaginary parts of Y ,
+a pilot-symbol tensor P∈R T×F×2 (zeros at data positions,
+real/imaginary values at pilot positions), and the estimated
+noise variance. In the proposed approach, we need to mask
+some pilots, which means that its corresponding entry in P
+is set to zero. The resulting input tensor has shape RT×F×L ,
+where L= 2(K+ 1) + 1 , which allows the neural receiver to
+jointly exploit received samples, pilot information, and noise
+variance [1]. The network outputs LLRs, which are then passed
+to the channel decoder for final bit recovery.
+A. Neural Network Architecture
+In this subsection, we present the neural network architecture
+employed in the proposed wireless receiver. A key requirement
+for the online learning framework is to select a neural
+network that not only achieves high detection accuracy but
+also adapts rapidly to distribution shifts during deployment. A
+faster adaptation reduces the overhead associated with model
+fine-tuning. To this end, we evaluated two neural network
+architectures: ResNet (specifically DeepRx [1]) and CoNet
+=== PAGE BREAK ===
+3
+Fig. 1. An example of CoNet architecture when depth = 3.
+[19]. Our experiments showed that the proposed online learning
+approach is effective in both architectures; however, it performs
+better and converges faster when integrated with CoNet.
+The CoNet architecture shares similarities with conventional
+CNNs and ResNets, but instead of a single processing path from
+input to output, CoNet employs multiple parallel sub-networks
+(subnets). These subnets interact through mathematical oper-
+ations such as element-wise multiplication. The authors of
+[19] demonstrated that using two interacting subnets, a main
+subnet and a supporting subnet, significantly enhances detection
+performance compared to traditional ResNets. Moreover, they
+showed that a shallow CoNet with only 14 layers can achieve
+comparable performance to a deep 14-layer ResNet, enabling
+faster adaptation under dynamic channel conditions. Fig. 1
+illustrates an example of the CoNet architecture adopted for
+both offline and online learning in this work. CoNet is designed
+to preserve spatial features throughout its layers. The number
+of output channels in the final convolutional layer is set to
+log2(Q), whereQdenotes the modulation order.
+The model is initially trained offline using a simulated
+dataset designed for broad diversity and robust generalization.
+This dataset includes samples generated under various channel
+conditions, such as varying delay spreads, Doppler shifts, and
+different channel models. During deployment, if the receiver
+detects performance degradation, it triggers online fine-tuning
+by requesting the transmitter to send the proposed demodulation
+pilots. The receiver then incrementally fine-tunes the neural
+network until the performance meets the desired level.
+III. DEMODULATIONPILOTSDESIGN
+To enable online learning without additional overhead, we
+redesign the demodulation pilots at the transmitter so that
+they can serve a dual purpose: (i) aiding demodulation at the
+receiver, and (ii) providing training signals for fine-tuning the
+neural model. A key challenge is that pilots are normally used
+as inputs for demodulation, whereas in training they are treated
+as labels for loss computation. We address this by proposing
+flexible pilot structures and different receiver architectures that
+allow the same symbols to be exploited for both purposes.
+To ensure effective fine-tuning, the learning-demodulation
+pilots need to be randomized in both location and symbol
+values across the resource grid. By varying their placement and
+constellation points from mini-batch to mini-batch, these pilots
+closely mimic the behavior of real data symbols which leads
+to preventing the model from overfitting to fixed pilot patterns.
+The transmitter and receiver can coordinate this process in
+advance, for example by exchanging the randomization seeds,
+so that both sides agree on the pilot locations and values.
+We consider three pilot designs, illustrated in Fig. 2. The
+first design, shown in Fig. 2(a), uses fully randomized pilots.
+In this approach, pilot symbols are randomly drawn from the
+modulation constellation and scattered across arbitrary resource
+elements in the grid. Because they mimic the behavior of real
+data symbols, the network can use them both for demodulation
+and as labels for training. This design maximizes diversity and
+generalization, but it may complicate waveform design and
+synchronization.
+The second design, shown in Fig. 2(b), introduces hybrid
+pilots. Here, a subset of pilots is randomized as in the first
+design and acts aslearning-demodulation pilots, while the
+remaining pilots follow conventional placement and modulation
+rules. This approach balances compatibility with existing pilot
+structures and flexibility for learning, but the number of pilots
+available for adaptation is reduced compared to the fully
+randomized case.
+The third design, shown in Fig. 2(c), adds additional pilots. In
+this setup, extra symbols are transmitted alongside the standard
+demodulation pilots, and these additional pilots are used for
+both demodulation and training. This design is compatible
+with fixed pilot patterns but introduces a small amount of
+extra overhead, though still significantly less than conventional
+online fine-tuning.
+Together, these designs provide a trade-off between backward
+compatibility and adaptation flexibility. In the following section,
+we show how different receiver architectures exploit these pilot
+designs to perform online learning during inference.
+IV. RECEIVER DESIGN
+Traditionally, neural receivers operate in two separate modes:
+training (using known labels) and inference (detecting unknown
+data). This separation prevents the model from adapting
+continuously during operation. Our objective is to enable
+the receiver to learn from every inference sample while still
+delivering uninterrupted bit detection.
+We propose two receiver architectures that integrate online
+fine-tuning with real-time inference. Both architectures exploit
+=== PAGE BREAK ===
+4
+(a) Fully scattered pilots.
+(b) Partially scattered pilots.
+(c) Additional pilots for learning.
+Fig. 2. Proposed OFDM frame structures.
+the pilot designs introduced in Section III, but they differ in
+their balance between performance, latency, and computational
+complexity. As shown in Fig. 3(a), the receiver in Architecture I
+employs two parallel paths. The inference path receives the full
+RG with all pilots unmasked and produces LLRs for decoding.
+In parallel, a training path processes a masked version of the
+RG, where the symbols of a subset of the learning-demodulation
+(a) The proposed receiver: Architecture I.
+(b) The proposed receiver: Architecture II.
+Fig. 3. Proposed receivers that enable continual learning.
+pilots are set to zeros. The symbols of these masked pilots act as
+labels for computing the loss and performing backpropagation
+on a clone neural network. After each mini-batch, the clone
+network is updated, and its weights are copied to the inference
+model. This design avoids any interruption to inference and
+achieves strong performance since all pilots are available for
+demodulation, but it comes at the cost of higher computational
+complexity because two networks must be maintained.
+In Fig. 3(b), the receiver in Architecture II maintains only
+a single neural receiver. In this case, the input grid includes
+both unmasked pilots for demodulation and masked pilots
+for training. The forward pass is executed once to generate
+LLRs for both the data symbols and the masked pilots. After
+completing a mini-batch, the receiver computes the loss using
+the masked pilots and applies backpropagation directly to the
+same network. This approach reduces computational complexity
+since only one network is required, but it requires inference
+to pause during backpropagation and reduces the number of
+pilots available for demodulation.
+These two architectures represent a trade-off: Architecture I
+prioritizes performance and robustness at the cost of computa-
+tional resources, while Architecture II minimizes complexity
+but introduces limited performance degradation. Both designs,
+however, achieve the key goal of enabling online learning
+during inference without requiring extra overhead.
+V. DELAY ANALYSIS
+Here, we analyze the latency introduced by model updates
+resulting from forward and backward passes, focusing on the
+receiver with Architecture I. Our goal is to show how frequently
+we can update the model to track the channel distribution shift
+and keep the performance stable. In communication systems,
+the end-to-end delay is dominated by the largest component
+(the bottleneck), such as the transmission or decoding delay.
+We divide the link latency into three parts: Thepre-inference
+delay, caused by operations prior to neural processing (e.g.,
+transmission and time-domain processing), theinference delay
+Id, caused by the neural network forward pass used to produce
+=== PAGE BREAK ===
+5
+LLRs, and thepost-inference delay, dominated by decoding
+operations and denoted Dd. For simplicity, we denote the
+pre-inference delayby TD since it is mostly dominated by
+the transmission delay and introduce Bd as the delay from
+backpropagation during model fine-tuning. Our objective is to
+characterize the impact of Bd on the receiver’s ability to adapt
+under channel distribution shifts.
+The computational cost of a linear layer is dominated by
+matrix multiplications. While the forward pass requires one
+multiplication, the backward pass involves two multiplications
+(for error propagation and gradient computation), leading
+to approximately double the cost of the forward pass [20].
+However, In practice, inference is performed sample-by-sample,
+whereas backpropagation is executed batch-by-batch, leveraging
+GPU parallelism. This implies that Bd of a mini-batch is
+equivalent to 2Id of a sample. In some cases, when Id is
+the bottleneck in the communication link, the samples can
+be buffered and the inference process can be implemented in
+parallel for several samples at once. To generalize the relation
+between Bd and Id in our system, let N be the mini-batch size
+used for backpropagation, Z the ratio between backpropagation
+delay and the inference delay for a single sample (empirically
+Z≈2 [20]), and M the number of samples processed in
+parallel during inference (typically M= 1 , unless buffering is
+used). The general relation betweenB d andI d is then
+Bd =Z· Id ·M
+N .
+If max(Td, Dd)< I d, the inference stage becomes the
+bottleneck. In this case,I d can be expressed as
+Id =V·max(T d, Dd),
+which allows M=⌈V⌉ samples to be buffered and processed
+in parallel. The maximum backpropagation delay occurs when
+N=M, yielding
+Bd =Z·I d.
+From this analysis, three operating cases arise:
+• Case I: max(Td, Dd)≥I d +Bd. The model has sufficient
+time to update after every mini-batch. This is the best
+case since learning occurs continuously.
+• Case II: max(Td, Dd)< I d with N≥ZM . The model
+updates every (1+ ZM
+N ) mini-batches. Since (1+ ZM
+N )≤2 ,
+the worst case here is updating every second mini-batch.
+• Case III: max(Td, Dd)< I d with N=M . The model
+updates every third mini-batch: one forward pass plus two
+backward passes.
+In the simulations, we focus on Case II and Case III, since
+Case I naturally provides superior performance.
+VI. SIMULATION RESULTS
+This section presents the simulation results of proposed
+online learning approach, examining its ability to track fast
+channel distribution changes and assessing its impact on
+improving the BER. The simulated uplink system consists
+of a single-antenna user transmitting to a base station equipped
+with two receive antennas. The OFDM waveform employs 64
+subcarriers and 14 OFDM symbols per frame, with 64-QAM
+(a) The receiver is tested on unseen samples drawn from the
+same distribution.
+(b) The receiver is tested on unseen samples drawn from the
+drifted channel distribution.
+Fig. 4. BER versus SNR to show the effect of distribution shift.
+modulation and a coding rate of 0.5. Channel realizations
+are generated using the 3GPP-defined time-delay-lines (TDL)
+model with a delay spread uniformly distributed between 40
+and 50 ns. Distribution shifts are simulated by varying the delay
+spread range. The symbols of the pilots and their placements
+change from mini-batch to mini-batch. Sionna, a Python-based
+link-level simulation library [21], is used to model the system.
+Two types of neural receivers are considered: the ResNet-
+based receiver, specifically proposed in [1] and the collaborative
+neural networks (CoNet) architecture recently introduced in
+[19]. Although both architectures perform well with the pro-
+posed online learning approach, CoNet shows faster adaptation
+and overall better performance. Therefore, the results presented
+here focus on CoNet. The considered CoNet model here is
+relatively compact, consisting of an input convolutional layer,
+four parallel modified residual blocks, and one output convo-
+lutional layer, with approximately 600k trainable parameters.
+Small model size is considered here due to the need for fast
+inference and low memory usage in physical layer of wireless
+networks. The network is first trained offline on 20M samples
+(one epoch suffices for convergence) and then fine-tuned online
+with the pilot designs described in Section III. In all cases, we
+use the fully randomized pilot design of Fig. 2(a) for training,
+as it generalizes well to the other pilot configurations shown in
+=== PAGE BREAK ===
+6
+(a) The receiver is updated by 24K samples from the shifted
+distribution.
+(b) The receiver is updated by 50K samples from the shifted
+distribution.
+Fig. 5. BER versus SNR to show how the fine-tuned (FT) models track the
+channel distribution shift.
+Fig. 2. During testing, 50% of the pilots are masked to serve
+as learning-demodulation pilots.
+We first compare the performance of the trained neural
+receiver against the traditional LMMSE receiver under both
+matched and shifted channel distributions. Fig. 4(a) shows
+that when the model is tested on unseen samples drawn from
+the same distribution as the training set, the neural receiver
+significantly outperforms the LMMSE receiver with imperfect
+channel state information (CSI) and performs close to the
+infeasible LMMSE receiver with perfect CSI. However, when
+the channel distribution shifts (for example, by increasing the
+delay spread to the range [400, 410] ns), Fig. 4(b) shows that
+the performance of the fixed neural receiver degrades sharply,
+particularly at high SNR values. This confirms the well-known
+vulnerability of neural receivers to distribution shifts.
+To address this, we apply the proposed online fine-tuning
+method. With 24k adaptation samples drawn from the shifted
+distribution, the BER improves considerably as shown in Fig.
+5(a). Moreover, with 50k samples, the receiver approaches to
+its original performance as shown in Fig. 5(b). These results
+demonstrate the effectiveness of online learning in recovering
+from sudden distribution shifts.
+We next examine how the receiver adapts continuously to
+(a) The delay spread mean change versus the number of
+mini-batches.
+(b) The BER performance versus the number of received mini-
+batches.
+Fig. 6. The results of Case II, where the model is updated every second
+mini-batch with slow-rate channel distribution shift.
+gradual and fast channel variations, focusing on the delay
+analysis cases described in Section V. In Case II, where the
+model is updated every second mini-batch, Fig. 6(a) simulates
+a gradual distribution shift by increasing/decreasing the mean
+delay spread by 20 ns every 1000 mini-batches (we consider the
+mini-batch size is 16). Fig. 6(b) compares the proposed online
+training approach with a fixed neural receiver. The results show
+that the proposed model successfully adapts to the evolving
+channel distribution, consistently tracking the changes over time.
+Its BER remains below 2×10 −3 in all cases and continues
+to improve as adaptation progresses, whereas the fixed model
+deteriorates, with BER rising to 5×10 −2. Importantly, both
+models operate with the same pilot overhead, but the proposed
+method exploits these pilots for both demodulation and online
+learning, enabling superior performance without additional cost.
+To get the average values of BER, in these and the following
+figures, the BER of each non-overlapping windows of 50 mini-
+batches is averaged.
+Suppose the channel distribution shifts more rapidly, with the
+mean delay spread increasing by 20 ns every 480 samples, as
+illustrated in Fig.7(a). Fig.7(b) shows the corresponding BER
+performance of both models under this faster variation. The
+results indicate that the proposed online approach continues
+to track the distribution changes effectively, preventing the
+receiver from experiencing severe degradation. Moreover, the
+=== PAGE BREAK ===
+7
+(a) The delay spread mean change versus the number of
+mini-batches.
+(b) The BER performance versus the number of received mini-
+batches.
+Fig. 7. The results of Case II, where the model is updated every second
+mini-batch with fast-rate channel distribution shift.
+performance of the adaptive model steadily improves as the
+number of adaptation cycles increases.
+In Case III, where the model is updated every third mini-
+batch, we consider first a faster distribution shift in which the
+mean delay spread is increased by 20 ns every 480 samples
+as shown in Fig. 8(a). Although the receiver updates less
+frequently, the proposed approach still adapts successfully and
+prevents catastrophic errors as shown in Fig. 8(b). Comparing
+Fig. 7(b) to Fig. 8(b), the performance in Case III is slightly
+worse than Case II during the early stages, but it converges
+with additional mini-batches, showing only a minor degradation
+compared to the more frequent update scheme.
+Finally, consider the case where the mean delay spread varies
+randomly, following a distribution U(0,40) ns, with changes
+occurring at random intervals drawn fromU(160,2400)sam-
+ples. Under Case III, Fig.9(a) illustrates an example of how the
+delay spread evolves over time according to these distributions.
+The direction of each change, whether up or down, is random
+but exhibits some degree of correlation. As shown in Fig. 9(b),
+the proposed online learning approach maintains a consistently
+low BER under these conditions, whereas the fixed neural
+receiver suffers significant degradation.
+Overall, the results show that the proposed online learning
+(a) The delay spread mean change versus the number of
+mini-batches.
+(b) The BER performance versus the number of received mini-
+batches.
+Fig. 8. The results of Case III, where the model is updated every third
+mini-batch with fast-rate channel distribution shift.
+framework allows neural receivers to adapt to both slow and
+fast channel variations, preventing performance degradation
+by reusing existing pilots without extra overhead or service
+interruption. Channel distribution changes can be induced
+by variations in delay spread, user mobility, or considering
+different channel models. While the proposed online learning
+framework is capable of adapting to all these types of changes,
+we focus on delay spread variations in this work, as they have
+the most significant impact on BER performance.
+VII. CONCLUSION
+We presented a novel online learning framework for neural
+OFDM receivers that adapts to channel distribution shifts
+without introducing extra overhead or interrupting inference.
+The key innovation lies in redesigning demodulation pilots to
+serve a dual role, enabling both signal demodulation and neural
+fine-tuning. We proposed three flexible pilot structures and two
+receiver architectures that balance robustness and computational
+complexity. Through delay analysis and extensive simulations,
+we demonstrated that the proposed approach can continuously
+track both slow and fast channel variations, preventing the
+catastrophic performance degradation observed in offline-
+trained neural receivers.
+=== PAGE BREAK ===
+8
+(a) Random change of the delay spread.
+(b) The BER performance versus the number of received mini-
+batches.
+Fig. 9. The results of Case III, where the model is updated every third
+mini-batch with random-rate channel distribution shift.
+Future work includes extending the approach to multi-
+user MIMO systems, validating it on real-world testbeds,
+and optimizing the online learning approach hyperparameter
+(e.g., the masking percentage, the mini-batch size, and the
+computation resources).
+REFERENCES
+[1] M. Honkala, D. Korpi, and J. M. Huttunen, “DeepRx: Fully convolutional
+deep learning receiver,”IEEE Transactions on Wireless Communications,
+vol. 20, no. 6, pp. 3925–3940, 2021.
+[2] D. Korpi, M. Honkala, J. M. Huttunen, and V . Starck, “DeepRx MIMO:
+Convolutional MIMO detection with learned multiplicative transforma-
+tions,” inICC 2021-IEEE International Conference on Communications,
+pp. 1–7, IEEE, 2021.
+[3] H. Ye, G. Y . Li, and B.-H. Juang, “Power of deep learning for channel
+estimation and signal detection in OFDM systems,”IEEE Wireless
+Communications Letters, vol. 7, no. 1, pp. 114–117, 2017.
+[4] X. Wei, C. Hu, and L. Dai, “Deep learning for beamspace channel
+estimation in millimeter-wave massive mimo systems,”IEEE Transactions
+on Communications, vol. 69, no. 1, pp. 182–193, 2021.
+[5] A. Farahani, S. V oghoei, K. Rasheed, and H. R. Arabnia, “A brief
+review of domain adaptation,”Advances in data science and information
+engineering: proceedings from ICDATA 2020 and IKE 2020, pp. 877–894,
+2021.
+[6] R. Luostari, D. Korpi, M. Honkala, and J. M. Huttunen, “Adapting
+to reality: Over-the-air validation of AI-based receivers trained with
+simulated channels,” in2025 IEEE Wireless Communications and
+Networking Conference (WCNC), pp. 01–06, IEEE, 2025.
+[7] M. Obeed and M. Jian, “Hybrid neural/traditional OFDM receiver with
+learnable decider,”arXiv preprint arXiv:2509.18574, 2025.
+[8] T. Raviv, S. Park, O. Simeone, Y . C. Eldar, and N. Shlezinger, “Adaptive
+and flexible model-based AI for deep receivers in dynamic channels,”
+IEEE Wireless Communications, vol. 31, no. 4, pp. 163–169, 2024.
+[9] D. Luan and J. S. Thompson, “Channelformer: Attention based neural
+solution for wireless channel estimation and effective online training,”
+IEEE Transactions on Wireless Communications, vol. 22, no. 10, pp. 6562–
+6577, 2023.
+[10] J. Xu, L. Li, L. Zheng, and L. Liu, “Learning to estimate: A real-time
+online learning framework for MIMO-OFDM channel estimation,”IEEE
+Transactions on Wireless Communications, 2024.
+[11] H. Du, Y . Deng, J. Xue, D. Meng, Q. Zhao, and Z. Xu, “Robust online CSI
+estimation in a complex environment,”IEEE Transactions on Wireless
+Communications, vol. 21, no. 10, pp. 8322–8336, 2022.
+[12] X. Zhang, J. Wang, Z. Lu, and H. Zhang, “Continuous online learning-
+based CSI feedback in massive mimo systems,”IEEE Communications
+Letters, vol. 28, no. 3, pp. 557–561, 2024.
+[13] Y . Cui, J. Guo, C.-K. Wen, S. Jin, and S. Han, “Unsupervised online
+learning in deep learning-based massive MIMO CSI feedback,”IEEE
+Communications Letters, vol. 26, no. 9, pp. 2086–2090, 2022.
+[14] M. Khani, M. Alizadeh, J. Hoydis, and P. Fleming, “Adaptive neural
+signal detection for massive MIMO,”IEEE Transactions on Wireless
+Communications, vol. 19, no. 8, pp. 5635–5648, 2020.
+[15] P. Jiang, T. Wang, B. Han, X. Gao, J. Zhang, C.-K. Wen, S. Jin, and G. Y .
+Li, “AI-aided online adaptive OFDM receiver: Design and experimental
+results,”IEEE Transactions on Wireless Communications, vol. 20, no. 11,
+pp. 7655–7668, 2021.
+[16] S. Schibisch, S. Cammerer, S. D ¨orner, J. Hoydis, and S. ten Brink,
+“Online label recovery for deep learning-based communication through
+error correcting codes,” in2018 15th International Symposium on Wireless
+Communication Systems (ISWCS), pp. 1–5, IEEE, 2018.
+[17] M. B. Fischer, S. D ¨orner, S. Cammerer, T. Shimizu, H. Lu, and
+S. Ten Brink, “Adaptive neural network-based OFDM receivers,” in
+2022 IEEE 23rd International Workshop on Signal Processing Advances
+in Wireless Communication (SPA WC), pp. 1–5, IEEE, 2022.
+[18] O. Wang, J. Gao, and G. Y . Li, “Learn to adapt to new environments from
+past experience and few pilot blocks,”IEEE Transactions on Cognitive
+Communications and Networking, vol. 9, no. 2, pp. 373–385, 2022.
+[19] M. Obeed and M. Jian, “CoNet-Rx: Collaborative neural networks for
+OFDM receivers,” in2025 Globecom, pp. 1–6, IEEE, 2025.
+[20] X. Wang, “A brief discussion: The computational cost of backward
+propagation is approximately twice that of forward propagation.” https:
+//bit.ly/3YBackProp, September 5 2024. Medium.
+[21] J. Hoydis, S. Cammerer, F. A. Aoudia, A. Vem, N. Binder, G. Marcus, and
+A. Keller, “Sionna: An open-source library for next-generation physical
+layer research,”arXiv preprint arXiv:2203.11854, 2022.
+=== PAGE BREAK ===

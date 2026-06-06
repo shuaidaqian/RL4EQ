@@ -1,0 +1,1360 @@
+1
+Deep Reinforcement Learning Aided Monte Carlo
+Tree Search for MIMO Detection
+Tz-Wei Mo, Ronald Y . Chang, Member, IEEE, and Te-Yi Kan
+Abstract—This paper proposes a novel multiple-input multiple-
+output (MIMO) symbol detector that incorporates a deep re-
+inforcement learning (DRL) agent into the Monte Carlo tree
+search (MCTS) detection algorithm. We ﬁrst describe how the
+MCTS algorithm, used in many decision-making problems, is
+applied to the MIMO detection problem. Then, we introduce
+a self-designed deep reinforcement learning agent, consisting of
+a policy value network and a state value network, which is
+trained to detect MIMO symbols. The outputs of the trained
+networks are adopted into a modiﬁed MCTS detection algorithm
+to provide useful node statistics and facilitate enhanced tree
+search process. The resulted scheme, termed the DRL-MCTS
+detector, demonstrates signiﬁcant improvements over the original
+MCTS detection algorithm and exhibits favorable performance
+compared to other existing linear and DNN-based detection
+methods under varying channel conditions.
+Index Terms —MIMO detection, neural networks, deep rein-
+forcement learning, Monte Carlo tree search.
+I. I NTRODUCTION
+It is evident that the usage of mobile communication con-
+tinues to rise throughout the years. To match the increasing
+needs, newer generations of communication systems are being
+developed to reach higher data rate and more reliable trans-
+missions. Currently, as the world shifts to ﬁfth-generation (5G)
+communication systems, a key technology lies in multiple-
+input multiple-output (MIMO) systems, where multiple trans-
+mitting and receiving antennas are used simultaneously to pass
+data from the transmitter to the receiver. MIMO systems are
+essential in 5G networks since they employ multiple antennas
+to overcome multipath fading problems and increase spectral
+efﬁciency through achieving space diversity. One problem that
+arises in such a system, however, is the recovery of symbols at
+the receiver, namely, symbol detection, as the computational
+complexity grows exponentially with the number of transmit
+antennas and becomes NP-hard [1] for an optimal solution.
+Many previous works have tried to reduce the complexity by
+using suboptimal receivers, which improves efﬁciency at the
+cost of various degrees of accuracy degradation depending on
+the method. In this work, we propose to solve the MIMO
+detection problem using a machine learning, speciﬁcally deep
+reinforcement learning (DRL), assisted tree search, as recent
+advances in neural network driven methods have shown suc-
+cess in numerous ﬁelds of engineering.
+This work was supported in part by the Ministry of Science and Technology,
+Taiwan, under Grants MOST 106-2628-E-001-001-MY3 and MOST 109-
+2221-E-001-013-MY3.
+The authors are with the Research Center for Information
+Technology Innovation, Academia Sinica, Taipei, Taiwan (e-
+mail: tzwmo1998@gapp.nthu.edu.tw, rchang@citi.sinica.edu.tw,
+dexter.ty.kan@gmail.com).
+A. Related Work
+It has long been known that the maximum likelihood (ML)
+detector is the optimum detector for the MIMO detection
+problem [2]. However, its high computational complexity
+prevents it from being practical in setups with large num-
+bers of antennas and/or high modulation orders. Suboptimum
+detectors have been proposed since the 1960s [2], where
+initially linear methods such as the zero forcing (ZF) detector
+[3] and minimum mean square error (MMSE) detector [4]
+were developed. Although linear MIMO detectors in general
+have poorer performance, they have been shown to have ML-
+approaching performance as the number of antennas in the
+system increases, due to a “channel-hardening" effect, a result
+of the Marˇcenko and Pastur law [5]. However, at these massive
+MIMO setups, the complexity for high-order matrix inversion
+in linear methods also becomes prohibitive, and as such, matrix
+inversion approximation methods were proposed [6]–[8] to
+accelerate the inversion process.
+Another set of detectors make use of nonlinear methods
+to tackle the MIMO detection problem. Interference cancella-
+tion methods [9], such as successive interference cancellation
+(SIC) [10], [11], try to eliminate the effects of intersymbol
+interference (ISI) by using iterative algorithms to recover one
+symbol at a time while treating other symbols as noise. Local
+search methods, such as likelihood ascent search (LAS) [12] or
+reactive tabu search (RTS) [13], start with an initial solution,
+which can be the result from linear detectors, then searches
+in a deﬁned neighborhood for a better solution, where a
+local optimum is selected after certain iterations. Local search
+methods, while having the beneﬁt of a tunable complexity
+with detection performance-speed tradeoff, are prone to the
+local minima problem if not given an extensive search. Tree
+search algorithms are also used in detectors [14]–[18], where
+the MIMO detection problem is formulated as a decision
+tree and a symbol is recovered at each layer of the tree. In
+[19], a statistical approach with the Monte Carlo tree search
+(MCTS) algorithm was proposed with hardware acceleration
+to recover the transmitted symbols at large MIMO setups.
+Other nonlinear methods such as belief propagation (BP) [20],
+[21], semideﬁnite relaxation (SDR) [22], and approximate
+message passing (AMP) [23] are all able to achieve good
+performance under many practical scenarios, while having
+lower complexity than the ML detector. Nonlinear methods
+usually have better performances than linear methods by using
+iterative and recursive algorithms. However, most nonlinear
+methods mentioned above require some parameter tuning,
+which can be difﬁcult to determine.
+arXiv:2102.00178v1  [eess.SP]  30 Jan 2021
+=== PAGE BREAK ===
+2
+In recent years, as hardware advancements increase com-
+putation capability along with the development of powerful
+optimization algorithms, deep neural networks (DNN) have
+become feasible and are ﬁnding applications in many research
+ﬁelds. Work in [24] modeled MIMO detection as a classiﬁca-
+tion problem which they proposed to solve using two machine
+learning methods: a DNN approach and a convolutional neural
+network (CNN) approach. Another way neural networks can
+be applied in MIMO detection is to use DNNs in place
+of traditional iterative algorithms where each iteration can
+be viewed as a layer of artiﬁcial neurons and the unfolded
+algorithm becomes a DNN. DetNet [25] uses DNN to unfold
+a projected gradient descent algorithm to try to reach the
+optimum solution. A related work [26] enhances DetNet by
+using a self-designed multilevel sigmoid function for better
+symbol classiﬁcation and introduces a twin-network archi-
+tecture to overcome an initialization problem with a random
+forest tree approach. WeSNet proposed in [27] improves upon
+the work in [25] by introducing a weight scaling framework
+which can further lower the network size and allows the
+network to self-adjust to the detection complexity. In [28],
+a parallel detection network (PDN) is developed by using
+parallel DNNs without connection to solve a problem in [25]
+where increasing the number of detection layers does not
+signiﬁcantly improve performance. Aside from unfolding the
+projected descent algorithm, in [29], DNN was incorporated
+into an existing soft SIC algorithm, and was shown to reach
+near-ML performance without channel state information (CSI)
+in certain cases. In [30], a long short term memory (LSTM)
+recurrent neural network (RNN) was proposed, where the
+RNN was shown to learn its own decision algorithm for
+detection and was exhibited to achieve near-ML performance
+in both ﬁxed and varying channel cases for quadrature phase
+shift keying (QPSK) modulation. In [31], DNNs were used to
+unfold two BP algorithms with two separate networks, namely,
+DNN-BP and DNN-MS; and in [32] layers of DNN are used to
+replace iterations in an orthogonal AMP (OAMP) algorithm;
+both works have shown DNN versions to outperform their
+traditional counterparts.
+The DNN approaches mentioned above all show promising
+results and improvements over traditional methods. The net-
+work parameters are also tuned implicitly during the training
+process via backpropagation without the need for manual
+adjusting. However, since these neural network methods are
+trained using supervised learning, they face a labeling dilemma
+over whether to use the ML solutions or the actual transmitted
+symbol vectors as labels during training [26]. It was advocated
+in [26] that “the label that should be used for a given (received
+signal) y is what would have been decoded by the optimal
+decoder, not the transmitted sequence” for the reason that
+in order for the DNN to be tuned to become a quasi-ML
+detector, it needs to learn the correct decision boundaries of
+an optimal decoder. Using the actual transmitted sequence as
+labels may cause the network to learn undesirable boundaries
+and therefore result in performance degradation. The ML
+solution required for training, however, is almost impossible
+to obtain for large-scale MIMO systems. Thus, it was sug-
+gested [26] that the neural networks be trained under a ﬁxed
+SNR corresponding to a 10−2 error probability in the actual
+transmitted sequence (i.e., 1 out of 100 symbols is mislabeled),
+such that the neural networks can still learn sufﬁcient decision
+boundary information using the actual transmitted sequence
+instead of the desired ML labeling. This suggestion however
+only has empirical basis, and, to our knowledge, there still
+lacks deﬁnite answers to this dilemma.
+B. Main Contributions
+Inspired by DNNs and various machine learning archi-
+tectures, in this work, we propose to use deep reinforce-
+ment learning (DRL) to work alongside the MCTS algorithm
+for MIMO detection. Unlike the aforementioned DNN ap-
+proaches, we do not unfold existing algorithms; instead, our
+DNNs are used to improve the MCTS detection algorithm
+by providing useful statistics given the channel information
+and the received symbol vector. Our proposed method can
+be trained to detect under various antenna/modulation settings
+with favorable performance. Our main contributions are sum-
+marized as follows:
+1) We propose to incorporate a DRL architecture into
+the traditional MCTS MIMO detection algorithm. The
+MIMO detection problem is formulated into a Markov
+decision process (MDP), which is then optimized
+through a self-play process where the DRL agent learns
+its own detection algorithm by generating its own train-
+ing data to correctly recover the transmitted symbols.
+2) The proposed scheme, termed the DRL-MCTS algo-
+rithm, proves signiﬁcantly more effective than either
+the DRL or MCTS alone. Speciﬁcally, DRL-MCTS
+achieves signiﬁcantly improved performance and re-
+duced complexity as compared to MCTS, due to a more
+effective tree search process and a smaller number of
+playouts required to achieve satisfactory performance.
+DRL-MCTS outperforms DRL by a large margin in
+terms of the detection performance, albeit DRL has a
+lower complexity. DRL-MCTS also outperforms DetNet
+[25] in the detection performance of binary phase shift
+keying (BPSK) modulation.
+3) By using DRL and a reward system to calculate losses
+instead of using labels from the transmitted symbol
+vectors, we avoid the previously mentioned labeling
+dilemma during DNN training. Only the received symbol
+vector, channel information, and an estimate of the
+transmitted symbol vector are required in the reward
+system.
+The rest of the paper is organized as follows. Sec. II
+formulates the MIMO detection problem. Sec. III introduces
+the MCTS algorithm for MIMO detection. Sec. IV presents
+the proposed DRL-aided MCTS algorithm. Sec. V presents the
+simulation results and discussion. Finally, Sec. VI concludes
+the paper.
+Notations: In this paper, we denote the complex Gaussian
+distribution with meanµ and varianceσ2 asCN (µ, σ2). Bold-
+face uppercase letters (e.g., H) are used to denote matrices,
+boldface lowercase letters (e.g., s) are used to denote vectors,
+and lowercase letters (e.g., s) are used to denote scalars.
+=== PAGE BREAK ===
+3
+(·)∗, (·)⊤, and (·)† denote complex conjugate, transpose, and
+conjugate transpose, respectively. ∥·∥ denotes the l2-norm of
+a vector.ℜ(·) andℑ(·) denote the real and imaginary parts of
+a complex number, respectively.|·| denotes the cardinality of
+a set.
+II. S YSTEM MODEL AND PROBLEM STATEMENT
+We consider an uncoded NT× NR MIMO system with
+NT transmit antennas and NR receive antennas. The complex
+baseband received signal can be expressed as
+yc = Hc˜xc + wc. (1)
+Here, ˜xc is theNT×1 transmit signal vector containing uncor-
+related entries selected equiprobably from a square quadrature
+amplitude modulation (QAM) alphabet S ={a +ib|a,b ∈
+Q}, where Q is the pulse amplitude modulation (PAM)
+alphabet. ˜xc has zero mean and covariance matrix σ2
+xINT .
+Hc is the NR×NT channel matrix containing independent
+and identically distributed (i.i.d.) complex Gaussian elements
+with zero mean and unit variance, and is assumed perfectly
+known at the receiver but not at the transmitter. wc is the
+additive white Gaussian noise (AWGN) with i.i.d. complex
+elements and has zero mean and covariance matrix σ2
+wINR.
+The complex signal model (1) can be transformed to an
+equivalent real signal model by deﬁning y′ = [ℜ(yc)ℑ(yc)]⊤,
+˜x = [ℜ(˜xc)ℑ(˜xc)]⊤, w = [ℜ(wc)ℑ(wc)]⊤, and H =[
+ℜ(Hc)−ℑ(Hc)
+ℑ(Hc) ℜ(Hc)
+]
+. The resulting real-valued model is given by
+y′ = H˜x + w (2)
+where y′∈ Rn, H∈ Rn×m, ˜x∈Q m, and w∈ Rn, with
+n = 2NR and m = 2NT .
+It is well-known that the optimal maximum likelihood (ML)
+detector to recover the transmitted symbol vector ˜x from
+y′ is to ﬁnd ˜xML = arg min x∈Qm∥y′− Hx∥2. By a QR
+decomposition of the channel matrix H such that H = QR,
+where Q∈ Rn×m is an orthogonal matrix and R∈ Rm×m
+is an upper-triangular matrix, the ML detection criterion can
+equivalently be expressed as ˜xML = arg minx∈Qm∥y−Rx∥2,
+where y = Q⊤y′. Due to the upper-triangular structure of R,
+∥y− Rx∥2 can be expanded as the summation of m terms,
+where the (m−k + 1)th term (for k = 1, 2,...,m ) depends
+only on the partial symbol vector xm
+k ≜ (xk,...,x m)⊤ ∈
+Qm−k+1:
+(ym−rm,mxm)2 +
+(
+ym−1−
+m∑
+i=m−1
+rm−1,ixi
+)2
++···
++
+(
+y1−
+m∑
+i=1
+r1,ixi
+)2
+(3)
+where yi is the ith element of y, xi is the ith element of x,
+andri,j is the (i,j )-entry of R. We denote the (m−k + 1)th
+term in (3) by b(xm
+k ) and the summation of the ﬁrst m−k + 1
+terms by d(xm
+k ). Then, ML detection becomes
+˜xML = arg min
+xm
+1∈Qm
+d(xm
+1 ). (4)
+Note that (3) creates a rooted tree structure that allows
+sequentially determining the transmitted signal vector x from
+xm
+m to xm
+1 by detecting one element of x at a time. Speciﬁcally,
+we can ﬁrst recover xm and calculateb(xm
+m), and then recover
+xm−1 with knownxm to obtain xm
+m−1 and calculateb(xm
+m−1),
+etc.
+III. M ONTE CARLO TREE SEARCH (MCTS) A LGORITHM
+The MCTS algorithm has found applications in many dis-
+crete decision making problems, such as chess and video
+games, where MCTS tries to output a best action in a discrete
+action space based on the current state. A tree search is
+performed each time we wish to take a new action. In the
+case of MIMO detection, an action is deﬁned as recovering
+an element of the transmitted symbol x, and the action space
+is the PAM alphabet Q with|Q| discrete actions. A terminal
+state is reached when a complete symbol vector xm
+1 = x is
+recovered. A total of m actions/tree searches are required to
+get to a terminal state.
+MCTS differs from other tree search algorithms for MIMO
+detection in that the tree is actually constructed along the
+search process. At the start of each tree search, the Monte
+Carlo tree consists only of the root node, and as the search
+progresses, the tree expands by adding new leaf nodes to the
+existing tree. The root node of the search tree is the current
+state at some step l (l = 0, 1, 2,...,m − 1) and represents the
+partial symbol vector xm
+m−l+1. Note that at step l = 0, the root
+node is a virtual root node as we deﬁne xm
+m+1 ≜∅; at step
+l =m, the root node is a nominal root node and the detection
+steps are completed. The algorithm aims to determine the best
+xm−l at stepl so that at the end of detection (3) is minimized.
+Fig. 1(a) shows the MCTS step progression, for the example
+of a 2×2 QPSK system (m = 4 and|Q| = 2). Fig. 1(b) shows
+the MCTS algorithm in search of the best action xm−l at each
+step l (here, l = 1 is shown), as further discussed below.
+Each nodei in the tree is associated with two node statistics:
+i) the expected −d(xm
+1 ) that this node will achieve by
+going downward through layers of tree from this node,
+which is denoted as D
+(i)
+; and
+ii) the number of times this node has been selected during
+the MCTS process, which is denoted as v(i).
+Note that a negative sign is added in front of d(xm
+1 ) to
+convert a metric minimization problem in (4) into a reward
+maximization problem in the framework of MCTS. D
+(i)
+and
+v(i) are initially set to zero.
+The MCTS algorithm comprises four steps:
+1) Selection: Starting from the root node, successive child
+nodes are selected until a leaf node is reached. Speciﬁ-
+cally, a child node that maximizes the upper conﬁdence
+bound for trees (UCT) [33], deﬁned as
+D
+(i)
++cuct
+√
+lnV (i)
+v(i) , (5)
+is selected. Here, V (i) is the number of times the parent
+node of a nodei has been selected, andcuct is a positive-
+valued exploration parameter which is empirically de-
+termined. The ﬁrst term of UCT enforces a reward-
+based selection, and the second term of UCT encourages
+=== PAGE BREAK ===
+4
+root node at step l
+ସି௟ାଵ
+ସ׎
+step l = 0
+ͳ
+step l = 1
+ͳ
+െͳ
+step l = 2
+ͳ
+െͳ
+ͳ
+step l = 3
+ͳ
+െͳ
+ͳ
+ͳ
+step l = 4 
+MCTS 
+Choose child of root node 
+with largest ܦas action 
+Choose child of root node 
+with largest ܦas action 
+Choose child of root node 
+with largest ܦas action 
+Choose child of root node 
+with largest ܦas action 
+MCTS MCTS MCTS 
+(a)
+Selection Expansion Simulation Backpropagation 
+૝
+૝
+૜
+૝
+૛
+૝
+Step l = 1 
+ͳ
+ͳ
+ͳ
+ͳ
+െͳ
+ͳ
+െͳ
+െͳ
+ͳ
+െͳ
+ͳ
+root node 
+leaf node child node 
+leaf node leaf node 
+ͳ
+ͳ
+ͳ
+ͳ
+െͳ
+ͳ
+െͳ
+െͳ
+ͳ
+െͳ
+ͳ
+ͳ
+ͳ
+െͳ
+ͳ
+ͳ
+ͳ
+root node 
+Random Choice 
+ͳ
+ͳ
+ͳ
+െͳ
+Random Generate 
+െ݀ܠ ଵ
+ସ ൌ െͷ
+(1) 
+(2) 
+(3) 
+ܦሺଷሻ ൌ െͷ
+ݒሺଷሻ ൌ Ͳ ൅ ͳ ൌ ͳ
+(1) 
+(2) 
+(3) ܦሺଷሻ ൌ Ͳ
+ݒሺଷሻ ൌ Ͳ
+ܦሺଶሻ ൌ െʹ
+ݒሺଶሻ ൌ ͳ
+ܦሺଵሻ ൌ െ Ͷ
+ݒሺଵሻ ൌ Ͷ
+ܦሺଶሻ ൌ െʹ െ ͷ
+ʹ ൌ െ ͵Ǥͷ
+ݒሺଶሻ ൌ ͳ ൅ ͳ ൌ ʹ
+ͳ
+െͳ
+ͳ
+െͳ
+െͳ
+ͳ
+ͳ
+ͳ
+ͳ
+ͳ
+ܦሺଵሻ ൌ
+ିଵ଺ିହ
+ହ ൌ െ ͶǤʹ 
+ݒሺଵሻ ൌ Ͷ ൅ ͳ ൌ ͷ
+(b)
+Fig. 1. MCTS for MIMO detection, for the example of a 2× 2 QPSK system ( m = 4 and|Q| = 2). (a) MCTS step progression. A total of four steps are
+needed to ﬁnish detection. In each step, MCTS is performed to recover an additional transmit symbol element until the terminal state is reached. (b) MCTS
+algorithm at step l = 1. Each node in the tree represents a unique partial symbol vector. In Selection, a leaf node is reached using UCT. During Expansion,
+all possible child nodes are added to the tree and become the new leaf nodes. In Simulation and Backpropagation, where the node index i is shown to the left
+side of each node in parentheses and the node statistics D(i) and v(i) are shown to the right side of each node, node statistics are updated by backpropagating
+the simulated−d(x4
+1) result.
+exploration since a smaller v(i) leads to a higher value
+of UCT and therefore a higher chance of selection.
+2) Expansion: If the selected leaf node is not a terminal
+state, |Q| child nodes are added to the tree. If the
+selected leaf node is a terminal state, no new leaf node
+will be added, the Simulation step will be skipped, and
+the Backpropagation step will be performed.
+3) Simulation: Randomly select one of the child nodes that
+has just been added to the tree in the Expansion step,
+and simulate detection by expanding the partial symbol
+vector with random elementsx∈Q until xm
+1 is reached.
+4) Backpropagation: The mock detection result xm
+1 from
+either the Simulation or Expansion steps is evaluated
+by calculating −d(xm
+1 ). The value is fed back upward
+toward the root node of the tree to update node statistics
+of the leaf node and all the nodes selected during
+the MCTS process. Speciﬁcally, D
+(i)
+is updated by
+averaging all −d(xm
+1 ) values backpropagated from the
+leaf node below node i, and v(i) is updated by adding
+by one if node i is on the backpropagation path.
+A completion of these four procedures is termed one playout
+and the total number of playouts is a tunable parameter
+with performance-complexity tradeoffs. After completing all
+playouts from the current state, the action represented by the
+best child node (corresponding to the largest D
+(i)
+) among all
+child nodes of the root node is selected as the best actionxm−l
+at step l.
+To increase the search efﬁciency, we also added two tips to
+the MIMO MCTS algorithm:
+1) Instead of re-growing a whole tree from a root node
+after taking a best action each step l for l > 0, we
+make the best child node after all playouts the new
+root node and preserve all node statistics of the subtree
+spanning from the best child node. By reusing node
+statistics from previous steps, we build on the cumulative
+experiences which can lead to more accurate ﬁnal reward
+estimations.
+2) By reusing the node statistics of previous trees, we can
+actually decrease the number of playouts at latter steps
+to increase detection speed. To achieve this, we take the
+ﬂoor function of the playout number multiplied with a
+decay factor βp∈ (0, 1) after each step.
+As can be seen, the general MCTS algorithm relies on
+random sampling in the Simulation step whose outcomes are
+then used to approximate the expected −d(xm
+1 ). While UCT
+allows sampling paths efﬁciently by growing asymmetrical
+=== PAGE BREAK ===
+5
+trees and focusing more on promising subtrees, good solutions
+could still be overlooked if the sample size is not large enough.
+This motivates an enhancement of MCTS with a learned and
+guided Simulation step enabled by DRL, so that a better
+decision could be achieved. This is presented next.
+IV. D EEP REINFORCEMENT LEARNING AIDED MONTE
+CARLO TREE SEARCH (DRL-MCTS) A LGORITHM
+We propose to incorporate a DRL architecture into the
+MCTS framework. Our DRL architecture, inspired by Deep-
+Mind’s AlphaGo Zero [34], consists of a policy value network
+and a state value network, both taking some deﬁned state sl
+at step l of the detection process as input, and outputting the
+policy value ˆpl and the state value ul, respectively. Here, ˆpl
+has|Q| elements, representing the probability distribution over
+|Q| discrete possible moves, and ul represents the ﬁnal ex-
+pected−d(xm
+1 ) of that state sl. The two outputs are integrated
+into the MCTS algorithm, where the policy value is adopted
+into the UCT for enhanced exploration, and the state value is
+directly used in place of the Simulation step as the expected
+ﬁnal outcome.
+A. Deﬁnition of State, Action, and Reward
+We ﬁrst deﬁne the state, action, and reward for the MIMO
+detection problem under a reinforcement learning framework:
+• State: The state vector sl observed by the agent at step l
+(l = 0,...,m −1) consists of some compressed sufﬁcient
+representations of the channel matrix H, the received
+signal y′, the partial symbol vector xm
+m−l+1 and its
+metrics, i.e.,
+sl =
+
+
+y
+y′
+H⊤y′
+χm
+m−l+1
+χm
+m−l+2
+b(xm
+m−l+1)
+d(xm
+m−l+1)
+
+
+(6)
+where χm
+m−l+1 = [01×(m−l), (xm
+m−l+1)⊤]⊤ and χm
+m−l+2
+(similarly deﬁned) are the zero-padded partial symbol
+vectors at step l and step l− 1, respectively, both having
+a ﬁxed dimension m× 1. Note that at step l = 0, the last
+four entries of sl degenerate to zero vectors/scalars as we
+deﬁne χm
+m+1 ≜ 0m×1, χm
+m+2 ≜ 0m×1, b(xm
+m+1) ≜ 0,
+and d(xm
+m+1) ≜ 0; at step l = 1 , χm
+m−l+2 = χm
+m+1 =
+0m×1.
+• Action: The action al at step l recovers xm−l with|Q|
+possible actions.
+• Reward: The reward value rl for an action al at step l is
+−d(xm
+m−l). Note that the reward for DRL slightly differs
+from the Simulation step in the MCTS algorithm, where
+only−d(xm
+1 ) of the full recovered symbol vector is used
+to update the node statistics.
+The training data for the policy value network and state
+value network are collected by sending N transmit symbol
+vectors through a ﬁxed channel and recording the detec-
+tion process at the receiver with the tuples (sj
+l,a j
+l,r j
+l,s j
+l+1),
+where the superscript denotes the jth transmit symbol vector
+(j = 1, 2,...,N ). These collected data are used to update the
+networks, which in turn generate new sets of data. The process
+repeats until the networks converge.
+Note that unlike the case of playing the game of Go
+where each action taken does not always return an immediate
+reward, in MIMO detection, after performing an action we can
+calculate the reward to evaluate the action immediately. Thus,
+the network training can be more efﬁcient since each action
+is evaluated independently.
+B. Policy Value Network
+As mentioned earlier, the policy value network outputs a
+vector ˆpl representing the probability distribution over |Q|
+actions in the action space. Our policy value network uses
+an actor-critic architecture [35], [36] consisting of two fully-
+connected neural networks. The actor network is composed of
+an input layer, 6 fully-connected (FC) hidden layers, and a ﬁnal
+output layer that outputs ˆpl, as shown in Fig. 2(a). The critic
+network, as shown in Fig. 2(b), has almost the same network
+structure but outputs a scalar valueql representing the expected
+discounted cumulative reward, or Q-value, from the current
+input state until the terminal state. Note that ql is only used
+during the training process to train the actor network and will
+not be used in the ﬁnal detection process. The loss function of
+the critic network incorporates the squared temporal difference
+(TD) error as:
+L(θc) = 1
+N
+N∑
+j=1
+m−1∑
+l=0
+(rj
+l +γm−lqj
+l+1−qj
+l )2 +c1∥θc∥2 (7)
+where the TD error is deﬁned as:
+TD ≜rj
+l +γm−lqj
+l+1−qj
+l. (8)
+In (7), θc represents the critic network parameters;γ∈ [0.9, 1]
+is a discount value; qj
+l andqj
+l+1 are the critic network outputs
+for input states sl and sl+1, respectively, for the jth transmit
+symbol vector; c1 is a scaling constant; and ∥θc∥2 is the l2
+regularization of the network parameters. Note that qj
+m ≜ 0,
+since after step l =m− 1, the detection terminates and there
+is no expected reward.
+The loss function of the actor network is deﬁned as
+L(θa) = 1
+N
+N∑
+j=1
+m−1∑
+l=0
+(
+TD×L CE(pj
+l, ˆpj
+l )
+−c2×L CE(ˆpj
+l, ˆpj
+l )
+)
++c3∥θa∥2 (9)
+whereLCE(·,·) is the cross-entropy function:
+LCE(pj
+l, ˆpj
+l ) =−
+|Q|∑
+k=1
+pj
+l,k log ˆpj
+l,k (10)
+and θa is the actor network parameters. pj
+l represents the true
+probability of action taken in stepl for thejth transmit symbol
+vector. In fact, pj
+l is the one-hot encoding of the elementxm−l
+recovered at step l. ˆpj
+l is the predicted probability distribution
+from the actor network. The subscript k in (10) denotes the
+kth element in pj
+l and ˆpj
+l . The termLCE(ˆpj
+l, ˆpj
+l ) in (9) is the
+=== PAGE BREAK ===
+6
+Input layer 
+Output layer 
+ڭڭ ڭڭ ڭڭ 
+ڭ
+FC hidden layers ൈ ͸
+(a)
+Input layer 
+Output layer 
+ڭڭ ڭڭ ڭ
+ڭ
+FC hidden layers ൈ ͸ (b)
+Fig. 2. Network architecture of neural networks used in DRL. (a) The actor of the policy value network. (b) The critic of the policy value network, and the
+state value network. The detailed conﬁgurations of each network are given in Table I.
+TABLE I
+NETWORK CONFIGURATIONS OF NEURAL NETWORKS USED IN DRL
+Network Input Layer Size Hidden Layer Size Output Layer Size Activation Function
+Policy Value (Actor) 4m + n + 2 4m + n + 2, 8NT , 8NT , 8NT , 8NT , 8NT |Q| ReLU, ReLU, ReLU, ReLU,
+ReLU, ReLU, softmax
+Policy Value (Critic) 4m + n + 2 4m + n + 2, 8NT , 8NT , 8NT , 8NT , 8NT 1 tanh, tanh, tanh, tanh, tanh, tanh
+State Value 4m + n + 2 +|Q| 4m + n + 2, 8NT , 8NT , 8NT , 8NT , 8NT 1 tanh, tanh, tanh, tanh, tanh, tanh
+entropy of ˆpj
+l , which is used to keep the output probability
+distribution more even, leading to better exploration as we
+sample actions from the distribution during training. c2 and
+c3 are both scaling constants. The last term in (9) is the
+l2 regularization of the network parameters. This actor-critic
+network architecture allows us to train a strong actor to output
+good policy values to increase the efﬁciency and accuracy of
+the MCTS algorithm for MIMO detection.
+C. State Value Network
+As mentioned earlier, the state value network outputs a
+scalar ul as the predicted −d(xm
+1 ) to replace the Simulation
+step in the original MCTS algorithm. The state value network
+structure is shown in Fig. 2(b). The input to the state value
+network at stepl is sl in (6) concatenated with the policy value
+network output ˆpl, i.e., s′
+l = [ s⊤
+l , ˆp⊤
+l ]⊤. The loss function of
+the state value network is deﬁned as
+L(θs) = 1
+N
+N∑
+j=1
+m−1∑
+l=0
+(uj
+l−Dj)2 +c4∥θs∥2 (11)
+where θs is the network parameters, uj
+l is the state value
+network output at step l for the jth transmit symbol vector,
+Dj is the ﬁnal −d(xm
+1 ) for the jth transmit symbol vector
+and is obtained after step l− 1, c4 is a scaling constant, and
+∥θs∥2 is the l2 regularization of the network parameters.
+Network architecture and conﬁgurations of all three net-
+works are shown in Fig. 2 and Table I. The network conﬁgu-
+rations are determined empirically and the optimization of the
+network sizes can be further explored in future work.
+The proposed DRL architecture is summarized in Fig. 3.
+D. The DRL-MCTS Algorithm
+By a slight abuse of notation, we use ˆp(i)
+l and u(i)
+l to
+denote the outputs of the policy value network and state value
+ܛ௟
+௝
+Policy Value Network 
+Actor 
+Critic 
+Environment 
+TD error 
+ݍ௟
+௝ ,ݍ௟ାଵ
+௝
+ݎ௟
+௝
+ܛ௟ାଵ
+௝
+State Value Network 
+࢖௟
+௝
+ݑ௟
+௝
+ܦ௝
+ ௟
+௝
+Fig. 3. Summary of the proposed DRL architecture. The blue dashed lines
+indicate values used to calculate losses for the networks. The red dashed-
+dotted line indicates the action aj
+l sampled from the policy value network
+output ˆpj
+l at step l for the jth transmit symbol vector.
+network, respectively, corresponding to the transmit symbol
+vector represented by node i in the tree at step l. Each node
+i in the tree is associated with three node statistics:
+i) the expected −d(xm
+1 ), or node value, that this nodei will
+achieve as evaluated by the state value network output,
+which is denoted as U
+(i)
+;
+ii) a prior node probability , P (i), which is a probability
+taken directly from one of the elements in the policy
+value network output of the parent node of node i; and
+iii) the number of times this node i has been selected, or the
+selection count, during the DRL-MCTS process, which
+is denoted as z(i).
+U
+(i)
+and z(i) are initialized to 0, whereas P (i) is initialized
+directly from the policy value network output of the parent
+node of node i.
+The DRL-MCTS algorithm comprises three steps:
+1) Selection: The process is the same as the Selection step
+in the MCTS algorithm, except that a variant of UCT,
+=== PAGE BREAK ===
+7
+Selection Expansion Backpropagation 
+૝
+૝
+૜
+૝
+૛
+૝
+Step l = 1 
+ͳ
+ͳ
+ͳ
+ͳ
+െͳ
+ͳ
+െͳ
+െͳ
+ͳ
+െͳ
+ͳ
+root node 
+leaf node child node 
+leaf node leaf node 
+ͳ
+ͳ
+ͳ
+ͳ
+െͳ
+ͳ
+െͳ
+െͳ
+ͳ
+െͳ
+ͳ
+ͳ
+ͳ
+െͳ
+ͳ
+ͳ
+ͳ
+root node 
+(1) 
+(2) 
+(3) 
+ͳ
+ͳ
+ͳ
+ͳ
+ͳ
+ഥܷሺଶሻ ൌ Ͳ
+ܲሺଶሻ ൌ ͲǤʹ
+ݖሺଶሻ ൌ Ͳ
+ܷሺସሻ ൌ Ͳ
+ܲሺସሻ ൌ ͲǤʹ
+ݖሺସሻ ൌ Ͳ
+ܷሺଷሻ ൌ Ͳ
+ܲሺଷሻ ൌ ͲǤͺ
+ݖሺଷሻ ൌ Ͳ
+ഥܷሺସሻ ൌ Ͳ
+ܲሺସሻ ൌ ͲǤʹ
+ݖሺସሻ ൌ Ͳ
+ܷሺଷሻ ൌ Ͳ
+ܲሺଷሻ ൌ ͲǤͺ
+ݖሺଷሻ ൌ Ͳ
+ܷሺଶሻݑଵ
+ሺଶሻ ൌ െʹ
+ܲሺଶሻ ൌ ͲǤʹ
+ݖሺଶሻ ൌ Ͳ ൅ ͳ ൌ ͳ
+ܷሺଵሻ ൌ െͶ
+ܲሺଵሻ ൌ ͲǤ͹
+ݖሺଵሻ ൌ ʹ
+root node 
+ഥܷሺଵሻ ൌ െͺ െ ʹ
+͵ ൌ െ͵Ǥ͵͵ 
+ܲሺଵሻ ൌ ͲǤ͹
+ݖሺଵሻ ൌ ʹ ൅ ͳ ൌ ͵
+ͳ
+(4) 
+(1) 
+(2) 
+(3) (4) 
+Fig. 4. (Cf. Fig. 1(b), for the same example of a 2× 2 QPSK system) DRL-MCTS algorithm at step l = 1. In Selection, a leaf node is reached using PUCT.
+During Expansion, all possible child nodes are added to the tree and become the new leaf nodes. In Expansion and Backpropagation, where the node index
+i is shown to the left side of each node in parentheses and the node value U (i), prior node probability P (i), and selection count z(i) are shown to the right
+side of each node, child nodes are added to the tree (Expansion) and node statistics are updated and backpropagated (Backpropagation).
+deﬁned as
+U
+(i)
++cpuctP (i)
+√
+Z (i)
+1 +z(i), (12)
+is used for node selection [34]. Here, Z (i) is the number
+of times the parent node of node i has been selected.
+2) Expansion: If the selected leaf node i is not a terminal
+state, ˆp(i)
+l and u(i)
+l are evaluated by the trained neural
+networks, where the |Q| values in ˆp(i)
+l are used to
+initialize the prior node probabilities of |Q| child nodes
+as the child nodes are added to the tree. If the selected
+leaf node is a terminal state, no new leaf node will be
+added, and Backpropagation will be performed.
+3) Backpropagation: If the leaf node i is not a terminal
+state, u(i)
+l is backpropagated, where the node value of
+each node in the Selection path is updated by averaging
+the leaf node value u(i)
+l with previous recorded node
+values of that node, and z(i) is updated by adding by
+one if node i is on the backpropagation path. If the leaf
+nodei is a terminal state, directly compute−d(xm
+1 ) and
+the value is backpropagated toward the root node of the
+tree to update node values and selection counts of all
+the nodes selected during the Selection step.
+After completing a designated number of playouts from the
+current state, the action represented by the best explored child
+node (corresponding to the largest z(i)) among all child nodes
+of the root node is selected as the best action xm−l at step
+l. An example of the DRL-MCTS algorithm is illustrated in
+Fig. 4. To increase the search efﬁciency, we also added the
+two tips mentioned in Sec. III, where we reuse node statistics
+from previous steps and decay the playout number after each
+step.
+V. S IMULATION RESULTS AND DISCUSSION
+In this section, we analyze the performance and complexity
+of our proposed method and compare it against other linear and
+DNN-based detectors under varying channel conditions and
+different antenna/modulation conﬁgurations. We ﬁrst present
+the implementation details, followed by results and discussion.
+A. Implementation Details
+The proposed method (DRL-MCTS) is implemented using
+Python codes and the DRL networks are realized using the
+Tensorﬂow library. We train the networks and perform the
+simulations on an Intel i7-8700 CPU processor with NVIDIA
+GeForce GTX 1070 GPU. To stabilize training and decorrelate
+the self-play data used to update the DRL networks, threading
+and multiprocessing libraries are used to create up to 12
+agents, where each agent interacts with its own environment
+and calculates a local gradient after detecting a complete
+signal vector using the loss functions deﬁned in Sec. IV. The
+combined local gradients from all the agents are then used
+to update the parameters of a single global network, which
+is then downloaded to each agent to generate new self-play
+data using the latest parameters. The networks are optimized
+using the RMSProp optimizer, where the learning rates for
+the actor, critic, and state value network are all initially set to
+0.0001. The discount value γ in (7) is set to 0.95, and the l2
+regularization coefﬁcients c1, c3, and c4 are all set to 0.0001.
+The scaling constant c2 for the entropy term in (9), cuct, and
+cpuct for the MCTS and DRL-MCTS process will be provided
+in the discussion for each conﬁguration.
+We train our detector under a varying channel model similar
+to [37], where an NR×NT complex channel matrix Hc is
+ﬁrst randomly generated with i.i.d. complex Gaussian elements
+fromCN (0, 1) and then the jth randomly generated symbol
+vector ˜xj
+c is transmitted through a varying channel:
+Hj
+c =
+√
+1−ϵ2Hc +ϵWj
+c, (13)
+where Hj
+c is the channel matrix corresponding to the jth
+transmitted symbol vector, ϵ∈ [0, 1] is a constant, and Wj
+c is
+an NR×NT complex noise matrix sampled from CN (0, 1)
+corresponding to the jth transmitted symbol vector. Note,
+however, in the case of BPSK, the channel matrix Hc and
+the noise matrices Wj
+c are NR× NT real matrices with
+i.i.d. Gaussian elements sampled from N (0, 1). Testing data
+used for simulation results are generated in the same fashion
+but separately from the training data set. The signal-to-noise
+ratio (SNR) is deﬁned as E∥Hc˜xc∥2/E∥wc∥2 = NTσ2
+x/σ2
+w,
+=== PAGE BREAK ===
+8
+and the symbol error rate (SER) is used to evaluate the
+performances of the detectors.
+B. DRL-MCTS vs. MCTS Comparison
+We ﬁrst compare the proposed DRL-MCTS with speciﬁcally
+MCTS, since DRL-MCTS is based on MCTS and aims to im-
+prove its tree search process. Fig. 5 presents the performance
+of the MCTS and DRL-MCTS detectors with different playout
+numbers over an 8× 8 real varying MIMO channel model
+described in (13) with ϵ = 0.1. We set c2 = 1 , cuct = 350 ,
+andcpuct = 20. We adopt playout numbers 5, 20, and 200 for
+MCTS, and 1, 5, 20, and 40 for DRL-MCTS. As can be seen,
+the performance of both detectors improves as the playout
+number increases. DRL-MCTS outperforms MCTS by a large
+margin with signiﬁcantly reduced playout numbers. Since
+playout number is one of the dominating factors of computa-
+tional complexity, this suggests that DRL-MCTS demonstrates
+both performance and complexity advantages as compared to
+MCTS (more details in Sec. V-D). Note that DRL-MCTS with
+playout number of one degenerates to detecting with the DRL
+network directly by taking the action with the largest policy
+value in ˆpl at step l, while discarding the state value network
+output. This setting of DRL-MCTS demonstrates somewhat
+suffered performance at low SNRs, due to a less reliable
+policy value network subject to heightened noises. The full
+capacity of DRL-MCTS is realized when setting the playout
+number greater than one, where the state value network output
+is exploited for a more reliable search path by providing the
+estimated ﬁnal reward. The ﬁgure also shows that a modest
+number of playouts is sufﬁcient for DRL-MCTS, as additional
+playouts yield diminishing returns.
+In Fig. 6, a similar result is obtained over an 8× 8 MIMO
+channel with QPSK and ϵ = 0.08. We set c2 = 1,cuct = 350,
+andcpuct = 22, and playout numbers 5, 20, and 200 for MCTS
+and 1, 4, 20, and 60 for DRL-MCTS. Similar trends of curves
+are exhibited, with lower performance in absolute terms, as
+compared to the case of BPSK.
+Fig. 7 examines the performance for an asymmetric 8× 16
+MIMO channel with QPSK and ϵ = 0.08. We set c2 = 1 ,
+cuct = 300 , and cpuct = 25 , and playout numbers 5, 20,
+and 200 for MCTS and 5, 10, and 60 for DRL-MCTS. As
+can be seen, DRL-MCTS outperforms MCTS at all playout
+numbers across the entire SNR region. Compared to the
+previous two scenarios, here, the performance of DRL-MCTS
+converges faster with fewer numbers of playouts. This may
+be explained as follows. As the number of antennas increases,
+the random channel matrix H converges to a deterministic
+distribution and the matrix H⊤H becomes near-diagonal (the
+“channel-hardening” effect) [2]. In addition, when the number
+of receive antennas is greater than the number of transmit
+antennas, as in the asymmetric 8× 16 channel here, the
+channel matrix H tends to be more well-conditioned [2].
+This is a favorable condition for traditional detectors such
+as the sphere decoder (producing extensive tree pruning and
+therefore higher detection speed and lower complexity) [18]
+and MMSE (producing generally satisfactory solutions) [4],
+and is similarly so for the tree search-based DRL-MCTS
+algorithm.
+Fig. 5. SER performance comparison of MCTS and DRL-MCTS for 8× 8
+MIMO with BPSK.
+Fig. 6. SER performance comparison of MCTS and DRL-MCTS for 8× 8
+MIMO with QPSK.
+C. DRL-MCTS vs. All Benchmarks Comparison
+We compare the proposed DRL-MCTS with the following
+algorithms:
+1) MMSE: The classical linear MMSE detector imple-
+mented based on [4].
+2) MCTS: The detection algorithm described in Sec. III.
+3) DetNet: A deep learning based detector proposed in
+[25].
+4) DRL: Detecting MIMO symbols by choosing the action
+that corresponds to the highest probability from the
+policy value network output of the DRL agent.
+5) ML: The optimal ML detector deﬁned in (4).
+In each simulation scenario, we use the same setup as the
+corresponding scenario described in Sec. V-B.
+In Fig. 8, DRL-MCTS using 20 playouts is compared
+against other algorithms over 8× 8 BPSK. It can be seen that
+the proposed DRL-MCTS algorithm signiﬁcantly outperforms
+either DRL or MCTS alone. This shows the effectiveness
+=== PAGE BREAK ===
+9
+Fig. 7. SER performance comparison of MCTS and DRL-MCTS for 8× 16
+MIMO with QPSK.
+and novelty of combining DRL and MCTS in the proposed
+method. DRL achieves suffered performance because it di-
+rectly chooses the action that corresponds to the highest proba-
+bility from the policy value network output. This, when placed
+in the context of the DRL-MCTS algorithm, is equivalent to
+replacing the selection criterion (12) by P (i), without utilizing
+the output of the state value network ( U
+(i)
+) and with only
+one playout ( Z (i) = 1 and z(i) = 0 ). The omission of the
+state value network output and the lack of exploration due
+to one playout lead to the degraded performance of DRL.
+MCTS also has suffered performance because, as mentioned in
+Sec. III, it relies on random sampling for simulation, whereas
+DRL-MCTS relies on learned and guided simulation. More
+speciﬁcally, comparing the selection criteria (5) and (12) for
+MCTS and DRL-MCTS, respectively, (12) incorporates the
+state value network output in evaluating the ﬁrst term and the
+policy value network output into the second term to enhance
+tree exploration. DRL-MCTS also outperforms DetNet, with
+an increasing gain as SNR increases. A similar result is
+observed in Fig. 9 for 8× 8 QPSK. DetNet was originally
+proposed for BPSK and thus is not included in the comparison
+therein.
+Fig. 10 shows the result for 8× 16 QPSK. The comparative
+trends of DRL-MCTS, DRL, and MCTS are similar to those in
+previous scenarios. MMSE achieves satisfactory performance
+here, since, as discussed, the channel tends to be more well-
+conditioned in asymmetric channels. Also, as previously men-
+tioned, DRL-MCTS requires only a small number of playouts
+to achieve good performance in the asymmetric channel.
+D. Computational Complexity
+We evaluate the complexity of all schemes by the runtime
+complexity. For a fair comparison, all schemes are imple-
+mented with Python 3.6 and Tensorﬂow 1.14, and tested on
+the same hardware as described in Sec. V-A. We simulate
+sufﬁcient numbers of symbol vectors to get stable results and
+Fig. 8. SER performance comparison of different detection algorithms for
+8× 8 MIMO with BPSK.
+Fig. 9. SER performance comparison of different detection algorithms for
+8× 8 MIMO with QPSK.
+show the mean detection runtime per symbol vector in the unit
+of seconds.
+The runtime results for 8× 8 BPSK are presented in
+Table II. Comparing DRL-MCTS and MCTS, DRL-MCTS
+not only achieves signiﬁcantly improved performance as dis-
+cussed earlier, but also reduced complexity. This can be
+attributed to the smaller number of playouts required for DRL-
+MCTS. Comparing DRL-MCTS and DRL, DRL has a lower
+complexity without the tree search process, but much worse
+performance. The linear MMSE detector has a low complexity,
+as expected, at the cost of performance. DetNet is a one-shot
+DNN-based method and thus runs faster than the proposed
+algorithm. The search space of ML in this scenario is only
+28 = 256 , and therefore the complexity of ML is moderate.
+The runtime for all schemes remain largely unchanged for
+different SNRs, except for DRL-MCTS where the runtime
+decreases as SNR increases. This may be explained as follows.
+When the SNR is higher, DRL-MCTS, similar to traditional
+=== PAGE BREAK ===
+10
+TABLE II
+RUNTIME COMPARISON OF DIFFERENT DETECTION ALGORITHMS FOR 8× 8 MIMO WITH BPSK
+Runtime SNR
+(seconds) 6 8 10 12 14 16
+Algorithm
+ML 0.0018 0.0023 0.0018 0.0017 0.0022 0.0017
+MMSE 4.7E−05 4.7E−05 4.7E−05 4.7E−05 4.7E−05 4.5E−05
+DRL 0.0041 0.0034 0.0033 0.0033 0.0035 0.0034
+MCTS (playout = 200) 0.1889 0.1879 0.1873 0.1872 0.1873 0.1872
+DetNet 2.2E−05 2.1E−05 2.0E−05 2.0E−05 1.9E−05 1.9E−05
+DRL-MCTS (playout = 20) 0.0457 0.0411 0.0403 0.0385 0.0365 0.0353
+Fig. 10. SER performance comparison of different detection algorithms for
+8× 16 MIMO with QPSK.
+tree-search algorithms, generally pursues more focused tree
+search, and when the same paths are chosen in different
+playouts, the statistics of previously visited nodes can be
+reused. This means DRL-MCTS needs to create fewer new
+child nodes and thus less runtime. In contrast, MCTS randomly
+chooses and generates new child nodes, and therefore its
+complexity is unaffected by the SNR factor.
+The runtime results for 8× 8 QPSK are shown in Table III.
+Compared to their counterparts in the BPSK scenario, all
+algorithms run slower in the QPSK scenario. The comparative
+trends are similar, even though the complexity of ML here
+is remarkably higher due to a larger search space that grows
+quickly with the order of modulation and/or the number of an-
+tennas. DRL-MCTS presents a good performance-complexity
+tradeoff among all schemes.
+The runtime results for 8×16 QPSK are shown in Table IV.
+It is worth noting that, comparing Table III and Table IV,
+the complexity of DRL-MCTS signiﬁcantly reduces while
+that of DRL and MCTS both increase in this larger antenna
+system. The increased complexity for DRL and MCTS results
+from calculating the reward value of larger matrices for each
+move [19] and the function operations of higher-dimensional
+matrices. The main reason for the reduced complexity for
+DRL-MCTS is the reduced playout number required. This
+conﬁrms that the number of playouts is the dominating factor
+of complexity for MCTS-related methods.
+VI. C ONCLUSION
+In this paper, we proposed a deep reinforcement learning
+aided Monte Carlo tree search (DRL-MCTS) MIMO detector
+capable of detecting MIMO symbols under varying channel
+conditions and different antenna/modulation conﬁgurations.
+By using DRL, we avoid the labeling dilemma encountered
+in other learning-based detectors using supervised learning.
+The proposed scheme innovatively combines DRL and MCTS
+to enhance MCTS with a learned and guided tree search
+process enabled by DRL. Simulation results demonstrated that
+incorporating DRL into the MCTS framework signiﬁcantly
+increases the detection accuracy and search efﬁciency of the
+original MCTS detector. The proposed DRL-MCTS detector
+was also shown to outperform traditional linear detector and
+DNN-based detector. Extensive and insightful discussions on
+the performance and complexity of various schemes were
+provided.
+REFERENCES
+[1] S. Verdu, “Computational complexity of optimum multiuser detection,”
+Algorithmica, vol. 4, no. 1, pp. 303–312, Dec. 1989.
+[2] S. Yang and L. Hanzo, “Fifty years of MIMO detection: The road to
+large-scale MIMOs,” IEEE Commun. Surveys Tuts. , vol. 17, no. 4, pp.
+1941–1988, Fourth Quarter 2015.
+[3] C. Wang, E. K. Au, R. D. Murch, W. H. Mow, R. S. Cheng, and V . Lau,
+“On the performance of the MIMO zero-forcing receiver in the presence
+of channel estimation error,” IEEE Trans. Wireless Commun. , vol. 6,
+no. 3, pp. 805–810, Mar. 2007.
+[4] R. Y . Chang and W.-H. Chung, “Low-complexity MIMO detection
+based on post-equalization subspace search,” IEEE Trans. Veh. Technol.,
+vol. 61, no. 1, pp. 375–380, Jan. 2012.
+[5] V . A. Mar ˇcenko and L. A. Pastur, “Distribution of eigenvalues for some
+sets of random matrices,” Math USSR Shornik , vol. 1, no. 4, pp. 457–
+483, Nov. 1967.
+[6] M. Wu, B. Yin, A. V osoughi, C. Studer, J. R. Cavallaro, and C. Dick,
+“Approximate matrix inversion for high-throughput data detection in the
+large-scale MIMO uplink,” in 2013 IEEE International Symposium on
+Circuits and Systems (ISCAS) , pp. 2155–2158, May. 2013.
+[7] D. Zhu, B. Li, and P. Liang, “On the matrix inversion approximation
+based on Neumann series in massive MIMO systems,” in 2015 IEEE
+International Conference on Communications (ICC) , pp. 1763–1769,
+Jun. 2015.
+[8] B. Kang, J.-H. Yoon, and J. Park, “Low complexity massive MIMO
+detection architecture based on Neumann method,” 2015 International
+SoC Design Conference (ISOCC) , pp. 293–294, Nov. 2015.
+[9] J. G. Andrews, “Interference cancellation for cellular systems: a contem-
+porary overview,” IEEE Wireless Commun. , vol. 12, no. 2, pp. 19–29,
+Apr. 2005.
+[10] S. Bittner, E. Zimmermann, and G. Fettweis, “Low complexity soft inter-
+ference cancellation for MIMO-systems,” in 2006 IEEE 63rd Vehicular
+Technology Conference, pp. 1993–1997, May 2006.
+[11] J. Choi and H. Nguyen, “SIC-Based detection with list and lattice
+reduction for MIMO channels,”IEEE Trans. Veh. Technol., vol. 58, no. 7,
+pp. 3786–3790, Sep. 2009.
+=== PAGE BREAK ===
+11
+TABLE III
+RUNTIME COMPARISON OF DIFFERENT DETECTION ALGORITHMS FOR 8× 8 MIMO WITH QPSK
+Runtime SNR
+(seconds) 6 8 10 12 14 16
+Algorithm
+ML 0.4091 0.4873 0.4981 0.5048 0.4950 0.5045
+MMSE 5.2E−05 5.2E−05 5.2E−05 5.2E−05 5.2E−05 5.2E−05
+DRL 0.0072 0.0067 0.0066 0.0066 0.0066 0.0066
+MCTS (playout = 200) 0.3064 0.3045 0.3037 0.3042 0.3019 0.3018
+DRL-MCTS (playout = 60) 0.2640 0.2546 0.2455 0.2410 0.2419 0.2401
+TABLE IV
+RUNTIME COMPARISON OF DIFFERENT DETECTION ALGORITHMS FOR 8× 16 MIMO WITH QPSK
+Runtime SNR
+(seconds) 0 2 4 6 8 10
+Algorithm
+ML 0.4734 0.4735 0.4754 0.4779 0.4755 0.4741
+MMSE 5.3E−05 5.2E−05 5.2E−05 5.2E−05 5.3E−05 5.2E−05
+DRL 0.0075 0.0070 0.0069 0.0070 0.0068 0.0067
+MCTS (playout = 200) 0.3807 0.4039 0.3798 0.3913 0.3919 0.3869
+DRL-MCTS (playout = 10) 0.0735 0.0631 0.0668 0.0594 0.0581 0.0580
+[12] P. Li and R. D. Murch, “Multiple output selection-LAS algorithm in
+large MIMO systems,” IEEE Commun. Lett. , vol. 14, no. 5, pp. 399–
+401, May 2010.
+[13] T. Datta, N. Srinidhi, A. Chockalingam, and B. S. Rajan, “Random-
+restart reactive tabu search algorithm for detection in large-MIMO
+systems,” IEEE Commun. Lett. , vol. 14, no. 12, pp. 1107–1109, Oct.
+2010.
+[14] Y . de Jong and T. Willink, “Iterative tree search detection for MIMO
+wireless systems,” IEEE Trans. Commun. , vol. 53, no. 6, pp. 930–935,
+Jun. 2005.
+[15] A. Okawado, R. Matsumoto, and T. Uyematsu, “Near ML detection
+using Dijkstra’s algorithm with bounded list size over MIMO channels,”
+in 2008 IEEE International Symposium on Inform. Theory , pp. 2022–
+2025, Jul. 2008.
+[16] R. Y . Chang and W.-H. Chung, “Best-ﬁrst tree search with probabilistic
+node ordering for MIMO detection: Generalization and performance-
+complexity tradeoff,” IEEE Trans. Wireless Commun. , vol. 11, no. 2,
+pp. 780–789, Feb. 2012.
+[17] R. Y . Chang, W.-H. Chung, and S.-J. Lin, “A* algorithm inspired
+memory-efﬁcient detection for MIMO systems,” IEEE Wireless Com-
+mun. Lett., vol. 1, no. 5, pp. 508–511, Jul. 2012.
+[18] R. Y . Chang, S.-J. Lin, and W.-H. Chung, “Efﬁcient implementation of
+the MIMO sphere detector: Architecture and complexity analysis,” IEEE
+Trans. Veh. Technol, vol. 61, no. 7, pp. 3289–3294, Jun. 2012.
+[19] J. Chen, C. Fei, H. Lu, G. E. Sobelman, and J. Hu, “Hardware efﬁcient
+massive MIMO detector based on the Monte Carlo tree search method,”
+IEEE Journal on Emerging and Selected Topics in Circuits and Systems,
+vol. 7, no. 4, pp. 523–533, Aug. 2017.
+[20] P. Som, T. Datta, A. Chockalingam, and B. S. Rajan, “Improved large-
+MIMO detection based on damped belief propagation,” in 2010 IEEE
+Information Theory Workshop on Information Theory (ITW 2010, Cairo),
+Jan. 2010, pp. 1–5.
+[21] J. Yang, C. Zhang, X. Liang, S. Xu, and X. You, “Improved symbol-
+based belief propagation detection for large-scale MIMO,” in 2015 IEEE
+Workshop on Signal Processing Systems (SiPS) , Oct. 2015.
+[22] J. Jalden and B. Ottersten, “The diversity order of the semideﬁnite
+relaxation detector,” IEEE Trans. Inf. Theory , vol. 54, no. 4, pp. 1406–
+1422, Mar. 2008.
+[23] C. Jeon, R. Ghods, A. Maleki, and C. Studer, “Optimality of large
+MIMO detection via approximate message passing,” in 2015 IEEE
+International Symposium on Information Theory (ISIT) , Jun. 2015, pp.
+1227–1231.
+[24] Q. Chen, S. Zhang, S. Xu, and S. Cao, “Efﬁcient MIMO detection with
+imperfect channel knowledge - a deep learning approach,” in 2019 IEEE
+Wireless Communications and Networking Conference (WCNC) , Apr.
+2019, pp. 1–6.
+[25] N. Samuel, T. Diskin, and A. Wiesel, “Learning to detect,” IEEE Trans.
+Signal Process., vol. 67, no. 10, pp. 2554–2564, May 2019.
+[26] V . Corlay, J. J. Boutros, P. Ciblat, and L. Brunel, “Multilevel MIMO
+detection with deep learning,” in 2018 52nd Asilomar Conference on
+Signals, Systems, and Computers , Oct. 2018, pp. 1805–1809.
+[27] A. Mohammad, C. Masouros, and Y . Andreopoulos, “Complexity-
+scalable neural-network-based MIMO detection with learnable weight
+scaling,” IEEE Trans. Commun , vol. 68, no. 10, pp. 6101–6113, 2020.
+[28] X. Jin and H. Kim, “Parallel deep learning detection network in the
+MIMO channel,” IEEE Commun. Lett. , vol. 24, no. 1, pp. 126–130,
+2020.
+[29] N. Shlezinger, R. Fu, and Y . C. Eldar, “DeepSIC: Deep soft interference
+cancellation for multiuser MIMO detection,” IEEE Trans. Wireless
+Commun. (Early Access) , 2020.
+[30] J. Sun, Y . Zhang, J. Xue, and Z. Xu, “Learning to search for MIMO
+detection,” IEEE Trans. Wireless Commun. , vol. 19, no. 11, pp. 7571–
+7584, Nov. 2020.
+[31] X. Tan, W. Xu, K. Sun, Y . Xu, Y . Be’ery, X. You, and C. Zhang,
+“Improving massive MIMO message passing detectors with deep neural
+network,” IEEE Trans. Veh. Technol. , vol. 69, no. 2, pp. 1267–1280,
+Dec. 2020.
+[32] H. He, C. Wen, S. Jin, and G. Y . Li, “A model-driven deep learning
+network for MIMO detection,” in 2018 IEEE Global Conference on
+Signal and Information Processing (GlobalSIP) , 2018, pp. 584–588.
+[33] C. B. Browne, E. Powle, D. Whitehouse, S. M. Lucas, P. I. Cowling,
+P. Rohlfshagen, S. Tavener, D. Perez, S. Samothrakis, and S. Colton,
+“A survey of Monte Carlo tree search methods,” IEEE Trans. Comput.
+Intell. AI in Games , vol. 4, no. 1, pp. 1–43, Mar. 2012.
+[34] D. Silver, J. Schrittwieser, K. Simonyan, I. Antonoglou, A. Huang,
+A. Guez, T. Hubert, L. Baker, M. Lai, A. Bolton, Y . Chen, T. Lillicrap,
+F. Hui, L. Sifre, G. van den Driessche, T. Graepel, and D. Hassabis,
+“Mastering the game of Go without human knowledge,” Nature, vol.
+550, pp. 354–359, Oct. 2017.
+[35] V . Konda and J. Tsitsiklis, “Actor-critic algorithms,” in SIAM Journal
+on Control and Optimization . MIT Press, 2000, pp. 1008–1014.
+[36] V . Mnih, A. P. Badia, M. Mirza, A. Graves, T. P. Lillicrap, T. Harley,
+D. Silver, and K. Kavukcuoglu, “Asynchronous methods for deep
+reinforcement learning,” CoRR, vol. abs/1602.01783, 2016. [Online].
+Available: http://arxiv.org/abs/1602.01783
+[37] Y .-S. Jeon, N. Lee, and H. V . Poor, “Robust data detection for MIMO
+systems with one-bit ADCs: A reinforcement learning approach,” IEEE
+Trans. Wireless Commun., vol. 19, no. 3, pp. 1663–1676, Mar. 2020.
+=== PAGE BREAK ===
