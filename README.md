@@ -1,163 +1,137 @@
-﻿# RL4EQ — Transformer-A2C-KPG: 在线信道均衡
+# RL4EQ — 基于强化学习的在线自适应信道均衡
 
-## 项目概述
+将通信接收机建模为一个**强化学习智能体**，利用帧结构中已知的训练序列和导频作为即时奖励锚点，在时变信道上逐符号交互，实现在线自适应均衡。
 
-将通信接收机建模为一个**强化学习智能体**，利用帧结构中已知的训练序列和导频作为即时奖励锚点，在信道上逐符号交互，实现**在线自适应均衡**。
+## 项目概况
+
+### 研究目标
+
+在**不依赖离线大量训练**、**信道可能时变**的条件下，接收端直接从接收符号流中恢复数据比特，使系统能够边工作边学习，持续适应信道变化。
 
 ### 核心创新
 
-**Transformer + A2C-KPG (Known-only Policy Gradient)** — 用 Transformer 自注意力替代 LSTM 循环结构，捕获更长距离的符号间干扰 (ISI) 依赖关系。
+- **A2C-KPG（已知位策略梯度）**：仅训练序列和导频位提供奖励信号，数据位通过共享网络参数间接学习
+- **Transformer Actor-Critic**：自注意力替代 LSTM，捕获整帧（512符号）长距离 ISI 依赖
+- **PPO+GAE 在线学习**：PPO-Clip 约束策略更新步长 + GAE 传播稀疏导频奖励 + 优势归一化
 
-| 组件 | LSTM 版本 | **Transformer 版本 (本方案)** |
-|------|----------|---------------------------|
-| 时序建模 | LSTM 压缩为隐状态 | **自注意力直接关联帧内任意位置** |
-| 长距离依赖 | 梯度消失，有效窗口~50 | **全帧 512 位置直接可达** |
-| 训练并行度 | 串行 (逐时间步) | **整帧并行处理** |
-| 参数量 | 93,378 | **111,234** (+19%) |
-| 最佳 known_acc (200帧) | 0.926 | **0.996** (+7.6%) |
-| 最终 BER (200帧) | 0.222 | **0.033** (6.7倍提升) |
+## 算法路线
 
-## 算法详解
+### 路线 A：A2C-KPG（原始）
 
-### 为什么用 Transformer 替代 LSTM？
-
-LSTM 以循环方式处理序列，每个时间步的信息需要经过门控压缩到隐状态中。对于 16 抽头信道的长 ISI 场景，LSTM 的有效记忆窗口有限。
-
-Transformer 的自注意力机制让每个位置**直接关注帧内任意其他位置**，非常适合捕获 ISI 这种多符号之间的相关性。P-FTNet 论文也使用 4 层 Transformer 作为核心架构。
-
-### 网络架构
-
+三阶段训练演进：
 ```
-输入状态 s_t (45 维: 接收窗 42 + 位置编码 3)
-    │
-    ├─ Linear(45→64) + LayerNorm    ← 输入投影
-    │
-    ├─ + 学习式位置编码 (max 512)    ← 保持时序位置信息
-    │
-    ├─ TransformerEncoder × 2 层     ← 自注意力核心
-    │   ├─ 多头自注意力 (4 头, 64 维)
-    │   └─ FFN (64→128→64, ReLU)
-    │
-    ├── Actor 头:
-    │   └─ Linear(64→64, ReLU) → Linear(64→1) → Sigmoid
-    │      输出 p(a_t=1) ∈ (0,1)
-    │
-    └── Critic 头:
-        └─ Linear(64→64, ReLU) → Linear(64→1)
-           输出 V(s_t) ∈ ℝ
-
-参数量: 111,234
+SUP [1-10帧] → MIX [11-30帧] → RL [31+帧]
+纯BCE监督        RL+BCE混合      纯A2C在线学习
 ```
 
-### 与 P-FTNet 的对应关系
+`online_train.py --algo a2c`
 
-| P-FTNet 组件 | 本方案对应 |
-|-------------|-----------|
-| 4 层 Transformer 编码器 | 2 层 (轻量化, 在线适用) |
-| 128 维特征空间 | 64 维 |
-| PilotNet (导频辅助) | **A2C-KPG 已知位奖励 + BCE 监督** |
-| 批量训练 256, 30 epochs | 在线帧级更新, 逐帧适应 |
-| SNR 范围: -2 ~ 10 dB | **同 P-FTNet, 测试 -2, 0, 5, 10 dB** |
+### 路线 B：PPO+GAE（推荐，更优）
 
-### 状态空间 (45 维, K=10)
-
+每帧独立 PPO-Clip 更新 + GAE 优势估计：
 ```
-s_t = [y_{t-10:t+10} I/Q (2×21=42 维) | m_t one-hot (3 维)]
+GAE(λ=0.95) 传播稀疏奖励 → 优势归一化 → PPO-Clip(ε=0.2) → KL早停
 ```
 
-减小 K 值到 10 (原 LSTM 版 K=15) 的原因: Transformer 的自注意力已能捕获全局依赖，局部窗口只需覆盖时延扩展即可。
+`online_train.py --algo ppo`
 
-## 实验结果
+关键改进项对比：
 
-### 200 帧训练 (16 抽头瑞利, 10dB SNR)
+| 维度 | A2C-KPG | PPO+GAE |
+|------|---------|---------|
+| 优势估计 | MC回报 G_t 或单步TD | GAE(λ=0.95) 多步加权 |
+| 策略更新 | 无约束，可能一步破坏 | clip(ρ, 1-ε, 1+ε) |
+| 数据效率 | 每帧1 epoch | 每帧K=4~8 epoch |
+| KL控制 | 无 | KL早停 |
+| 梯度平衡 | 无 | 优势归一化 |
 
-```
-[   1/200] [SUP] known_acc=0.461  BER=0.508
-[  30/200] [MIX] known_acc=0.902  BER=0.117
-[ 100/200] [ RL] known_acc=0.961  BER=0.039
-[ 200/200] [ RL] known_acc=0.988  BER=0.039
+### 路线 C：LDPC 编码增强
 
-最后 40 帧 known_acc avg: 0.977  (LSTM: 0.865)
-最佳 known_acc:           0.996  (LSTM: 0.926)
-最后 40 帧 BER:           0.033  (LSTM: 0.222)
-```
+数据段承载 (256,128) LDPC 码字 → RL 均衡后对数域 BP 解码 → 进一步降低 BER。
 
-### 与 LSTM 版本的对比
+`python online_train_ldpc.py`
 
-| 指标 | LSTM (200帧) | Transformer (200帧) | 提升 |
-|------|-------------|-------------------|------|
-| 最佳 known_acc | 0.926 | **0.996** | +7.6% |
-| 最后 40 帧 avg known_acc | 0.865 | **0.977** | +12.9% |
-| 最后 40 帧 BER | 0.222 | **0.033** | **6.7 倍** |
-| 第一帧 known_acc | 0.504 | 0.461 | 略低 (随机初始化) |
-| 收敛速度 (到 0.9+) | ~120 帧 | ~30 帧 (MIX 阶段) | **4 倍** |
-| 参数量 | 93,378 | 111,234 | +19% |
-| 每帧训练时间 | ~1.1s | ~2.8s | 2.5 倍 (自注意力开销) |
+## 最新训练结果
 
-**关键观察**：
-- Transformer 收敛速度是 LSTM 的 **4 倍** (30 帧 vs 120 帧到达 0.9)
-- 最终 BER 降低 **6.7 倍** (0.033 vs 0.222)
-- 在 16 抽头、时延扩展 10 的 P-FTNet 信道上，Transformer 的自注意力机制显著优于 LSTM 的循环压缩
-
-### 与 MMSE 对比 (同信道, 不同 SNR)
-
-| SNR | MMSE BER | Transformer-A2C BER | 胜者 |
-|-----|----------|--------------------|------|
-| 5dB | ~0.51 | ~0.50 | 接近 |
-| 10dB | ~0.50 | ~0.50 | 接近 |
-| 15dB | ~0.52 | **~0.46** | **RL** |
-
-MMSE 在 16 抽头强 ISI 信道上性能接近随机猜测，RL 通过在线学习获得实质提升。
-
-### P-FTNet 范围 SNR 测试 (同信道)
-
-| SNR | BER |
-|-----|-----|
-| -2 dB | 0.436 |
-| 0 dB | 0.707 |
-| 5 dB | 0.502 |
-| 10 dB | 0.365 |
-
-## 训练流程 (三阶段)
-
-```
-阶段 1 [帧 1-10]: 纯监督预热
-   policy_coef=0.0, sup_weight=5.0
-   损失: L = 5.0 × BCE(已知位)
-   目标: 学习 ISI 模式
-
-阶段 2 [帧 11-30]: 混合训练
-   policy_coef=0.3, sup_weight=3.0
-   损失: 0.3×L_pol + 0.5×L_val - 0.01×H + 3.0×L_BCE
-   目标: 平滑引入 RL 信号
-
-阶段 3 [帧 31+]: 全 A2C 在线学习
-   policy_coef=1.0, sup_weight=1.0
-   损失: 1.0×L_pol + 0.5×L_val - 0.01×H + 1.0×L_BCE
-   目标: 持续适应信道
-```
-
-### 关键机制
-
-- **多帧缓冲**: 5 帧滑动窗口，消除相邻帧梯度冲突导致的灾难性遗忘
-- **因果掩码**: Transformer 使用上三角掩码，确保只能看到过去和当前状态
-- **滑动窗口推理**: 推理时只维护最近 128 个状态作为 Transformer 上下文，控制 O(T²) 复杂度
+| 算法 | SNR | 参数量 | 帧数 | Best BER | BER < 0.01 |
+|------|-----|--------|------|----------|------------|
+| **PPO+GAE** | **10 dB** | **111K** | **500** | **0.00586** | ✅ |
+| **PPO+GAE** | **5 dB** | **486K** | **500** | **0.00781** | ✅ |
+| PPO+GAE | 5 dB | 111K | 1000 | 0.01367 | ❌ |
+| A2C-KPG | 10 dB | 111K | 200 | ~0.033 | — |
+| A2C-LSTM（历史对比） | 10 dB | 93K | 200 | ~0.222 | — |
 
 ## 项目结构
 
 ```
-D:\Research\RL4EQ\
-├── env/
-│   ├── channel_models.py     # P-FTNet 16 抽头瑞利信道
-│   ├── frame_structure.py    # 512 符号帧结构 (P-FTNet)
-│   └── comm_env.py           # Gym 风格通信环境 (K=10, 45维状态)
-├── agent/
-│   ├── actor_critic.py       # Transformer Actor-Critic (111K 参数)
-│   └── a2c.py                # A2C-KPG 算法 (Transformer 版)
-├── reference/                # P-FTNet 论文及参考文献
-├── online_train.py           # 训练入口 (三阶段 + MMSE 对比 + P-FTNet SNR)
-└── README.md                 # 本文件
+RL4EQ/
+├── env/                          # 通信环境
+│   ├── channel_models.py         # 16抽头瑞利多径信道（频率选择性，时延扩展=10）
+│   ├── frame_structure.py        # 帧结构：|训练(128)|导频(64)|数据(128)|导频(64)|数据(128)|
+│   ├── comm_env.py               # Gym风格环境：45维状态（接收窗42+位置编码3）
+│   └── ldpc_coding.py            # (3,6)-规则 LDPC (256,128)，对数域 BP 解码
+│
+├── agent/                        # RL 智能体
+│   ├── actor_critic.py           # Transformer编码器 (2层,4头,64维) + Actor头 + Critic头
+│   ├── a2c.py                    # A2C-KPG 算法（独立实现）
+│   └── ppo.py                    # PPO+GAE 训练器（GAE计算、PPO-Clip、KL早停、优势归一化）
+│
+├── online_train.py               # 主训练入口（PPO/A2C 双模式，MMSE对比，SNR扫描）
+├── online_train_ldpc.py          # LDPC 编码版训练入口（含 BP 解码后 BER 评估）
+├── BER_IMPROVEMENT_ANALYSIS.py   # BER 改进方案分析文档
+│
+├── utils/
+│   ├── metrics.py                # SER/BER 计算
+│   ├── complex_ops.py            # I/Q ↔ 复数转换
+│   └── matplotlib_zh.py          # 中文绘图配置
+│
+├── reference/                    # 参考文献（24篇 RL for 通信/在线学习论文）
+│   └── rl-design.md              # On-Policy RL 信道均衡设计方案
+│
+├── configs/
+│   └── default.yaml              # 配置模板
+│
+└── logs/                         # 训练可视化
 ```
+
+## 核心设计
+
+### 状态空间（45维）
+
+```
+s_t = [ y_{t-K:t+K} I/Q (2×(2K+1)=42) | m_t one-hot (3=训练/导频/数据) ]
+```
+
+K=10 的接收窗覆盖 ISI 扩展范围 + one-hot 帧内位置指示。
+
+### 网络架构
+
+```
+输入 s_t (45维)
+  → Linear(45→64) + LayerNorm
+  → + 学习式位置编码 (max 512)
+  → TransformerEncoder × 2层（因果掩码，4头，d_model=64，FFN=128）
+  → Actor头：Linear(64→ReLU→1) → Sigmoid → p(a=1)
+  → Critic头：Linear(64→ReLU→1) → V(s)
+```
+
+参数量：111,234（小网络）/ 485,762（大网络，d_model=128, 3层）
+
+### 奖励函数
+
+```
+r_t = +1 正确判决（训练/导频段）
+r_t = -1 错误判决（训练/导频段）
+r_t =  0 数据段（无标签，通过价值自举传播信号）
+```
+
+### 知训序列与导频角色
+
+| 组件 | 作用 | 说明 |
+|------|------|------|
+| 训练序列（帧头128） | 冷启动 | 首帧行为克隆预训练让策略初步生效 |
+| 导频（2×64） | 奖励锚点 | 价值函数将正确判决信号沿时间轴传播到数据段 |
+| 数据段（2×128） | 盲恢复 | 依靠策略泛化和价值自举进行无监督学习 |
 
 ## 使用命令
 
@@ -165,27 +139,43 @@ D:\Research\RL4EQ\
 conda activate RL4EQ
 cd D:\Research\RL4EQ
 
-# 完整训练 200 帧 + MMSE 对比 + P-FTNet SNR 测试
-python online_train.py
+# PPO 训练（推荐）
+python online_train.py --algo ppo --snr 10 --num_frames 500
 
-# 自定义 SNR
-python online_train.py --snr 5
+# A2C 对比
+python online_train.py --algo a2c --snr 10 --num_frames 200
 
-# 快速测试
-python online_train.py --num_frames 50
+# LDPC 编码训练
+python online_train_ldpc.py --snr 10 --num_frames 200
 
 # 模块自测
 python env/channel_models.py
 python env/frame_structure.py
 python env/comm_env.py
 python agent/actor_critic.py
-python -c "import sys; sys.path.insert(0,'.'); from agent.a2c import test_a2c; test_a2c()"
+
+# PPO 模块测试（需从项目根运行）
+python -c "import sys; sys.path.insert(0,'.'); from agent.ppo import test_gae, test_ppo; test_gae(); test_ppo()"
 ```
 
-## 环境依赖
+## 关键参数
 
-- Python 3.12
-- PyTorch 2.x
-- NumPy
-- Matplotlib (可选)
-- SciPy (MMSE 计算)
+| 配置项 | 值 |
+|--------|------|
+| 帧长 | 512 符号 |
+| 已知位 | 256（50%：训练128 + 导频×2 64） |
+| 信道抽头 | 16抽头瑞利，指数衰减PDP |
+| 时延扩展 | 10 符号 |
+| 状态维度 | 45（窗长 K=10） |
+| Transformer | 2层，4头，d_model=64，FFN=128 |
+| 参数量 | 111,234 / 485,762 |
+| 优化器 | Adam, lr=3e-4 |
+| PPO γ/λ/ε | 0.95 / 0.95 / 0.2 |
+| 每帧 PPO epoch | 4~8 |
+| MMSE 基线 | ~50% BER（16抽头信道） |
+
+## 参考文献
+
+主要技术参考：P-FTNet 论文（`reference/` 目录内 PDF）以及 24 篇 RL for Communication 相关文献（详见 `reference/README.md`）。
+
+更详细的设计文档请参见 `reference/rl-design.md`。
