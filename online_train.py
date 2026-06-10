@@ -14,11 +14,12 @@ RL4EQ — PPO 在线信道均衡主程序
   5. 多 epoch 数据复用 (K=4) — 每帧数据利用更充分
 
 用法:
-  python online_train.py                     # 默认 200 帧, 10dB
+  python online_train.py                     # 默认 200 帧, 10dB, PPO
   python online_train.py --snr 5             # 自定义 SNR
   python online_train.py --num_frames 200    # 自定义帧数
   python online_train.py --algo ppo          # PPO 算法
   python online_train.py --algo a2c          # 对比 A2C
+  python online_train.py --ldpc              # 数据段使用 LDPC(256,128) 编码
 """
 
 import sys, time, os, argparse
@@ -34,6 +35,17 @@ from env.channel_models import RayleighMultipathChannel
 from env.comm_env import CommunicationEnv, EnvConfig
 from agent.actor_critic import ActorCritic, TransformerConfig
 from agent.ppo import PPOTrainer
+
+
+# ─── LDPC 支持 ─────────────────────────────────────
+
+def _maybe_import_ldpc():
+    """延迟导入 LDPC 模块（仅 --ldpc 时加载）。"""
+    try:
+        from env.ldpc_coding import LDPC
+        return LDPC
+    except ImportError:
+        return None
 
 
 # ─── 配置 ────────────────────────────────────────────
@@ -86,6 +98,11 @@ class TrainConfig:
 
         # 训练模式
         self.sup_weight = 1.0
+        self.use_ldpc = getattr(args, 'ldpc', False)
+
+        # LDPC 参数（仅 --ldpc 时使用）
+        self.ldpc_n = 256
+        self.ldpc_k = 128
 
 
 # ─── 智能体 ──────────────────────────────────────────
@@ -214,6 +231,7 @@ def main():
     parser.add_argument("--num_frames", type=int, default=200)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--algo", type=str, default="ppo", choices=["a2c", "ppo"])
+    parser.add_argument("--ldpc", action="store_true", help="数据段使用 LDPC(256,128) 编码")
     args = parser.parse_args()
 
     cfg = TrainConfig(args)
@@ -237,7 +255,7 @@ def main():
     params = sum(p.numel() for p in agent.ac.parameters())
     print(f"  Params: {params}")
 
-    # 环境
+    # 环境（在 LDPC 初始化之前创建）
     base_env = CommunicationEnv(EnvConfig(
         frame=FrameConfig(frame_len=cfg.frame_len, train_len=cfg.train_len,
                           pilot_len=cfg.pilot_len, num_pilots=cfg.num_pilots),
@@ -247,6 +265,28 @@ def main():
     ))
     base_env.reset()
     fixed_taps = base_env.channel._taps.clone()
+
+    # LDPC 初始化（如果启用）
+    ldpc = None
+    all_dec_ber = None
+    if cfg.use_ldpc:
+        LDPC = _maybe_import_ldpc()
+        if LDPC is None:
+            print("  WARNING: LDPC 模块未找到，跳过 LDPC 编码")
+            cfg.use_ldpc = False
+        else:
+            ldpc = LDPC(n=cfg.ldpc_n, k=cfg.ldpc_k)
+            all_dec_ber = []
+            pilot_starts = base_env.frame_cfg.pilot_positions
+            dp1_start = pilot_starts[0] + base_env.frame_cfg.pilot_len
+            dp1_end = pilot_starts[1]
+            dp2_start = pilot_starts[1] + base_env.frame_cfg.pilot_len
+            dp2_end = base_env.frame_cfg.frame_len
+            data_indices = list(range(dp1_start, dp1_end)) + list(range(dp2_start, dp2_end))
+            data_tensor = torch.tensor(data_indices, dtype=torch.long)
+            ldpc_rng = np.random.default_rng(cfg.seed + 100)
+            print(f"  LDPC: ({cfg.ldpc_n},{cfg.ldpc_k})")
+    print()
 
     all_known_accs = []
     all_ber = []
@@ -267,9 +307,25 @@ def main():
         else:
             phase = "PPO"; pcoef = 1.0; sweight = 0.0; det = False
 
-        # 重置环境 (固定信道)
+        # 重置环境
         base_env.channel.set_taps(fixed_taps)
-        base_env._bits = base_env.frame_gen.generate(base_env._rng)
+
+        if cfg.use_ldpc and ldpc is not None:
+            # LDPC 编码帧
+            original_data = ldpc_rng.integers(0, 2, size=ldpc.k).astype(np.int8)
+            coded_data = ldpc.encode(original_data)
+            bits = np.random.default_rng().integers(0, 2, size=cfg.frame_len).astype(np.float32)
+            pilot_starts = base_env.frame_cfg.pilot_positions
+            dp1_start = pilot_starts[0] + cfg.pilot_len;
+            dp1_end = pilot_starts[1]
+            dp2_start = pilot_starts[1] + cfg.pilot_len;
+            dp2_end = cfg.frame_len
+            bits[dp1_start:dp1_end] = coded_data[0:dp1_end-dp1_start].astype(np.float32)
+            bits[dp2_start:dp2_end] = coded_data[dp1_end-dp1_start:dp1_end-dp1_start+dp2_end-dp2_start].astype(np.float32)
+            base_env._bits = torch.from_numpy(bits)
+        else:
+            base_env._bits = base_env.frame_gen.generate(base_env._rng)
+
         base_env._tx_symbols = base_env.frame_gen.modulate(base_env._bits)
         base_env._rx_symbols = base_env.channel.convolve(base_env._tx_symbols)
         base_env._rx_symbols = base_env.channel.add_awgn(base_env._rx_symbols)
@@ -323,6 +379,17 @@ def main():
         all_known_accs.append(known_acc)
         all_ber.append(ber)
 
+        # LDPC 解码 BER（如果启用）
+        if cfg.use_ldpc and ldpc is not None:
+            coded_probs = probs.squeeze(-1)[data_tensor.to(device)]
+            coded_preds = (coded_probs > 0.5).float()
+            coded_true = true_bits[data_tensor.to(device)]
+            coded_ber = (coded_preds != coded_true).float().mean().item()
+            llr = ldpc.soft_to_llr(coded_probs.cpu().numpy())
+            decoded = ldpc.decode(llr, max_iter=50)
+            dec_ber = float(np.mean(decoded[:cfg.ldpc_k] != original_data[:cfg.ldpc_k]))
+            all_dec_ber.append(dec_ber)
+
         # 追踪最佳 BER 和持续低 BER 帧数
         if ber < best_ber:
             best_ber = ber
@@ -335,11 +402,13 @@ def main():
             elapsed = time.time() - t_start
             avg_ka = np.mean(all_known_accs[-cfg.log_interval:])
             avg_ber = np.mean(all_ber[-cfg.log_interval:])
-            print(f"  [{fi:4d}/{cfg.num_frames}] [{phase}]"
-                  f" known_acc={known_acc:.3f}(avg={avg_ka:.3f})"
-                  f" BER={ber:.5f}(avg={avg_ber:.5f})"
-                  f" best={best_ber:.5f}"
-                  f" ({elapsed:.1f}s)")
+            msg = (f"  [{fi:4d}/{cfg.num_frames}] [{phase}]"
+                   f" known_acc={known_acc:.3f}(avg={avg_ka:.3f})"
+                   f" BER={ber:.5f}(avg={avg_ber:.5f})"
+                   f" best={best_ber:.5f}"
+                   f" ({elapsed:.1f}s)")
+            if cfg.use_ldpc and ldpc is not None and all_dec_ber:
+                msg += f" dec_BER={np.mean(all_dec_ber[-cfg.log_interval:]):.4f}"
 
         # 目标达成: BER < 0.01 持续 10 帧
         if low_ber_frames >= 10:
@@ -356,6 +425,9 @@ def main():
     print(f"  Best BER: {best_ber:.5f}")
     print(f"  Final avg BER (last 20): {final_ber:.5f}")
     print(f"  Final avg Known-Acc (last 20): {final_ka:.3f}")
+    if cfg.use_ldpc and ldpc is not None and all_dec_ber:
+        final_dber = np.mean(all_dec_ber[-20:])
+        print(f"  Final avg decoded_BER (LDPC, last 20): {final_dber:.5f}")
     ok_str = "OK" if best_ber < 0.01 else "FAIL"
     print(f"  BER < 0.01 target: [{ok_str}] (best={best_ber:.5f})")
     print(f"{'=' * 65}")
