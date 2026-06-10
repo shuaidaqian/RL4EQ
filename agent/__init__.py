@@ -1,3 +1,0 @@
-# -*- coding: utf-8 -*-
-# RL agent package for RL4EQ
-# ??????: Actor-Critic ?? + A2C ??

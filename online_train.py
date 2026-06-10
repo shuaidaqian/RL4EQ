@@ -89,8 +89,9 @@ class TrainConfig:
         # PPO 专用
         self.lam = 0.95
         self.clip_eps = 0.2
-        self.k_epochs = 4
-        self.kl_threshold = 0.01
+        self.k_epochs = 8
+        self.kl_threshold_init = 0.05  # 初始KL阈值（宽松）
+        self.kl_threshold_final = 0.01 # 最终KL阈值（收紧）
 
         # A2C 专用
         self.sup_end = 10
@@ -199,7 +200,7 @@ class Agent:
         nn.utils.clip_grad_norm_(self.ac.parameters(), c.max_grad_norm)
         self.optimizer.step()
 
-    def train_ppo(self, tb):
+    def train_ppo(self, tb, kl_threshold):
         """PPO + GAE 更新 (使用帧缓冲中所有帧)。"""
         for frame in tb:
             self.ppo_trainer.train_on_trajectory(
@@ -209,9 +210,8 @@ class Agent:
                 rewards=frame["rewards"],
                 values=frame["values"],
                 dones=frame["dones"],
-                known_mask=frame["known_mask"],
                 k_epochs=self.cfg.k_epochs,
-                kl_threshold=self.cfg.kl_threshold,
+                kl_threshold=kl_threshold,
             )
 
 
@@ -307,6 +307,10 @@ def main():
         else:
             phase = "PPO"; pcoef = 1.0; sweight = 0.0; det = False
 
+        # KL 阈值线性退火：初始宽松 → 后期收紧
+        kl_ratio = (fi - 1) / max(cfg.num_frames - 1, 1)
+        kl_threshold = (cfg.kl_threshold_init - cfg.kl_threshold_final) * (1.0 - kl_ratio) + cfg.kl_threshold_final
+
         # 重置环境
         base_env.channel.set_taps(fixed_taps)
 
@@ -369,8 +373,8 @@ def main():
             if len(agent.frame_buffer) >= 3:
                 agent.train_a2c(agent.frame_buffer, pcoef, sweight)
         else:
-            # PPO: 每帧都用当前数据训练
-            agent.train_ppo([traj])
+            # PPO: 单帧训练（PPO 的 ratio 机制要求旧数据来自当前策略）
+            agent.train_ppo([traj], kl_threshold)
 
         # 评估
         preds = (probs.squeeze(-1) > 0.5).float()
