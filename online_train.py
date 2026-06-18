@@ -232,6 +232,9 @@ def main():
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--algo", type=str, default="ppo", choices=["a2c", "ppo"])
     parser.add_argument("--ldpc", action="store_true", help="数据段使用 LDPC(256,128) 编码")
+    parser.add_argument("--eval", action="store_true", help="训练完成后执行基线对比评估并绘图")
+    parser.add_argument("--finetune", type=str, default=None,
+                        help="加载预训练权重路径")
     args = parser.parse_args()
 
     cfg = TrainConfig(args)
@@ -254,8 +257,15 @@ def main():
     agent = Agent(cfg, device)
     params = sum(p.numel() for p in agent.ac.parameters())
     print(f"  Params: {params}")
+    if args.finetune:
+        ckpt = torch.load(args.finetune, map_location=device, weights_only=True)
+        agent.ac.load_state_dict(ckpt, strict=False)
+        print(f"  Loaded pretrained weights from {args.finetune}")
+        # 预训练后微调：原来需要 500 帧，现在减半
+        if cfg.num_frames == 200:
+            cfg.num_frames = 100
 
-    # 环境（在 LDPC 初始化之前创建）
+    # 环境
     base_env = CommunicationEnv(EnvConfig(
         frame=FrameConfig(frame_len=cfg.frame_len, train_len=cfg.train_len,
                           pilot_len=cfg.pilot_len, num_pilots=cfg.num_pilots),
