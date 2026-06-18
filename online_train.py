@@ -36,6 +36,14 @@ from env.comm_env import CommunicationEnv, EnvConfig
 from agent.actor_critic import ActorCritic, TransformerConfig
 from agent.ppo import PPOTrainer
 
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    HAS_MPL = True
+except ImportError:
+    HAS_MPL = False
+
 
 # ─── LDPC 支持 ─────────────────────────────────────
 
@@ -221,6 +229,154 @@ class Agent:
 def eval_ber(probs, true_bits):
     preds = (probs.squeeze(-1) > 0.5).float()
     return (preds != true_bits).float().mean().item()
+
+
+# ─── 基线对比与绘图 ────────────────────────────────
+
+def eval_and_plot(agent, cfg, device, base_env, fixed_taps):
+    """训练完成后执行基线对比评估并生成可视化图像。"""
+    from utils.baselines import run_baselines
+
+    snr_points = [0, 2, 5, 8, 10, 12, 15]
+    results = {"SNR": [], "RL": [], "MMSE": [], "DFE": []}
+
+    print("\n" + "=" * 65)
+    print("  基线对比评估 (BER vs SNR)")
+    print("=" * 65)
+
+    for snr in snr_points:
+        base_env.set_snr(snr)
+        base_env.channel.set_taps(fixed_taps)
+        base_env._bits = base_env.frame_gen.generate(base_env._rng)
+        base_env._tx_symbols = base_env.frame_gen.modulate(base_env._bits)
+        base_env._rx_symbols = base_env.channel.convolve(base_env._tx_symbols)
+        base_env._rx_symbols = base_env.channel.add_awgn(base_env._rx_symbols)
+
+        states = base_env.get_all_states().to(device)
+        probs, _, _ = agent.batch_act(states)
+        true_bits = base_env.get_true_bits().to(device)
+        rl_ber = eval_ber(probs, true_bits)
+
+        baselines = run_baselines(
+            base_env.get_rx_symbols(), base_env.get_true_bits().cpu(),
+            fixed_taps.cpu(), cfg.window_K, cfg.num_taps, snr,
+        )
+
+        results["SNR"].append(snr)
+        results["RL"].append(rl_ber)
+        results["MMSE"].append(baselines["MMSE"])
+        results["DFE"].append(baselines["DFE"])
+        print(f"  SNR={snr:3d}dB | RL={rl_ber:.5f} | MMSE={baselines['MMSE']:.5f} | DFE={baselines['DFE']:.5f}")
+
+    base_env.set_snr(cfg.snr_db)
+
+    if HAS_MPL:
+        save_dir = "logs"
+        os.makedirs(save_dir, exist_ok=True)
+
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+        ax = axes[0]
+        colors = {"RL": "#1565C0", "MMSE": "#E53935", "DFE": "#F9A825"}
+        markers = {"RL": "o-", "MMSE": "s--", "DFE": "d-."}
+        for method in ["MMSE", "DFE", "RL"]:
+            ax.semilogy(results["SNR"], results[method], markers[method],
+                        color=colors[method], label=method, linewidth=1.5, markersize=6)
+        ax.axhline(0.01, color="gray", ls=":", alpha=0.5, label="BER=0.01")
+        ax.set_xlabel("SNR (dB)")
+        ax.set_ylabel("BER")
+        ax.set_title("BER vs SNR Comparison")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_ylim(1e-3, 0.6)
+
+        ax = axes[1]
+        gains_mmse = [np.log10(b / r) if r > 1e-6 else 3.0 for b, r in zip(results["MMSE"], results["RL"])]
+        gains_dfe = [np.log10(b / r) if r > 1e-6 else 3.0 for b, r in zip(results["DFE"], results["RL"])]
+        x = np.arange(len(snr_points))
+        w = 0.3
+        ax.bar(x - w / 2, gains_mmse, w, label="RL vs MMSE", color=colors["MMSE"], alpha=0.7)
+        ax.bar(x + w / 2, gains_dfe, w, label="RL vs DFE", color=colors["DFE"], alpha=0.7)
+        ax.axhline(0, color="gray", ls="-", lw=0.5)
+        ax.set_xlabel("SNR (dB)")
+        ax.set_ylabel("BER Reduction (log10)")
+        ax.set_title("RL Improvement over Baselines")
+        ax.set_xticks(x)
+        ax.set_xticklabels([str(s) for s in snr_points])
+        ax.legend()
+        ax.grid(True, alpha=0.3, axis="y")
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, "baseline_comparison.png"), dpi=150, bbox_inches="tight")
+        print(f"  Baseline comparison saved to {save_dir}/baseline_comparison.png")
+        plt.close()
+
+    return results
+
+
+# ─── 可视化 ──────────────────────────────────────────
+
+def save_training_plots(all_known_accs, all_ber, cfg, save_dir="logs"):
+    """保存训练曲线（known_acc 和 BER）到 PNG。"""
+    if not HAS_MPL:
+        print("  Warning: matplotlib not available, skip plotting")
+        return
+    os.makedirs(save_dir, exist_ok=True)
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+    frames = np.arange(1, len(all_known_accs) + 1)
+
+    def smooth(data, w=11):
+        return np.convolve(data, np.ones(w) / w, mode="valid") if len(data) >= w else data
+
+    ax1.plot(frames, all_known_accs, alpha=0.3, color="#2196F3", lw=0.8, label="Raw")
+    if len(all_known_accs) >= 11:
+        sk = smooth(all_known_accs, 11)
+        ax1.plot(np.arange(11, len(all_known_accs) + 1), sk, color="#1565C0", lw=2, label="Smooth(w=11)")
+    ax1.axhline(0.9, color="#4CAF50", ls="--", alpha=0.5, label="Known-Acc=0.9")
+    ax1.set_ylabel("Known-Acc")
+    ax1.set_title(f"Training Curve ({cfg.algo.upper()}, SNR={cfg.snr_db}dB)")
+    ax1.legend(loc="lower right")
+    ax1.grid(True, alpha=0.3)
+    ax1.set_ylim(0, 1.05)
+
+    ax2.plot(frames, all_ber, alpha=0.3, color="#F44336", lw=0.8, label="Raw")
+    if len(all_ber) >= 11:
+        sb = smooth(all_ber, 11)
+        ax2.plot(np.arange(11, len(all_ber) + 1), sb, color="#C62828", lw=2, label="Smooth(w=11)")
+    ax2.axhline(0.01, color="#4CAF50", ls="--", alpha=0.5, label="BER=0.01")
+    ax2.axhline(0.5, color="#FF9800", ls=":", alpha=0.5, label="Random")
+    ax2.set_xlabel("Frame")
+    ax2.set_ylabel("BER")
+    ax2.set_yscale("log")
+    ax2.set_ylim(1e-3, 0.6)
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "training_curve.png"), dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  Training curve saved to {save_dir}/training_curve.png")
+
+    # BER 放大版
+    fig2, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(frames, all_ber, color="#1565C0", lw=1, label=f"{cfg.algo.upper()} BER")
+    ax.axhline(0.01, color="#4CAF50", ls="--", lw=1, alpha=0.7, label="Target (BER=0.01)")
+    ax.axhline(0.5, color="#FF9800", ls=":", lw=1, alpha=0.5, label="Random (BER=0.5)")
+    best_idx = np.argmin(all_ber)
+    ax.scatter(best_idx + 1, all_ber[best_idx], color="#E53935", s=50, zorder=5,
+               label=f"Best={all_ber[best_idx]:.5f}")
+    ax.set_xlabel("Frame")
+    ax.set_ylabel("BER")
+    ax.set_title(f"BER Progress (SNR={cfg.snr_db}dB)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    ax.set_yscale("log")
+    ax.set_ylim(1e-3, 0.6)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "ber_progress.png"), dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  BER progress saved to {save_dir}/ber_progress.png")
 
 
 # ─── 主程序 ──────────────────────────────────────────
@@ -445,6 +601,13 @@ def main():
     ok_str = "OK" if best_ber < 0.01 else "FAIL"
     print(f"  BER < 0.01 target: [{ok_str}] (best={best_ber:.5f})")
     print(f"{'=' * 65}")
+
+    # 保存训练曲线
+    save_training_plots(all_known_accs, all_ber, cfg)
+
+    # 基线对比评估
+    if hasattr(args, 'eval') and args.eval:
+        eval_and_plot(agent, cfg, device, base_env, fixed_taps)
 
     return final_ka, best_ber
 
