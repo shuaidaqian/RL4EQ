@@ -90,7 +90,7 @@ class PPOTrainer:
         surr2 = torch.clamp(ratios, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * advantages
         policy_loss = -torch.min(surr1, surr2).mean()
 
-        value_loss = F.mse_loss(values, returns)
+        value_loss = F.mse_loss(values.view(-1), returns.view(-1))
         entropy_loss = -entropy.mean()
         total_loss = policy_loss + self.value_coef * value_loss + self.ent_coef * entropy_loss
 

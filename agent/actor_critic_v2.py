@@ -106,7 +106,7 @@ class ActorCritic(nn.Module):
             self._causal_mask_cache[T] = mask
         return self._causal_mask_cache[T].to(device)
 
-    def forward(self, states, mask=None):
+    def forward(self, states, mask=None, cond=None):
         B, T, D = states.shape
         x = self.input_proj(states)
         pos = torch.arange(T, device=states.device).unsqueeze(0).expand(B, -1)
@@ -114,7 +114,8 @@ class ActorCritic(nn.Module):
         if mask is None:
             mask = self._get_causal_mask(T, states.device)
         x = self.transformer(x, mask=mask)
-        cond = self.extract_condition(states)
+        if cond is None:
+            cond = self.extract_condition(states)
         for film in self.film_layers:
             x = film(x, cond)
         logits = self.actor_fc(x)
