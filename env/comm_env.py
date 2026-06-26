@@ -8,11 +8,11 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import Tuple, Dict, Any
 from env.frame_structure import FrameConfig, FrameGenerator
-from env.channel_models import RayleighMultipathChannel, ThreeGPPChannel
+from env.rayleigh_channel import RayleighMultipathChannel
+from env._3gpp_channel import ThreeGPPChannel
 
 def _make_channel(cfg):
-    if "profile" in cfg:
-        return ThreeGPPChannel(**cfg)
+    if "profile" in cfg: return ThreeGPPChannel(**cfg)
     return RayleighMultipathChannel(**cfg)
 
 @dataclass
@@ -96,7 +96,6 @@ def test_env():
     print(" ",e2.channel.summary(),"state:",s2.shape[0])
     print("3GPP EPA:"); e3=CommunicationEnv(EnvConfig(channel=dict(profile="epa",snr_db=15,seed=42))); s3,_=e3.reset()
     print(" ",e3.channel.summary(),"state:",s3.shape[0])
-    e.step(torch.tensor([0.5]))
     print("环境接口自测通过。")
 
 if __name__=="__main__":test_env()

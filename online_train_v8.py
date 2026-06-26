@@ -31,7 +31,7 @@ import torch.distributions as dist
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from env.frame_structure import FrameConfig
-from env.channel_models import RayleighMultipathChannel
+from env.rayleigh_channel import RayleighMultipathChannel
 from env.comm_env import CommunicationEnv, EnvConfig
 from agent.actor_critic_v2 import ActorCritic, TransformerConfig
 from agent.ppo import PPOTrainer
