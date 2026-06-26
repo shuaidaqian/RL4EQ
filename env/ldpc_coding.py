@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 LDPC 编解码器模块 — 用于信道编码, 降低误比特率
 
@@ -162,7 +162,7 @@ class LDPC:
     def soft_to_llr(self, soft_bits: np.ndarray) -> np.ndarray:
         """将软判决概率 P(b=1) -> LLR = ln((1-p)/p)"""
         p = np.clip(soft_bits, 1e-10, 1 - 1e-10)
-        return np.log((1.0 - p) / p)
+        p_safe = np.clip(p, 1e-15, 1.0 - 1e-15); return np.log((1.0 - p_safe) / p_safe)
 
 
 def test_ldpc():

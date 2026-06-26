@@ -54,6 +54,7 @@ class CommunicationEnv:
         self._t = 0
         self._done = False
         self._rng = np.random.default_rng(config.seed)
+        # 训练序列和导频已知值, 用于 LS 信道估计
 
     def reset(self, rng=None) -> Tuple[torch.Tensor, Dict[str, Any]]:
         if rng is not None:

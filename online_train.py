@@ -81,10 +81,10 @@ class TrainConfig:
         self.state_dim = 45
 
         # 网络
-        self.d_model = 64
+        self.d_model = 128
         self.n_heads = 4
-        self.n_layers = 2
-        self.dim_feedforward = 128
+        self.n_layers = 3
+        self.dim_feedforward = 256
 
         # RL 超参
         self.gamma = 0.95
@@ -133,6 +133,19 @@ class Agent:
         self.optimizer = torch.optim.Adam(self.ac.parameters(), lr=cfg.actor_lr)
 
         # PPO 训练器 (仅 ppo 模式使用)
+        # finetune 模式: 降低学习率和epoch, 收紧KL
+        self._is_finetune = getattr(self.cfg, "_finetune_mode", False)
+        if self._is_finetune:
+            self.cfg.actor_lr = 1e-4
+            self.cfg.k_epochs = 4
+            self.cfg.kl_threshold_init = 0.02
+            self.cfg.kl_threshold_final = 0.005
+            self.cfg.entropy_coef = 0.005
+            self._finetune_unfreeze_step = 200  # 前200帧冻结编码器
+
+
+
+
         self.ppo_trainer = PPOTrainer(
             self.ac, lr=cfg.actor_lr, gamma=cfg.gamma, lam=cfg.lam,
             clip_eps=cfg.clip_eps, value_coef=cfg.value_coef,
@@ -210,6 +223,14 @@ class Agent:
 
     def train_ppo(self, tb, kl_threshold):
         """PPO + GAE 更新 (使用帧缓冲中所有帧)。"""
+        # finetune 模式: 前 N 帧冻结编码器, 只调 Actor/Critic 头
+        if self._is_finetune:
+            frame_idx = getattr(self.cfg, "_current_frame", 0)
+            for name, param in self.ac.named_parameters():
+                if "actor_fc" in name or "critic" in name:
+                    param.requires_grad = True
+                else:
+                    param.requires_grad = (frame_idx > self._finetune_unfreeze_step)
         for frame in tb:
             self.ppo_trainer.train_on_trajectory(
                 states=frame["states"],
@@ -417,9 +438,9 @@ def main():
         ckpt = torch.load(args.finetune, map_location=device, weights_only=True)
         agent.ac.load_state_dict(ckpt, strict=False)
         print(f"  Loaded pretrained weights from {args.finetune}")
-        # 预训练后微调：原来需要 500 帧，现在减半
+        cfg._finetune_mode = True
         if cfg.num_frames == 200:
-            cfg.num_frames = 100
+            cfg.num_frames = 300
 
     # 环境
     base_env = CommunicationEnv(EnvConfig(
@@ -462,6 +483,7 @@ def main():
     low_ber_frames = 0
 
     for fi in range(1, cfg.num_frames + 1):
+        cfg._current_frame = fi
         # 阶段调度 (仅 A2C 模式)
         if cfg.algo == 'a2c':
             if fi <= cfg.sup_end:
@@ -518,6 +540,9 @@ def main():
                                   device=device, dtype=torch.bool)
         correct = (actions.squeeze(-1) == true_bits).float()
         rewards = torch.where(known_mask, 2.0 * correct - 1.0, torch.zeros_like(correct))
+        if getattr(cfg, "_finetune_mode", False):
+            dpen = -0.2 * (p_clamped.squeeze(-1) - 0.5).abs()
+            rewards = torch.where(known_mask, rewards, dpen)
         dones = torch.zeros(cfg.frame_len, device=device)
         dones[-1] = 1.0
 
