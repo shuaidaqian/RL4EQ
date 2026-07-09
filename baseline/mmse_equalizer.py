@@ -65,12 +65,12 @@ def test():
     tx_bits=bits[:128];tx_tr=(1-2*tx_bits);rx_tr=rx[:128]
     eq=MMSEEqualizer(num_taps=16)
     s_est,_=eq(rx,tx_tr,rx_tr,20)
-    ber=((s_est>0).float()!=bits).float().mean().item()
+    ber=((s_est<0).float()!=bits).float().mean().item()
     print(f"MMSE BER={ber:.5f} @SNR=20dB")
     for snr in [0,5,10,15,20,25,30]:
         c2=RayleighMultipathChannel(num_taps=16,delay_spread=10,snr_db=snr)
         rx2=c2(tx); s2,_=eq(rx2,tx_tr,rx2[:128],snr)
-        b2=((s2>0).float()!=bits).float().mean().item()
+        b2=((s2<0).float()!=bits).float().mean().item()
         print(f"  SNR={snr:2d}dB BER={b2:.5f}")
     print("OK")
 if __name__=="__main__":test()
