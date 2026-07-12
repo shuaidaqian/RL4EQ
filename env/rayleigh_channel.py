@@ -53,7 +53,7 @@ class RayleighMultipathChannel:
         ir = F.pad(ir, (pad, 0)); ii = F.pad(ii, (pad, 0))
         yr = (F.conv1d(ir, tr) - F.conv1d(ii, ti)).squeeze()
         yi = (F.conv1d(ir, ti) + F.conv1d(ii, tr)).squeeze()
-        return torch.stack([yr, yi], -1)
+        return torch.stack([yr[:L], yi[:L]], -1)
 
     def add_awgn(self, signal):
         sp = (signal ** 2).mean()

@@ -60,19 +60,41 @@ def _mean(values: Iterable[float]) -> float:
     return float(np.mean(vals)) if vals else 0.0
 
 
-def _sample_channel_config(rng: np.random.Generator, seed: int, snr_min: float, snr_max: float) -> dict:
+def _sample_channel_config(
+    rng: np.random.Generator,
+    seed: int,
+    snr_min: float,
+    snr_max: float,
+    max_num_taps: int | None = None,
+) -> dict:
     """采样离线信道族。
 
     当前仓库已有 Rayleigh 和 3GPP EPA/EVA/ETU；这里先用这几类构成大规模随机信道。
     后续加入 Rician/CFO 时，只需要扩展这个采样器和 env 层。
     """
     snr_db = float(rng.uniform(snr_min, snr_max))
-    kind = rng.choice(["rayleigh", "epa", "eva", "etu"], p=[0.55, 0.15, 0.15, 0.15])
+    kind = rng.choice(["rayleigh", "rician", "epa", "eva", "etu"], p=[0.65, 0.25, 0.0334, 0.0333, 0.0333])
+    rayleigh_high = max(7, int(max_num_taps or 24) + 1)
+    rician_high = max(5, min(int(max_num_taps or 20), 20) + 1)
     if kind == "rayleigh":
-        num_taps = int(rng.integers(8, 19))
+        num_taps = int(rng.integers(6, rayleigh_high))
         return dict(
+            type="rayleigh",
             num_taps=num_taps,
             delay_spread=max(1, num_taps - 1),
+            snr_db=snr_db,
+            time_varying=bool(rng.random() < 0.25),
+            doppler_hz=float(rng.choice([1.0, 5.0, 30.0, 70.0])),
+            symbol_rate=1e6,
+            seed=seed,
+        )
+    if kind == "rician":
+        num_taps = int(rng.integers(4, rician_high))
+        return dict(
+            type="rician",
+            num_taps=num_taps,
+            delay_spread=max(1, num_taps - 1),
+            k_factor_db=float(rng.uniform(0.0, 12.0)),
             snr_db=snr_db,
             time_varying=bool(rng.random() < 0.25),
             doppler_hz=float(rng.choice([1.0, 5.0, 30.0, 70.0])),
@@ -89,43 +111,70 @@ def _sample_channel_config(rng: np.random.Generator, seed: int, snr_min: float, 
     )
 
 
-def _make_env(seed: int, channel: dict) -> CommunicationEnv:
+def _make_env(seed: int, channel: dict, window_K: int = 10) -> CommunicationEnv:
     env = CommunicationEnv(EnvConfig(
         frame=FrameConfig(),
         channel=channel,
-        window_K=10,
+        window_K=window_K,
         seed=seed,
     ))
     env.reset()
     return env
 
 
-def _evaluate_model(model: AdapterEqualizer, device: torch.device, seed: int, frames: int, snr_db: float = 10.0) -> Dict[str, float]:
+def _eval_channel_config(profile: str, seed: int, snr_db: float, window_K: int = 10) -> dict:
+    rng = np.random.default_rng(seed)
+    if profile == "rayleigh":
+        num_taps = int(rng.integers(6, max(7, window_K + 2)))
+        return dict(
+            type="rayleigh",
+            num_taps=num_taps,
+            delay_spread=max(1, num_taps - 1),
+            snr_db=snr_db,
+            seed=seed,
+        )
+    if profile == "rician":
+        num_taps = int(rng.integers(4, max(5, min(window_K + 1, 20) + 1)))
+        return dict(
+            type="rician",
+            num_taps=num_taps,
+            delay_spread=max(1, num_taps - 1),
+            k_factor_db=float(rng.uniform(0.0, 12.0)),
+            snr_db=snr_db,
+            seed=seed,
+        )
+    return dict(profile=profile, snr_db=snr_db, seed=seed)
+
+
+def _evaluate_model(model: AdapterEqualizer, device: torch.device, seed: int, frames: int, snr_db: float = 10.0, window_K: int = 10) -> Dict[str, float]:
     model.eval()
     frame_cfg = FrameConfig()
     pilot_mask = torch.tensor([frame_cfg.bit_type(t) == "pilot" for t in range(frame_cfg.frame_len)], dtype=torch.bool, device=device)
     data_mask = torch.tensor([frame_cfg.bit_type(t) == "data" for t in range(frame_cfg.frame_len)], dtype=torch.bool, device=device)
-    records: Dict[str, List[float]] = {"rayleigh": [], "epa": [], "eva": [], "etu": []}
+    records: Dict[str, List[float]] = {"rayleigh": [], "rician": [], "epa": [], "eva": [], "etu": []}
+    data_records: Dict[str, List[float]] = {"rayleigh": [], "rician": [], "epa": [], "eva": [], "etu": []}
+    pilot_records: Dict[str, List[float]] = {"rayleigh": [], "rician": [], "epa": [], "eva": [], "etu": []}
 
     with torch.no_grad():
         for idx, profile in enumerate(records):
             for frame_idx in range(frames):
                 cur_seed = seed + idx * 1000 + frame_idx
-                if profile == "rayleigh":
-                    channel = dict(num_taps=16, delay_spread=10, snr_db=snr_db, seed=cur_seed)
-                else:
-                    channel = dict(profile=profile, snr_db=snr_db, seed=cur_seed)
-                env = _make_env(cur_seed, channel)
+                channel = _eval_channel_config(profile, cur_seed, snr_db, window_K=window_K)
+                env = _make_env(cur_seed, channel, window_K=window_K)
                 states = env.get_all_states().unsqueeze(0).to(device)
                 bits = env.get_true_bits().to(device)
                 _, probs = model(states)
                 preds = (probs[0] > 0.5).float()
                 ber_data = (preds[data_mask] != bits[data_mask]).float().mean().item()
                 ber_pilot = (preds[pilot_mask] != bits[pilot_mask]).float().mean().item()
-                records[profile].append((ber_data + ber_pilot) / 2.0)
+                records[profile].append(ber_data)
+                data_records[profile].append(ber_data)
+                pilot_records[profile].append(ber_pilot)
 
     out = {name: _mean(vals) for name, vals in records.items()}
     out["mean"] = _mean(out.values())
+    out["BER_data"] = _mean(_mean(vals) for vals in data_records.values())
+    out["BER_pilot"] = _mean(_mean(vals) for vals in pilot_records.values())
     return out
 
 
@@ -162,11 +211,20 @@ def run_offline_pretraining(
     d_model: int = 64,
     n_layers: int = 2,
     adapter_rank: int = 8,
+    window_K: int = 10,
+    use_channel_encoder: bool = False,
+    channel_dim: int = 32,
+    use_sync_head: bool = False,
+    sync_dim: int = 32,
+    sync_delay_bins: int = 9,
     lr: float = 5e-4,
     snr_min: float = 0.0,
     snr_max: float = 20.0,
     val_interval: int = 100,
     val_frames: int = 3,
+    data_loss_weight: float = 4.0,
+    known_loss_weight: float = 0.5,
+    init_checkpoint: str | None = None,
     save_dir: str | os.PathLike = "pretrained",
     device: str = "cpu",
     save_plots: bool = True,
@@ -180,14 +238,23 @@ def run_offline_pretraining(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     cfg = EqualizerConfig(
-        state_dim=45,
+        state_dim=2 * (2 * window_K + 1) + 3,
         d_model=d_model,
         n_heads=4,
         n_layers=n_layers,
         dim_feedforward=d_model * 2,
         adapter_rank=adapter_rank,
+        use_channel_encoder=use_channel_encoder,
+        channel_dim=channel_dim,
+        use_sync_head=use_sync_head,
+        sync_dim=sync_dim,
+        sync_delay_bins=sync_delay_bins,
     )
     model = AdapterEqualizer(cfg).to(dev)
+    if init_checkpoint:
+        state = torch.load(init_checkpoint, map_location=dev, weights_only=True)
+        missing, unexpected = model.load_state_dict(state, strict=False)
+        print(f"加载初始化权重: {init_checkpoint} | missing={len(missing)} unexpected={len(unexpected)}")
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(num_steps, 1), eta_min=1e-6)
 
@@ -198,7 +265,13 @@ def run_offline_pretraining(
         "n_layers": cfg.n_layers,
         "dim_feedforward": cfg.dim_feedforward,
         "adapter_rank": cfg.adapter_rank,
+        "window_K": window_K,
         "max_len": cfg.max_len,
+        "use_channel_encoder": cfg.use_channel_encoder,
+        "channel_dim": cfg.channel_dim,
+        "use_sync_head": cfg.use_sync_head,
+        "sync_dim": cfg.sync_dim,
+        "sync_delay_bins": cfg.sync_delay_bins,
     }
     with open(out_dir / "model_config.json", "w", encoding="utf-8") as f:
         json.dump(config_payload, f, ensure_ascii=False, indent=2)
@@ -223,13 +296,21 @@ def run_offline_pretraining(
 
         for batch_idx in range(batch_size):
             cur_seed = seed * 100000 + step * 100 + batch_idx
-            channel = _sample_channel_config(rng, cur_seed, snr_min, snr_max)
-            env = _make_env(cur_seed, channel)
+            channel = _sample_channel_config(rng, cur_seed, snr_min, snr_max, max_num_taps=window_K + 1)
+            env = _make_env(cur_seed, channel, window_K=window_K)
             states = env.get_all_states().unsqueeze(0).to(dev)
             bits = env.get_true_bits().unsqueeze(0).to(dev)
 
             logits, probs = model(states)
-            loss = F.binary_cross_entropy_with_logits(logits, bits)
+            data_mask = torch.tensor(
+                [env.frame_cfg.bit_type(t) == "data" for t in range(env.frame_cfg.frame_len)],
+                dtype=torch.bool,
+                device=dev,
+            ).unsqueeze(0)
+            known_mask = ~data_mask
+            data_loss = F.binary_cross_entropy_with_logits(logits[data_mask], bits[data_mask])
+            known_loss = F.binary_cross_entropy_with_logits(logits[known_mask], bits[known_mask])
+            loss = data_loss_weight * data_loss + known_loss_weight * known_loss
             (loss / batch_size).backward()
             batch_loss += float(loss.item())
             preds = (probs > 0.5).float()
@@ -244,16 +325,17 @@ def run_offline_pretraining(
 
         should_validate = step == 1 or step % val_interval == 0 or step == num_steps
         if should_validate:
-            val = _evaluate_model(model, dev, seed + 900000 + step, frames=val_frames)
+            val = _evaluate_model(model, dev, seed + 900000 + step, frames=val_frames, window_K=window_K)
             val_bers.append(float(val["mean"]))
             elapsed = time.time() - start
             print(
                 f"  Step {step:5d}/{num_steps} | loss={losses[-1]:.4f} "
-                f"train_BER={train_bers[-1]:.4f} val_BER={val['mean']:.4f} "
+                f"train_BER={train_bers[-1]:.4f} "
+                f"val_data={val['BER_data']:.4f} val_pilot={val['BER_pilot']:.4f} "
                 f"lr={scheduler.get_last_lr()[0]:.2e} | {elapsed:.0f}s"
             )
-            if val["mean"] < best_val:
-                best_val = float(val["mean"])
+            if val["BER_data"] < best_val:
+                best_val = float(val["BER_data"])
                 torch.save(model.state_dict(), best_path)
 
     torch.save(model.state_dict(), final_path)
@@ -266,11 +348,21 @@ def run_offline_pretraining(
 
     return {
         "best_ber": best_val,
+        "best_data_ber": best_val,
         "best_checkpoint": str(best_path),
         "final_checkpoint": str(final_path),
         "config_path": str(out_dir / "model_config.json"),
         "num_steps": num_steps,
         "trainable_offline_params": sum(p.numel() for p in model.parameters()),
+        "data_loss_weight": data_loss_weight,
+        "known_loss_weight": known_loss_weight,
+        "window_K": window_K,
+        "use_channel_encoder": use_channel_encoder,
+        "channel_dim": channel_dim,
+        "use_sync_head": use_sync_head,
+        "sync_dim": sync_dim,
+        "sync_delay_bins": sync_delay_bins,
+        "init_checkpoint": init_checkpoint,
     }
 
 
@@ -285,10 +377,19 @@ def main():
     parser.add_argument("--d_model", type=int, default=64)
     parser.add_argument("--n_layers", type=int, default=2)
     parser.add_argument("--adapter_rank", type=int, default=8)
+    parser.add_argument("--window_K", type=int, default=10)
+    parser.add_argument("--use_channel_encoder", action="store_true")
+    parser.add_argument("--channel_dim", type=int, default=32)
+    parser.add_argument("--use_sync_head", action="store_true")
+    parser.add_argument("--sync_dim", type=int, default=32)
+    parser.add_argument("--sync_delay_bins", type=int, default=9)
     parser.add_argument("--snr_min", type=float, default=0.0)
     parser.add_argument("--snr_max", type=float, default=20.0)
     parser.add_argument("--val_interval", type=int, default=100)
     parser.add_argument("--val_frames", type=int, default=3)
+    parser.add_argument("--data_loss_weight", type=float, default=4.0)
+    parser.add_argument("--known_loss_weight", type=float, default=0.5)
+    parser.add_argument("--init_checkpoint", type=str, default=None)
     args = parser.parse_args()
 
     result = run_offline_pretraining(
@@ -298,11 +399,20 @@ def main():
         d_model=args.d_model,
         n_layers=args.n_layers,
         adapter_rank=args.adapter_rank,
+        window_K=args.window_K,
+        use_channel_encoder=args.use_channel_encoder,
+        channel_dim=args.channel_dim,
+        use_sync_head=args.use_sync_head,
+        sync_dim=args.sync_dim,
+        sync_delay_bins=args.sync_delay_bins,
         lr=args.lr,
         snr_min=args.snr_min,
         snr_max=args.snr_max,
         val_interval=args.val_interval,
         val_frames=args.val_frames,
+        data_loss_weight=args.data_loss_weight,
+        known_loss_weight=args.known_loss_weight,
+        init_checkpoint=args.init_checkpoint,
         save_dir=args.save_dir,
         device=args.device,
     )

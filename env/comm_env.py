@@ -9,11 +9,17 @@ from dataclasses import dataclass, field
 from typing import Tuple, Dict, Any
 from env.frame_structure import FrameConfig, FrameGenerator
 from env.rayleigh_channel import RayleighMultipathChannel
+from env.rician_channel import RicianMultipathChannel
 from env._3gpp_channel import ThreeGPPChannel
 
 def _make_channel(cfg):
-    if "profile" in cfg: return ThreeGPPChannel(**cfg)
-    return RayleighMultipathChannel(**cfg)
+    channel_type = cfg.get("type")
+    payload = {k: v for k, v in cfg.items() if k != "type"}
+    if "profile" in payload:
+        return ThreeGPPChannel(**payload)
+    if channel_type == "rician" or "k_factor_db" in payload:
+        return RicianMultipathChannel(**payload)
+    return RayleighMultipathChannel(**payload)
 
 @dataclass
 class EnvConfig:
@@ -69,10 +75,8 @@ class CommunicationEnv:
         p = F.pad(rx.unsqueeze(0), (0,0,K,K), mode="replicate").squeeze(0)
         c = self._t + K
         win = p[c-K:c+K+1].reshape(-1)
-        bt = self.frame_cfg.bit_type(self._t)
-        pos = torch.zeros(3)
-        pos[{"train":0,"pilot":1,"data":2}[bt]] = 1.0
-        return torch.cat([win, pos])
+        meta = self._state_meta(self._t)
+        return torch.cat([win, meta])
 
     def get_true_bits(self): return self._bits.clone()
     def get_all_states(self):
@@ -81,13 +85,17 @@ class CommunicationEnv:
         states = []
         for t in range(L):
             c = t + K; win = p[c-K:c+K+1].reshape(-1)
-            bt = self.frame_cfg.bit_type(t)
-            pos = torch.zeros(3)
-            pos[{"train":0,"pilot":1,"data":2}[bt]] = 1.0
-            states.append(torch.cat([win, pos]))
+            states.append(torch.cat([win, self._state_meta(t)]))
         return torch.stack(states)
     def get_rx_symbols(self): return self._rx_symbols.clone()
     def set_snr(self, s): self.channel.set_snr(s)
+
+    def _state_meta(self, t):
+        bt = self.frame_cfg.bit_type(t)
+        if bt in ("train", "pilot"):
+            known_symbol = 1.0 - 2.0 * float(self._bits[t].item())
+            return torch.tensor([known_symbol, 1.0, 0.0], dtype=torch.float32)
+        return torch.tensor([0.0, 0.0, 1.0], dtype=torch.float32)
 
 def test_env():
     print("瑞利信道:"); e=CommunicationEnv(EnvConfig()); s,_=e.reset()

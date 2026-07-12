@@ -82,6 +82,12 @@ def run_snr_comparison(
     d_model: int = 64,
     n_layers: int = 2,
     adapter_rank: int = 8,
+    window_K: int = 10,
+    use_channel_encoder: bool = False,
+    channel_dim: int = 32,
+    use_sync_head: bool = False,
+    sync_dim: int = 32,
+    sync_delay_bins: int = 9,
     output_dir: str | os.PathLike = "logs",
     device: str = "cpu",
     profile: str | None = None,
@@ -106,6 +112,12 @@ def run_snr_comparison(
             d_model=d_model,
             n_layers=n_layers,
             adapter_rank=adapter_rank,
+            window_K=window_K,
+            use_channel_encoder=use_channel_encoder,
+            channel_dim=channel_dim,
+            use_sync_head=use_sync_head,
+            sync_dim=sync_dim,
+            sync_delay_bins=sync_delay_bins,
             device=device,
             output_dir=Path(output_dir) / f"snr_{snr:g}",
             save_plots=False,
@@ -131,8 +143,17 @@ def main():
     parser.add_argument("--num_frames", type=int, default=50)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--profile", type=str, default=None, choices=[None, "epa", "eva", "etu"])
+    parser.add_argument("--profile", type=str, default=None, choices=[None, "rician", "epa", "eva", "etu"])
     parser.add_argument("--pretrained", type=str, default=None)
+    parser.add_argument("--d_model", type=int, default=64)
+    parser.add_argument("--n_layers", type=int, default=2)
+    parser.add_argument("--adapter_rank", type=int, default=8)
+    parser.add_argument("--window_K", type=int, default=10)
+    parser.add_argument("--use_channel_encoder", action="store_true")
+    parser.add_argument("--channel_dim", type=int, default=32)
+    parser.add_argument("--use_sync_head", action="store_true")
+    parser.add_argument("--sync_dim", type=int, default=32)
+    parser.add_argument("--sync_delay_bins", type=int, default=9)
     parser.add_argument("--output_dir", type=str, default="logs")
     args = parser.parse_args()
 
@@ -145,6 +166,15 @@ def main():
         device=args.device,
         profile=args.profile,
         pretrained=args.pretrained,
+        d_model=args.d_model,
+        n_layers=args.n_layers,
+        adapter_rank=args.adapter_rank,
+        window_K=args.window_K,
+        use_channel_encoder=args.use_channel_encoder,
+        channel_dim=args.channel_dim,
+        use_sync_head=args.use_sync_head,
+        sync_dim=args.sync_dim,
+        sync_delay_bins=args.sync_delay_bins,
     )
 
     print("\n=== SNR 对比汇总 ===")

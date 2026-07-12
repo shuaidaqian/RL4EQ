@@ -73,12 +73,16 @@ class FrameGenerator:
 
     def __init__(self, config: FrameConfig):
         self.config = config
+        self._known_pattern = self._build_known_pattern()
 
     def generate(self, rng=None) -> torch.Tensor:
         if rng is None:
             rng = np.random.default_rng()
         bits = rng.integers(0, 2, size=self.config.frame_len).astype(np.float32)
-        return torch.from_numpy(bits)
+        bits = torch.from_numpy(bits)
+        mask = self.known_mask()
+        bits[mask] = self._known_pattern[mask]
+        return bits
 
     def modulate(self, bits: torch.Tensor) -> torch.Tensor:
         symbols = 1.0 - 2.0 * bits
@@ -95,6 +99,12 @@ class FrameGenerator:
         known = bits.clone()
         known[~self.known_mask()] = 0.0
         return known
+
+    def _build_known_pattern(self) -> torch.Tensor:
+        """生成接收端已知的确定性训练/导频 PN 序列。"""
+        rng = np.random.default_rng(20260709)
+        pn = rng.integers(0, 2, size=self.config.frame_len)
+        return torch.from_numpy(pn.astype(np.float32))
 
 
 def test_frame():

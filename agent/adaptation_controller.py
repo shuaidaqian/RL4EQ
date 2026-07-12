@@ -18,6 +18,7 @@ class AdaptationStrategy:
     steps: int
     train_adapter: bool = True
     train_output: bool = True
+    train_sync: bool = False
 
 
 @dataclass
@@ -37,11 +38,11 @@ def make_strategy_table():
         AdaptationStrategy("skip", lr=0.0, steps=0, train_adapter=False, train_output=False),
         AdaptationStrategy("head-slow", lr=1e-4, steps=1, train_adapter=False, train_output=True),
         AdaptationStrategy("head-fast", lr=5e-4, steps=1, train_adapter=False, train_output=True),
-        AdaptationStrategy("adapter-slow", lr=1e-4, steps=1, train_adapter=True, train_output=False),
-        AdaptationStrategy("adapter-fast", lr=5e-4, steps=1, train_adapter=True, train_output=False),
-        AdaptationStrategy("both-slow", lr=1e-4, steps=1, train_adapter=True, train_output=True),
-        AdaptationStrategy("both-fast", lr=5e-4, steps=1, train_adapter=True, train_output=True),
-        AdaptationStrategy("both-deep", lr=5e-4, steps=3, train_adapter=True, train_output=True),
+        AdaptationStrategy("adapter-slow", lr=1e-4, steps=1, train_adapter=True, train_output=False, train_sync=True),
+        AdaptationStrategy("adapter-fast", lr=5e-4, steps=1, train_adapter=True, train_output=False, train_sync=True),
+        AdaptationStrategy("both-slow", lr=1e-4, steps=1, train_adapter=True, train_output=True, train_sync=True),
+        AdaptationStrategy("both-fast", lr=5e-4, steps=1, train_adapter=True, train_output=True, train_sync=True),
+        AdaptationStrategy("both-deep", lr=5e-4, steps=3, train_adapter=True, train_output=True, train_sync=True),
     ]
 
 
@@ -66,7 +67,7 @@ class AdaptationController:
     def build_observation(self, env, history: Dict[str, float] | None = None) -> torch.Tensor:
         """构建低维 RL 状态：只使用在线可观测 pilot 统计量。"""
         history = history or {}
-        states = env.get_all_states().unsqueeze(0).to(self.device)
+        states = self._states(env)
         bits = env.get_true_bits().to(self.device)
         self.model.eval()
         with torch.no_grad():
@@ -90,10 +91,10 @@ class AdaptationController:
         return obs
 
     def adapt_frame(self, env, strategy: AdaptationStrategy) -> AdaptationResult:
-        states = env.get_all_states().unsqueeze(0).to(self.device)
+        states = self._states(env)
         bits = env.get_true_bits().to(self.device)
 
-        self.model.set_trainable_targets(strategy.train_adapter, strategy.train_output)
+        self.model.set_trainable_targets(strategy.train_adapter, strategy.train_output, strategy.train_sync)
         before_loss = self._pilot_loss(states, bits).detach()
         start = perf_counter()
 
@@ -133,3 +134,6 @@ class AdaptationController:
     def _pilot_loss(self, states: torch.Tensor, bits: torch.Tensor) -> torch.Tensor:
         logits, _ = self.model(states)
         return F.binary_cross_entropy_with_logits(logits[0, self.pilot_mask], bits[self.pilot_mask])
+
+    def _states(self, env) -> torch.Tensor:
+        return env.get_all_states().unsqueeze(0).to(self.device)

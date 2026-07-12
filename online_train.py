@@ -60,17 +60,45 @@ def _mean(items: Iterable[float]) -> float:
     return float(np.mean(values)) if values else 0.0
 
 
-def _channel_cfg(profile: str | None, snr: float, seed: int) -> dict:
+def _capture_model_state(model: AdapterEqualizer) -> Dict[str, torch.Tensor]:
+    """捕获 θ_pre 快照，用于每帧在线临时适应前恢复模型。"""
+    return {name: value.detach().clone() for name, value in model.state_dict().items()}
+
+
+def _restore_model_state(model: AdapterEqualizer, state: Dict[str, torch.Tensor]) -> None:
+    """恢复模型到 θ_pre，避免上一帧 PEFT 更新污染下一帧。"""
+    model.load_state_dict(state, strict=True)
+
+
+def _channel_cfg(profile: str | None, snr: float, seed: int, max_num_taps: int | None = None) -> dict:
+    rng = np.random.default_rng(seed)
+    if profile == "rician":
+        num_taps = int(rng.integers(4, max(5, min(int(max_num_taps or 20), 20) + 1)))
+        return dict(
+            type="rician",
+            num_taps=num_taps,
+            delay_spread=max(1, num_taps - 1),
+            k_factor_db=float(rng.uniform(0.0, 12.0)),
+            snr_db=snr,
+            seed=seed,
+        )
     if profile:
         return dict(profile=profile, snr_db=snr, seed=seed)
-    return dict(num_taps=16, delay_spread=10, snr_db=snr, seed=seed)
+    num_taps = int(rng.integers(6, max(7, int(max_num_taps or 24) + 1)))
+    return dict(
+        type="rayleigh",
+        num_taps=num_taps,
+        delay_spread=max(1, num_taps - 1),
+        snr_db=snr,
+        seed=seed,
+    )
 
 
-def _make_env(seed: int, snr: float, profile: str | None = None) -> CommunicationEnv:
+def _make_env(seed: int, snr: float, profile: str | None = None, window_K: int = 10) -> CommunicationEnv:
     env = CommunicationEnv(EnvConfig(
         frame=FrameConfig(),
-        channel=_channel_cfg(profile, snr, seed),
-        window_K=10,
+        channel=_channel_cfg(profile, snr, seed, max_num_taps=window_K + 1),
+        window_K=window_K,
         seed=seed,
     ))
     env.reset()
@@ -126,8 +154,8 @@ def _evaluate_generalization(model: AdapterEqualizer, device: torch.device, snr:
     """在未见 3GPP profile 上只评估，不在线更新。"""
     out = {}
     model.eval()
-    for idx, profile in enumerate(["epa", "eva", "etu"]):
-        env = _make_env(seed + 1000 + idx, snr, profile=profile)
+    for idx, profile in enumerate(["rician", "epa", "eva", "etu"]):
+        env = _make_env(seed + 1000 + idx, snr, profile=profile, window_K=(model.config.state_dim - 5) // 4)
         controller = AdaptationController(model, env.frame_cfg, device)
         states = env.get_all_states().unsqueeze(0).to(device)
         bits = env.get_true_bits().to(device)
@@ -146,18 +174,19 @@ def _save_plots(peft_records: List[dict], mmse_records: List[dict], generalizati
     _configure_matplotlib_fonts()
     output_dir.mkdir(parents=True, exist_ok=True)
     frames = np.arange(1, len(peft_records) + 1)
+    eps = 1e-5
 
     fig, axes = plt.subplots(2, 2, figsize=(12, 8))
     axes = axes.reshape(-1)
-    axes[0].plot(frames, [r["BER_data"] for r in peft_records], label="PEFT 数据段", color="#1565C0")
-    axes[0].plot(frames, [r["BER_data"] for r in mmse_records], label="MMSE 数据段", color="#C62828", alpha=0.8)
+    axes[0].plot(frames, [max(r["BER_data"], eps) for r in peft_records], label="PEFT 数据段", color="#1565C0")
+    axes[0].plot(frames, [max(r["BER_data"], eps) for r in mmse_records], label="MMSE 数据段", color="#C62828", alpha=0.8)
     axes[0].set_yscale("log")
     axes[0].set_ylabel("BER_data")
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
 
-    axes[1].plot(frames, [r["BER_pilot"] for r in peft_records], label="PEFT 导频", color="#00897B")
-    axes[1].plot(frames, [r["BER_pilot"] for r in mmse_records], label="MMSE 导频", color="#F57C00", alpha=0.8)
+    axes[1].plot(frames, [max(r["BER_pilot"], eps) for r in peft_records], label="PEFT 导频", color="#00897B")
+    axes[1].plot(frames, [max(r["BER_pilot"], eps) for r in mmse_records], label="MMSE 导频", color="#F57C00", alpha=0.8)
     axes[1].set_yscale("log")
     axes[1].set_ylabel("BER_pilot")
     axes[1].legend()
@@ -179,7 +208,7 @@ def _save_plots(peft_records: List[dict], mmse_records: List[dict], generalizati
     plt.close(fig)
 
     labels = ["PEFT", "MMSE"]
-    values = [_mean(r["BER_data"] for r in peft_records), _mean(r["BER_data"] for r in mmse_records)]
+    values = [max(_mean(r["BER_data"] for r in peft_records), eps), max(_mean(r["BER_data"] for r in mmse_records), eps)]
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.bar(labels, values, color=["#1565C0", "#C62828"])
     ax.set_yscale("log")
@@ -192,7 +221,7 @@ def _save_plots(peft_records: List[dict], mmse_records: List[dict], generalizati
 
     fig, ax = plt.subplots(figsize=(7, 5))
     keys = [k for k in generalization if k != "mean"]
-    ax.bar([k.upper() for k in keys], [generalization[k] for k in keys], color="#2E7D32")
+    ax.bar([k.upper() for k in keys], [max(generalization[k], eps) for k in keys], color="#2E7D32")
     ax.set_yscale("log")
     ax.set_ylabel("BER_data")
     ax.set_title("未见信道类型泛化")
@@ -209,27 +238,40 @@ def run_online_adaptation(
     d_model: int = 64,
     n_layers: int = 2,
     adapter_rank: int = 8,
+    window_K: int = 10,
+    use_channel_encoder: bool = False,
+    channel_dim: int = 32,
+    use_sync_head: bool = False,
+    sync_dim: int = 32,
+    sync_delay_bins: int = 9,
     device: str = "cpu",
     output_dir: str | os.PathLike = "logs",
     save_plots: bool = True,
     profile: str | None = None,
     pretrained: str | None = None,
     policy_update_interval: int = 8,
+    reset_each_frame: bool = True,
 ) -> Dict[str, dict]:
     torch.manual_seed(seed)
     np.random.seed(seed)
     dev = torch.device(device)
     frame_cfg = FrameConfig()
     model = AdapterEqualizer(EqualizerConfig(
-        state_dim=45,
+        state_dim=2 * (2 * window_K + 1) + 3,
         d_model=d_model,
         n_heads=4,
         n_layers=n_layers,
         dim_feedforward=d_model * 2,
         adapter_rank=adapter_rank,
+        use_channel_encoder=use_channel_encoder,
+        channel_dim=channel_dim,
+        use_sync_head=use_sync_head,
+        sync_dim=sync_dim,
+        sync_delay_bins=sync_delay_bins,
     )).to(dev)
     load_msg = _load_pretrained_if_available(model, pretrained, dev)
-    model.enable_parameter_efficient_tuning(train_adapter=True, train_output=True)
+    theta_pre = _capture_model_state(model)
+    model.enable_parameter_efficient_tuning(train_adapter=True, train_output=True, train_sync=use_sync_head)
 
     strategies = make_strategy_table()
     policy = DiscretePPOPolicy(obs_dim=8, num_actions=len(strategies), device=dev)
@@ -241,8 +283,13 @@ def run_online_adaptation(
     print(f"在线自适应: frames={num_frames}, SNR={snr}dB, profile={profile or 'rayleigh'}")
     print(f"PEFT 可训练参数: {model.trainable_parameter_count()}")
 
+    print(f"每帧恢复 θ_pre: {reset_each_frame}")
+
     for frame_idx in range(num_frames):
-        env = _make_env(seed + frame_idx, snr, profile=profile)
+        if reset_each_frame:
+            _restore_model_state(model, theta_pre)
+            model.enable_parameter_efficient_tuning(train_adapter=True, train_output=True, train_sync=use_sync_head)
+        env = _make_env(seed + frame_idx, snr, profile=profile, window_K=window_K)
         mmse_metrics = evaluate_mmse(env)
         controller = AdaptationController(model, frame_cfg, dev)
         obs = controller.build_observation(env, history)
@@ -286,6 +333,8 @@ def run_online_adaptation(
             )
 
     policy.update()
+    if reset_each_frame:
+        _restore_model_state(model, theta_pre)
     generalization = _evaluate_generalization(model, dev, snr, seed)
     output_path = Path(output_dir)
     if save_plots:
@@ -300,6 +349,7 @@ def run_online_adaptation(
             "mmse_comparison": str(output_path / "mmse_baseline_comparison.png"),
             "generalization": str(output_path / "generalization.png"),
         },
+        "reset_each_frame": reset_each_frame,
     }
     return results
 
@@ -309,13 +359,20 @@ def main():
     parser.add_argument("--num_frames", type=int, default=300)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--snr", type=float, default=10.0)
-    parser.add_argument("--profile", type=str, default=None, choices=[None, "epa", "eva", "etu"])
+    parser.add_argument("--profile", type=str, default=None, choices=[None, "rician", "epa", "eva", "etu"])
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--d_model", type=int, default=64)
     parser.add_argument("--n_layers", type=int, default=2)
     parser.add_argument("--adapter_rank", type=int, default=8)
+    parser.add_argument("--window_K", type=int, default=10)
+    parser.add_argument("--use_channel_encoder", action="store_true")
+    parser.add_argument("--channel_dim", type=int, default=32)
+    parser.add_argument("--use_sync_head", action="store_true")
+    parser.add_argument("--sync_dim", type=int, default=32)
+    parser.add_argument("--sync_delay_bins", type=int, default=9)
     parser.add_argument("--pretrained", type=str, default=None)
     parser.add_argument("--output_dir", type=str, default="logs")
+    parser.add_argument("--carry_state_across_frames", action="store_true")
     args = parser.parse_args()
 
     results = run_online_adaptation(
@@ -325,10 +382,17 @@ def main():
         d_model=args.d_model,
         n_layers=args.n_layers,
         adapter_rank=args.adapter_rank,
+        window_K=args.window_K,
+        use_channel_encoder=args.use_channel_encoder,
+        channel_dim=args.channel_dim,
+        use_sync_head=args.use_sync_head,
+        sync_dim=args.sync_dim,
+        sync_delay_bins=args.sync_delay_bins,
         device=args.device,
         output_dir=args.output_dir,
         profile=args.profile,
         pretrained=args.pretrained,
+        reset_each_frame=not args.carry_state_across_frames,
     )
 
     print("\n=== 汇总指标 ===")
