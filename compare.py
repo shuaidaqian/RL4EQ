@@ -88,6 +88,7 @@ def run_snr_comparison(
     use_sync_head: bool = False,
     sync_dim: int = 32,
     sync_delay_bins: int = 9,
+    use_mmse_features: bool = False,
     output_dir: str | os.PathLike = "logs",
     device: str = "cpu",
     profile: str | None = None,
@@ -118,6 +119,7 @@ def run_snr_comparison(
             use_sync_head=use_sync_head,
             sync_dim=sync_dim,
             sync_delay_bins=sync_delay_bins,
+            use_mmse_features=use_mmse_features,
             device=device,
             output_dir=Path(output_dir) / f"snr_{snr:g}",
             save_plots=False,
@@ -154,6 +156,7 @@ def main():
     parser.add_argument("--use_sync_head", action="store_true")
     parser.add_argument("--sync_dim", type=int, default=32)
     parser.add_argument("--sync_delay_bins", type=int, default=9)
+    parser.add_argument("--use_mmse_features", action="store_true")
     parser.add_argument("--output_dir", type=str, default="logs")
     args = parser.parse_args()
 
@@ -175,6 +178,7 @@ def main():
         use_sync_head=args.use_sync_head,
         sync_dim=args.sync_dim,
         sync_delay_bins=args.sync_delay_bins,
+        use_mmse_features=args.use_mmse_features,
     )
 
     print("\n=== SNR 对比汇总 ===")

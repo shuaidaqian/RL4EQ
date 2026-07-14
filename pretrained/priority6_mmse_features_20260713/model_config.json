@@ -1,0 +1,16 @@
+{
+  "state_dim": 63,
+  "d_model": 128,
+  "n_heads": 4,
+  "n_layers": 3,
+  "dim_feedforward": 256,
+  "adapter_rank": 16,
+  "window_K": 14,
+  "max_len": 512,
+  "use_channel_encoder": true,
+  "channel_dim": 64,
+  "use_sync_head": true,
+  "sync_dim": 48,
+  "sync_delay_bins": 9,
+  "use_mmse_features": true
+}

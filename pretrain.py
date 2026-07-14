@@ -111,11 +111,12 @@ def _sample_channel_config(
     )
 
 
-def _make_env(seed: int, channel: dict, window_K: int = 10) -> CommunicationEnv:
+def _make_env(seed: int, channel: dict, window_K: int = 10, use_mmse_features: bool = False) -> CommunicationEnv:
     env = CommunicationEnv(EnvConfig(
         frame=FrameConfig(),
         channel=channel,
         window_K=window_K,
+        use_mmse_features=use_mmse_features,
         seed=seed,
     ))
     env.reset()
@@ -146,7 +147,15 @@ def _eval_channel_config(profile: str, seed: int, snr_db: float, window_K: int =
     return dict(profile=profile, snr_db=snr_db, seed=seed)
 
 
-def _evaluate_model(model: AdapterEqualizer, device: torch.device, seed: int, frames: int, snr_db: float = 10.0, window_K: int = 10) -> Dict[str, float]:
+def _evaluate_model(
+    model: AdapterEqualizer,
+    device: torch.device,
+    seed: int,
+    frames: int,
+    snr_db: float = 10.0,
+    window_K: int = 10,
+    use_mmse_features: bool = False,
+) -> Dict[str, float]:
     model.eval()
     frame_cfg = FrameConfig()
     pilot_mask = torch.tensor([frame_cfg.bit_type(t) == "pilot" for t in range(frame_cfg.frame_len)], dtype=torch.bool, device=device)
@@ -160,7 +169,7 @@ def _evaluate_model(model: AdapterEqualizer, device: torch.device, seed: int, fr
             for frame_idx in range(frames):
                 cur_seed = seed + idx * 1000 + frame_idx
                 channel = _eval_channel_config(profile, cur_seed, snr_db, window_K=window_K)
-                env = _make_env(cur_seed, channel, window_K=window_K)
+                env = _make_env(cur_seed, channel, window_K=window_K, use_mmse_features=use_mmse_features)
                 states = env.get_all_states().unsqueeze(0).to(device)
                 bits = env.get_true_bits().to(device)
                 _, probs = model(states)
@@ -217,6 +226,7 @@ def run_offline_pretraining(
     use_sync_head: bool = False,
     sync_dim: int = 32,
     sync_delay_bins: int = 9,
+    use_mmse_features: bool = False,
     lr: float = 5e-4,
     snr_min: float = 0.0,
     snr_max: float = 20.0,
@@ -238,7 +248,7 @@ def run_offline_pretraining(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     cfg = EqualizerConfig(
-        state_dim=2 * (2 * window_K + 1) + 3,
+        state_dim=2 * (2 * window_K + 1) + 3 + (2 if use_mmse_features else 0),
         d_model=d_model,
         n_heads=4,
         n_layers=n_layers,
@@ -253,8 +263,14 @@ def run_offline_pretraining(
     model = AdapterEqualizer(cfg).to(dev)
     if init_checkpoint:
         state = torch.load(init_checkpoint, map_location=dev, weights_only=True)
-        missing, unexpected = model.load_state_dict(state, strict=False)
-        print(f"加载初始化权重: {init_checkpoint} | missing={len(missing)} unexpected={len(unexpected)}")
+        current = model.state_dict()
+        compatible = {k: v for k, v in state.items() if k in current and current[k].shape == v.shape}
+        skipped = sorted(k for k, v in state.items() if k in current and current[k].shape != v.shape)
+        missing, unexpected = model.load_state_dict(compatible, strict=False)
+        print(
+            f"加载初始化权重: {init_checkpoint} | "
+            f"loaded={len(compatible)} missing={len(missing)} unexpected={len(unexpected)} skipped_shape={len(skipped)}"
+        )
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(num_steps, 1), eta_min=1e-6)
 
@@ -272,6 +288,7 @@ def run_offline_pretraining(
         "use_sync_head": cfg.use_sync_head,
         "sync_dim": cfg.sync_dim,
         "sync_delay_bins": cfg.sync_delay_bins,
+        "use_mmse_features": use_mmse_features,
     }
     with open(out_dir / "model_config.json", "w", encoding="utf-8") as f:
         json.dump(config_payload, f, ensure_ascii=False, indent=2)
@@ -297,7 +314,7 @@ def run_offline_pretraining(
         for batch_idx in range(batch_size):
             cur_seed = seed * 100000 + step * 100 + batch_idx
             channel = _sample_channel_config(rng, cur_seed, snr_min, snr_max, max_num_taps=window_K + 1)
-            env = _make_env(cur_seed, channel, window_K=window_K)
+            env = _make_env(cur_seed, channel, window_K=window_K, use_mmse_features=use_mmse_features)
             states = env.get_all_states().unsqueeze(0).to(dev)
             bits = env.get_true_bits().unsqueeze(0).to(dev)
 
@@ -325,7 +342,14 @@ def run_offline_pretraining(
 
         should_validate = step == 1 or step % val_interval == 0 or step == num_steps
         if should_validate:
-            val = _evaluate_model(model, dev, seed + 900000 + step, frames=val_frames, window_K=window_K)
+            val = _evaluate_model(
+                model,
+                dev,
+                seed + 900000 + step,
+                frames=val_frames,
+                window_K=window_K,
+                use_mmse_features=use_mmse_features,
+            )
             val_bers.append(float(val["mean"]))
             elapsed = time.time() - start
             print(
@@ -362,6 +386,7 @@ def run_offline_pretraining(
         "use_sync_head": use_sync_head,
         "sync_dim": sync_dim,
         "sync_delay_bins": sync_delay_bins,
+        "use_mmse_features": use_mmse_features,
         "init_checkpoint": init_checkpoint,
     }
 
@@ -383,6 +408,7 @@ def main():
     parser.add_argument("--use_sync_head", action="store_true")
     parser.add_argument("--sync_dim", type=int, default=32)
     parser.add_argument("--sync_delay_bins", type=int, default=9)
+    parser.add_argument("--use_mmse_features", action="store_true")
     parser.add_argument("--snr_min", type=float, default=0.0)
     parser.add_argument("--snr_max", type=float, default=20.0)
     parser.add_argument("--val_interval", type=int, default=100)
@@ -405,6 +431,7 @@ def main():
         use_sync_head=args.use_sync_head,
         sync_dim=args.sync_dim,
         sync_delay_bins=args.sync_delay_bins,
+        use_mmse_features=args.use_mmse_features,
         lr=args.lr,
         snr_min=args.snr_min,
         snr_max=args.snr_max,

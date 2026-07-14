@@ -8,12 +8,15 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agent.adaptation_controller import AdaptationController, AdaptationStrategy
+from agent.adaptation_controller import AdaptationController, AdaptationStrategy, make_strategy_table
+from agent.adaptation_controller import OBS_DIM
 from agent.neural_equalizer import AdapterEqualizer, EqualizerConfig
 from env.comm_env import CommunicationEnv, EnvConfig
 from env.frame_structure import FrameConfig
 from env.frame_structure import FrameGenerator
 from online_train import run_online_adaptation
+from online_train import run_strategy_diagnostics
+from online_train import run_pilot_overhead_study
 from online_train import evaluate_mmse
 from online_train import _capture_model_state, _restore_model_state
 from compare import run_snr_comparison
@@ -99,6 +102,22 @@ def test_environment_state_dim_tracks_window_k():
     states = env.get_all_states()
     assert env.config.state_dim == 69
     assert states.shape == (env.frame_cfg.frame_len, 69)
+
+
+def test_environment_can_append_mmse_assisted_features():
+    env = CommunicationEnv(EnvConfig(
+        frame=FrameConfig(),
+        channel=dict(num_taps=8, delay_spread=7, snr_db=10.0, seed=78),
+        window_K=10,
+        use_mmse_features=True,
+        seed=78,
+    ))
+    env.reset()
+    states = env.get_all_states()
+
+    assert env.config.state_dim == 47
+    assert states.shape == (env.frame_cfg.frame_len, 47)
+    assert torch.isfinite(states[:, -2:]).all()
 
 
 def test_main_training_path_does_not_import_traditional_equalizer_state():
@@ -259,6 +278,33 @@ def test_adaptation_controller_reports_required_online_metrics():
     assert result.adapt_params == model.trainable_parameter_count()
     assert result.adapt_steps == 1
     assert result.latency_ms >= 0.0
+    assert result.parameter_delta_norm >= 0.0
+
+
+def test_adaptation_observation_uses_enhanced_pilot_only_features():
+    env = _make_env()
+    model = AdapterEqualizer(EqualizerConfig(state_dim=45, d_model=16, n_heads=4, n_layers=1, adapter_rank=4))
+    controller = AdaptationController(model, frame_config=env.frame_cfg, device=torch.device("cpu"))
+
+    obs = controller.build_observation(env, history={"last_latency_ms": 3.0})
+
+    assert obs.shape == (OBS_DIM,)
+    assert torch.isfinite(obs).all()
+
+
+def test_pseudo_label_strategy_updates_with_pseudo_mask():
+    env = _make_env()
+    model = AdapterEqualizer(EqualizerConfig(state_dim=45, d_model=16, n_heads=4, n_layers=1, adapter_rank=4))
+    controller = AdaptationController(model, frame_config=env.frame_cfg, device=torch.device("cpu"))
+    pseudo_strategy = [item for item in make_strategy_table() if item.pseudo_label_gate != "off"][0]
+    bits = env.get_true_bits()
+    pseudo_mask = torch.zeros(env.frame_cfg.frame_len, dtype=torch.bool)
+    pseudo_mask[env.frame_cfg.train_len + env.frame_cfg.pilot_len:env.frame_cfg.train_len + env.frame_cfg.pilot_len + 8] = True
+
+    result = controller.adapt_frame(env, pseudo_strategy, pseudo_bits=bits, pseudo_mask=pseudo_mask)
+
+    assert result.adapt_steps == pseudo_strategy.steps
+    assert math.isfinite(result.reward)
 
 
 def test_online_adaptation_returns_peft_and_mmse_comparison_metrics(tmp_path):
@@ -284,6 +330,47 @@ def test_online_adaptation_returns_peft_and_mmse_comparison_metrics(tmp_path):
     assert results["peft"]["adapt_steps"] >= 0
     assert results["peft"]["latency_ms"] >= 0.0
     assert "generalization" in results
+
+
+def test_strategy_diagnostics_returns_fixed_ppo_oracle_and_correlation(tmp_path):
+    results = run_strategy_diagnostics(
+        num_frames=1,
+        seed=101,
+        snr=10.0,
+        d_model=16,
+        n_layers=1,
+        adapter_rank=4,
+        device="cpu",
+        output_dir=tmp_path,
+        save_plots=False,
+    )
+
+    assert "mmse" in results
+    assert "skip" in results["methods"]
+    assert "both-fast" in results["methods"]
+    assert "ppo_policy" in results["methods"]
+    assert "pilot_oracle_action" in results["methods"]
+    assert "data_oracle_action" in results["methods"]
+    assert "delta_pilot_loss_vs_delta_ber_data" in results["correlations"]
+    assert os.path.exists(results["artifacts"]["metrics"])
+
+
+def test_pilot_overhead_study_exports_metrics(tmp_path):
+    results = run_pilot_overhead_study(
+        ratios=[0.5],
+        num_frames=1,
+        seed=102,
+        snr=10.0,
+        d_model=16,
+        n_layers=1,
+        adapter_rank=4,
+        device="cpu",
+        output_dir=tmp_path,
+    )
+
+    assert len(results["records"]) == 1
+    assert results["records"][0]["known_ratio"] == 0.5
+    assert os.path.exists(results["artifacts"]["metrics"])
 
 
 def test_online_adaptation_can_restore_theta_pre_before_each_frame():
