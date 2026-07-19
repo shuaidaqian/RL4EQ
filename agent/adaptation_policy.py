@@ -66,6 +66,23 @@ class DiscretePPOPolicy:
     def remember(self, obs: torch.Tensor, action: int, log_prob: torch.Tensor, reward: float, value: torch.Tensor) -> None:
         self.rollout.add(PPOTransition(obs.detach(), action, log_prob.detach(), reward, value.detach()))
 
+    def pretrain_imitation(self, observations: torch.Tensor, labels: torch.Tensor, epochs: int = 25) -> float:
+        """用 data-oracle action 标签做监督预训练，只训练策略头。"""
+        if observations.numel() == 0:
+            return 0.0
+        obs = observations.to(self.device)
+        y = labels.to(self.device).long()
+        last_loss = 0.0
+        for _ in range(max(1, epochs)):
+            logits, values = self.net(obs)
+            loss = F.cross_entropy(logits, y) + 0.01 * values.square().mean()
+            self.optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.net.parameters(), 1.0)
+            self.optimizer.step()
+            last_loss = float(loss.item())
+        return last_loss
+
     def update(self, gamma: float = 0.95, clip_eps: float = 0.2, epochs: int = 3) -> float:
         if not self.rollout.items:
             return 0.0

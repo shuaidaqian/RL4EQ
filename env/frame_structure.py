@@ -107,6 +107,14 @@ class FrameGenerator:
         return torch.from_numpy(pn.astype(np.float32))
 
 
+def frame_config_for_known_ratio(ratio: float, frame_len: int = 512, num_pilots: int = 2) -> FrameConfig:
+    """按已知位比例构造低 pilot overhead 帧结构。"""
+    known_total = max(4, int(round(frame_len * float(ratio))))
+    pilot_len = max(2, known_total // (num_pilots * 2))
+    train_len = max(4, known_total - num_pilots * pilot_len)
+    return FrameConfig(frame_len=frame_len, train_len=train_len, pilot_len=pilot_len, num_pilots=num_pilots)
+
+
 def test_frame():
     cfg = FrameConfig(frame_len=512, train_len=128, pilot_len=64, num_pilots=2)
     gen = FrameGenerator(cfg)

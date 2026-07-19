@@ -12,6 +12,8 @@ from env.rayleigh_channel import RayleighMultipathChannel
 from env.rician_channel import RicianMultipathChannel
 from env._3gpp_channel import ThreeGPPChannel
 
+MMSE_FEATURE_DIM = 3
+
 def _make_channel(cfg):
     channel_type = cfg.get("type")
     payload = {k: v for k, v in cfg.items() if k != "type"}
@@ -31,9 +33,10 @@ class EnvConfig:
     window_K: int = 10
     seed: int = 42
     use_mmse_features: bool = False
+    impairments: dict = field(default_factory=dict)
     @property
     def state_dim(self):
-        return 2 * (2 * self.window_K + 1) + 3 + (2 if self.use_mmse_features else 0)
+        return 2 * (2 * self.window_K + 1) + (MMSE_FEATURE_DIM if self.use_mmse_features else 0) + 3
 
 class CommunicationEnv:
     def __init__(self, config):
@@ -51,7 +54,7 @@ class CommunicationEnv:
         if rng is not None: self._rng = rng
         self._bits = self.frame_gen.generate(self._rng)
         self._tx_symbols = self.frame_gen.modulate(self._bits)
-        self._rx_symbols = self.channel(self._tx_symbols)
+        self._rx_symbols = self._apply_impairments(self.channel(self._tx_symbols))
         self._mmse_features = self._build_mmse_features() if self.config.use_mmse_features else None
         self._t = 0; self._done = False
         state = self._build_state()
@@ -79,7 +82,7 @@ class CommunicationEnv:
         c = self._t + K
         win = p[c-K:c+K+1].reshape(-1)
         meta = self._state_meta(self._t)
-        return torch.cat([win, meta, self._extra_features(self._t)])
+        return torch.cat([win, self._extra_features(self._t), meta])
 
     def get_true_bits(self): return self._bits.clone()
     def get_all_states(self):
@@ -88,10 +91,29 @@ class CommunicationEnv:
         states = []
         for t in range(L):
             c = t + K; win = p[c-K:c+K+1].reshape(-1)
-            states.append(torch.cat([win, self._state_meta(t), self._extra_features(t)]))
+            states.append(torch.cat([win, self._extra_features(t), self._state_meta(t)]))
         return torch.stack(states)
     def get_rx_symbols(self): return self._rx_symbols.clone()
     def set_snr(self, s): self.channel.set_snr(s)
+
+    def _apply_impairments(self, rx):
+        out = rx
+        if not self.config.impairments:
+            return out
+        cfo_norm = float(self.config.impairments.get("cfo_norm", 0.0) or 0.0)
+        if abs(cfo_norm) > 0.0:
+            t = torch.arange(out.shape[0], dtype=out.dtype, device=out.device)
+            phase = 2.0 * torch.pi * cfo_norm * t
+            rot_r = torch.cos(phase)
+            rot_i = torch.sin(phase)
+            r = out[:, 0] * rot_r - out[:, 1] * rot_i
+            i = out[:, 0] * rot_i + out[:, 1] * rot_r
+            out = torch.stack([r, i], dim=-1)
+        alpha = float(self.config.impairments.get("nonlinear_alpha", 0.0) or 0.0)
+        if alpha > 0.0:
+            power = out.square().sum(dim=-1, keepdim=True)
+            out = out / (1.0 + alpha * power)
+        return out
 
     def _state_meta(self, t):
         bt = self.frame_cfg.bit_type(t)
@@ -119,7 +141,10 @@ class CommunicationEnv:
         scale = soft.abs().detach().quantile(0.95).clamp_min(1e-3)
         soft_norm = torch.clamp(soft / scale, -3.0, 3.0) / 3.0
         conf = torch.sigmoid(soft.abs())
-        return torch.stack([soft_norm.float(), conf.float()], dim=-1)
+        rx_real = self._rx_symbols[:, 0].float()
+        rx_scale = rx_real.abs().detach().quantile(0.95).clamp_min(1e-3)
+        residual = torch.clamp((rx_real - soft.float()) / rx_scale, -3.0, 3.0) / 3.0
+        return torch.stack([soft_norm.float(), residual.float(), conf.float()], dim=-1)
 
 def test_env():
     print("瑞利信道:"); e=CommunicationEnv(EnvConfig()); s,_=e.reset()

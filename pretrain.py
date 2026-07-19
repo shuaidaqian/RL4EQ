@@ -26,8 +26,8 @@ import torch.nn.functional as F
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from agent.neural_equalizer import AdapterEqualizer, EqualizerConfig
-from env.comm_env import CommunicationEnv, EnvConfig
-from env.frame_structure import FrameConfig
+from env.comm_env import MMSE_FEATURE_DIM, CommunicationEnv, EnvConfig
+from env.frame_structure import FrameConfig, frame_config_for_known_ratio
 
 try:
     import matplotlib
@@ -66,6 +66,7 @@ def _sample_channel_config(
     snr_min: float,
     snr_max: float,
     max_num_taps: int | None = None,
+    impairment_prob: float = 0.0,
 ) -> dict:
     """采样离线信道族。
 
@@ -76,9 +77,24 @@ def _sample_channel_config(
     kind = rng.choice(["rayleigh", "rician", "epa", "eva", "etu"], p=[0.65, 0.25, 0.0334, 0.0333, 0.0333])
     rayleigh_high = max(7, int(max_num_taps or 24) + 1)
     rician_high = max(5, min(int(max_num_taps or 20), 20) + 1)
+    def with_impairments(channel: dict) -> dict:
+        if rng.random() >= impairment_prob:
+            return channel
+        impairments = {}
+        mode = str(rng.choice(["cfo", "nonlinear", "cfo_nonlinear"]))
+        if "cfo" in mode:
+            impairments["cfo_norm"] = float(rng.uniform(-0.08, 0.08))
+        if "nonlinear" in mode:
+            impairments["nonlinear_alpha"] = float(rng.uniform(0.15, 0.45))
+        channel["impairments"] = impairments
+        if rng.random() < 0.5:
+            channel["time_varying"] = True
+            channel["doppler_hz"] = float(rng.choice([70.0, 150.0, 300.0]))
+        return channel
+
     if kind == "rayleigh":
         num_taps = int(rng.integers(6, rayleigh_high))
-        return dict(
+        return with_impairments(dict(
             type="rayleigh",
             num_taps=num_taps,
             delay_spread=max(1, num_taps - 1),
@@ -87,10 +103,10 @@ def _sample_channel_config(
             doppler_hz=float(rng.choice([1.0, 5.0, 30.0, 70.0])),
             symbol_rate=1e6,
             seed=seed,
-        )
+        ))
     if kind == "rician":
         num_taps = int(rng.integers(4, rician_high))
-        return dict(
+        return with_impairments(dict(
             type="rician",
             num_taps=num_taps,
             delay_spread=max(1, num_taps - 1),
@@ -100,23 +116,31 @@ def _sample_channel_config(
             doppler_hz=float(rng.choice([1.0, 5.0, 30.0, 70.0])),
             symbol_rate=1e6,
             seed=seed,
-        )
-    return dict(
+        ))
+    return with_impairments(dict(
         profile=str(kind),
         snr_db=snr_db,
         time_varying=bool(rng.random() < 0.25),
         doppler_hz=float(rng.choice([5.0, 30.0, 70.0])),
         symbol_rate=1e6,
         seed=seed,
-    )
+    ))
 
 
-def _make_env(seed: int, channel: dict, window_K: int = 10, use_mmse_features: bool = False) -> CommunicationEnv:
+def _make_env(
+    seed: int,
+    channel: dict,
+    window_K: int = 10,
+    use_mmse_features: bool = False,
+    frame_config: FrameConfig | None = None,
+) -> CommunicationEnv:
+    impairments = dict(channel.pop("impairments", {}))
     env = CommunicationEnv(EnvConfig(
-        frame=FrameConfig(),
+        frame=frame_config or FrameConfig(),
         channel=channel,
         window_K=window_K,
         use_mmse_features=use_mmse_features,
+        impairments=impairments,
         seed=seed,
     ))
     env.reset()
@@ -235,6 +259,10 @@ def run_offline_pretraining(
     data_loss_weight: float = 4.0,
     known_loss_weight: float = 0.5,
     init_checkpoint: str | None = None,
+    train_known_ratios: Iterable[float] | None = None,
+    impairment_prob: float = 0.0,
+    selective_distill_weight: float = 0.0,
+    use_cfo_head: bool = False,
     save_dir: str | os.PathLike = "pretrained",
     device: str = "cpu",
     save_plots: bool = True,
@@ -246,9 +274,10 @@ def run_offline_pretraining(
     dev = torch.device(device)
     out_dir = Path(save_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    known_ratios = [float(x) for x in train_known_ratios] if train_known_ratios else [0.5]
 
     cfg = EqualizerConfig(
-        state_dim=2 * (2 * window_K + 1) + 3 + (2 if use_mmse_features else 0),
+        state_dim=2 * (2 * window_K + 1) + (MMSE_FEATURE_DIM if use_mmse_features else 0) + 3,
         d_model=d_model,
         n_heads=4,
         n_layers=n_layers,
@@ -259,11 +288,28 @@ def run_offline_pretraining(
         use_sync_head=use_sync_head,
         sync_dim=sync_dim,
         sync_delay_bins=sync_delay_bins,
+        use_mmse_residual=use_mmse_features,
+        mmse_feature_dim=MMSE_FEATURE_DIM if use_mmse_features else 0,
+        use_cfo_head=use_cfo_head,
     )
     model = AdapterEqualizer(cfg).to(dev)
     if init_checkpoint:
         state = torch.load(init_checkpoint, map_location=dev, weights_only=True)
         current = model.state_dict()
+        input_key = "input_proj.0.weight"
+        if (
+            input_key in state
+            and input_key in current
+            and state[input_key].shape[0] == current[input_key].shape[0]
+            and state[input_key].shape[1] + MMSE_FEATURE_DIM == current[input_key].shape[1]
+        ):
+            expanded = current[input_key].clone()
+            old_width = state[input_key].shape[1]
+            raw_width = old_width - 3
+            expanded[:, :raw_width] = state[input_key][:, :raw_width]
+            expanded[:, raw_width:raw_width + MMSE_FEATURE_DIM] = 0.0
+            expanded[:, -3:] = state[input_key][:, -3:]
+            state[input_key] = expanded
         compatible = {k: v for k, v in state.items() if k in current and current[k].shape == v.shape}
         skipped = sorted(k for k, v in state.items() if k in current and current[k].shape != v.shape)
         missing, unexpected = model.load_state_dict(compatible, strict=False)
@@ -289,6 +335,12 @@ def run_offline_pretraining(
         "sync_dim": cfg.sync_dim,
         "sync_delay_bins": cfg.sync_delay_bins,
         "use_mmse_features": use_mmse_features,
+        "use_mmse_residual": cfg.use_mmse_residual,
+        "mmse_feature_dim": cfg.mmse_feature_dim,
+        "train_known_ratios": known_ratios,
+        "impairment_prob": float(impairment_prob),
+        "selective_distill_weight": float(selective_distill_weight),
+        "use_cfo_head": bool(use_cfo_head),
     }
     with open(out_dir / "model_config.json", "w", encoding="utf-8") as f:
         json.dump(config_payload, f, ensure_ascii=False, indent=2)
@@ -313,8 +365,23 @@ def run_offline_pretraining(
 
         for batch_idx in range(batch_size):
             cur_seed = seed * 100000 + step * 100 + batch_idx
-            channel = _sample_channel_config(rng, cur_seed, snr_min, snr_max, max_num_taps=window_K + 1)
-            env = _make_env(cur_seed, channel, window_K=window_K, use_mmse_features=use_mmse_features)
+            known_ratio = float(rng.choice(known_ratios))
+            frame_cfg = frame_config_for_known_ratio(known_ratio)
+            channel = _sample_channel_config(
+                rng,
+                cur_seed,
+                snr_min,
+                snr_max,
+                max_num_taps=window_K + 1,
+                impairment_prob=impairment_prob,
+            )
+            env = _make_env(
+                cur_seed,
+                channel,
+                window_K=window_K,
+                use_mmse_features=use_mmse_features,
+                frame_config=frame_cfg,
+            )
             states = env.get_all_states().unsqueeze(0).to(dev)
             bits = env.get_true_bits().unsqueeze(0).to(dev)
 
@@ -328,6 +395,20 @@ def run_offline_pretraining(
             data_loss = F.binary_cross_entropy_with_logits(logits[data_mask], bits[data_mask])
             known_loss = F.binary_cross_entropy_with_logits(logits[known_mask], bits[known_mask])
             loss = data_loss_weight * data_loss + known_loss_weight * known_loss
+            if use_mmse_features and model.last_residual_correction is not None:
+                loss = loss + 0.02 * model.last_residual_correction.square().mean()
+                if selective_distill_weight > 0.0:
+                    mmse_soft = states[..., -(MMSE_FEATURE_DIM + 3)].detach()
+                    mmse_logits = -5.0 * mmse_soft
+                    mmse_bits = (mmse_soft < 0.0).float()
+                    correct_mask = (mmse_bits == bits).detach()
+                    if correct_mask.any():
+                        distill_loss = F.binary_cross_entropy_with_logits(
+                            logits[correct_mask],
+                            torch.sigmoid(mmse_logits[correct_mask]),
+                        )
+                        residual_loss = model.last_residual_correction[correct_mask].square().mean()
+                        loss = loss + selective_distill_weight * (distill_loss + 0.2 * residual_loss)
             (loss / batch_size).backward()
             batch_loss += float(loss.item())
             preds = (probs > 0.5).float()
@@ -388,6 +469,10 @@ def run_offline_pretraining(
         "sync_delay_bins": sync_delay_bins,
         "use_mmse_features": use_mmse_features,
         "init_checkpoint": init_checkpoint,
+        "train_known_ratios": known_ratios,
+        "impairment_prob": float(impairment_prob),
+        "selective_distill_weight": float(selective_distill_weight),
+        "use_cfo_head": bool(use_cfo_head),
     }
 
 
@@ -416,7 +501,12 @@ def main():
     parser.add_argument("--data_loss_weight", type=float, default=4.0)
     parser.add_argument("--known_loss_weight", type=float, default=0.5)
     parser.add_argument("--init_checkpoint", type=str, default=None)
+    parser.add_argument("--train_known_ratios", type=str, default="0.5")
+    parser.add_argument("--impairment_prob", type=float, default=0.0)
+    parser.add_argument("--selective_distill_weight", type=float, default=0.0)
+    parser.add_argument("--use_cfo_head", action="store_true")
     args = parser.parse_args()
+    train_known_ratios = [float(x.strip()) for x in args.train_known_ratios.split(",") if x.strip()]
 
     result = run_offline_pretraining(
         num_steps=args.num_steps,
@@ -440,6 +530,10 @@ def main():
         data_loss_weight=args.data_loss_weight,
         known_loss_weight=args.known_loss_weight,
         init_checkpoint=args.init_checkpoint,
+        train_known_ratios=train_known_ratios,
+        impairment_prob=args.impairment_prob,
+        selective_distill_weight=args.selective_distill_weight,
+        use_cfo_head=args.use_cfo_head,
         save_dir=args.save_dir,
         device=args.device,
     )

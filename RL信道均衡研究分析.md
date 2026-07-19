@@ -1,783 +1,908 @@
-﻿# 强化学习做信道均衡：代码架构、文献实现与后续路线分析
+# RL 信道均衡研究分析
 
-生成日期：2026-07-12  
-项目目录：`D:\Research\RL4EQ`
+本文根据当前项目代码、根目录 `开发框架.md` 以及最新完整重跑记录 `logs/full_rerun_2026-07-17/summary.md` 重新整理。核心主线是：
 
-> 说明：本次只读梳理代码，没有修改任何 `.py` 代码文件。新增内容仅包括本报告和下载到 `reference/rl_equalization_review/` 的论文 PDF/文本摘录。
+> **离线大规模监督预训练 + 在线强化学习控制参数高效微调**
 
-## 1. 当前项目代码架构
+更通俗地说：  
+这个项目不是让强化学习直接去判断每一个比特是 0 还是 1，而是先训练一个神经网络均衡器，让它具备基本的信道均衡能力；真正在线运行时，强化学习只负责根据导频段表现，选择“要不要微调、微调哪里、微调多大”，然后用微调后的均衡器去处理数据段。
 
-当前项目已经对齐根目录 `开发框架.md`，主线是：
+---
 
-```text
-Offline Stage:
-  随机无线信道生成
-  -> AdapterEqualizer 监督预训练
-  -> 输出与在线阶段同构的 checkpoint
+## 1. 先说结论
 
-Online Stage:
-  接收当前帧 Pilot + Data
-  -> Neural Equalizer 初始推理
-  -> 基于 Pilot 构造 RL observation
-  -> PPO Agent 选择少量参数更新策略
-  -> Adapter/输出头/同步头参数高效更新
-  -> Equalize Data
-  -> 与 MMSE baseline 对比
-```
-
-### 1.1 主入口
-
-| 文件 | 当前职责 |
-|---|---|
-| `pretrain.py` | 离线监督预训练入口，训练 `AdapterEqualizer`，保存 `model_best.pt`、`model_final.pt`、`model_config.json`、预训练曲线。 |
-| `online_train.py` | 在线自适应入口，加载预训练模型，使用 PPO 控制参数高效更新策略，并输出 PEFT 与 MMSE 对比指标。 |
-| `compare.py` | SNR 扫描入口，循环调用 `run_online_adaptation()`，输出 PEFT 与 MMSE 的 BER 曲线。 |
-| `tests/test_parameter_efficient_adaptation.py` | 主线约束测试，覆盖 Adapter 可训练参数比例、帧结构、状态构造、采样信道、在线指标、MMSE baseline、checkpoint 加载等。 |
-
-### 1.2 环境与信道
-
-| 文件 | 实现 |
-|---|---|
-| `env/frame_structure.py` | 固定帧结构：`Training(128) + Pilot(64) + Data(128) + Pilot(64) + Data(128)`。训练序列与导频使用确定 PN pattern，数据位随机。 |
-| `env/comm_env.py` | 生成帧、过信道、构造整帧状态。状态维度为 `2*(2K+1)+3`，默认 `K=10` 时为 45 维。 |
-| `env/rayleigh_channel.py` | 频率选择性 Rayleigh 多径信道，支持可变 tap、delay spread、AWGN、可选 Doppler 更新接口。 |
-| `env/rician_channel.py` | Rician 多径信道，含 LOS 分量和散射分量。 |
-| `env/_3gpp_channel.py` | 3GPP EPA/EVA/ETU profile 信道。 |
-| `baseline/mmse_equalizer.py` | 基于训练序列估计信道，使用频域 MMSE 均衡，作为强 baseline。 |
-
-当前状态构造为：
+当前系统已经形成了比较完整的实验闭环：
 
 ```text
-state_t = [
-  rx_window_IQ,        # 2*(2K+1)
-  known_symbol,        # train/pilot 位置为真实 BPSK 符号，data 位置为 0
-  known_mask,          # train/pilot 为 1，data 为 0
-  data_mask            # data 为 1，train/pilot 为 0
-]
+离线阶段：
+  随机生成大量无线信道
+  -> 生成接收信号和真实比特标签
+  -> 监督训练神经均衡器 AdapterEqualizer
+  -> 保存 checkpoint
+
+在线阶段：
+  接收一帧信号
+  -> 只利用训练段和导频段这些“已知答案”
+  -> 计算当前均衡器在导频上的表现
+  -> 强化学习策略选择一种微调动作
+  -> 只更新少量参数
+  -> 用微调后的模型均衡数据段
+  -> 和 MMSE、RLS、ZF 等传统方法比较
 ```
 
-这比旧版“位置 one-hot”更合理，因为已知符号被显式注入状态，同时 data 段不泄漏真实 bit。
+当前效果不是“强化学习均衡器全面超过传统算法”。更准确的结论是：
 
-### 1.3 Neural Equalizer
+- 系统在 **Rician、EPA、EVA、ETU** 等信道上已经能优于 MMSE。
+- 在 **Rayleigh 10 dB** 场景下仍弱于 MMSE。
+- 在 **高信噪比 20 dB** 下，当前神经均衡 + 在线微调结果优于 MMSE。
+- 在 **CFO 频偏场景** 中，各方法都接近随机判决，说明频偏补偿还没有真正解决。
+- 当前瓶颈主要不是“PPO 训练得不够”，而是 **导频可观察信息、在线奖励目标、可微调参数空间** 三者之间还存在错配。
 
-实现文件：`agent/neural_equalizer.py`
+---
 
-核心模型是 `AdapterEqualizer`：
+## 2. 用一个类比理解当前系统
 
-```text
-states (B, T, 45)
-  -> input_proj: Linear + LayerNorm
-  -> position embedding
-  -> optional NeuralChannelEncoder + FiLM
-  -> optional SyncPhaseDelayHead + FiLM
-  -> TransformerEncoder backbone
-  -> ResidualAdapter
-  -> output_head
-  -> bit logits / probabilities
-```
+可以把整个系统理解成考试过程。
 
-关键接口：
-
-- `forward(states) -> (logits, probs)`
-- `enable_parameter_efficient_tuning(train_adapter, train_output, train_sync)`
-- `set_trainable_targets(...)`
-- `trainable_parameters()`
-- `trainable_parameter_count()`
-
-离线阶段训练完整模型；在线阶段默认冻结主干，只开放 Adapter、输出头，必要时开放同步头。
-
-### 1.4 在线 RL 控制器
-
-实现文件：
-
-- `agent/adaptation_controller.py`
-- `agent/adaptation_policy.py`
-
-当前 RL 不是直接输出均衡比特，也不是直接输出滤波器系数，而是帧级策略控制器：
-
-```text
-RL action_id -> AdaptationStrategy
-```
-
-离散 action 表：
-
-| action | 更新模块 | lr | steps |
-|---|---:|---:|---:|
-| `skip` | 不更新 | 0 | 0 |
-| `head-slow` | output_head | 1e-4 | 1 |
-| `head-fast` | output_head | 5e-4 | 1 |
-| `adapter-slow` | adapter | 1e-4 | 1 |
-| `adapter-fast` | adapter | 5e-4 | 1 |
-| `both-slow` | adapter + output_head | 1e-4 | 1 |
-| `both-fast` | adapter + output_head | 5e-4 | 1 |
-| `both-deep` | adapter + output_head | 5e-4 | 3 |
-
-RL observation 当前为 8 维：
-
-```text
-pilot_loss
-BER_pilot
-pilot_conf_mean
-pilot_conf_std
-SNR/30
-loss_ema
-ber_ema
-last_reward
-```
-
-reward：
-
-```text
-reward = pilot_loss_before - pilot_loss_after - 0.01 * adapt_steps
-```
-
-符合 `开发框架.md` 的约束：在线 reward 只来自 pilot，不使用 data 标签。
-
-### 1.5 当前实验输出指标
-
-`online_train.py` 已输出：
-
-- `BER_data`
-- `BER_pilot`
-- `pilot_loss`
-- `adapt_params`
-- `adapt_steps`
-- `latency_ms`
-- `generalization`
-
-这些指标符合 AGENTS.md 和 `开发框架.md` 要求。
-
-## 2. 已下载并分析的论文
-
-本次检索时，当前会话没有暴露专门的 academic-search skill，因此使用网页检索 + arXiv/出版社开放 PDF 作为替代。已下载 PDF 到：
-
-```text
-reference/rl_equalization_review/
-```
-
-并提取了方法片段到：
-
-```text
-reference/rl_equalization_review/extracted_method_snippets.txt
-```
-
-### 2.1 论文列表
-
-| 论文 | 链接 | 本地文件 |
+| 项目部分 | 类比 | 实际含义 |
 |---|---|---|
-| Jeon, Lee, Poor, 2019, Robust Data Detection for MIMO Systems with One-Bit ADCs: A Reinforcement Learning Approach | https://arxiv.org/abs/1903.12546 | `1903.12546-jeon2019-onebit-mimo-rl-detection.pdf` |
-| Kim, Jeon, Li, Tavangaran, Poor, 2020, Data-Aided Channel Estimator for MIMO Systems via Reinforcement Learning | https://arxiv.org/abs/2003.10084 | `2003.10084-kim2020-data-aided-ce-rl.pdf` |
-| Kim et al., 2022, Semi-Data-Aided Channel Estimation with Reinforcement Learning | https://arxiv.org/abs/2204.01052 | `2204.01052-kim2022-semi-data-aided-ce-rl.pdf` |
-| Mo, Chang, Kan, 2021, Deep Reinforcement Learning Aided Monte Carlo Tree Search for MIMO Detection | https://arxiv.org/abs/2102.00178 | `2102.00178-mo2021-drl-mcts-mimo-detection.pdf` |
-| Bereketoglu, 2025, Composite Reward Design in PPO-Driven Adaptive Filtering | https://arxiv.org/abs/2506.06323 | `2506.06323-bereketoglu2025-ppo-adaptive-filtering.pdf` |
-| Obeed, Jian, 2026, Learning During Detection: Continual Learning for Neural OFDM Receivers via DMRS | https://arxiv.org/abs/2602.20361 | `2602.20361-obeed2026-learning-during-detection.pdf` |
-| Ben-Itzhak, Ayanoglu, 2026, RIS-Enabled Wireless Channel Equalization: Adaptive RIS Equalizer and Deep Reinforcement Learning | https://arxiv.org/abs/2603.02489 | `2603.02489-benitzhak2026-ris-equalizer-drl.pdf` |
-| Katwal, Bhatia, 2021, Improved Channel Equalization using Deep Reinforcement Learning and Optimization | https://doi.org/10.4108/eai.28-10-2021.171685 | `katwal2021-improved-channel-equalization-drl-optimization.pdf` |
+| 离线监督预训练 | 平时刷大量带答案的题 | 用仿真信道生成大量样本，训练神经均衡器 |
+| 预训练 checkpoint | 训练好的基础能力 | 保存神经均衡器参数，作为在线阶段初始模型 |
+| 在线导频段 | 考试前给的几道标准答案 | 接收端知道导频真实比特，可用来判断当前信道状态 |
+| 强化学习控制器 | 考试时根据错题选择调整策略 | 根据导频误差选择微调方式 |
+| 参数高效微调 | 只改解题习惯，不重学全部知识 | 在线只更新 Adapter、输出头、同步头等少量参数 |
+| 数据段 BER | 真正考试成绩 | 数据段真实比特只在仿真评估中可见，真实系统不能用它做奖励 |
 
-项目原有 `reference/` 下还已有：
+这条路线的重点不是让强化学习学会全部通信接收机，而是让强化学习成为一个在线调参器。
 
-- `P-FTNet Pilot-Conditioned and Feature-Augmented Transformer Network for Equalization Under Extreme Delay Spread-0423-zhang.pdf`
-- `Reducing Pilots in Channel Estimation with Predictive Foundation Models.pdf`
-- `reference/README.md` 中整理的 24 篇相关论文清单。
+---
 
-## 3. 文献实现范式对比
+## 3. 整个信号系统架构
 
-### 3.1 Jeon et al. 2019：RL 学 likelihood function，而不是直接判 bit
-
-对象：one-bit ADC MIMO data detection。
-
-实现逻辑：
-
-- 问题不是直接用 RL 预测符号，而是修正由粗量化和信道估计误差造成的 likelihood mismatch。
-- 检测后的 input-output sample 带有伪标签不确定性，不能全部当作可靠训练样本。
-- MDP state 包含已选样本、权重和当前样本索引。
-- action 是二值选择：是否使用当前检测样本更新经验 likelihood。
-- reward 是 likelihood 估计 MSE 改善。
-
-启示：
-
-该类工作没有让 RL 端到端替代通信算法，而是让 RL 做“样本选择/估计修正”。这是更稳的范式：RL 控制一个低维、可解释、对最终误差有明确物理关联的过程。
-
-### 3.2 Kim et al. 2020/2022：RL 选择 data-aided channel estimation 样本
-
-对象：MIMO data-aided channel estimation。
-
-实现逻辑：
-
-- 常规 LMMSE 只用 pilot，pilot 长度受限导致 CSI 不准。
-- data detection 后的符号可作为额外 pseudo-pilot，但错误检测会导致 error propagation。
-- RL 的 action 控制“是否接受当前检测符号作为额外训练样本”。
-- reward 定义为 channel estimate MSE 改善。
-
-启示：
-
-这类工作把 RL 放在“是否信任伪标签”的决策层，而不是让 RL 直接做均衡。对你的项目很重要：当前在线阶段只用 pilot loss 驱动，而没有利用 data 段的置信度/一致性来安全扩展监督信号，所以 online adaptation 的信息量明显不足。
-
-### 3.3 Mo et al. 2021：DRL + MCTS 做 MIMO detection
-
-对象：MIMO 符号检测。
-
-实现逻辑：
-
-- 将 MIMO detection 表述为树搜索问题。
-- DRL 网络输出 policy 和 state value，用于指导 MCTS 扩展搜索。
-- 训练方式更接近离线 self-play / search-guided learning。
-- 推理成本较高，但检测性能可以超过 ZF/MMSE/DNN detector。
-
-启示：
-
-这类方法的优势来自“搜索 + 值函数”的组合，不是简单 PPO 更新参数。它适合 MIMO 符号空间，不一定适合你当前一维 BPSK 序列均衡，但说明如果 RL 直接参与检测，通常需要结构化搜索或显式序列决策机制。
-
-### 3.4 Bereketoglu 2025：PPO 用于 adaptive filtering，但 reward 是复合物理指标
-
-对象：自适应滤波/信号增强。
-
-实现逻辑：
-
-- PPO 控制滤波器更新。
-- reward 不是单一分类 loss，而是复合目标，例如输出质量改善、误差项、平滑/稳定惩罚等。
-- 强调 reward design 对收敛和鲁棒性很关键。
-
-启示：
-
-你当前 reward 只有 `pilot_loss_before - pilot_loss_after - step_penalty`，过于局部。它能优化 pilot，但不保证 data 段 ISI、相位偏移、同步误差或泛化 BER 同步改善。需要引入更多 pilot 可观测的物理一致性项。
-
-### 3.5 Obeed & Jian 2026：Learning During Detection，DMRS 驱动在线学习
-
-对象：神经 OFDM receiver 的在线 continual learning。
-
-实现逻辑：
-
-- 不主打 RL，而是用 DMRS/pilot 在检测过程中持续更新 receiver。
-- 关键在于 pilot 设计和在线更新流程，使 pilot 同时服务 demodulation 和 learning。
-- 更接近你的当前架构：当前项目也是 pilot loss 驱动在线微调。
-
-启示：
-
-如果目标是工程有效性，这类“pilot-driven online learning”比硬套 RL 更直接。你的 RL Agent 必须证明它比固定 PEFT 策略更好，否则论文贡献会被质疑为“用 PPO 选择学习率/步数，但收益不稳定”。
-
-### 3.6 Ben-Itzhak & Ayanoglu 2026：RIS equalizer 的 DRL 控制连续物理动作
-
-对象：RIS 辅助脉冲响应均衡。
-
-实现逻辑：
-
-- action 是 RIS 相位等连续物理控制量。
-- 比较 DDPG、TD3、SAC 等连续控制算法。
-- reward 与接收脉冲响应、主径能量、ISI 能量、SNR 提升有关。
-
-启示：
-
-该类 DRL 任务的 action 与信道物理机制直接耦合，因此 RL 有发挥空间。你当前 action 是离散训练策略，不直接控制均衡器系数/相位/滤波响应，RL 信号更间接，效果上限自然更受限。
-
-### 3.7 Katwal & Bhatia 2021：WOA + Q-learning 均衡
-
-对象：传统数字通信信道下的 channel equalization。
-
-实现逻辑：
-
-- 先用 Whale Optimization Algorithm 优化 bit stream 或均衡相关参数。
-- 再用 Q-learning 选择低干扰 bit stream。
-- 在 AWGN、Rician、Rayleigh、Nakagami 下对比 BER。
-
-启示：
-
-论文声称 BER 改善，但实现更偏启发式优化 + Q-learning，不是严格的现代在线 receiver 架构。可作为相关工作，不建议作为你论文方法主依据。
-
-## 4. 你的当前方案为什么接近或弱于 MMSE
-
-### 4.1 MMSE baseline 本身很强，而且使用了正确的物理先验
-
-`baseline/mmse_equalizer.py` 使用训练序列估计信道，再构造频域 MMSE：
+当前项目模拟的是一个端到端数字通信链路。
 
 ```text
-W = H* / (|H|^2 + 1/SNR)
+发送端
+  比特序列
+    |
+    v
+  BPSK 调制：0 -> +1，1 -> -1
+    |
+    v
+无线信道
+  Rayleigh / Rician / EPA / EVA / ETU
+  CFO / Doppler / 非线性 / 低导频等失配
+    |
+    v
+接收端
+  接收复数信号 I/Q
+    |
+    v
+状态构造
+  当前符号前后窗口 + 已知/未知标记 + MMSE 辅助特征
+    |
+    v
+神经均衡器 AdapterEqualizer
+  输出每个比特为 1 的概率
+    |
+    v
+在线强化学习控制器
+  根据导频表现选择微调策略
+    |
+    v
+数据段判决
+  计算 BER_data，并与 MMSE / RLS / ZF 对比
 ```
 
-在当前仿真设置中：
+### 3.1 为什么要做均衡
 
-- 调制是 BPSK。
-- 信道是线性多径 + AWGN 为主。
-- 训练序列和 pilot 占 50% 帧长。
-- MMSE 与信道模型高度匹配。
+理想情况下，一个发送符号到达接收端后仍然保持清晰的 `+1` 或 `-1`。但无线信道中存在多径、噪声、相位变化、频偏等问题。
 
-因此 MMSE 是强 baseline，不是弱传统算法。若信道主要是线性时不变或准静态多径，神经/RL 方法没有明显额外信息，反而会因为训练误差、泛化误差和在线更新噪声而弱于 MMSE。
+多径会导致一个符号扩散到相邻时间位置，形成符号间干扰。接收端看到的不是单个干净符号，而是一段混合后的信号。均衡器的任务就是从这些混合信号中恢复原始比特。
 
-### 4.2 当前 Neural Equalizer 没有显式信道估计，只从短窗口隐式学习逆信道
+### 3.2 当前系统中的均衡对象
 
-当前模型输入是 `rx_window_IQ + known_symbol/meta`。它没有显式拿到：
-
-- 信道冲激响应估计 `h`
-- 频域响应 `H(f)`
-- 噪声方差估计
-- CFO/相位/定时偏移估计
-- MMSE soft output
-
-Transformer 只能从整帧相关性中隐式推断这些量。离线训练覆盖信道族不足或模型容量/损失设计不足时，面对某些信道会不如 MMSE 的显式估计-求逆流程。
-
-### 4.3 RL action 太间接，优化的是“如何微调模型”，不是“如何均衡信道”
-
-当前 PPO action 是：
+当前主线使用的是 BPSK 信号：
 
 ```text
-skip / head-slow / head-fast / adapter-slow / adapter-fast / both-slow / both-fast / both-deep
+bit = 0  ->  发送符号 +1
+bit = 1  ->  发送符号 -1
+虚部为 0
 ```
 
-这类 action 只决定学习率、步数和可训练模块。它没有直接控制：
-
-- 均衡滤波器系数
-- channel estimate 的样本选择
-- pseudo-label 接受/拒绝
-- 判决反馈强度
-- 相位/CFO/时延修正
-
-因此 RL 的作用链路很长：
+经过信道后，接收信号变成复数形式，即每个采样点有实部和虚部：
 
 ```text
-action -> 微调策略 -> pilot loss 变化 -> 模型参数变化 -> data BER
+rx[t] = [I[t], Q[t]]
 ```
 
-链路越长，pilot reward 与 data BER 的相关性越弱。
+神经网络输入的不是单个 `rx[t]`，而是当前位置附近的一小段接收窗口。这样做是为了让模型看到多径造成的前后串扰。
 
-### 4.4 reward 只看 pilot loss 的单步下降，容易过拟合 pilot
+---
 
-当前 reward：
+## 4. 信号类型与帧结构
+
+当前帧结构由 `env/frame_structure.py` 定义，总长度为 512。
 
 ```text
-pilot_loss_before - pilot_loss_after - 0.01 * steps
+Training(128) + Pilot(64) + Data(128) + Pilot(64) + Data(128)
 ```
 
-局限：
+| 区段 | 长度 | 接收端是否知道真实比特 | 作用 |
+|---|---:|---|---|
+| Training | 128 | 知道 | 给传统均衡器估计信道，也可作为已知参考 |
+| Pilot 1 | 64 | 知道 | 在线阶段计算导频损失，用于微调 |
+| Data 1 | 128 | 不知道 | 真正需要恢复的数据 |
+| Pilot 2 | 64 | 知道 | 再次提供当前帧参考信息 |
+| Data 2 | 128 | 不知道 | 真正需要恢复的数据 |
 
-- pilot loss 下降不等于 data BER 下降。
-- 两个 64 长度 pilot block 对复杂多径/时变信道覆盖不足。
-- 若模型对 pilot 局部过拟合，data 段可能变差。
-- 没有参数漂移惩罚，只有 step penalty。
-- 没有置信度校准、ISI 残差、判决一致性、平滑性等物理指标。
+因此每帧中：
 
-这也是“pilot 上看起来更新有效，但 data 段弱于 MMSE”的常见原因。
+- 已知比特：`Training + Pilot = 256`，占 50%。
+- 未知数据比特：`Data = 256`，占 50%。
 
-### 4.5 `reset_each_frame=True` 限制了跨帧学习
+需要特别注意：
 
-`online_train.py` 默认每帧恢复 `θ_pre`：
+> `BER_data` 只能在仿真实验中计算，因为仿真知道数据段真实标签。真实在线通信系统中，接收端不知道数据段答案，所以不能用 `BER_data` 作为强化学习奖励。
+
+当前在线奖励主要来自导频段表现，而不是数据段真实误码率。
+
+---
+
+## 5. 信道类型与扰动覆盖
+
+当前代码覆盖了几类信道和失配场景。
+
+### 5.1 基础多径信道
+
+| 信道 | 通俗解释 | 当前作用 |
+|---|---|---|
+| Rayleigh | 没有明显直达路径，主要由随机反射路径组成 | 难度较高，是当前短板之一 |
+| Rician | 有一条较强直达路径，同时有随机散射路径 | 当前系统表现较好 |
+| EPA | 3GPP 标准短时延扩展模型 | 当前系统表现较好 |
+| EVA | 3GPP 标准中等时延扩展模型 | 当前系统表现较好 |
+| ETU | 3GPP 标准较长时延扩展模型 | 当前系统表现较好 |
+
+### 5.2 失配场景
+
+| 场景 | 通俗解释 | 当前结果含义 |
+|---|---|---|
+| CFO | 接收端和发送端频率有偏差，信号相位持续旋转 | 当前各方法都接近随机判决，问题尚未解决 |
+| Doppler | 移动导致信道随时间变化 | RLS 传统自适应方法较强，当前 PEFT 略弱 |
+| Nonlinear | 接收信号幅度发生非线性压缩 | 当前 PEFT 略优于 MMSE/RLS |
+| Low Pilot | 导频比例降低，可用参考答案变少 | 当前 PEFT 优于 MMSE，但弱于 RLS |
+
+这些场景说明：当前神经均衡器不是只面对理想静态信道，而是在逐步覆盖更真实的通信问题。但 CFO 和快变信道仍是明显难点。
+
+---
+
+## 6. 离线阶段：大规模监督预训练
+
+离线阶段对应主入口：
+
+```bash
+python pretrain.py --num_steps 1000 --batch_size 4 --save_dir pretrained
+```
+
+最新完整重跑使用的 checkpoint 位于：
 
 ```text
-每帧恢复 θ_pre: True
+logs/full_rerun_2026-07-17/offline_pretrain/model_best.pt
 ```
 
-优点：
+### 6.1 离线阶段做了什么
 
-- 避免上一帧错误更新污染下一帧。
-- 评估更稳定，符合“当前帧在线自适应”设定。
-
-缺点：
-
-- PPO policy 可以跨帧学习，但 equalizer 的参数适配不跨帧积累。
-- 对慢时变信道、相邻帧相关信道，不能利用历史连续性。
-- 若当前帧 pilot 信息不足，模型无法通过多帧统计改善。
-
-这会让方法更像“每帧少量梯度搜索”，而不是完整在线学习 receiver。
-
-### 4.6 离线训练目标和在线目标存在分布差异
-
-离线：
+离线阶段可以理解成“先让神经均衡器见过足够多的信道情况”。
 
 ```text
-data_loss_weight * BCE(data) + known_loss_weight * BCE(train/pilot)
+随机采样信道参数
+  -> 生成一帧发送比特
+  -> BPSK 调制
+  -> 通过随机信道
+  -> 得到接收信号
+  -> 构造每个符号位置的输入状态
+  -> 用真实比特监督训练神经均衡器
+  -> 保存验证集 BER 最好的模型
 ```
 
-在线：
+离线训练时，模型可以看到完整真实标签，所以它可以直接用监督学习训练。在线阶段不能这样做，因为真实数据段标签不可见。
+
+### 6.2 当前离线输入状态
+
+最新完整重跑使用：
 
 ```text
-只用 pilot BCE 做更新与 reward
+window_K = 14
+use_mmse_features = True
+state_dim = 64
 ```
 
-这会带来目标错配：
+对每个符号位置，输入状态由三部分组成：
 
-- 离线模型最重视 data 位；
-- 在线更新只看到 pilot；
-- RL policy 只根据 pilot 局部收益学习；
-- 最终评估却看 `BER_data`。
+| 组成 | 维度 | 含义 |
+|---|---:|---|
+| 接收窗口 I/Q | 58 | 当前符号前后各 14 个点，共 29 个点，每点实部和虚部 |
+| MMSE 辅助特征 | 3 | 传统 MMSE 的软输出、残差、置信度 |
+| 位置标记 | 3 | 当前符号是否已知、是否数据段、已知符号值 |
+| 合计 | 64 | 神经均衡器实际输入 |
 
-如果 pilot distribution 和 data distribution 在 ISI 影响、位置、上下文上不一致，在线更新可能对主指标帮助有限。
+这里的关键设计是：模型不是只看一个采样点，而是看一段窗口。因为多径信道会让前后符号互相干扰，只看单点信息不够。
 
-### 4.7 当前 PPO 数据效率偏低
+### 6.3 离线损失函数
 
-当前 `DiscretePPOPolicy` 是帧级单步 PPO。每帧只有一个 action 和一个 reward，rollout 短，reward 噪声大。PPO 更适合有足够交互样本的策略优化；在这里策略学习的数据量可能不够，容易退化成随机探索离散微调策略。
-
-如果没有固定策略 baseline 对比，例如：
+离线训练中，数据段和已知段都会参与训练，但权重不同：
 
 ```text
-always skip
-always head-slow
-always both-fast
-oracle best action on pilot
-oracle best action on data，仅离线评估用
+总损失 = 4.0 * 数据段损失 + 0.5 * 已知段损失
 ```
 
-很难证明 PPO 本身贡献了稳定收益。
+这样设计的原因是：最终真正关心的是数据段恢复效果，所以数据段权重更高；已知段仍然参与训练，是为了帮助模型保持对参考符号的拟合能力。
 
-## 5. 在保持 `开发框架.md` 不变的前提下，下一步应该怎么做
+如果启用 MMSE 辅助特征，还会加入较小的残差约束，避免神经网络对 MMSE 修正过度。
 
-### 5.1 第一优先级：把实验闭环做严谨
+### 6.4 最新离线训练结果
 
-必须先回答一个问题：
+最新完整重跑记录：
+
+| 项目 | 数值 |
+|---|---:|
+| 训练步数 | 1000 |
+| `d_model` | 128 |
+| 层数 | 3 |
+| Adapter 秩 | 16 |
+| 接收窗口半径 | 14 |
+| 是否使用信道编码器 | 是 |
+| 是否使用同步头 | 是 |
+| 是否使用 MMSE 辅助特征 | 是 |
+| 最优验证 BER | 0.00437 |
+
+预训练曲线：
+
+![离线预训练曲线](logs/full_rerun_2026-07-17/offline_pretrain/pretrain_curve.png)
+
+---
+
+## 7. 神经均衡器结构
+
+当前神经均衡器主要实现于：
 
 ```text
-PPO 控制 PEFT 是否稳定优于固定 PEFT 策略和 MMSE？
+agent/neural_equalizer.py
 ```
 
-建议增加对比矩阵：
+核心模型名称是：
 
-| 方法 | 目的 |
+```text
+AdapterEqualizer
+```
+
+### 7.1 整体结构
+
+```text
+64 维状态输入
+  |
+  v
+输入映射层
+  把原始状态映射到神经网络内部维度
+  |
+  v
+位置编码
+  告诉模型不同符号在帧中的相对位置
+  |
+  v
+信道编码器
+  从已知符号中提取当前帧的信道摘要
+  |
+  v
+主干网络
+  在整帧范围内建模符号之间的关系
+  |
+  v
+Adapter 小模块
+  在线阶段重点微调的少量参数
+  |
+  v
+同步 / 相位 / 延迟相关分支
+  提供额外的条件调制
+  |
+  v
+输出头
+  输出每个位置为 bit=1 的概率
+  |
+  v
+MMSE 残差修正
+  在传统 MMSE 结果基础上做神经修正
+```
+
+### 7.2 各模块作用和选型理由
+
+| 模块 | 作用 | 为什么这样选 |
+|---|---|---|
+| 输入映射层 | 把 64 维状态转成模型内部表示 | 原始特征维度较低，需要映射到更高维空间 |
+| 位置编码 | 区分帧内不同位置 | Training、Pilot、Data 的位置含义不同 |
+| 主干网络 | 建模前后符号之间的关系 | 多径干扰本质上是前后符号互相影响 |
+| Adapter | 小型可调模块 | 在线只更新少量参数，降低计算量和过拟合风险 |
+| 输出头 | 把隐藏特征变成比特概率 | 最终需要判断每个比特是 0 还是 1 |
+| 信道编码器 | 总结当前帧信道状态 | 同一个模型要适应不同信道，需要条件信息 |
+| 同步头 | 处理相位、延迟等同步相关变化 | 在线信道不只改变幅度，也可能改变时序和相位 |
+| MMSE 辅助特征 | 引入传统算法先验 | 不从零开始学习，把传统均衡结果作为参考 |
+| MMSE 残差修正 | 学习对 MMSE 的补偿项 | 比完全替代 MMSE 更稳健 |
+
+### 7.3 为什么不是直接让神经网络完全替代 MMSE
+
+MMSE 是强基线，不是简单方法。它利用了通信系统中非常明确的线性信道先验。在许多线性多径场景中，MMSE 本身已经很接近合理解。
+
+如果神经网络完全从零学习，容易出现两个问题：
+
+1. 需要大量训练样本才能学到传统算法已经内置的规律。
+2. 一旦在线信道和训练分布不同，神经网络可能不如传统方法稳。
+
+所以当前更合理的路线是：
+
+```text
+传统算法提供稳定先验
+神经网络学习非理想修正
+强化学习决定在线怎么少量微调
+```
+
+这也是后续继续推进 residual-over-MMSE 结构的原因。
+
+---
+
+## 8. 在线阶段：强化学习控制参数高效微调
+
+在线阶段对应主入口：
+
+```bash
+python online_train.py --num_frames 300 --snr 10 --pretrained pretrained/model_best.pt --output_dir logs/peft_online
+```
+
+在线阶段的关键点是：数据段真实标签不可见，所以不能像离线阶段那样直接监督训练整个模型。
+
+### 8.1 在线阶段每一帧做什么
+
+```text
+加载离线预训练模型
+  |
+  v
+接收当前帧信号
+  |
+  v
+用当前模型先均衡导频段
+  |
+  v
+计算导频损失、导频误码率、置信度、历史状态
+  |
+  v
+PPO 策略选择一个动作
+  |
+  v
+按动作微调少量参数
+  |
+  v
+用微调后的模型均衡数据段
+  |
+  v
+记录 BER_data、BER_pilot、pilot_loss、延迟、参数量
+```
+
+### 8.2 强化学习看到什么
+
+当前强化学习策略看到的是 14 维观测量，全部来自导频或历史状态。
+
+| 观测类别 | 含义 |
 |---|---|
-| MMSE | 强传统 baseline |
-| no adaptation | 预训练 equalizer 上限/下限 |
-| fixed head-slow | 固定轻量更新 |
-| fixed adapter-slow | 固定 adapter 更新 |
-| fixed both-fast | 固定强更新 |
-| PPO policy | 当前方法 |
-| pilot-oracle action | 每帧选 pilot loss 最小的 action，检验 action space 上限 |
-| data-oracle action | 只用于仿真诊断，检验 pilot reward 和 data BER 的错配程度 |
+| 导频损失 | 当前模型在导频上的错误程度 |
+| 导频误码率 | 导频段判错比例 |
+| 置信度均值和方差 | 模型对自己判断是否有把握 |
+| 置信度分位数 | 判断置信度分布是否异常 |
+| 错误突发长度 | 错误是否集中连续出现 |
+| 残差相关性 | 导频误差是否有结构性残留 |
+| 信噪比 | 当前噪声强度信息 |
+| 历史损失和历史 BER | 前面帧的表现 |
+| 上一次奖励和延迟 | 上一个动作的效果与代价 |
 
-如果 PPO 不优于固定策略，优先改 reward/observation/action，而不是继续加模型复杂度。
+注意：这些观测中没有数据段真实 BER。这样做符合真实在线通信约束。
 
-### 5.2 第二优先级：量化 pilot reward 与 data BER 的相关性
+### 8.3 强化学习能选择什么动作
 
-建议输出散点和相关系数：
+当前动作表有 15 个动作。
 
-```text
-Δpilot_loss vs ΔBER_data
-BER_pilot vs BER_data
-pilot_conf_mean/std vs BER_data
-action_id vs BER_data
-```
+| 动作类别 | 代表动作 | 通俗解释 |
+|---|---|---|
+| 不更新 | `skip` | 当前模型可能已经够好，不做微调 |
+| 只调输出头 | `head-slow`, `head-fast` | 只改最后判决层 |
+| 只调 Adapter | `adapter-slow`, `adapter-fast` | 调整中间小模块，适应当前信道 |
+| 调残差修正 | `residual-light` | 主要修正 MMSE 残差分支 |
+| 调同步相关模块 | `sync-only` | 针对相位、延迟等问题做调整 |
+| 同时调多个模块 | `both-slow`, `both-fast`, `both-deep` | 适应能力更强，但风险和成本也更高 |
+| 伪标签辅助 | `pseudo-both-fast`, `pseudo-both-deep`, `pseudo-disagree-light` | 用高置信数据段预测作为临时参考 |
+| 频偏相关修正 | `cfo-light`, `cfo-strong` | 尝试处理载波频偏导致的相位旋转 |
 
-如果 `Δpilot_loss` 与 `ΔBER_data` 相关性很低，说明当前 reward 不适合作为在线优化目标。此时继续 PPO 没有意义。
+这里的“参数高效”体现在：在线阶段不更新整个模型，而是只更新少量模块。最新完整重跑中，平均每帧可训练参数约 3.4 万到 3.8 万，平均更新步数约 1.2 到 1.3 步。
 
-### 5.3 第三优先级：增强 observation
+### 8.4 在线奖励怎么定义
 
-在不使用 data 标签的前提下，建议加入：
-
-```text
-pilot_loss_before
-pilot_loss_after_candidate，若做候选动作试探
-pilot_conf_quantiles
-pilot error burst length
-pilot residual autocorrelation
-estimated SNR
-estimated CFO / phase drift
-estimated delay spread
-MMSE pilot BER / MMSE pilot loss
-neural-vs-MMSE disagreement on pilot
-history: last_action, last_adapt_params, last_latency
-```
-
-其中最重要的是：
+当前奖励不是简单的“导频损失下降”。它综合考虑：
 
 ```text
-neural-vs-MMSE disagreement
-pilot residual autocorrelation
-estimated delay spread / CFO
+奖励 =
+  导频损失改善
+  + 导频 BER 改善
+  + 置信度提升
+  - 参数变化惩罚
+  - 更新步数惩罚
+  - 延迟惩罚
+  - 残差相关性惩罚
 ```
 
-这些特征能让策略知道当前失败模式，而不仅知道“pilot loss 大不大”。
+这个设计的目的：
 
-### 5.4 第四优先级：增强 reward，但仍只用 pilot 可观测量
+- 鼓励导频表现变好。
+- 避免为了导频过拟合而大幅改动参数。
+- 控制在线计算延迟。
+- 减少结构性残余错误。
 
-建议 reward 改成复合形式：
+但它仍然有一个根本限制：奖励来自导频，不一定等价于数据段 BER 下降。
+
+---
+
+## 9. Baseline 对比口径
+
+当前项目中的主要对比方法包括：
+
+| 方法 | 通俗解释 | 特点 |
+|---|---|---|
+| ZF | 强行把信道影响反过来抵消 | 简单，但容易放大噪声 |
+| MMSE | 在抵消干扰和抑制噪声之间折中 | 线性多径场景中很强 |
+| LMS | 逐步自适应更新滤波器 | 实现简单，收敛可能慢 |
+| RLS | 更强的递归自适应滤波器 | 在快变或低导频场景中可能很强 |
+| PEFT 神经均衡 | 预训练模型 + 在线少量参数微调 | 可学习非线性和复杂失配，但依赖训练覆盖和在线奖励 |
+
+需要强调：MMSE 和 RLS 不是“弱传统算法”。如果信道主要是线性多径，而且训练段足够，传统均衡器天然具有很强先验。当前方法若只能和 MMSE 差不多，并不一定说明实现失败，而是说明比较对象本身很强。
+
+---
+
+## 10. 最新完整重跑效果
+
+最新完整重跑目录：
 
 ```text
-reward =
-  λ1 * (pilot_loss_before - pilot_loss_after)
-  + λ2 * (pilot_ber_before - pilot_ber_after)
-  + λ3 * (confidence_after - confidence_before)
-  - λ4 * parameter_delta_norm
-  - λ5 * update_steps
-  - λ6 * latency_ms
-  - λ7 * pilot_residual_correlation
+logs/full_rerun_2026-07-17
 ```
 
-参数漂移惩罚很关键：
+### 10.1 多信道在线结果
+
+| 信道 | PEFT `BER_data` | MMSE `BER_data` | 当前结论 |
+|---|---:|---:|---|
+| Rayleigh | 0.02204 | 0.01763 | PEFT 弱于 MMSE |
+| Rician | 0.00727 | 0.00871 | PEFT 略优于 MMSE |
+| EPA | 0.00035 | 0.00266 | PEFT 明显优于 MMSE |
+| EVA | 0.00359 | 0.00621 | PEFT 优于 MMSE |
+| ETU | 0.00297 | 0.00656 | PEFT 优于 MMSE |
+
+图表：
+
+![多信道 baseline 对比](logs/full_rerun_2026-07-17/channel_baselines/channel_baseline_comparison.png)
+
+解释：
+
+- 当前方法在 3GPP 标准信道上已经有优势。
+- Rayleigh 仍是主要短板，说明随机多径无直达路径时，当前在线微调和奖励设计还不够稳定。
+- Pilot BER 都接近 0，并不代表数据段一定好。这正好说明导频表现和数据段表现之间存在错配风险。
+
+### 10.2 不同信噪比下的结果
+
+| SNR(dB) | PEFT `BER_data` | MMSE `BER_data` | 差值 PEFT-MMSE |
+|---:|---:|---:|---:|
+| 0 | 0.11492 | 0.08922 | 0.02570 |
+| 5 | 0.04055 | 0.03055 | 0.01000 |
+| 10 | 0.02187 | 0.01547 | 0.00641 |
+| 15 | 0.01336 | 0.01312 | 0.00023 |
+| 20 | 0.01281 | 0.01711 | -0.00430 |
+
+图表：
+
+![SNR 对比](logs/full_rerun_2026-07-17/snr_compare/snr_mmse_comparison.png)
+
+解释：
+
+- 低 SNR 下 MMSE 更稳。
+- 中等 SNR 下两者接近，但 PEFT 仍略弱。
+- 高 SNR 下 PEFT 超过 MMSE，说明神经模型在噪声较低时能利用非线性表达能力进一步修正。
+
+### 10.3 在线主流程指标
+
+Rayleigh 300 帧在线主流程图：
+
+![Rayleigh 在线主流程](logs/full_rerun_2026-07-17/online_rayleigh_300/online_adapt_metrics.png)
+
+整体指标说明：
+
+| 指标 | 含义 | 当前观察 |
+|---|---|---|
+| `BER_data` | 数据段误码率，最终评估指标 | Rayleigh 上仍弱于 MMSE |
+| `BER_pilot` | 导频段误码率 | 多数场景接近 0 |
+| `pilot_loss` | 导频上的损失 | 数值较低，但不一定保证数据段最优 |
+| `adapt_params` | 在线可训练参数量 | 约 3.4 万到 3.8 万 |
+| `adapt_steps` | 每帧微调步数 | 约 1.2 到 1.3 步 |
+| `latency_ms` | 每帧在线微调耗时 | CPU 上约 40 到 54 ms |
+
+### 10.4 策略空间诊断
+
+| 信道 | PPO | Probe 规则 | Pilot oracle | Data oracle | MMSE | 导频损失与数据 BER 相关性 |
+|---|---:|---:|---:|---:|---:|---:|
+| Rayleigh | 0.02305 | 0.02513 | 0.02513 | 0.02064 | 0.01797 | -0.221 |
+| Rician | 0.00749 | 0.00788 | 0.00788 | 0.00658 | 0.00749 | -0.129 |
+
+图表：
+
+![策略空间诊断](logs/full_rerun_2026-07-17/strategy_rayleigh/strategy_matrix.png)
+
+![Pilot-Data 相关性](logs/full_rerun_2026-07-17/strategy_rayleigh/pilot_data_correlation.png)
+
+解释：
+
+- `Data oracle` 表示“如果仿真中提前知道哪个动作能让数据段最好”，动作空间本身能达到的上限。
+- Rayleigh 中，即使使用 `Data oracle`，结果仍略弱于 MMSE。这说明问题不只是 PPO 没选好动作，而是当前动作空间或可调参数集合本身上限不足。
+- 导频损失与数据 BER 的相关性为负且较弱，说明“导频变好”不一定稳定对应“数据段变好”。
+
+### 10.5 失配场景结果
+
+| 场景 | PEFT `BER_data` | MMSE `BER_data` | RLS `BER_data` | 当前结论 |
+|---|---:|---:|---:|---|
+| CFO | 0.48766 | 0.49445 | 0.49242 | 全部接近随机判决 |
+| Doppler | 0.02711 | 0.02391 | 0.01516 | RLS 最强，PEFT 仍需加强快变适应 |
+| Nonlinear | 0.03445 | 0.03781 | 0.03953 | PEFT 略优 |
+| Low Pilot | 0.03792 | 0.04609 | 0.02328 | PEFT 优于 MMSE，但弱于 RLS |
+
+图表：
+
+![失配场景对比](logs/full_rerun_2026-07-17/mismatch/mismatch_scenario_comparison.png)
+
+解释：
+
+- CFO 是当前最明显短板。误码率接近 0.5，基本相当于随机猜。
+- Doppler 场景下，RLS 更强，说明递归滤波对快变信道仍有优势。
+- 非线性场景中 PEFT 有一定优势，说明神经网络确实能学习传统线性均衡器不容易表达的失配。
+- 低导频场景下 PEFT 不是最优，但优于 MMSE，说明神经预训练在参考信息不足时有帮助。
+
+---
+
+## 11. 为什么有些场景只和 MMSE 差不多，甚至弱于 MMSE
+
+### 11.1 MMSE 本身很强
+
+MMSE 不是简单的经验规则。对于线性多径信道，它直接利用通信模型做最小均方误差估计。如果信道没有明显非线性、频偏或复杂硬件失配，MMSE 本来就很难被稳定超过。
+
+因此，当前结果中 Rayleigh 弱于 MMSE，并不奇怪。
+
+### 11.2 在线奖励和最终目标不完全一致
+
+在线阶段能用的真实标签主要在导频段。强化学习奖励主要看导频损失是否下降。
+
+但最终论文和实验关心的是数据段误码率：
 
 ```text
-parameter_delta_norm = ||θ_adapt - θ_pre|| / ||θ_pre||
+在线可优化目标：pilot_loss / BER_pilot
+最终评估目标：BER_data
 ```
 
-否则模型可能为降低 pilot loss 做过强局部更新。
+两者不是同一个东西。尤其当信道在帧内变化、导频位置和数据位置分布不同、模型对导频过拟合时，导频变好不代表数据段一定变好。
 
-### 5.5 第五优先级：让 RL 控制更有物理意义的动作
+### 11.3 动作空间仍然是间接控制
 
-当前 action 只控制训练策略。建议逐步扩展为：
+当前 PPO 只能从 15 个预设动作中选一个。它不能直接产生连续的精细参数更新方案。
+
+这带来两个限制：
+
+1. 如果 15 个动作里没有真正适合当前信道的方案，PPO 再聪明也选不出来。
+2. 动作粒度固定，难以针对不同信道精细调节学习率、更新层、步数和正则强度。
+
+Rayleigh 中 `Data oracle` 仍弱于 MMSE，说明当前动作空间上限不足这一问题是真实存在的。
+
+### 11.4 导频覆盖仍然有限
+
+当前每帧已知比特比例是 50%，看起来不少，但导频位置和数据位置并不完全一样。多径、时变、频偏会导致不同时间位置的失真不同。
+
+如果导频没有覆盖到数据段真实受到的失真模式，在线微调就容易只适应导频，而不能改善数据段。
+
+### 11.5 PPO 样本效率有限
+
+当前 PPO 是帧级策略。每一帧产生一次动作和一次奖励，样本量相对有限。通信系统中每个动作的效果又受随机信道、噪声、伪标签质量影响，因此策略学习会比较不稳定。
+
+这不是 PPO 不能用，而是说明它更适合作为当前阶段的“离散调参控制器”，不宜过早把论文贡献点写成“PPO 本身显著优于传统算法”。
+
+---
+
+## 12. 当前主要障碍及原因
+
+| 障碍 | 表现 | 根本原因 | 对论文的影响 |
+|---|---|---|---|
+| Rayleigh 弱于 MMSE | 10 dB 下 PEFT `BER_data=0.02204`，MMSE `0.01763` | 随机多径无直达路径，动作空间和奖励不足以稳定超过强线性先验 | 不能声称全面超过传统均衡 |
+| 导频和数据目标错配 | Pilot BER 接近 0，但 Data BER 仍不一定最低 | 在线只能用导频监督，数据段真实标签不可见 | 需要强调 reward 设计是核心难点 |
+| 动作空间上限不足 | Rayleigh 中 Data oracle 仍弱于 MMSE | 15 个离散动作不能覆盖所有有效更新方式 | 后续要扩展动作空间 |
+| CFO 未解决 | CFO 场景 BER 接近 0.5 | 频偏导致相位持续旋转，仅靠当前微调难以补偿 | CFO 应作为后续重点，不宜当前强行宣称已解决 |
+| Doppler 弱于 RLS | Doppler 下 RLS 明显更好 | 快变信道需要跨帧递归跟踪，当前默认每帧恢复预训练状态 | 需要考虑跨帧状态或递归结构 |
+| 在线延迟仍需优化 | CPU 上每帧约 40-54 ms | 仍需神经网络前向和少量反向传播 | 工程部署需要 GPU 或更轻量模型 |
+
+---
+
+## 13. 当前实现的合理研究定位
+
+不建议把当前研究点表述为：
 
 ```text
-action = {
-  update_target: head / adapter / sync / lora / none,
-  lr_id: low / mid / high,
-  steps_id: 0 / 1 / 3,
-  regularization_id: weak / medium / strong,
-  pseudo_label_gate: off / high_conf_only / consistency_with_mmse
-}
+强化学习均衡器全面替代 MMSE
 ```
 
-更推荐增加“伪标签门控”：
+更合理、更容易自洽的表述是：
 
 ```text
-只把 neural 与 MMSE 高置信一致的数据位置作为 pseudo-pilot
+基于导频约束的强化学习控制参数高效神经信道均衡方法
 ```
 
-这直接借鉴 Kim/Jeon/Poor 的 data-aided RL 思路：RL 不直接学 bit，而是控制哪些 data 决策可被信任。
-
-### 5.6 第六优先级：把 MMSE 从对手变成教师/特征
-
-目前 MMSE 只作为 baseline。若目标是在强传统算法上改进，应利用它：
+或者：
 
 ```text
-输入特征加入：
-  raw rx window
-  MMSE soft output window
-  MMSE residual
-  estimated channel h 或 H(f)
-  neural-MMSE disagreement
+离线监督预训练与在线强化学习微调结合的自适应神经均衡框架
 ```
 
-训练目标加入：
+这个定位更符合当前代码和结果：
+
+- 离线阶段建立强初始均衡能力。
+- 在线阶段只用导频信息做低成本自适应。
+- 强化学习负责选择微调策略，而不是直接替代通信接收机。
+- 在部分标准信道和高信噪比场景中已经超过 MMSE。
+- 当前瓶颈清晰，可继续改进。
+
+---
+
+## 14. 后续可行方案和建议
+
+### 14.1 短期建议：先把结果做扎实
+
+短期目标不是马上换大架构，而是把当前路线的证据链补齐。
+
+#### 建议 1：固定多随机种子评估
+
+当前结果来自一次完整重跑。建议每个关键场景至少运行 3 到 5 个随机种子，报告均值和方差。
+
+应该报告：
 
 ```text
-L = BCE(data)
-  + λ_distill * KL(neural_soft, mmse_soft)
-  + λ_residual * residual_consistency
+PEFT 平均 BER_data
+MMSE 平均 BER_data
+RLS 平均 BER_data
+标准差
+胜率
 ```
 
-这样神经网络学习的是 MMSE 的非线性残差和错误修正，而不是从零学习线性均衡。
+这样可以避免导师质疑“是不是某一次随机种子刚好好”。
 
-### 5.7 第七优先级：减少过强的“50% 已知位”设定依赖
+#### 建议 2：补齐消融实验
 
-当前已知位为 256/512，占比 50%。这对 MMSE 很有利，也使“在线学习”的研究价值不够突出。建议设置多组 pilot overhead：
+建议至少比较：
+
+| 实验 | 目的 |
+|---|---|
+| 无在线微调 | 看离线预训练本身有多强 |
+| 固定动作微调 | 看 RL 选择是否真的有用 |
+| PPO 动作 | 当前主方法 |
+| Probe 规则选择 | 看简单规则能否替代 PPO |
+| Data oracle | 看动作空间理论上限 |
+| 去掉 MMSE 辅助特征 | 验证传统先验的贡献 |
+| 去掉 Adapter | 验证参数高效模块的贡献 |
+| 去掉伪标签 | 验证伪标签是否稳定有益 |
+
+这组实验比单纯追求更低 BER 更重要，因为它能说明每个模块为什么存在。
+
+#### 建议 3：把 Rayleigh 作为重点问题分析
+
+Rayleigh 是当前主要短板。建议单独分析：
+
+- 信道抽头数量和时延扩展对结果的影响。
+- 数据段错误是否集中在某些位置。
+- MMSE 软输出和神经输出在哪些样本上分歧最大。
+- PPO 常选动作是否过于保守或过于激进。
+- `Data oracle` 为什么仍然不能超过 MMSE。
+
+如果能解释清楚 Rayleigh 失败原因，论文讨论会更可信。
+
+### 14.2 中期建议：强化 residual-over-MMSE 路线
+
+当前已经引入 MMSE 辅助特征和残差修正。后续建议更明确地把模型设计成：
 
 ```text
-known ratio: 50%, 25%, 12.5%, 6.25%
+最终输出 = MMSE 基础判决 + 神经网络残差修正
 ```
 
-你的方法如果要有论文价值，最好在低 pilot overhead、非线性硬件失真、CFO、Doppler、模型错配场景下超过 MMSE。
+这样做的好处：
 
-## 6. 如果保持当前整体架构，我建议的短期实验路线
+- MMSE 负责线性多径主问题。
+- 神经网络负责 MMSE 处理不好的非线性、失配、局部修正。
+- 在线微调时更稳定，不容易破坏已有强先验。
+- 论文上也更容易解释：不是盲目替代传统算法，而是学习传统算法的不足部分。
 
-### 阶段 A：诊断
+### 14.3 中期建议：改进在线奖励
 
-1. 固定同一批 channel seeds，比较 MMSE / no adaptation / fixed PEFT / PPO。
-2. 输出每帧 action、pilot loss 变化、data BER 变化。
-3. 计算 `Δpilot_loss` 与 `ΔBER_data` 的 Pearson/Spearman 相关。
-4. 做 data-oracle action，只用于诊断 action space 是否本身有潜力。
+当前奖励主要由导频表现驱动。后续可以加入更接近数据段质量的代理指标。
 
-判断标准：
+可行方向：
 
-- 如果 data-oracle action 明显优于固定策略，但 PPO 不行，问题在 observation/reward/policy。
-- 如果 data-oracle action 也不优于固定策略，问题在 action space 或 equalizer 本身。
-- 如果 neural no-adaptation 已弱于 MMSE 很多，先修离线预训练/模型输入，而不是在线 RL。
+| 奖励增强项 | 作用 |
+|---|---|
+| 导频损失改善 | 保留当前基本信号 |
+| 输出置信度校准 | 避免模型盲目自信 |
+| MMSE 与神经网络一致性 | 让伪标签更可靠 |
+| 相邻数据段平滑性 | 利用信道连续性 |
+| 软判决分布约束 | 避免输出概率塌缩 |
+| 跨帧性能趋势 | 让策略学会长期稳定，而非单帧贪心 |
 
-### 阶段 B：改 reward 和 observation
+核心目标是让在线 reward 更接近 `BER_data`，但又不能直接使用数据真实标签。
 
-1. 加入参数漂移惩罚。
-2. 加入 pilot residual correlation。
-3. 加入 MMSE pilot 指标和 neural-MMSE disagreement。
-4. 引入 candidate action probing：对每个 action 做一小步虚拟更新，取 pilot 可观测 summary 给 policy。
+### 14.4 中期建议：扩展动作空间
 
-### 阶段 C：引入 pseudo-pilot data-aided adaptation
+当前 15 个离散动作已经比旧版本更丰富，但仍然是手工预设。
 
-规则：
+后续可以考虑：
 
 ```text
-data 位置只有同时满足以下条件才能参与在线更新：
-  neural confidence > τ1
-  MMSE confidence > τ2
-  neural decision == MMSE decision
-  邻域判决稳定
+离散动作：
+  选择更新哪些模块
+
+连续动作：
+  输出学习率、更新步数、正则强度、伪标签比例、CFO 修正强度
 ```
 
-RL action 控制：
+也就是说，让强化学习从“选固定套餐”升级为“自动配置微调参数”。
+
+这可能需要从当前离散 PPO 进一步扩展到连续控制策略，例如连续动作 PPO、SAC 或 DDPG 类方法。但不建议马上大改，应该先用当前框架验证哪些连续参数最敏感。
+
+### 14.5 中期建议：引入跨帧记忆
+
+当前在线主流程默认每帧恢复到预训练参数，即：
 
 ```text
-τ1 / τ2 / pseudo-label 使用比例 / 更新模块 / 更新步数
+每帧开始都从 theta_pre 重新出发
 ```
 
-这会把当前方法从“只用 128 个 pilot 更新”扩展到“安全利用 data 段高置信伪标签”，但仍不使用真实 data 标签。
+这样做有利于稳定评估，但不利于跟踪慢变信道。
 
-### 阶段 D：加入困难信道
-
-优先加入：
+对于 Doppler 或连续移动场景，建议增加：
 
 ```text
-CFO
-phase noise
-timing offset
-IQ imbalance
-PA nonlinearity
-Doppler time-varying channel
-longer delay spread > window_K
+上一帧信道摘要
+上一帧动作
+上一帧微调后参数摘要
+历史导频残差趋势
 ```
 
-这些是 MMSE 容易模型错配的场景，也是神经/RL 方法更可能体现价值的场景。
+让控制器具备跨帧记忆。这样可能更接近 RLS 的递归跟踪能力。
 
-## 7. 更推荐的替代架构：Model-Assisted RL Equalizer
+### 14.6 长期建议：降低导频开销
 
-如果允许调整研究实现架构，但仍保持“强化学习做信道均衡”这一研究点，我建议从当前：
+当前已知比特占 50%，导频开销较高。真实系统中，这个比例可能不可接受。
+
+后续如果当前方法在 50% 已知比特下稳定后，应逐步降低已知比例：
 
 ```text
-RL controls PEFT strategy
+50% -> 35% -> 25% -> 15%
 ```
 
-升级为：
+并观察：
+
+- 神经预训练是否能补偿导频减少。
+- 伪标签是否能扩大可用监督信号。
+- 相比 MMSE/RLS，PEFT 是否在低导频下更有优势。
+
+如果低导频场景能做出优势，这会成为比较有价值的研究点。
+
+### 14.7 长期建议：专门处理 CFO
+
+CFO 场景当前 BER 接近 0.5，说明频偏补偿还没有实质解决。
+
+建议把 CFO 单独拆成一个子问题：
 
 ```text
-Model-Assisted RL controls sample selection + residual equalization + adaptation strength
+先估计频偏
+  -> 做相位旋转补偿
+  -> 再进入神经均衡器
+  -> 在线微调只负责残余误差
 ```
 
-### 7.1 核心思想
+不要指望 Adapter 微调自动学会完整频偏校正。频偏具有明确物理结构，应该显式建模。
 
-不要让 RL 直接替代 MMSE，也不要只让 RL 选择学习率。更稳的做法是：
+---
+
+## 15. 建议的下一步实验路线
+
+建议按以下顺序推进，避免同时改太多东西导致无法解释结果。
+
+### 第一步：固定当前架构，做可信评估
 
 ```text
-MMSE / LS 给出物理可解释初始均衡
-Neural Equalizer 学残差修正
-RL Agent 决定：
-  1. 哪些 data 判决可以作为 pseudo-pilot
-  2. 当前帧是否需要更新
-  3. 更新哪些 PEFT 模块
-  4. 更新强度和正则强度
+多随机种子
+多信道 profile
+SNR 曲线
+消融实验
+策略空间诊断
 ```
 
-这与文献趋势一致：
+目标：证明当前系统的优势和短板都是真实稳定的。
 
-- Jeon/Kim 系列：RL 选择可靠样本，降低伪标签传播错误。
-- Bereketoglu：PPO reward 要包含物理质量和稳定性项。
-- Obeed/Jian：pilot/DMRS 驱动在线 receiver 更新。
-- RIS DRL：action 与物理通道控制更直接时，RL 更有效。
-
-### 7.2 推荐系统流程
+### 第二步：强化 MMSE 残差结构
 
 ```text
-Offline:
-  多信道生成
-  -> LS/MMSE baseline 计算 h_hat、mmse_soft、residual
-  -> Neural Residual Equalizer 监督训练
-  -> 训练一个 pilot/data 置信度校准头
-  -> 训练/预训练 RL policy 或 imitation policy
-
-Online:
-  当前帧 rx
-  -> LS/MMSE 得到 h_hat、mmse_soft、mmse_conf
-  -> Neural Equalizer 初始输出 neural_soft
-  -> 构造 observation:
-       pilot metrics
-       MMSE metrics
-       neural-MMSE disagreement
-       residual statistics
-       channel summary
-  -> RL Agent 选择:
-       update or skip
-       pseudo-label threshold
-       trainable module
-       lr / steps / regularization
-  -> 用 pilot + selected pseudo-pilots 做 PEFT 更新
-  -> 输出 data decision
-  -> 评估 BER_data
+MMSE 基础输出
+  + 神经残差修正
+  + 在线只微调残差相关模块
 ```
 
-### 7.3 推荐 action space
+目标：在 Rayleigh 上至少追平或超过 MMSE。
+
+### 第三步：优化 reward 和伪标签
 
 ```text
-action = (
-  update_target,
-  lr_id,
-  steps_id,
-  pseudo_label_gate_id,
-  regularization_id
-)
+导频损失
+  + 置信度校准
+  + MMSE 一致性
+  + 时序一致性
+  + 高置信伪标签
 ```
 
-其中：
+目标：降低导频目标和数据 BER 的错配。
+
+### 第四步：处理快变和频偏
 
 ```text
-update_target:
-  none / output_head / adapter / lora_qv / lora_ffn / sync_head
-
-lr_id:
-  1e-5 / 1e-4 / 5e-4
-
-steps_id:
-  0 / 1 / 3
-
-pseudo_label_gate_id:
-  off
-  neural_conf_0.9
-  neural_mmse_agree_0.8
-  neural_mmse_agree_0.9
-
-regularization_id:
-  weak / medium / strong
+Doppler：跨帧记忆 / 递归更新
+CFO：显式频偏估计 / 相位补偿
 ```
 
-### 7.4 推荐 reward
+目标：把当前失配场景从“现象展示”推进到“方法改进”。
 
-在线真实 reward 仍不能使用 data label。建议：
+---
+
+## 16. 当前项目文件对应关系
+
+| 文件 | 作用 |
+|---|---|
+| `开发框架.md` | 当前唯一架构标准 |
+| `pretrain.py` | 离线监督预训练入口 |
+| `online_train.py` | 在线强化学习微调入口 |
+| `compare.py` | SNR、baseline、多场景对比入口 |
+| `agent/neural_equalizer.py` | 神经均衡器实现 |
+| `agent/adaptation_controller.py` | 在线微调动作和奖励实现 |
+| `agent/adaptation_policy.py` | PPO 策略网络实现 |
+| `env/frame_structure.py` | 帧结构和 BPSK 调制 |
+| `env/comm_env.py` | 通信环境、状态构造、MMSE 辅助特征 |
+| `env/rayleigh_channel.py` | Rayleigh 多径信道 |
+| `env/rician_channel.py` | Rician 多径信道 |
+| `env/_3gpp_channel.py` | EPA/EVA/ETU 标准信道 |
+| `baseline/mmse_equalizer.py` | MMSE 均衡器 |
+| `baseline/traditional_equalizers.py` | ZF、LMS、RLS、MMSE 等传统 baseline |
+| `tests/test_parameter_efficient_adaptation.py` | 参数高效微调相关测试 |
+
+---
+
+
+## 17. 最终判断
+
+当前项目已经具备硕士第二个研究点的基本形态：
+
+- 有明确问题：无线信道均衡中的在线自适应。
+- 有清晰方法：离线预训练神经均衡器，在线用强化学习控制少量参数微调。
+- 有完整系统：信号生成、信道、均衡器、强化学习控制器、baseline、可视化、测试。
+- 有最新结果：部分场景优于 MMSE，部分场景仍落后。
+- 有可解释瓶颈：reward 错配、动作空间上限、频偏和快变信道处理不足。
+- 有后续路线：MMSE 残差、奖励增强、连续控制、跨帧记忆、显式 CFO 补偿。
+
+因此，当前最稳妥的研究推进方式不是宣称“强化学习已经全面优于传统均衡”，而是把贡献聚焦在：
 
 ```text
-reward =
-  + Δpilot_loss
-  + α * Δpilot_BER
-  + β * Δpilot_confidence
-  - γ * parameter_delta_norm
-  - η * pseudo_label_disagreement
-  - μ * latency_ms
-  - ν * update_steps
+如何把离线神经均衡能力转化为在线低成本自适应能力，
+以及强化学习如何在导频约束下控制参数高效微调。
 ```
 
-其中：
-
-```text
-pseudo_label_disagreement =
-  mean(|neural_soft - mmse_soft| on selected pseudo-labels)
-```
-
-这个项不需要真实 data 标签，但能抑制错误伪标签扩散。
-
-### 7.5 推荐论文卖点
-
-如果按该架构推进，论文贡献可以写成：
-
-1. 提出一种 pilot-constrained RL adaptation 框架，严格避免 data label 泄漏。
-2. 将 MMSE 作为 model-assisted teacher，而非仅作为 baseline。
-3. 设计可靠伪标签门控的 RL action，使 data 段高置信判决参与在线自适应。
-4. 引入物理一致性 reward，缓解 pilot overfitting。
-5. 在低 pilot overhead、CFO/Doppler/nonlinear impairment 下超过 MMSE。
-
-## 8. 结论
-
-当前项目架构方向是合理的：它已经避免了“RL 直接逐 bit 判决”的高方差问题，把 RL 放在在线参数高效更新控制层，并且严格限制 reward 来自 pilot。这符合通信 receiver 的在线可观测约束。
-
-但当前方法的主要不足是：
-
-1. MMSE baseline 与当前线性多径仿真高度匹配，传统算法很强。
-2. Neural Equalizer 没有充分利用显式信道估计和 MMSE soft 信息。
-3. PPO action 只控制学习策略，和均衡物理过程耦合较弱。
-4. reward 只看 pilot loss 单步改善，与 data BER 可能弱相关。
-5. 每帧恢复 `θ_pre` 限制了慢时变信道下的连续学习收益。
-6. 缺少固定 PEFT、oracle action、pilot-data reward correlation 等关键消融，导致很难证明 RL 策略本身的贡献。
-
-接下来不建议盲目增加 PPO 复杂度。优先级应是：
-
-```text
-先诊断 pilot reward 是否真的预测 data BER
--> 再增强 observation/reward
--> 再加入 MMSE-assisted 特征和 pseudo-pilot 门控
--> 最后扩展到 CFO/Doppler/非线性等 MMSE 模型错配场景
-```
-
-如果目标是形成硕士第二个研究点，最稳的题目方向是：
-
-```text
-基于 Pilot 约束强化学习的参数高效神经信道均衡：
-从固定 PEFT 到模型辅助的伪标签门控在线自适应
-```
-
+这条主线更符合当前代码实现，也更容易支撑后续论文写作和导师汇报。

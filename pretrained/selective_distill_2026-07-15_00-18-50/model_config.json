@@ -1,0 +1,26 @@
+{
+  "state_dim": 64,
+  "d_model": 128,
+  "n_heads": 4,
+  "n_layers": 3,
+  "dim_feedforward": 256,
+  "adapter_rank": 16,
+  "window_K": 14,
+  "max_len": 512,
+  "use_channel_encoder": true,
+  "channel_dim": 64,
+  "use_sync_head": true,
+  "sync_dim": 48,
+  "sync_delay_bins": 9,
+  "use_mmse_features": true,
+  "use_mmse_residual": true,
+  "mmse_feature_dim": 3,
+  "train_known_ratios": [
+    0.5,
+    0.25,
+    0.125
+  ],
+  "impairment_prob": 0.65,
+  "selective_distill_weight": 0.15,
+  "use_cfo_head": false
+}

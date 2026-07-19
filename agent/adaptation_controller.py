@@ -22,9 +22,14 @@ class AdaptationStrategy:
     train_adapter: bool = True
     train_output: bool = True
     train_sync: bool = False
+    train_residual: bool | None = None
     regularization: float = 0.02
     pseudo_label_gate: str = "off"
     pseudo_weight: float = 0.0
+    pseudo_neural_threshold: float = 0.85
+    pseudo_mmse_threshold: float = 0.65
+    pseudo_max_ratio: float = 0.25
+    cfo_correction_strength: float = 0.0
 
 
 @dataclass
@@ -47,11 +52,16 @@ def make_strategy_table():
         AdaptationStrategy("head-fast", lr=5e-4, steps=1, train_adapter=False, train_output=True, regularization=0.05),
         AdaptationStrategy("adapter-slow", lr=1e-4, steps=1, train_adapter=True, train_output=False, train_sync=True, regularization=0.03),
         AdaptationStrategy("adapter-fast", lr=5e-4, steps=1, train_adapter=True, train_output=False, train_sync=True, regularization=0.06),
+        AdaptationStrategy("residual-light", lr=2e-4, steps=1, train_adapter=False, train_output=False, train_sync=False, train_residual=True, regularization=0.05),
+        AdaptationStrategy("sync-only", lr=2e-4, steps=1, train_adapter=False, train_output=False, train_sync=True, train_residual=False, regularization=0.05),
         AdaptationStrategy("both-slow", lr=1e-4, steps=1, train_adapter=True, train_output=True, train_sync=True, regularization=0.04),
         AdaptationStrategy("both-fast", lr=5e-4, steps=1, train_adapter=True, train_output=True, train_sync=True, regularization=0.07),
         AdaptationStrategy("both-deep", lr=5e-4, steps=3, train_adapter=True, train_output=True, train_sync=True, regularization=0.10),
-        AdaptationStrategy("pseudo-both-fast", lr=3e-4, steps=1, train_adapter=True, train_output=True, train_sync=True, regularization=0.08, pseudo_label_gate="agree-high", pseudo_weight=0.35),
-        AdaptationStrategy("pseudo-both-deep", lr=3e-4, steps=3, train_adapter=True, train_output=True, train_sync=True, regularization=0.12, pseudo_label_gate="agree-high", pseudo_weight=0.35),
+        AdaptationStrategy("pseudo-both-fast", lr=3e-4, steps=1, train_adapter=True, train_output=True, train_sync=True, regularization=0.08, pseudo_label_gate="agree-high", pseudo_weight=0.35, pseudo_neural_threshold=0.85, pseudo_mmse_threshold=0.65, pseudo_max_ratio=0.25),
+        AdaptationStrategy("pseudo-both-deep", lr=3e-4, steps=3, train_adapter=True, train_output=True, train_sync=True, regularization=0.12, pseudo_label_gate="agree-wide", pseudo_weight=0.35, pseudo_neural_threshold=0.75, pseudo_mmse_threshold=0.60, pseudo_max_ratio=0.40),
+        AdaptationStrategy("pseudo-disagree-light", lr=2e-4, steps=1, train_adapter=True, train_output=True, train_sync=True, regularization=0.12, pseudo_label_gate="disagree-neural", pseudo_weight=0.20, pseudo_neural_threshold=0.90, pseudo_mmse_threshold=0.70, pseudo_max_ratio=0.10),
+        AdaptationStrategy("cfo-light", lr=2e-4, steps=1, train_adapter=False, train_output=True, train_sync=True, regularization=0.06, cfo_correction_strength=0.5),
+        AdaptationStrategy("cfo-strong", lr=3e-4, steps=2, train_adapter=True, train_output=True, train_sync=True, regularization=0.08, cfo_correction_strength=1.0),
     ]
 
 
@@ -121,7 +131,14 @@ class AdaptationController:
         states = self._states(env)
         bits = env.get_true_bits().to(self.device)
 
-        self.model.set_trainable_targets(strategy.train_adapter, strategy.train_output, strategy.train_sync)
+        if hasattr(self.model, "set_cfo_correction_strength"):
+            self.model.set_cfo_correction_strength(strategy.cfo_correction_strength)
+        self.model.set_trainable_targets(
+            strategy.train_adapter,
+            strategy.train_output,
+            strategy.train_sync,
+            train_residual=strategy.train_residual,
+        )
         before_stats = self._pilot_stats(states, bits)
         before_params = [param.detach().clone() for param in self.model.trainable_parameters()]
         start = perf_counter()
