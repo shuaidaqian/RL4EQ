@@ -1,46 +1,8 @@
-=== Reference Literature Summary ===
-Topic: RL-based Online Adaptive Channel Equalization
-Update: 2026-06-05, 6 PDFs total in reference/
+RL4EQ 文献摘要
 
-=== Newly Downloaded Papers Analysis ===
+1. P-FTNet 证明 Transformer 与 Pilot 条件机制适合 20–40 符号极端时延扩展。
+2. Learning During Detection 证明已知 Pilot 可以同时服务解调与在线学习。
+3. Modular Bayesian Deep Receivers 展示了流式接收机单步适配的时延价值。
+4. Composite Reward PPO Adaptive Filtering 为帧级更新收益与资源惩罚提供参考。
 
-[2] Obeed & Jian 2026 - 'Learning During Detection'
-    arXiv:2602.20361 | Huawei Canada
-    Method: DMRS-driven continual learning (SGD fine-tune, non-RL)
-    Key: Redesign pilots as dual-purpose (demodulation + learning)
-          3 pilot designs, 2 receiver architectures
-    Result: Zero-overhead online adaptation, tracks fast/slow channels
-    Gap: Uses SGD not RL, but closest online receiver framework
-
-[3] Bereketoglu 2025 - 'Composite Reward PPO Adaptive Filtering'
-    arXiv:2506.06323 | METU, IEEE SPL
-    Method: PPO-driven adaptive filter (on-policy RL)  *** MOST RELEVANT ***
-    Key: MDP(state=signal window+filter-state, action=filter-coeff-updates,
-         reward=SNR_improvement - MSE - TV_smoothness)
-    Actor-Critic: LSTM(128) actor + 2-layer MLP critic
-    Result: Outperforms LMS/RLS/Wiener/Kalman on multiple noise types
-    Gap: Signal denoising scenario, not symbol-level comms equalization
-
-[4] Gusakov et al. 2025 - 'Modular Bayesian Deep Receivers'
-    arXiv:2511.06045 | BGU/Northeastern
-    Method: Variational Bayesian online learning (non-RL)
-    Key: Single-step posterior update replaces multi-epoch SGD
-          Modular DeepSIC architecture for parallelization
-    Result: 1-2 order latency reduction, same BER as multi-epoch
-    Gap: Not RL; needs gradient; Bayesian framework adds complexity
-
-[5] Ben-Itzhak & Ayanoglu 2026 - 'RIS Equalizer DRL'
-    arXiv:2603.02489 | UC Irvine, 40 pages
-    Method: DDPG/TD3/SAC optimize RIS reflection coeffs for spatial equalization
-    Key: State=pulse response y_t, Action=RIS phases Gamma (continuous),
-         Reward=main-tap-energy - ISI-energy
-    SAC best: fast convergence, no CSI needed, comparable to ARISE(SD)
-    Gap: Not traditional equalizer (RIS spatial domain); DRL controls RIS not symbols
-
-[6] Mo, Chang & Kan 2021 - 'DRL-MCTS MIMO Detection'
-    arXiv:2102.00178 | Academia Sinica, IEEE TWC
-    Method: DRL + Monte Carlo Tree Search for MIMO symbol detection
-    Key: MDP formulation; Policy+State value networks guide MCTS
-          Self-play training; avoids supervised labeling dilemma
-    Result: Outperforms ZF/MMSE/DNN detectors, robust to channel variations
-    Gap: Offline training; MCTS high latency; MIMO detection not equalization
+新项目不直接复现上述论文，而是研究 PPO 如何根据 Adapt Pilot 控制神经均衡器的 Adapter/输出头微调，并用 Reward Pilot 留出集避免训练 Pilot 过拟合。

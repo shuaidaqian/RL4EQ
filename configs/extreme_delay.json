@@ -1,0 +1,29 @@
+{
+  "seed": 42,
+  "frame_len": 512,
+  "pilot_lengths": [48, 64, 80],
+  "delay_train": [12, 40],
+  "delay_eval": [20, 30, 40],
+  "delay_generalization": 50,
+  "snr_train": [-5, 20],
+  "snr_eval": [-5, 0, 5, 10, 15, 20],
+  "model": {
+    "d_model": 96,
+    "n_heads": 4,
+    "n_layers": 3,
+    "dim_feedforward": 192,
+    "adapter_rank": 8,
+    "max_len": 512,
+    "dilations": [1, 2, 4, 8, 16],
+    "region_dim": 8,
+    "dropout": 0.0
+  },
+  "pretraining": {
+    "stage_a_steps": 4000,
+    "stage_b_steps": 4000,
+    "batch_size": 8,
+    "learning_rate": 0.0003,
+    "validation_frames": 3
+  }
+}
+
