@@ -22,49 +22,62 @@ RL4EQ 研究一种面向 EME 启发稀疏长回波信道的神经均衡框架。
 
 ## 环境
 
-- Python 3.12
-- PyTorch 2.x
-- NumPy
-- Matplotlib（仅用于曲线输出）
-- Pytest
+- NVIDIA GeForce GTX 1650（4 GB）
+- Python 3.12.7
+- PyTorch 2.11.0+cu128
+- CUDA Runtime 12.8 / cuDNN 9.19
+- NumPy 1.26.4
+- Matplotlib 3.11.1
+- Pytest 9.1.1
 
-当前环境安装的是 CPU 版 PyTorch，因此论文级多种子实验建议在 CUDA 版 PyTorch 环境运行。
+本机已创建并验证 `.venv-gpu`。Windows PowerShell 下可重新创建同构环境：
+
+```powershell
+python -m venv .venv-gpu
+.\.venv-gpu\Scripts\python.exe -m pip install --upgrade pip
+.\.venv-gpu\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cu128
+.\.venv-gpu\Scripts\python.exe -m pip install numpy==1.26.4 matplotlib==3.11.1 pytest==9.1.1
+.\.venv-gpu\Scripts\python.exe -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
 
 ## 快速开始
 
 离线预训练：
 
-```bash
-python pretrain.py --config configs/extreme_delay.json --save_dir pretrained
+```powershell
+.\.venv-gpu\Scripts\python.exe pretrain.py --config configs/extreme_delay.json --save_dir pretrained --device cuda
 ```
 
 在线 PPO 参数高效微调：
 
-```bash
-python online_train.py \
-  --config configs/extreme_delay.json \
-  --pretrained pretrained/model_best.pt \
-  --output_dir logs/online
+```powershell
+.\.venv-gpu\Scripts\python.exe online_train.py `
+  --config configs/extreme_delay.json `
+  --pretrained pretrained/model_best.pt `
+  --output_dir logs/online `
+  --device cuda
 ```
 
 统一比较：
 
-```bash
-python compare.py \
-  --config configs/extreme_delay.json \
-  --pretrained pretrained/model_best.pt \
-  --policy logs/online/policy.pt \
-  --delays 20 30 40 \
-  --snrs -5 0 5 10 15 20 \
-  --num_seeds 5 \
-  --num_frames 200 \
-  --output_dir logs/compare
+```powershell
+.\.venv-gpu\Scripts\python.exe compare.py `
+  --config configs/extreme_delay.json `
+  --pretrained pretrained/model_best.pt `
+  --policy logs/online/policy.pt `
+  --delays 20 30 40 `
+  --snrs -5 0 5 10 15 20 `
+  --num_seeds 5 `
+  --num_frames 200 `
+  --output_dir logs/compare `
+  --device cuda
 ```
 
 测试：
 
-```bash
-python -m pytest tests/test_extreme_delay_adaptation.py -q
+```powershell
+$env:PYTHONDONTWRITEBYTECODE='1'
+.\.venv-gpu\Scripts\python.exe -m pytest tests/test_extreme_delay_adaptation.py -q -p no:cacheprovider
 ```
 
 ## CPU Smoke

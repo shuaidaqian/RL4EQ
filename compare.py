@@ -4,9 +4,11 @@
 import argparse
 import json
 from pathlib import Path
+import time
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 from agent.adaptation_controller import OBS_DIM, AdaptationController
 from agent.adaptation_policy import ACTION_TABLE, PPOPolicy
@@ -15,7 +17,7 @@ from baseline.traditional_equalizers import DFERLSEqualizer
 from env.comm_env import CommunicationEnv, EnvConfig, ReceivedFrame
 from env.extreme_delay_channel import ExtremeDelayChannelConfig
 from env.frame_structure import FrameConfig
-from online_train import _configure_plot_font, evaluate_neural_data
+from online_train import REQUIRED_METRICS, _configure_plot_font, evaluate_neural_data
 from pretrain import load_pretrained_equalizer
 
 
@@ -28,6 +30,13 @@ METHODS = (
     "ppo_peft",
     "data_oracle",
 )
+
+FRAME_METRICS = tuple(sorted(REQUIRED_METRICS - {"generalization"}))
+
+
+def _comparison_seed(seed: int, delay: int, seed_index: int) -> int:
+    """为同一时延和重复编号生成跨 SNR 复用的配对随机种子。"""
+    return int(seed) + int(delay) * 10000 + int(seed_index)
 
 
 def _summarize_records(
@@ -54,18 +63,87 @@ def _summarize_records(
         std = float(np.std(seed_means, ddof=1)) if len(seed_means) > 1 else 0.0
         ci95 = 1.96 * std / np.sqrt(len(seed_means)) if len(seed_means) > 1 else 0.0
         summary[method] = {
+            metric: float(
+                np.mean([float(item[metric]) for item in selected if metric in item])
+            )
+            if any(metric in item for item in selected)
+            else 0.0
+            for metric in FRAME_METRICS
+        }
+        summary[method].update({
             "mean_BER_data": mean,
             "std": std,
             "ci95": float(ci95),
             "seed_means": seed_means,
-        }
+            "generalization": 0.0,
+        })
     return summary
 
 
-def _soft_ber(soft: torch.Tensor, received: ReceivedFrame) -> float:
+def _traditional_metrics(
+    soft: torch.Tensor, received: ReceivedFrame, latency_ms: float
+) -> dict[str, float | int]:
+    """把传统均衡器输出转换为与在线控制器一致的帧级指标。"""
+    frame = received.frame
     predictions = (soft < 0.0).float()
-    mask = received.frame.data_mask
-    return float((predictions[mask] != received.frame.bits[mask]).float().mean())
+    logits = -soft.float()
+    bits = frame.bits.float()
+
+    def ber(mask: torch.Tensor) -> float:
+        return float((predictions[mask] != bits[mask]).float().mean())
+
+    return {
+        "BER_data": ber(frame.data_mask),
+        "BER_adapt_pilot": ber(frame.adapt_pilot_mask),
+        "BER_reward_pilot": ber(frame.reward_pilot_mask),
+        "pilot_loss": float(
+            F.binary_cross_entropy_with_logits(
+                logits[frame.adapt_pilot_mask], bits[frame.adapt_pilot_mask]
+            ).item()
+        ),
+        "adapt_params": 0,
+        "adapt_steps": 0,
+        "latency_ms": float(latency_ms),
+        "parameter_delta_norm": 0.0,
+    }
+
+
+def _score_without_adaptation(
+    model, received: ReceivedFrame, device: torch.device
+) -> dict[str, float | int]:
+    """用一次前向计算无适配神经均衡器的完整指标。"""
+    frame = received.frame
+    start = time.perf_counter()
+    model.eval()
+    with torch.no_grad():
+        logits, probabilities = model(
+            received.rx_symbols.unsqueeze(0).to(device),
+            frame.region_ids.unsqueeze(0).to(device),
+            frame.adapt_pilot_symbols.unsqueeze(0).to(device),
+            frame.adapt_pilot_mask.unsqueeze(0).to(device),
+        )
+    latency_ms = (time.perf_counter() - start) * 1000.0
+    logits = logits[0].cpu()
+    probabilities = probabilities[0].cpu()
+    predictions = (probabilities >= 0.5).float()
+
+    def ber(mask: torch.Tensor) -> float:
+        return float((predictions[mask] != frame.bits[mask]).float().mean())
+
+    return {
+        "BER_data": ber(frame.data_mask),
+        "BER_adapt_pilot": ber(frame.adapt_pilot_mask),
+        "BER_reward_pilot": ber(frame.reward_pilot_mask),
+        "pilot_loss": float(
+            F.binary_cross_entropy_with_logits(
+                logits[frame.adapt_pilot_mask], frame.bits[frame.adapt_pilot_mask]
+            ).item()
+        ),
+        "adapt_params": 0,
+        "adapt_steps": 0,
+        "latency_ms": float(latency_ms),
+        "parameter_delta_norm": 0.0,
+    }
 
 
 def _frame_config(payload: dict[str, object]) -> FrameConfig:
@@ -75,12 +153,97 @@ def _frame_config(payload: dict[str, object]) -> FrameConfig:
     return FrameConfig.from_total_pilot(total, frame_len=int(training["frame_len"]))
 
 
-def _adapt_and_score(model, received, action, device, base_state) -> float:
+def _adapt_and_score(model, received, action, device, base_state) -> dict[str, float | int]:
     model.restore_peft_state(base_state)
     controller = AdaptationController(model, device=device)
     controller.start_episode()
-    controller.adapt_frame(received, action)
-    return evaluate_neural_data(model, received, torch.device(device))
+    result = controller.adapt_frame(received, action)
+    return {
+        "BER_data": evaluate_neural_data(model, received, torch.device(device)),
+        "BER_adapt_pilot": result.ber_adapt_pilot,
+        "BER_reward_pilot": result.ber_reward_pilot,
+        "pilot_loss": result.adapt_pilot_loss,
+        "adapt_params": result.adapt_params,
+        "adapt_steps": result.adapt_steps,
+        "latency_ms": result.latency_ms,
+        "parameter_delta_norm": result.parameter_delta_norm,
+    }
+
+
+def _evaluate_methods(
+    model,
+    policy: PPOPolicy,
+    lmmse: LMMSEFIREqualizer,
+    rls: DFERLSEqualizer,
+    received: ReceivedFrame,
+    delay: int,
+    snr: float,
+    device: torch.device,
+) -> dict[str, dict[str, float | int]]:
+    """在同一接收帧和同一 PEFT 初始状态上评估全部方法。"""
+    frame = received.frame
+    base_state = model.capture_peft_state()
+
+    start = time.perf_counter()
+    lmmse_soft = lmmse.equalize(
+        received.rx_symbols,
+        frame.adapt_pilot_symbols,
+        frame.adapt_pilot_mask,
+        delay,
+        snr,
+    )
+    lmmse_metrics = _traditional_metrics(
+        lmmse_soft, received, (time.perf_counter() - start) * 1000.0
+    )
+
+    start = time.perf_counter()
+    rls_soft = rls.equalize(
+        received.rx_symbols,
+        frame.adapt_pilot_symbols,
+        frame.adapt_pilot_mask,
+        delay,
+        snr,
+    )
+    rls_metrics = _traditional_metrics(
+        rls_soft, received, (time.perf_counter() - start) * 1000.0
+    )
+
+    scores = {
+        "lmmse_fir": lmmse_metrics,
+        "dfe_rls": rls_metrics,
+        "pretrained": _score_without_adaptation(model, received, device),
+        "fixed_peft": _adapt_and_score(
+            model, received, ACTION_TABLE[3], device, base_state
+        ),
+    }
+
+    model.restore_peft_state(base_state)
+    rule_controller = AdaptationController(model, device=device)
+    observation = rule_controller.build_observation(received)
+    rule_action = ACTION_TABLE[3] if float(observation[0]) > 0.55 else ACTION_TABLE[0]
+    scores["pilot_rule"] = _adapt_and_score(
+        model, received, rule_action, device, base_state
+    )
+
+    model.restore_peft_state(base_state)
+    ppo_controller = AdaptationController(model, device=device)
+    ppo_observation = ppo_controller.build_observation(received)
+    ppo_index, _, _ = policy.sample_action(ppo_observation, deterministic=True)
+    scores["ppo_peft"] = _adapt_and_score(
+        model, received, ACTION_TABLE[ppo_index], device, base_state
+    )
+
+    oracle_candidates = [
+        _adapt_and_score(model, received, action, device, base_state)
+        for action in ACTION_TABLE[:6]
+    ]
+    oracle = dict(min(oracle_candidates, key=lambda item: float(item["BER_data"])))
+    oracle["latency_ms"] = float(
+        sum(float(item["latency_ms"]) for item in oracle_candidates)
+    )
+    scores["data_oracle"] = oracle
+    model.restore_peft_state(base_state)
+    return scores
 
 
 def run_comparison(
@@ -111,7 +274,7 @@ def run_comparison(
     for delay in tuple(int(value) for value in delays):
         for snr in tuple(float(value) for value in snrs):
             for seed_index in range(int(num_seeds)):
-                local_seed = seed + delay * 10000 + int(round(snr * 10)) * 100 + seed_index
+                local_seed = _comparison_seed(seed, delay, seed_index)
                 channel_cfg = ExtremeDelayChannelConfig(
                     max_delay_symbols=delay,
                     min_paths=min(3, delay + 1),
@@ -123,52 +286,10 @@ def run_comparison(
                 env.reset_episode()
                 for frame_index in range(int(num_frames)):
                     received = env.next_frame()
-                    frame = received.frame
-                    base_state = model.capture_peft_state()
-                    lmmse_soft = lmmse.equalize(
-                        received.rx_symbols,
-                        frame.adapt_pilot_symbols,
-                        frame.adapt_pilot_mask,
-                        delay,
-                        snr,
+                    scores = _evaluate_methods(
+                        model, policy, lmmse, rls, received, delay, snr, dev
                     )
-                    rls_soft = rls.equalize(
-                        received.rx_symbols,
-                        frame.adapt_pilot_symbols,
-                        frame.adapt_pilot_mask,
-                        delay,
-                        snr,
-                    )
-                    scores = {
-                        "lmmse_fir": _soft_ber(lmmse_soft, received),
-                        "dfe_rls": _soft_ber(rls_soft, received),
-                    }
-                    model.restore_peft_state(base_state)
-                    scores["pretrained"] = evaluate_neural_data(model, received, dev)
-                    scores["fixed_peft"] = _adapt_and_score(
-                        model, received, ACTION_TABLE[3], dev, base_state
-                    )
-                    model.restore_peft_state(base_state)
-                    rule_controller = AdaptationController(model, device=dev)
-                    observation = rule_controller.build_observation(received)
-                    rule_action = ACTION_TABLE[3] if float(observation[0]) > 0.55 else ACTION_TABLE[0]
-                    scores["pilot_rule"] = _adapt_and_score(
-                        model, received, rule_action, dev, base_state
-                    )
-                    model.restore_peft_state(base_state)
-                    ppo_controller = AdaptationController(model, device=dev)
-                    ppo_observation = ppo_controller.build_observation(received)
-                    ppo_index, _, _ = policy.sample_action(ppo_observation, deterministic=True)
-                    scores["ppo_peft"] = _adapt_and_score(
-                        model, received, ACTION_TABLE[ppo_index], dev, base_state
-                    )
-                    oracle_scores = [
-                        _adapt_and_score(model, received, action, dev, base_state)
-                        for action in ACTION_TABLE[:6]
-                    ]
-                    scores["data_oracle"] = min(oracle_scores)
-                    model.restore_peft_state(base_state)
-                    for method, ber_data in scores.items():
+                    for method, metrics in scores.items():
                         records.append(
                             {
                                 "delay": delay,
@@ -176,17 +297,71 @@ def run_comparison(
                                 "seed": seed_index,
                                 "frame": frame_index,
                                 "method": method,
-                                "BER_data": ber_data,
+                                **metrics,
                             }
                         )
+                print(
+                    f"完成 delay={delay}, SNR={snr:g}, "
+                    f"seed={seed_index + 1}/{num_seeds}",
+                    flush=True,
+                )
+
+    generalization_records: list[dict[str, object]] = []
+    generalization_delay = 50
+    generalization_snr = 10.0
+    for seed_index in range(int(num_seeds)):
+        local_seed = _comparison_seed(seed + 900000, generalization_delay, seed_index)
+        channel_cfg = ExtremeDelayChannelConfig(
+            max_delay_symbols=generalization_delay,
+            min_paths=8,
+            max_paths=10,
+            snr_db=generalization_snr,
+            seed=local_seed,
+        )
+        env = CommunicationEnv(EnvConfig(frame=frame_cfg, channel=channel_cfg, seed=local_seed))
+        env.reset_episode()
+        for frame_index in range(int(num_frames)):
+            received = env.next_frame()
+            scores = _evaluate_methods(
+                model,
+                policy,
+                lmmse,
+                rls,
+                received,
+                generalization_delay,
+                generalization_snr,
+                dev,
+            )
+            for method, metrics in scores.items():
+                generalization_records.append(
+                    {
+                        "delay": generalization_delay,
+                        "snr": generalization_snr,
+                        "seed": seed_index,
+                        "frame": frame_index,
+                        "method": method,
+                        **metrics,
+                    }
+                )
+        print(
+            f"完成外推泛化 delay=50, paths=8-10, "
+            f"seed={seed_index + 1}/{num_seeds}",
+            flush=True,
+        )
 
     summary = _summarize_records(records)
+    generalization_summary = _summarize_records(generalization_records)
+    for method in METHODS:
+        summary[method]["generalization"] = generalization_summary[method]["BER_data"]
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     records_path = out_dir / "comparison_records.json"
+    generalization_records_path = out_dir / "generalization_records.json"
     summary_path = out_dir / "comparison_summary.json"
     with open(records_path, "w", encoding="utf-8") as handle:
         json.dump(records, handle, ensure_ascii=False, indent=2)
+    with open(generalization_records_path, "w", encoding="utf-8") as handle:
+        json.dump(generalization_records, handle, ensure_ascii=False, indent=2)
     with open(summary_path, "w", encoding="utf-8") as handle:
         json.dump(
             {"methods": list(METHODS), "policy_loaded": policy_loaded, "summary": summary},
@@ -227,6 +402,7 @@ def run_comparison(
     return {
         "methods": list(METHODS),
         "records_path": str(records_path),
+        "generalization_records_path": str(generalization_records_path),
         "summary_path": str(summary_path),
         "summary": summary,
     }

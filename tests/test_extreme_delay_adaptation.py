@@ -25,7 +25,7 @@ from baseline.traditional_equalizers import DFERLSEqualizer
 from pretrain import load_pretrained_equalizer, run_offline_pretraining
 from online_train import REQUIRED_METRICS, _configure_plot_font as configure_online_font
 from online_train import run_online_training
-from compare import _summarize_records, run_comparison
+from compare import _comparison_seed, _summarize_records, run_comparison
 
 
 def test_frame_masks_cover_frame_without_overlap():
@@ -445,6 +445,24 @@ def test_comparison_exports_all_planned_methods(tmp_path):
     }
     assert Path(result["records_path"]).exists()
     assert Path(result["summary_path"]).exists()
+    records = json.loads(Path(result["records_path"]).read_text(encoding="utf-8"))
+    summary = json.loads(Path(result["summary_path"]).read_text(encoding="utf-8"))
+    frame_metrics = REQUIRED_METRICS - {"generalization"}
+    assert frame_metrics.issubset(records[0])
+    assert all(
+        REQUIRED_METRICS.issubset(summary["summary"][method])
+        for method in result["methods"]
+    )
+    assert Path(result["generalization_records_path"]).exists()
+
+
+def test_comparison_seed_pairs_the_same_channel_across_snr():
+    seed_at_low_snr = _comparison_seed(seed=42, delay=30, seed_index=2)
+    seed_at_high_snr = _comparison_seed(seed=42, delay=30, seed_index=2)
+
+    assert seed_at_low_snr == seed_at_high_snr
+    assert seed_at_low_snr != _comparison_seed(seed=42, delay=40, seed_index=2)
+    assert seed_at_low_snr != _comparison_seed(seed=42, delay=30, seed_index=3)
 
 
 def test_comparison_confidence_interval_uses_seed_means_not_frames():
