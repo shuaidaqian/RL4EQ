@@ -2,6 +2,11 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+import torch
+
+from training.checkpointing import CheckpointError, load_checkpoint, run_tiny_training
+
 
 def test_repository_contains_only_continual_ppo_entrypoints():
     root = Path(__file__).resolve().parents[1]
@@ -134,3 +139,24 @@ def test_continual_ppo_entrypoints_report_schema_version():
 def test_legacy_environment_modules_remain_importable_during_reset():
     import env.comm_env  # noqa: F401
     import env.frame_structure  # noqa: F401
+
+
+def test_checkpoint_resume_reproduces_next_step(tmp_path):
+    uninterrupted = run_tiny_training(seed=7, steps=4)
+    partial = run_tiny_training(seed=7, steps=2, save_to=tmp_path / "state.pt")
+    resumed = run_tiny_training(seed=999, steps=4, resume=tmp_path / "state.pt")
+    assert partial.completed_steps == 2
+    assert torch.equal(uninterrupted.model_vector, resumed.model_vector)
+    assert uninterrupted.next_batch_hash == resumed.next_batch_hash
+
+
+def test_corrupt_checkpoint_raises_without_overwriting_good_state(tmp_path):
+    good = tmp_path / "good.pt"
+    run_tiny_training(seed=3, steps=1, save_to=good)
+    before = good.read_bytes()
+    bad = tmp_path / "bad.pt"
+    bad.write_text("not a checkpoint", encoding="utf-8")
+    with pytest.raises(CheckpointError):
+        load_checkpoint(bad)
+    assert good.read_bytes() == before
+    assert load_checkpoint(good)["global_step"] == 1
