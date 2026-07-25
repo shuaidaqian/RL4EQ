@@ -109,21 +109,15 @@ def _sample_powers(level: ChannelLevel, delays: Sequence[int], rng: np.random.Ge
     path_count = len(delays)
     powers = np.zeros(path_count, dtype=np.float64)
     if level is ChannelLevel.A:
-        delayed_ratio = rng.uniform(0.10, 0.35)
-        main_power = 1.0 - delayed_ratio
         max_relative_db = rng.uniform(-20.0, -10.0)
-        max_power = main_power * 10.0 ** (max_relative_db / 10.0)
         second_gap_db = rng.uniform(6.0, 15.0)
-        second_power = main_power * 10.0 ** (-second_gap_db / 10.0)
-        remaining = delayed_ratio - max_power - second_power
-        if remaining < 0.0 or path_count < 4:
-            return None
-        powers[0] = main_power
-        powers[-1] = max_power
-        powers[1] = second_power
+        powers[0] = 1.0
+        powers[-1] = 10.0 ** (max_relative_db / 10.0)
+        powers[1] = 10.0 ** (-second_gap_db / 10.0)
         if path_count > 3:
+            extra_budget = rng.uniform(0.0, min(powers[1] * 0.8, 0.08))
             weights = rng.dirichlet(np.ones(path_count - 3))
-            powers[2:-1] = remaining * weights
+            powers[2:-1] = extra_budget * weights
         return _normalize_power(powers)
 
     if level is ChannelLevel.B:
