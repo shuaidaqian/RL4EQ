@@ -5,6 +5,8 @@ import sys
 import pytest
 import torch
 
+from compare import FORMAL_METHODS, paired_frame, run_method
+from evaluation.bootstrap import paired_block_bootstrap
 from training.checkpointing import CheckpointError, load_checkpoint, run_tiny_training
 from evaluation.metrics import (
     FrameMetric,
@@ -209,3 +211,26 @@ def test_pilot_shortlist_keeps_two_to_three_candidates_and_reasons(tmp_path):
     assert all(item["selected"] for item in result["shortlist"])
     assert any("spearman" in item["淘汰原因"] for item in result["all_candidates"] if not item["selected"])
     assert (tmp_path / "shortlist.json").exists()
+
+
+@pytest.mark.parametrize("method", FORMAL_METHODS)
+def test_all_methods_receive_same_label_free_frame(method):
+    received = paired_frame(seed=23)
+    hidden = received.hide_reward_and_data_labels()
+    result_a = run_method(method, hidden)
+    result_b = run_method(method, hidden)
+    assert result_a.input_hash == result_b.input_hash == received.observable_hash
+    assert method not in {"Data" + " Oracle"}
+
+
+def test_hierarchical_bootstrap_resamples_seed_then_ten_frame_blocks():
+    rows = [
+        {"seed": seed, "frame": frame, "method": "Continual PPO", "ber_data": 0.01 + 0.001 * seed}
+        for seed in range(3)
+        for frame in range(30)
+    ]
+    interval = paired_block_bootstrap(rows, seed=7, repetitions=200, block_length=10)
+    assert interval.resampling_order == ("seed", "contiguous_frame_block")
+    assert interval.block_length == 10
+    assert interval.repetitions == 200
+    assert interval.low <= interval.mean <= interval.high

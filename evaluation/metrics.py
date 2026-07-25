@@ -169,7 +169,8 @@ def select_pilot_shortlist(candidates: list[dict], output_dir: str | Path, keep:
 def _coerce_metric(row: FrameMetric | dict) -> FrameMetric:
     if isinstance(row, FrameMetric):
         return row
-    return FrameMetric(**row)
+    allowed = set(FrameMetric.__dataclass_fields__)
+    return FrameMetric(**{key: value for key, value in row.items() if key in allowed})
 
 
 def _rank(values: np.ndarray) -> np.ndarray:
