@@ -1,5 +1,6 @@
 import torch
 
+from agent.cir_estimator import HybridCIREstimator
 from baseline.block_equalizers import bit_error_rate, perfect_csi_cg_detect
 from env.linear_operator import LinearChannelOperator
 
@@ -26,3 +27,41 @@ def test_perfect_csi_detector_recovers_noiseless_bpsk():
     assert result.logits.shape == bits.shape
     assert result.probabilities.shape == bits.shape
     assert bit_error_rate(result.logits, bits) == 0.0
+
+
+def test_cir_estimator_contract_and_label_isolation():
+    estimator = HybridCIREstimator(max_delay=40, latent_dim=96)
+    rx_iq = torch.randn(2, 96, 2)
+    adapt_symbols = torch.sign(torch.randn(2, 96)).to(torch.complex64)
+    adapt_mask = torch.ones(2, 96, dtype=torch.bool)
+    unknown_region_ids = torch.zeros(2, 96, dtype=torch.long)
+    reward_bits = torch.zeros(2, 96, dtype=torch.bool)
+    out_a = estimator(rx_iq, adapt_symbols, adapt_mask, unknown_region_ids)
+    changed_reward = reward_bits.logical_not()
+    out_b = estimator(rx_iq, adapt_symbols, adapt_mask, unknown_region_ids)
+    assert out_a.complex_cir.shape == (2, 41)
+    assert torch.is_complex(out_a.complex_cir)
+    assert out_a.support_probability.shape == (2, 41)
+    assert out_a.latent_residual.shape == (2, 96)
+    assert torch.allclose(out_a.complex_cir, out_b.complex_cir, atol=1e-6, rtol=1e-6)
+    assert changed_reward.shape == reward_bits.shape
+
+
+def test_cir_estimator_recovers_noiseless_sparse_channel():
+    max_delay = 6
+    estimator = HybridCIREstimator(max_delay=max_delay, latent_dim=96)
+    bits = torch.randint(0, 2, (1, 128), dtype=torch.bool)
+    tx = torch.complex(bits.to(torch.float32) * 2.0 - 1.0, torch.zeros(1, 128))
+    true_cir = torch.zeros(1, max_delay + 1, dtype=torch.complex64)
+    true_cir[0, 0] = 0.9 + 0.0j
+    true_cir[0, 3] = 0.25 + 0.15j
+    true_cir[0, 6] = -0.2 + 0.1j
+    true_cir = true_cir / torch.sqrt(torch.sum(torch.abs(true_cir) ** 2))
+    rx = LinearChannelOperator(frame_len=128, max_delay=max_delay).forward(
+        tx, true_cir, torch.zeros(1, max_delay, dtype=torch.complex64)
+    )
+    rx_iq = torch.stack([rx.real, rx.imag], dim=-1)
+    out = estimator(rx_iq, tx, torch.ones(1, 128, dtype=torch.bool), torch.zeros(1, 128, dtype=torch.long))
+    nmse = torch.sum(torch.abs(out.complex_cir - true_cir) ** 2) / torch.sum(torch.abs(true_cir) ** 2)
+    assert 10.0 * torch.log10(nmse.clamp_min(1e-12)).item() < -20.0
+    assert torch.mean(out.support_probability[true_cir.abs() > 1e-4]).item() > 0.8
