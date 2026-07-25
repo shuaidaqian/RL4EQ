@@ -1,6 +1,7 @@
 import torch
 
 from agent.cir_estimator import HybridCIREstimator
+from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate, perfect_csi_cg_detect
 from env.linear_operator import LinearChannelOperator
 
@@ -65,3 +66,35 @@ def test_cir_estimator_recovers_noiseless_sparse_channel():
     nmse = torch.sum(torch.abs(out.complex_cir - true_cir) ** 2) / torch.sum(torch.abs(true_cir) ** 2)
     assert 10.0 * torch.log10(nmse.clamp_min(1e-12)).item() < -20.0
     assert torch.mean(out.support_probability[true_cir.abs() > 1e-4]).item() > 0.8
+
+
+def test_unfolded_equalizer_is_noncausal_and_peft_is_bounded():
+    model = UnfoldedEqualizer(UnfoldedConfig(frame_len=512, max_delay=40, iterations=4))
+    rx_iq = torch.randn(2, 512, 2)
+    condition = HybridCIREstimator(max_delay=40)(rx_iq, torch.ones(2, 512, dtype=torch.complex64), torch.ones(2, 512, dtype=torch.bool), torch.zeros(2, 512, dtype=torch.long))
+    region_ids = torch.zeros(2, 512, dtype=torch.long)
+    soft_tail = torch.zeros(2, 40, dtype=torch.complex64)
+    logits_a, probs_a = model(rx_iq, condition, region_ids, soft_tail)
+    rx_changed = rx_iq.clone()
+    rx_changed[:, -1] += 3.0
+    logits_b, _ = model(rx_changed, condition, region_ids, soft_tail)
+    assert logits_a.shape == (2, 512)
+    assert probs_a.shape == (2, 512)
+    assert not torch.equal(logits_a[:, 100], logits_b[:, 100])
+    model.set_trainable_groups({"adapter", "attention_lora"})
+    assert model.trainable_parameter_count() <= 0.10 * model.parameter_count()
+
+
+def test_unfolded_equalizer_strict_checkpoint_and_peft_snapshot(tmp_path):
+    model = UnfoldedEqualizer(UnfoldedConfig(frame_len=64, max_delay=6, iterations=2, d_model=32, num_heads=4))
+    checkpoint = tmp_path / "model.pt"
+    torch.save({"schema_version": "unfolded-eq-v1", "model_config": model.config.to_dict(), "state_dict": model.state_dict()}, checkpoint)
+    loaded = UnfoldedEqualizer(UnfoldedConfig.from_dict(torch.load(checkpoint, weights_only=False)["model_config"]))
+    loaded.load_state_dict(torch.load(checkpoint, weights_only=False)["state_dict"], strict=True)
+    model.set_trainable_groups({"adapter_lora"})
+    snapshot = model.peft.snapshot({"adapter_lora"})
+    for parameter in model.trainable_parameters():
+        parameter.data.add_(0.01)
+    assert model.peft.delta_norm(snapshot) > 0.0
+    model.peft.restore(snapshot)
+    assert model.peft.delta_norm(snapshot) == 0.0
