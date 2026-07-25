@@ -4,6 +4,7 @@ from agent.adaptation_controller import AdaptationController, compute_reward
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from agent.continual_policy import ContinualPolicy, ObservationEncoder
 from agent.continual_policy import HierarchicalAction
+from training.continual_ppo import tiny_online_run
 
 
 class _HiddenLabelView:
@@ -100,3 +101,12 @@ def test_shadow_reward_signature_excludes_data_labels():
     assert reward > 0
     assert "data" not in compute_reward.__code__.co_varnames
     assert "ber" not in compute_reward.__code__.co_varnames
+
+
+def test_continual_ppo_updates_during_deployment_without_cross_seed_state():
+    run = tiny_online_run(frames=65, update_interval=32, seed=11)
+    assert run.policy_update_frames == [32, 64]
+    assert run.metrics[0].measured_before_current_frame_update
+    second = tiny_online_run(frames=1, update_interval=32, seed=12)
+    assert second.initial_policy_hash == run.offline_policy_hash
+    assert second.initial_receiver_hash == run.offline_receiver_hash
