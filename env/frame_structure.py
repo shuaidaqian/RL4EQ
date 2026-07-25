@@ -1,114 +1,181 @@
 # -*- coding: utf-8 -*-
-"""
-帧结构模块 — 定义 RL4EQ 系统的帧格式和比特序列生成
+"""多块 Pilot 帧结构与接收端可见视图。"""
 
-参考 P-FTNet 论文的参数配置，帧结构为 (总长 512):
-  | 训练序列(128) | 导频块1(64) | 数据块1(128) | 导频块2(64) | 数据块2(128) |
+from __future__ import annotations
 
-已知位 = 训练(128) + 导频(2*64) = 256 位 (50%)
-数据位 = 2*128 = 256 位 (50%)
-"""
+from dataclasses import dataclass
+from typing import Sequence
 
-from dataclasses import dataclass, field
-from typing import List
-import numpy as np
 import torch
 
 
-@dataclass
+REGION_ADAPT = 1
+REGION_UNKNOWN = 0
+
+
+@dataclass(frozen=True)
 class FrameConfig:
-    """单帧结构配置类。
-    
-    自动计算数据区长度和导频位置，确保帧结构合法。
-    """
-    frame_len: int = 512                 # 帧总长度 (P-FTNet 标准帧长)
-    train_len: int = 128                 # 帧首训练序列长度
-    pilot_len: int = 64                  # 每个导频块的长度
-    num_pilots: int = 2                  # 导频块数量
-    modulation: str = "bpsk"             # BPSK 调制
+    frame_len: int = 512
+    total_pilot: int = 128
+    layout: str = "multi_block"
+    max_delay: int = 40
 
-    data_len: int = 0
-    pilot_positions: List[int] = field(default_factory=list)
+    def __post_init__(self) -> None:
+        if self.total_pilot not in {64, 96, 128, 160}:
+            raise ValueError("total_pilot 必须是 64/96/128/160。")
+        if self.layout not in {"prefix", "two_block", "multi_block"}:
+            raise ValueError("layout 必须是 prefix/two_block/multi_block。")
+        if self.frame_len <= self.total_pilot:
+            raise ValueError("frame_len 必须大于 total_pilot。")
+        if self.total_pilot % 4 != 0:
+            raise ValueError("total_pilot 必须能按 3:1 切分。")
 
-    def __post_init__(self):
-        remaining = self.frame_len - self.train_len
-        self.data_len = remaining - self.num_pilots * self.pilot_len
-        assert self.data_len >= 0
-        assert self.data_len % self.num_pilots == 0
-        self._assign_pilot_positions()
 
-    def _assign_pilot_positions(self):
-        data_per_block = self.data_len // self.num_pilots
-        self.pilot_positions = []
-        pos = self.train_len
-        for _ in range(self.num_pilots):
-            self.pilot_positions.append(pos)
-            pos += self.pilot_len + data_per_block
+@dataclass(frozen=True)
+class ReceiverFrameView:
+    rx_symbols: torch.Tensor
+    adapt_symbols: torch.Tensor
+    adapt_mask: torch.Tensor
+    model_region_ids: torch.Tensor
 
-    def is_training(self, pos: int) -> bool:
-        return 0 <= pos < self.train_len
 
-    def is_pilot(self, pos: int) -> bool:
-        return any(start <= pos < start + self.pilot_len for start in self.pilot_positions)
+@dataclass(frozen=True)
+class Frame:
+    frame_index: int
+    bits: torch.Tensor
+    tx_symbols: torch.Tensor
+    rx_symbols: torch.Tensor
+    adapt_mask: torch.Tensor
+    reward_mask: torch.Tensor
+    data_mask: torch.Tensor
+    model_region_ids: torch.Tensor
+    adapt_block_lengths: Sequence[int]
+    tail_symbols: torch.Tensor | None = None
+    true_cir: torch.Tensor | None = None
 
-    def is_data(self, pos: int) -> bool:
-        return not (self.is_training(pos) or self.is_pilot(pos))
+    @property
+    def unknown_region_mask(self) -> torch.Tensor:
+        return self.reward_mask | self.data_mask
 
-    def bit_type(self, pos: int) -> str:
-        if self.is_training(pos):
-            return "train"
-        elif self.is_pilot(pos):
-            return "pilot"
-        else:
-            return "data"
+    def receiver_view(self) -> ReceiverFrameView:
+        adapt_symbols = torch.zeros_like(self.tx_symbols)
+        adapt_symbols[self.adapt_mask] = self.tx_symbols[self.adapt_mask]
+        return ReceiverFrameView(
+            rx_symbols=self.rx_symbols.clone(),
+            adapt_symbols=adapt_symbols,
+            adapt_mask=self.adapt_mask.clone(),
+            model_region_ids=self.model_region_ids.clone(),
+        )
 
-    def summary(self) -> str:
-        return (f"帧: L={self.frame_len}, 训练={self.train_len}, "
-                f"导频({self.num_pilots}x{self.pilot_len})={self.num_pilots*self.pilot_len}, "
-                f"数据={self.data_len}")
+    def offline_view(self) -> "Frame":
+        return self
+
+    def with_channel_output(
+        self,
+        rx_symbols: torch.Tensor,
+        tail_symbols: torch.Tensor,
+        true_cir: torch.Tensor,
+    ) -> "Frame":
+        return Frame(
+            frame_index=self.frame_index,
+            bits=self.bits,
+            tx_symbols=self.tx_symbols,
+            rx_symbols=rx_symbols,
+            adapt_mask=self.adapt_mask,
+            reward_mask=self.reward_mask,
+            data_mask=self.data_mask,
+            model_region_ids=self.model_region_ids,
+            adapt_block_lengths=self.adapt_block_lengths,
+            tail_symbols=tail_symbols,
+            true_cir=true_cir,
+        )
+
+    def with_replaced_hidden_labels(self, reward_bits: torch.Tensor, data_bits: torch.Tensor) -> "Frame":
+        bits = self.bits.clone()
+        bits[self.reward_mask] = reward_bits[self.reward_mask].to(bits.dtype)
+        bits[self.data_mask] = data_bits[self.data_mask].to(bits.dtype)
+        tx_symbols = _bpsk(bits)
+        return Frame(
+            frame_index=self.frame_index,
+            bits=bits,
+            tx_symbols=tx_symbols,
+            rx_symbols=self.rx_symbols,
+            adapt_mask=self.adapt_mask,
+            reward_mask=self.reward_mask,
+            data_mask=self.data_mask,
+            model_region_ids=self.model_region_ids,
+            adapt_block_lengths=self.adapt_block_lengths,
+            tail_symbols=self.tail_symbols,
+            true_cir=self.true_cir,
+        )
 
 
 class FrameGenerator:
-    """帧生成器 — 产生比特序列和 BPSK 调制符号。"""
+    """按 frame index 可复现生成整帧 BPSK 和 Pilot mask。"""
 
-    def __init__(self, config: FrameConfig):
+    def __init__(self, config: FrameConfig, seed: int = 0):
         self.config = config
+        self.seed = seed
 
-    def generate(self, rng=None) -> torch.Tensor:
-        if rng is None:
-            rng = np.random.default_rng()
-        bits = rng.integers(0, 2, size=self.config.frame_len).astype(np.float32)
-        return torch.from_numpy(bits)
+    def generate(self, frame_index: int) -> Frame:
+        generator = torch.Generator(device="cpu").manual_seed(self.seed + frame_index * 104_729)
+        bits = torch.randint(0, 2, (self.config.frame_len,), generator=generator, dtype=torch.int64).bool()
+        adapt_mask, reward_mask, adapt_lengths = self._build_masks()
+        data_mask = ~(adapt_mask | reward_mask)
+        region_ids = torch.full((self.config.frame_len,), REGION_UNKNOWN, dtype=torch.long)
+        region_ids[adapt_mask] = REGION_ADAPT
+        tx_symbols = _bpsk(bits)
+        return Frame(
+            frame_index=frame_index,
+            bits=bits,
+            tx_symbols=tx_symbols,
+            rx_symbols=tx_symbols.clone(),
+            adapt_mask=adapt_mask,
+            reward_mask=reward_mask,
+            data_mask=data_mask,
+            model_region_ids=region_ids,
+            adapt_block_lengths=tuple(adapt_lengths),
+        )
 
-    def modulate(self, bits: torch.Tensor) -> torch.Tensor:
-        symbols = 1.0 - 2.0 * bits
-        return torch.stack([symbols, torch.zeros_like(symbols)], dim=-1)
+    def _build_masks(self) -> tuple[torch.Tensor, torch.Tensor, list[int]]:
+        adapt_total = 3 * self.config.total_pilot // 4
+        reward_total = self.config.total_pilot // 4
+        adapt_mask = torch.zeros(self.config.frame_len, dtype=torch.bool)
+        reward_mask = torch.zeros(self.config.frame_len, dtype=torch.bool)
+        adapt_blocks, reward_blocks = self._layout_blocks(adapt_total, reward_total)
+        for start, length in adapt_blocks:
+            adapt_mask[start : start + length] = True
+        for start, length in reward_blocks:
+            reward_mask[start : start + length] = True
+        return adapt_mask, reward_mask, [length for _, length in adapt_blocks]
 
-    def known_mask(self) -> torch.Tensor:
-        mask = torch.zeros(self.config.frame_len, dtype=torch.bool)
-        mask[:self.config.train_len] = True
-        for start in self.config.pilot_positions:
-            mask[start:start + self.config.pilot_len] = True
-        return mask
+    def _layout_blocks(self, adapt_total: int, reward_total: int) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+        if self.config.layout == "prefix":
+            return [(0, adapt_total)], [(adapt_total, reward_total)]
+        if self.config.layout == "two_block":
+            first_adapt = 48
+            second_adapt = adapt_total - first_adapt
+            midpoint = self.config.frame_len // 2
+            return [(0, first_adapt), (midpoint, second_adapt)], [
+                (first_adapt, reward_total // 2),
+                (midpoint + second_adapt, reward_total - reward_total // 2),
+            ]
+        first_adapt = 48
+        remaining = adapt_total - first_adapt
+        second_adapt = remaining // 2
+        third_adapt = remaining - second_adapt
+        reward_first = reward_total // 3
+        reward_second = reward_total // 3
+        reward_third = reward_total - reward_first - reward_second
+        one_third = self.config.frame_len // 3
+        two_third = 2 * self.config.frame_len // 3
+        return [(0, first_adapt), (one_third, second_adapt), (two_third, third_adapt)], [
+            (first_adapt, reward_first),
+            (one_third + second_adapt, reward_second),
+            (two_third + third_adapt, reward_third),
+        ]
 
-    def known_bits(self, bits: torch.Tensor) -> torch.Tensor:
-        known = bits.clone()
-        known[~self.known_mask()] = 0.0
-        return known
 
-
-def test_frame():
-    cfg = FrameConfig(frame_len=512, train_len=128, pilot_len=64, num_pilots=2)
-    gen = FrameGenerator(cfg)
-    bits = gen.generate()
-    print(cfg.summary())
-    print(f"导频位置: {cfg.pilot_positions}")
-    known_mask = gen.known_mask()
-    print(f"已知位: {known_mask.sum().item()} ({known_mask.sum().item()/512*100:.0f}%)")
-    sym = gen.modulate(bits)
-    print(f"调制后形状: {list(sym.shape)}")
-    print("帧结构自测通过。")
-
-
-if __name__ == "__main__":
-    test_frame()
+def _bpsk(bits: torch.Tensor) -> torch.Tensor:
+    values = bits.to(torch.float32) * 2.0 - 1.0
+    return torch.complex(values, torch.zeros_like(values))

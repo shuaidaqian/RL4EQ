@@ -10,6 +10,8 @@ from env.channel_profiles import (
     sample_profile,
 )
 from env.extreme_delay_channel import ExtremeDelayChannel, ExtremeDelayChannelConfig
+from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
+from env.frame_structure import FrameConfig, FrameGenerator
 
 
 def test_level_b_profile_obeys_power_constraints_and_seed():
@@ -37,6 +39,15 @@ def test_level_a_profile_constraints_are_milder_main_path_dominant():
     assert np.isfinite(profile.condition_proxy)
 
 
+def test_level_a_supports_three_path_boundary_case():
+    profile = sample_profile(ChannelProfileConfig(level=ChannelLevel.A, max_delay=2, seed=31))
+    assert profile.delays == (0, 1, 2)
+    assert len(profile.delays) == 3
+    assert 6.0 <= profile.strongest_gap_db <= 15.0
+    assert -20.0 <= profile.max_delay_relative_db <= -10.0
+    assert 0.10 <= profile.delayed_energy_ratio <= 0.35
+
+
 def test_level_c_profile_is_pressure_only_and_not_mixed_into_level_b():
     profile = sample_profile(ChannelProfileConfig(level=ChannelLevel.C, max_delay=50, seed=23))
     assert profile.delays[0] == 0 and profile.delays[-1] == 50
@@ -52,7 +63,7 @@ def test_invalid_profile_configurations_raise_clear_errors():
     with pytest.raises(ValueError):
         ChannelProfileConfig(level=ChannelLevel.B, max_delay=0, seed=1)
     with pytest.raises(ProfileSamplingError):
-        sample_profile(ChannelProfileConfig(level=ChannelLevel.A, max_delay=2, seed=1, max_attempts=1))
+        sample_profile(ChannelProfileConfig(level=ChannelLevel.A, max_delay=20, seed=18, max_attempts=1))
 
 
 def test_channel_uses_known_history_and_preserves_support():
@@ -93,3 +104,58 @@ def test_channel_support_fixed_while_taps_evolve_slowly():
     assert channel.delays == delays
     assert torch.linalg.norm(first - second).item() > 0.0
     assert torch.linalg.norm(first - second).item() < 0.5
+
+
+@pytest.mark.parametrize("total", [64, 96, 128, 160])
+@pytest.mark.parametrize("layout", ["prefix", "two_block", "multi_block"])
+def test_frame_masks_and_unknown_regions(total, layout):
+    frame = FrameGenerator(FrameConfig(total_pilot=total, layout=layout, max_delay=40), seed=9).generate(2)
+    assert int(frame.adapt_mask.sum()) == 3 * total // 4
+    assert int(frame.reward_mask.sum()) == total // 4
+    assert int(frame.data_mask.sum()) == 512 - total
+    assert not torch.any(frame.adapt_mask & frame.reward_mask)
+    assert not torch.any(frame.adapt_mask & frame.data_mask)
+    assert not torch.any(frame.reward_mask & frame.data_mask)
+    assert torch.equal(frame.unknown_region_mask, frame.reward_mask | frame.data_mask)
+    assert torch.all(frame.model_region_ids[frame.reward_mask] == frame.model_region_ids[frame.data_mask][0])
+    assert max(frame.adapt_block_lengths) >= 48
+
+
+def test_receiver_view_hides_reward_data_labels_positions_and_true_cir():
+    frame = FrameGenerator(FrameConfig(total_pilot=128, layout="multi_block", max_delay=40), seed=11).generate(3)
+    view_a = frame.receiver_view()
+    changed = frame.with_replaced_hidden_labels(
+        reward_bits=torch.logical_not(frame.bits.bool()),
+        data_bits=torch.logical_not(frame.bits.bool()),
+    )
+    view_b = changed.receiver_view()
+    assert torch.equal(view_a.rx_symbols, view_b.rx_symbols)
+    assert torch.equal(view_a.adapt_symbols, view_b.adapt_symbols)
+    assert torch.equal(view_a.adapt_mask, view_b.adapt_mask)
+    assert not hasattr(view_a, "reward_mask")
+    assert not hasattr(view_a, "reward_bits")
+    assert not hasattr(view_a, "data_bits")
+    assert not hasattr(view_a, "true_cir")
+
+
+def test_episode_acquisition_tail_and_receiver_state_isolation():
+    env = CommunicationEnvironment(
+        CommEnvConfig(level="B", max_delay=20, snr_db=15.0, total_pilot=96, layout="two_block", seed=13)
+    )
+    start = env.reset_episode()
+    first = env.next_frame()
+    assert torch.equal(first.tail_symbols, start.acquisition.tx_symbols[-20:])
+    state_a = ReceiverState(start.initial_soft_tail.clone())
+    state_b = state_a.clone()
+    state_a.update_tail(torch.zeros(20, dtype=torch.complex64))
+    assert not torch.equal(state_a.soft_tail, state_b.soft_tail)
+
+
+def test_pilot_sequence_reproducible_per_frame_but_changes_across_frames():
+    generator_a = FrameGenerator(FrameConfig(total_pilot=64, layout="prefix", max_delay=20), seed=21)
+    generator_b = FrameGenerator(FrameConfig(total_pilot=64, layout="prefix", max_delay=20), seed=21)
+    same_a = generator_a.generate(5)
+    same_b = generator_b.generate(5)
+    different = generator_a.generate(6)
+    assert torch.equal(same_a.bits, same_b.bits)
+    assert not torch.equal(same_a.bits[same_a.adapt_mask], different.bits[different.adapt_mask])
