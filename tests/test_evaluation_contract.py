@@ -6,6 +6,13 @@ import pytest
 import torch
 
 from training.checkpointing import CheckpointError, load_checkpoint, run_tiny_training
+from evaluation.metrics import (
+    FrameMetric,
+    effective_goodput,
+    select_pilot_shortlist,
+    spearman_reward_data,
+    summarize_main_matrix,
+)
 
 
 def test_repository_contains_only_continual_ppo_entrypoints():
@@ -160,3 +167,45 @@ def test_corrupt_checkpoint_raises_without_overwriting_good_state(tmp_path):
         load_checkpoint(bad)
     assert good.read_bytes() == before
     assert load_checkpoint(good)["global_step"] == 1
+
+
+def test_metrics_do_not_average_away_failed_configs():
+    rows = []
+    for delay in [20, 30, 40]:
+        for snr_db in [10, 15, 20]:
+            ber = 0.005
+            if delay == 40 and snr_db == 10:
+                ber = 0.02
+            rows.append(FrameMetric(method="Continual PPO", level="B", delay=delay, snr_db=snr_db, seed=1, frame=0, ber_data=ber))
+    rows.append(FrameMetric(method="Continual PPO", level="C", delay=50, snr_db=10, seed=1, frame=0, ber_data=0.2))
+
+    summary = summarize_main_matrix(rows)
+
+    assert len(summary.per_config) == 9
+    assert summary.all_below(0.01) is False
+    assert summary.generalization["count"] == 1
+    assert effective_goodput(
+        ber=0.01,
+        data_symbols=384,
+        ordinary_frames=1000,
+        warmup_symbols=40,
+        acquisition_symbols=512,
+        frame_symbols=512,
+    ) == pytest.approx(384 * 1000 * 0.99 / (40 + 512 + 512 * 1000))
+    assert spearman_reward_data([1, 2, 3], [0.2, 0.4, 0.9]).correlation == 1.0
+
+
+def test_pilot_shortlist_keeps_two_to_three_candidates_and_reasons(tmp_path):
+    candidates = [
+        {"pilot_total": 64, "pilot_layout": "prefix", "max_ber": 0.02, "spearman": 0.7, "effective_goodput": 0.70, "worst_seed": 0.03},
+        {"pilot_total": 96, "pilot_layout": "two_block", "max_ber": 0.008, "spearman": 0.8, "effective_goodput": 0.68, "worst_seed": 0.01},
+        {"pilot_total": 128, "pilot_layout": "multi_block", "max_ber": 0.007, "spearman": 0.65, "effective_goodput": 0.66, "worst_seed": 0.02},
+        {"pilot_total": 160, "pilot_layout": "prefix", "max_ber": 0.006, "spearman": 0.4, "effective_goodput": 0.60, "worst_seed": 0.01},
+    ]
+
+    result = select_pilot_shortlist(candidates, tmp_path, keep=2)
+
+    assert len(result["shortlist"]) == 2
+    assert all(item["selected"] for item in result["shortlist"])
+    assert any("spearman" in item["淘汰原因"] for item in result["all_candidates"] if not item["selected"])
+    assert (tmp_path / "shortlist.json").exists()
