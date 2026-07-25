@@ -1,0 +1,18 @@
+{
+  "schema_version": "continual-ppo-config-v1",
+  "pilot_layout": "multi_block",
+  "learning_rate": 0.0001,
+  "model": {
+    "frame_len": 512,
+    "max_delay": 40,
+    "iterations": 4,
+    "d_model": 96,
+    "num_heads": 4,
+    "adapter_rank": 8,
+    "lora_rank": 8
+  },
+  "main_level": "B",
+  "main_delays": [20, 30, 40],
+  "main_snrs": [10, 15, 20],
+  "rho": 0.99
+}
