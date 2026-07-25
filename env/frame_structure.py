@@ -129,7 +129,7 @@ class FrameGenerator:
             frame_index=frame_index,
             bits=bits,
             tx_symbols=tx_symbols,
-            rx_symbols=tx_symbols.clone(),
+            rx_symbols=torch.zeros_like(tx_symbols),
             adapt_mask=adapt_mask,
             reward_mask=reward_mask,
             data_mask=data_mask,

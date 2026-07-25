@@ -124,6 +124,7 @@ def test_frame_masks_and_unknown_regions(total, layout):
 def test_receiver_view_hides_reward_data_labels_positions_and_true_cir():
     frame = FrameGenerator(FrameConfig(total_pilot=128, layout="multi_block", max_delay=40), seed=11).generate(3)
     view_a = frame.receiver_view()
+    assert not torch.equal(view_a.rx_symbols[frame.unknown_region_mask], frame.tx_symbols[frame.unknown_region_mask])
     changed = frame.with_replaced_hidden_labels(
         reward_bits=torch.logical_not(frame.bits.bool()),
         data_bits=torch.logical_not(frame.bits.bool()),
@@ -145,6 +146,7 @@ def test_episode_acquisition_tail_and_receiver_state_isolation():
     start = env.reset_episode()
     first = env.next_frame()
     assert torch.equal(first.tail_symbols, start.acquisition.tx_symbols[-20:])
+    assert torch.equal(first.true_cir, env.channel.last_cir_used())
     state_a = ReceiverState(start.initial_soft_tail.clone())
     state_b = state_a.clone()
     state_a.update_tail(torch.zeros(20, dtype=torch.complex64))

@@ -38,6 +38,7 @@ class ExtremeDelayChannel:
         self._delays: tuple[int, ...] = ()
         self._base_cir = torch.zeros(config.max_delay + 1, dtype=torch.complex64)
         self._current_cir = torch.zeros(config.max_delay + 1, dtype=torch.complex64)
+        self._last_cir_used = torch.zeros(config.max_delay + 1, dtype=torch.complex64)
         self._history = torch.zeros(config.max_delay, dtype=torch.complex64)
 
     @property
@@ -76,6 +77,7 @@ class ExtremeDelayChannel:
             raise RuntimeError("请先调用 reset_episode。")
         tx = symbols.detach().to(dtype=torch.complex64, device="cpu")
         rx = self._convolve_with_history(tx, self._current_cir)
+        self._last_cir_used = self._current_cir.clone()
         if add_noise:
             rx = rx + self._sample_noise(tx.numel())
         combined = torch.cat([self._history, tx])
@@ -87,6 +89,11 @@ class ExtremeDelayChannel:
         """仅向离线监督与 Perfect-CSI 诊断暴露真实 CIR。"""
 
         return self._current_cir.clone()
+
+    def last_cir_used(self) -> torch.Tensor:
+        """返回最近一次 transmit 实际用于生成接收帧的 CIR。"""
+
+        return self._last_cir_used.clone()
 
     def _convolve_with_history(self, symbols: torch.Tensor, cir: torch.Tensor) -> torch.Tensor:
         padded = torch.cat([self._history, symbols])

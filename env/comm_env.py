@@ -77,7 +77,7 @@ class CommunicationEnvironment:
             adapt_block_lengths=(512,),
         )
         rx = self.channel.transmit(acquisition.tx_symbols, add_noise=True)
-        acquisition = acquisition.with_channel_output(rx, warmup[-self.config.max_delay :], self.channel.true_cir())
+        acquisition = acquisition.with_channel_output(rx, warmup[-self.config.max_delay :], self.channel.last_cir_used())
         self._last_tail = acquisition.tx_symbols[-self.config.max_delay :].clone()
         self._frame_index = 0
         return EpisodeStart(
@@ -90,7 +90,7 @@ class CommunicationEnvironment:
         frame = self.frame_generator.generate(self._frame_index)
         tail = self._last_tail.clone()
         rx = self.channel.transmit(frame.tx_symbols, add_noise=True)
-        received = frame.with_channel_output(rx, tail, self.channel.true_cir())
+        received = frame.with_channel_output(rx, tail, self.channel.last_cir_used())
         self._last_tail = frame.tx_symbols[-self.config.max_delay :].clone()
         self._frame_index += 1
         return received
