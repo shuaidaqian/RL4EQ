@@ -169,11 +169,28 @@ class FrameGenerator:
         reward_third = reward_total - reward_first - reward_second
         one_third = self.config.frame_len // 3
         two_third = 2 * self.config.frame_len // 3
-        return [(0, first_adapt), (one_third, second_adapt), (two_third, third_adapt)], [
-            (first_adapt, reward_first),
-            (one_third + second_adapt, reward_second),
-            (two_third + third_adapt, reward_third),
+        pairs = [
+            (0, first_adapt, reward_first),
+            (one_third, second_adapt, reward_second),
+            (two_third, third_adapt, reward_third),
         ]
+        adapt_blocks: list[tuple[int, int]] = []
+        reward_blocks: list[tuple[int, int]] = []
+        cursor = 0
+        for preferred_start, adapt_length, reward_length in pairs:
+            start = max(preferred_start, cursor)
+            block_end = start + adapt_length + reward_length
+            if block_end > self.config.frame_len:
+                start = self.config.frame_len - adapt_length - reward_length
+                block_end = self.config.frame_len
+            if start < cursor:
+                raise ValueError("当前 frame_len/total_pilot 无法生成互斥 multi_block Pilot。")
+            if adapt_length > 0:
+                adapt_blocks.append((start, adapt_length))
+            if reward_length > 0:
+                reward_blocks.append((start + adapt_length, reward_length))
+            cursor = block_end
+        return adapt_blocks, reward_blocks
 
 
 def _bpsk(bits: torch.Tensor) -> torch.Tensor:

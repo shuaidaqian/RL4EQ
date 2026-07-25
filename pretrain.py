@@ -5,6 +5,7 @@ import argparse
 import torch
 
 from training.curriculum import CurriculumTrainer, load_config
+from training.meta_training import MetaTrainer
 
 
 def main() -> None:
@@ -22,16 +23,21 @@ def main() -> None:
     if args.version:
         print("RL4EQ continual-ppo schema-v1")
         return
-    del args.resume
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    trainer = CurriculumTrainer(load_config(args.config), device=device)
-    metrics = trainer.train(
-        stage=args.stage,
-        steps=args.steps,
-        batch_size=args.batch_size,
-        accumulation_steps=args.accumulation_steps,
-        use_amp=args.amp,
-    )
+    config = load_config(args.config)
+    if args.stage == "meta":
+        trainer = MetaTrainer(config, device=device, save_dir=args.save_dir)
+        resume_loaded = trainer.load_resume(args.resume)
+        metrics = trainer.train(steps=args.steps, batch_size=args.batch_size, smoke=args.steps <= 2, resume_loaded=resume_loaded)
+    else:
+        trainer = CurriculumTrainer(config, device=device)
+        metrics = trainer.train(
+            stage=args.stage,
+            steps=args.steps,
+            batch_size=args.batch_size,
+            accumulation_steps=args.accumulation_steps,
+            use_amp=args.amp,
+        )
     trainer.save(args.save_dir, metrics)
     print(f"saved {args.save_dir}")
 
