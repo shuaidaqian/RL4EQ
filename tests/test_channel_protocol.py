@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import torch
 
 from env.channel_profiles import (
     ChannelLevel,
@@ -8,6 +9,7 @@ from env.channel_profiles import (
     classify_for_aggregation,
     sample_profile,
 )
+from env.extreme_delay_channel import ExtremeDelayChannel, ExtremeDelayChannelConfig
 
 
 def test_level_b_profile_obeys_power_constraints_and_seed():
@@ -51,3 +53,43 @@ def test_invalid_profile_configurations_raise_clear_errors():
         ChannelProfileConfig(level=ChannelLevel.B, max_delay=0, seed=1)
     with pytest.raises(ProfileSamplingError):
         sample_profile(ChannelProfileConfig(level=ChannelLevel.A, max_delay=2, seed=1, max_attempts=1))
+
+
+def test_channel_uses_known_history_and_preserves_support():
+    channel = ExtremeDelayChannel(
+        ExtremeDelayChannelConfig(level="B", max_delay=20, snr_db=10.0, rho=0.99, seed=3)
+    )
+    channel.reset_episode(torch.ones(20, dtype=torch.complex64))
+    first_delays = channel.delays
+    channel.transmit(torch.ones(64, dtype=torch.complex64), add_noise=False)
+    second = channel.transmit(torch.zeros(64, dtype=torch.complex64), add_noise=False)
+    assert torch.any(second[:20].abs() > 0)
+    assert channel.delays == first_delays
+    assert torch.allclose(channel.tap_power.sum(), torch.tensor(1.0), atol=1e-5)
+    assert channel.true_cir().shape == (21,)
+
+
+def test_channel_noise_uses_fixed_esn0_without_rx_power_rescaling():
+    channel = ExtremeDelayChannel(
+        ExtremeDelayChannelConfig(level="A", max_delay=12, snr_db=10.0, rho=1.0, seed=5)
+    )
+    channel.reset_episode(torch.ones(12, dtype=torch.complex64))
+    clean = channel.transmit(torch.ones(4096, dtype=torch.complex64), add_noise=False)
+    channel.reset_episode(torch.ones(12, dtype=torch.complex64))
+    noisy = channel.transmit(torch.ones(4096, dtype=torch.complex64), add_noise=True)
+    measured = torch.mean(torch.abs(noisy - clean) ** 2).item()
+    assert measured == pytest.approx(0.1, rel=0.25)
+
+
+def test_channel_support_fixed_while_taps_evolve_slowly():
+    channel = ExtremeDelayChannel(
+        ExtremeDelayChannelConfig(level="C", max_delay=30, snr_db=20.0, rho=0.995, seed=7)
+    )
+    channel.reset_episode(torch.ones(30, dtype=torch.complex64))
+    delays = channel.delays
+    first = channel.true_cir()
+    channel.transmit(torch.ones(128, dtype=torch.complex64), add_noise=False)
+    second = channel.true_cir()
+    assert channel.delays == delays
+    assert torch.linalg.norm(first - second).item() > 0.0
+    assert torch.linalg.norm(first - second).item() < 0.5
