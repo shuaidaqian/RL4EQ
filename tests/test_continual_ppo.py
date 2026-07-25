@@ -1,4 +1,6 @@
 import torch
+import subprocess
+import sys
 
 from agent.adaptation_controller import AdaptationController, compute_reward
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
@@ -128,4 +130,30 @@ def test_real_online_experiment_reports_level_b_frame_metrics(tmp_path):
     assert all(row["level"] == "B" for row in result["rows"])
     assert all(row["method"] == "Continual PPO" for row in result["rows"])
     assert all(0.0 <= row["ber_data"] <= 1.0 for row in result["rows"])
+    assert all(row["cir_update"] == "decision_directed" for row in result["rows"])
+    assert (tmp_path / "online_metrics.json").exists()
+
+
+def test_online_train_cli_supports_config_slicing(tmp_path):
+    subprocess.run(
+        [
+            sys.executable,
+            "online_train.py",
+            "--config",
+            "configs/continual_ppo.json",
+            "--frames",
+            "1",
+            "--num-seeds",
+            "1",
+            "--update-interval",
+            "1",
+            "--delays",
+            "20",
+            "--snrs",
+            "10",
+            "--output-dir",
+            str(tmp_path),
+        ],
+        check=True,
+    )
     assert (tmp_path / "online_metrics.json").exists()

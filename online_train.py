@@ -15,6 +15,8 @@ def main() -> None:
     parser.add_argument("--frames", type=int, default=300)
     parser.add_argument("--num-seeds", type=int, default=1)
     parser.add_argument("--update-interval", type=int, default=32)
+    parser.add_argument("--delays", nargs="*", type=int, default=None)
+    parser.add_argument("--snrs", nargs="*", type=float, default=None)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--output-dir", default="logs/online")
@@ -32,6 +34,8 @@ def main() -> None:
         output_dir=args.output_dir,
         phase=args.phase,
         resume=args.resume,
+        delays=args.delays,
+        snrs=args.snrs,
     )
     print(f"saved {args.output_dir}")
 
