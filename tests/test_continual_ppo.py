@@ -1,6 +1,9 @@
 import torch
 
+from agent.adaptation_controller import AdaptationController, compute_reward
+from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from agent.continual_policy import ContinualPolicy, ObservationEncoder
+from agent.continual_policy import HierarchicalAction
 
 
 class _HiddenLabelView:
@@ -54,3 +57,46 @@ def test_policy_ablations_keep_contract_and_parameter_budget():
         if ablation == "no_detector_control":
             assert action.detector_iterations == 4
         assert hidden.shape == (1, 1, 128)
+
+
+def _controller_model():
+    return UnfoldedEqualizer(UnfoldedConfig(frame_len=96, max_delay=4, iterations=1, d_model=24, num_heads=4, adapter_rank=4, lora_rank=4))
+
+
+def test_controller_persists_safe_updates_and_resets_between_seeds():
+    model = _controller_model()
+    checkpoint = {name: value.detach().clone() for name, value in model.state_dict().items()}
+    controller = AdaptationController(model)
+    action = HierarchicalAction("joint-update", "head", 1, 4, 1e-4, 1e-5, 0.0, 0.2, 1.0)
+
+    controller.reset_episode(seed=1, checkpoint=checkpoint)
+    before = controller.peft_vector().clone()
+    result = controller.execute(action, reward_loss_before=torch.tensor(0.8), reward_loss_after=torch.tensor(0.7), shadow_loss=torch.tensor(0.9))
+    after = controller.peft_vector().clone()
+
+    assert result.reward > 0
+    assert not torch.equal(before, after)
+    assert torch.equal(after, controller.peft_vector())
+    controller.reset_episode(seed=2, checkpoint=checkpoint)
+    assert torch.equal(before, controller.peft_vector())
+
+
+def test_nonfinite_update_hard_rolls_back():
+    model = _controller_model()
+    checkpoint = {name: value.detach().clone() for name, value in model.state_dict().items()}
+    controller = AdaptationController(model)
+    controller.reset_episode(seed=1, checkpoint=checkpoint)
+    action = HierarchicalAction("update-equalizer", "head", 1, 4, float("nan"), 1e-5, 0.0, 0.2, 1.0)
+
+    result = controller.execute(action, reward_loss_before=torch.tensor(0.8), reward_loss_after=torch.tensor(0.7), shadow_loss=torch.tensor(0.9))
+
+    assert result.rollback
+    assert result.reward == -1.0
+    assert torch.equal(controller.peft_vector(), controller.last_safe_vector())
+
+
+def test_shadow_reward_signature_excludes_data_labels():
+    reward = compute_reward(torch.tensor(0.8), torch.tensor(0.4), torch.tensor(1.0), beta=0.5)
+    assert reward > 0
+    assert "data" not in compute_reward.__code__.co_varnames
+    assert "ber" not in compute_reward.__code__.co_varnames
