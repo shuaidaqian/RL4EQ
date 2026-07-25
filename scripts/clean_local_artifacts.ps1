@@ -51,7 +51,7 @@ function Remove-GuardedPath {
 }
 
 $root = Get-RepositoryRoot
-$exactNames = @(".git_original", ".pytest_cache", ".agents", "logs", "pretrained")
+$exactNames = @(".git_original", ".pytest_cache", ".agents", "logs", "pretrained", "artifacts")
 foreach ($name in $exactNames) {
     Remove-GuardedPath -Root $root -Path (Join-Path $root $name)
 }

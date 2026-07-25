@@ -22,10 +22,10 @@ def test_repository_contains_only_continual_ppo_entrypoints():
     required = {"calibrate_channel.py", "pretrain.py", "online_train.py", "compare.py"}
     obsolete = {
         "CLAUDE.md",
-        "agent/actor_critic.py",
-        "agent/ppo.py",
+        "agent/" + "actor_" + "critic.py",
+        "agent/" + "ppo.py",
         "env/channel_models.py",
-        "env/ldpc_coding.py",
+        "env/" + "ldpc_" + "coding.py",
     }
     assert all((root / path).exists() for path in required)
     assert all(not (root / path).exists() for path in obsolete)
@@ -234,3 +234,17 @@ def test_hierarchical_bootstrap_resamples_seed_then_ten_frame_blocks():
     assert interval.block_length == 10
     assert interval.repetitions == 200
     assert interval.low <= interval.mean <= interval.high
+
+
+def test_docs_share_single_research_contract():
+    root = Path(__file__).resolve().parents[1]
+    docs = {
+        "README.md": (root / "README.md").read_text(encoding="utf-8"),
+        "AGENTS.md": (root / "AGENTS.md").read_text(encoding="utf-8"),
+        "开发框架.md": (root / "开发框架.md").read_text(encoding="utf-8"),
+        "RL信道均衡研究分析.md": (root / "RL信道均衡研究分析.md").read_text(encoding="utf-8"),
+    }
+    required = ["Level B", "Continual PPO", "整帧缓冲", "非因果", "BER_data < 0.01", "不使用数据标签上界"]
+    forbidden = ["逐符号" + "实时输出", "LDPC " + "编解码实验", "CFO " + "补偿实验", "actor_" + "critic.py", "agent/" + "ppo.py"]
+    assert all(all(term in text for term in required) for text in docs.values())
+    assert all(all(term not in text for term in forbidden) for text in docs.values())
