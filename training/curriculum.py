@@ -13,6 +13,8 @@ import torch.nn.functional as F
 
 from agent.cir_estimator import CIRCondition
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
+from env.comm_env import CommEnvConfig, CommunicationEnvironment
 
 
 @dataclass(frozen=True)
@@ -120,10 +122,55 @@ class CurriculumTrainer:
         reward_loss = F.binary_cross_entropy_with_logits(logits[:, 64:96], bits[:, 64:96])
         return data_loss + 0.25 * adapt_loss + 0.25 * reward_loss
 
-    @staticmethod
-    def _validate_level_b() -> dict[str, Any]:
+    def _validate_level_b(self) -> dict[str, Any]:
         rows = []
-        for delay in (20, 30, 40):
-            for snr_db in (10, 15, 20):
-                rows.append({"level": "B", "delay": delay, "snr_db": snr_db, "ber_data": 1.0})
-        return {"selection_metric": "mean_level_b_ber_data", "per_config": rows}
+        frames_per_config = int(self.config.get("validation_frames_per_config", 2))
+        seeds = self.config.get("validation_seeds", [0, 1])
+        for delay in self.config.get("main_delays", [20, 30, 40]):
+            for snr_db in self.config.get("main_snrs", [10, 15, 20]):
+                bers = []
+                for seed in seeds:
+                    env = CommunicationEnvironment(
+                        CommEnvConfig(
+                            level="B",
+                            max_delay=int(delay),
+                            snr_db=float(snr_db),
+                            rho=float(self.config.get("rho", 0.99)),
+                            total_pilot=int(self.config.get("pilot_total", 128)),
+                            layout=str(self.config.get("pilot_layout", "multi_block")),
+                            seed=10_000 + int(seed),
+                        )
+                    )
+                    env.reset_episode()
+                    for _ in range(frames_per_config):
+                        frame = env.next_frame()
+                        result = perfect_csi_bpsk_refine_detect(
+                            frame.rx_symbols,
+                            frame.true_cir,
+                            frame.tail_symbols,
+                            torch.tensor(10.0 ** (-float(snr_db) / 10.0)),
+                            cg_iterations=int(self.config.get("perfect_cir_cg_iterations", 64)),
+                            refine_iterations=int(self.config.get("perfect_cir_refine_iterations", 2)),
+                        )
+                        bers.append(bit_error_rate(result.logits[frame.data_mask], frame.bits[frame.data_mask]))
+                rows.append(
+                    {
+                        "level": "B",
+                        "delay": int(delay),
+                        "snr_db": float(snr_db),
+                        "frames": frames_per_config,
+                        "seeds": list(seeds),
+                        "ber_data": float(sum(bers) / max(1, len(bers))),
+                        "max_frame_ber_data": float(max(bers)) if bers else 1.0,
+                    }
+                )
+        threshold = float(self.config.get("perfect_cir_gate_ber", 0.01))
+        gate_pass = all(row["ber_data"] < threshold for row in rows)
+        return {
+            "selection_metric": "mean_level_b_ber_data",
+            "gate": "perfect_cir_bpsk_refine",
+            "gate_threshold": threshold,
+            "gate_pass": gate_pass,
+            "mean_ber_data": float(sum(row["ber_data"] for row in rows) / max(1, len(rows))),
+            "per_config": rows,
+        }

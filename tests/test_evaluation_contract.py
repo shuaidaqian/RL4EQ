@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -234,6 +235,37 @@ def test_hierarchical_bootstrap_resamples_seed_then_ten_frame_blocks():
     assert interval.block_length == 10
     assert interval.repetitions == 200
     assert interval.low <= interval.mean <= interval.high
+
+
+def test_compare_cli_writes_real_level_b_metrics(tmp_path):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "compare.py",
+            "--config",
+            "configs/continual_ppo.json",
+            "--delays",
+            "20",
+            "--snrs",
+            "10",
+            "--num-seeds",
+            "1",
+            "--frames",
+            "1",
+            "--output-dir",
+            str(tmp_path),
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    rows = [json.loads(line) for line in (tmp_path / "frame_metrics.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert "saved" in result.stdout
+    assert summary["schema_version"] == "continual-ppo-compare-v2"
+    assert rows
+    assert all(row["level"] == "B" for row in rows)
+    assert all(row["ber_data"] != 0.02 for row in rows if row["method"] == "Continual PPO")
 
 
 def test_docs_share_single_research_contract():

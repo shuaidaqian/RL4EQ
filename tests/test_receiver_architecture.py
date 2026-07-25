@@ -2,7 +2,8 @@ import torch
 
 from agent.cir_estimator import HybridCIREstimator
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
-from baseline.block_equalizers import bit_error_rate, perfect_csi_cg_detect
+from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect, perfect_csi_cg_detect
+from env.comm_env import CommEnvConfig, CommunicationEnvironment
 from env.linear_operator import LinearChannelOperator
 
 
@@ -28,6 +29,34 @@ def test_perfect_csi_detector_recovers_noiseless_bpsk():
     assert result.logits.shape == bits.shape
     assert result.probabilities.shape == bits.shape
     assert bit_error_rate(result.logits, bits) == 0.0
+
+
+def test_perfect_cir_bpsk_refine_reaches_level_b_smoke_gate():
+    """真实 Level B 小样本 gate：强 Perfect-CIR 检测器不能再停留在占位指标。"""
+
+    rows = []
+    for delay in (20, 30, 40):
+        for snr_db in (10, 15, 20):
+            bers = []
+            for seed in range(2):
+                env = CommunicationEnvironment(
+                    CommEnvConfig(level="B", max_delay=delay, snr_db=snr_db, rho=0.99, total_pilot=128, layout="multi_block", seed=4100 + seed)
+                )
+                env.reset_episode()
+                for _ in range(2):
+                    frame = env.next_frame()
+                    result = perfect_csi_bpsk_refine_detect(
+                        frame.rx_symbols,
+                        frame.true_cir,
+                        frame.tail_symbols,
+                        torch.tensor(10.0 ** (-snr_db / 10.0)),
+                        cg_iterations=64,
+                        refine_iterations=2,
+                    )
+                    bers.append(bit_error_rate(result.logits[frame.data_mask], frame.bits[frame.data_mask]))
+            rows.append({"delay": delay, "snr_db": snr_db, "ber_data": sum(bers) / len(bers)})
+    assert len(rows) == 9
+    assert all(row["ber_data"] < 0.01 for row in rows)
 
 
 def test_cir_estimator_contract_and_label_isolation():

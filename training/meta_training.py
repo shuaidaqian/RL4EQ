@@ -18,6 +18,9 @@ import torch.nn.functional as F
 from agent.cir_estimator import CIRCondition
 from agent.peft import PEFTSnapshot
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
+from evaluation.metrics import spearman_reward_data
+from env.comm_env import CommEnvConfig, CommunicationEnvironment
 from env.frame_structure import Frame, ReceiverFrameView
 
 
@@ -288,6 +291,229 @@ class MetaTrainer:
         torch.save(payload, target / "model_best.pt")
         torch.save(payload, target / "model_final.pt")
         torch.save(payload, target / "last.pt")
+
+
+def evaluate_best_fixed_level_b(
+    config: dict,
+    output_dir: str | Path,
+    frames_per_config: int = 5,
+    seeds: list[int] | None = None,
+    cg_grid: list[int] | None = None,
+    refine_grid: list[int] | None = None,
+) -> dict:
+    """用 acquisition-CIR 固定检测器完成 Best Fixed gate。
+
+    候选选择只看 Reward Pilot BER；Data BER 仅用于仿真 gate 报告。
+    """
+
+    seed_list = seeds or [0, 1, 2, 3, 4]
+    candidate_grid = [
+        {"cg_iterations": int(cg), "refine_iterations": int(refine)}
+        for cg in (cg_grid or [32, 64])
+        for refine in (refine_grid or [1, 2])
+    ]
+    scored = []
+    for candidate in candidate_grid:
+        reward_bers = []
+        data_bers = []
+        per_config = []
+        for delay in config.get("main_delays", [20, 30, 40]):
+            for snr_db in config.get("main_snrs", [10, 15, 20]):
+                config_reward = []
+                config_data = []
+                for seed in seed_list:
+                    env = CommunicationEnvironment(
+                        CommEnvConfig(
+                            level="B",
+                            max_delay=int(delay),
+                            snr_db=float(snr_db),
+                            rho=float(config.get("rho", 0.99)),
+                            total_pilot=int(config.get("pilot_total", 128)),
+                            layout=str(config.get("pilot_layout", "multi_block")),
+                            seed=20_000 + int(seed),
+                        )
+                    )
+                    start = env.reset_episode()
+                    cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                    for _ in range(frames_per_config):
+                        frame = env.next_frame()
+                        result = perfect_csi_bpsk_refine_detect(
+                            frame.rx_symbols,
+                            cir,
+                            frame.tail_symbols,
+                            torch.tensor(10.0 ** (-float(snr_db) / 10.0)),
+                            cg_iterations=candidate["cg_iterations"],
+                            refine_iterations=candidate["refine_iterations"],
+                        )
+                        reward_ber = bit_error_rate(result.logits[frame.reward_mask], frame.bits[frame.reward_mask])
+                        data_ber = bit_error_rate(result.logits[frame.data_mask], frame.bits[frame.data_mask])
+                        config_reward.append(reward_ber)
+                        config_data.append(data_ber)
+                        reward_bers.append(reward_ber)
+                        data_bers.append(data_ber)
+                per_config.append(
+                    {
+                        "level": "B",
+                        "delay": int(delay),
+                        "snr_db": float(snr_db),
+                        "ber_reward_pilot": float(sum(config_reward) / max(1, len(config_reward))),
+                        "ber_data": float(sum(config_data) / max(1, len(config_data))),
+                        "frames": frames_per_config,
+                        "seeds": list(seed_list),
+                    }
+                )
+        scored.append(
+            {
+                "candidate": candidate,
+                "mean_reward_pilot_ber": float(sum(reward_bers) / max(1, len(reward_bers))),
+                "mean_ber_data": float(sum(data_bers) / max(1, len(data_bers))),
+                "per_config": per_config,
+            }
+        )
+    best = min(scored, key=lambda item: (item["mean_reward_pilot_ber"], item["mean_ber_data"]))
+    threshold = 0.1
+    result = {
+        "gate": "best_fixed_acquisition_cir",
+        "gate_threshold": threshold,
+        "gate_pass": all(row["ber_data"] < threshold for row in best["per_config"]),
+        "selected": {
+            **best["candidate"],
+            "selection_metric": "mean_reward_pilot_ber",
+            "mean_reward_pilot_ber": best["mean_reward_pilot_ber"],
+            "mean_ber_data": best["mean_ber_data"],
+        },
+        "per_config": best["per_config"],
+        "candidates": [
+            {
+                "candidate": item["candidate"],
+                "mean_reward_pilot_ber": item["mean_reward_pilot_ber"],
+                "mean_ber_data": item["mean_ber_data"],
+            }
+            for item in scored
+        ],
+    }
+    target = Path(output_dir) / "fixed_gate"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "best_fixed.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    return result
+
+
+def evaluate_reward_data_alignment(
+    config: dict,
+    output_dir: str | Path,
+    frames_per_config: int = 5,
+    seeds: list[int] | None = None,
+    pilot_total: int | None = None,
+    pilot_layout: str | None = None,
+    action_grid: list[tuple[int, int]] | None = None,
+) -> dict:
+    """验证 Reward Pilot 改善与 Data BER 改善的真实配对 Spearman。
+
+    单帧 BER 离散性较强，因此 gate 采用配置×动作候选分组后的平均改善。
+    """
+
+    seed_list = seeds or [0, 1, 2, 3, 4]
+    actions = action_grid or [(16, 0), (16, 1), (32, 1), (32, 2)]
+    grouped_pairs = []
+    for delay in config.get("main_delays", [20, 30, 40]):
+        for snr_db in config.get("main_snrs", [10, 15, 20]):
+            for cg_iterations, refine_iterations in actions:
+                reward_improvements = []
+                data_improvements = []
+                for seed in seed_list:
+                    env = CommunicationEnvironment(
+                        CommEnvConfig(
+                            level="B",
+                            max_delay=int(delay),
+                            snr_db=float(snr_db),
+                            rho=float(config.get("rho", 0.99)),
+                            total_pilot=int(pilot_total or config.get("pilot_total", 128)),
+                            layout=str(pilot_layout or config.get("pilot_layout", "multi_block")),
+                            seed=30_000 + int(seed),
+                        )
+                    )
+                    start = env.reset_episode()
+                    cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                    for _ in range(frames_per_config):
+                        frame = env.next_frame()
+                        sigma = torch.tensor(10.0 ** (-float(snr_db) / 10.0))
+                        before = perfect_csi_bpsk_refine_detect(
+                            frame.rx_symbols,
+                            cir,
+                            frame.tail_symbols,
+                            sigma,
+                            cg_iterations=8,
+                            refine_iterations=0,
+                        )
+                        after = perfect_csi_bpsk_refine_detect(
+                            frame.rx_symbols,
+                            cir,
+                            frame.tail_symbols,
+                            sigma,
+                            cg_iterations=int(cg_iterations),
+                            refine_iterations=int(refine_iterations),
+                        )
+                        reward_improvements.append(
+                            _masked_bce(before.logits, frame.bits, frame.reward_mask)
+                            - _masked_bce(after.logits, frame.bits, frame.reward_mask)
+                        )
+                        data_improvements.append(
+                            bit_error_rate(before.logits[frame.data_mask], frame.bits[frame.data_mask])
+                            - bit_error_rate(after.logits[frame.data_mask], frame.bits[frame.data_mask])
+                        )
+                grouped_pairs.append(
+                    {
+                        "delay": int(delay),
+                        "snr_db": float(snr_db),
+                        "cg_iterations": int(cg_iterations),
+                        "refine_iterations": int(refine_iterations),
+                        "reward_improvement": float(sum(reward_improvements) / max(1, len(reward_improvements))),
+                        "data_ber_improvement": float(sum(data_improvements) / max(1, len(data_improvements))),
+                    }
+                )
+    spearman = spearman_reward_data(
+        [pair["reward_improvement"] for pair in grouped_pairs],
+        [pair["data_ber_improvement"] for pair in grouped_pairs],
+    )
+    threshold = 0.6
+    result = {
+        "gate": "reward_data_spearman",
+        "gate_threshold": threshold,
+        "gate_pass": bool(spearman.correlation >= threshold),
+        "spearman": float(spearman.correlation),
+        "num_pairs": spearman.n,
+        "pairing": "grouped_by_config_and_action",
+        "pilot_total": int(pilot_total or config.get("pilot_total", 128)),
+        "pilot_layout": str(pilot_layout or config.get("pilot_layout", "multi_block")),
+        "pairs": grouped_pairs,
+    }
+    target = Path(output_dir) / "reward_alignment"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "alignment.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    return result
+
+
+def _estimate_cir_from_known_frame(frame: Frame, max_delay: int) -> torch.Tensor:
+    rows = []
+    targets = []
+    tx = frame.tx_symbols.to(torch.complex64)
+    rx = frame.rx_symbols.to(torch.complex64)
+    for pos in range(max_delay, tx.numel()):
+        row = torch.zeros(max_delay + 1, dtype=torch.complex64)
+        for delay in range(max_delay + 1):
+            row[delay] = tx[pos - delay]
+        rows.append(row)
+        targets.append(rx[pos])
+    design = torch.stack(rows, dim=0)
+    target = torch.stack(targets, dim=0)
+    cir = torch.linalg.lstsq(design, target).solution.to(torch.complex64)
+    return cir / torch.sqrt(torch.sum(torch.abs(cir) ** 2).clamp_min(1e-12))
+
+
+def _masked_bce(logits: torch.Tensor, bits: torch.Tensor, mask: torch.Tensor) -> float:
+    if int(mask.sum().item()) == 0:
+        return 0.0
+    return float(F.binary_cross_entropy_with_logits(logits[mask].float(), bits[mask].float()).item())
 
 
 def _forward_episode(model: UnfoldedEqualizer, episode: MetaEpisode) -> tuple[torch.Tensor, torch.Tensor]:

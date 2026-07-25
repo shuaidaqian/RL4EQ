@@ -4,7 +4,7 @@ from agent.adaptation_controller import AdaptationController, compute_reward
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from agent.continual_policy import ContinualPolicy, ObservationEncoder
 from agent.continual_policy import HierarchicalAction
-from training.continual_ppo import tiny_online_run
+from training.continual_ppo import run_real_online_experiment, tiny_online_run
 
 
 class _HiddenLabelView:
@@ -110,3 +110,22 @@ def test_continual_ppo_updates_during_deployment_without_cross_seed_state():
     second = tiny_online_run(frames=1, update_interval=32, seed=12)
     assert second.initial_policy_hash == run.offline_policy_hash
     assert second.initial_receiver_hash == run.offline_receiver_hash
+
+
+def test_real_online_experiment_reports_level_b_frame_metrics(tmp_path):
+    result = run_real_online_experiment(
+        config_path="configs/continual_ppo.json",
+        frames=2,
+        num_seeds=1,
+        update_interval=1,
+        output_dir=tmp_path,
+        delays=[20],
+        snrs=[10],
+    )
+    assert result["schema_version"] == "continual-ppo-real-online-v1"
+    assert result["policy_update_frames"] == [1, 2]
+    assert len(result["rows"]) == 2
+    assert all(row["level"] == "B" for row in result["rows"])
+    assert all(row["method"] == "Continual PPO" for row in result["rows"])
+    assert all(0.0 <= row["ber_data"] <= 1.0 for row in result["rows"])
+    assert (tmp_path / "online_metrics.json").exists()

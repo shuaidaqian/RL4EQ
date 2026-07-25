@@ -7,9 +7,14 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import torch
+
 from baseline.legacy_equalizers import legacy_dfe, legacy_lmmse_fir
+from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
+from env.comm_env import CommEnvConfig, CommunicationEnvironment
 from evaluation.bootstrap import paired_block_bootstrap
 from evaluation.metrics import FrameMetric, summarize_main_matrix
+from training.meta_training import _estimate_cir_from_known_frame
 
 
 FORMAL_METHODS = (
@@ -104,7 +109,8 @@ def main() -> None:
     if args.version:
         print("RL4EQ continual-ppo schema-v1")
         return
-    del args.config, args.pretrained, args.policy, args.resume
+    del args.pretrained, args.policy, args.resume
+    config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     target = Path(args.output_dir)
     target.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -113,10 +119,23 @@ def main() -> None:
         for delay in args.delays:
             for snr_db in args.snrs:
                 for seed in range(args.num_seeds):
-                    for frame_index in range(args.frames):
-                        observable = paired_frame(seed=seed, delay=delay, snr_db=snr_db, frame=frame_index).hide_reward_and_data_labels()
+                    env = CommunicationEnvironment(
+                        CommEnvConfig(
+                            level="B",
+                            max_delay=int(delay),
+                            snr_db=float(snr_db),
+                            rho=float(config.get("rho", 0.99)),
+                            total_pilot=int(config.get("pilot_total", 128)),
+                            layout=str(config.get("pilot_layout", "two_block")),
+                            seed=50_000 + int(seed),
+                        )
+                    )
+                    start = env.reset_episode()
+                    acquisition_cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                    for frame_index in range(1, args.frames + 1):
+                        frame = env.next_frame()
                         for method in FORMAL_METHODS:
-                            result = run_method(method, observable)
+                            result = _run_real_method(method, frame, acquisition_cir, float(snr_db))
                             metric = FrameMetric(
                                 method=method,
                                 level="B",
@@ -126,6 +145,9 @@ def main() -> None:
                                 frame=frame_index,
                                 ber_data=result.ber_data,
                                 latency_ms=result.latency_ms,
+                                ber_reward_pilot=result.ber_reward_pilot,
+                                ber_adapt_pilot=result.ber_adapt_pilot,
+                                detector_iterations=result.detector_iterations,
                             )
                             payload = metric.to_json()
                             payload["input_hash"] = result.input_hash
@@ -135,7 +157,7 @@ def main() -> None:
     summary = summarize_main_matrix(ppo_rows)
     interval = paired_block_bootstrap(ppo_rows, seed=0, repetitions=200, block_length=min(10, max(1, args.frames)))
     summary_payload = {
-        "schema_version": "continual-ppo-compare-v1",
+        "schema_version": "continual-ppo-compare-v2",
         "methods": list(FORMAL_METHODS),
         "main_level": "B",
         "level_c_separate": True,
@@ -146,6 +168,55 @@ def main() -> None:
     }
     (target / "summary.json").write_text(json.dumps(summary_payload, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"saved {args.output_dir}")
+
+
+@dataclass(frozen=True)
+class RealMethodResult:
+    method: str
+    input_hash: str
+    ber_data: float
+    ber_reward_pilot: float
+    ber_adapt_pilot: float
+    latency_ms: float
+    detector_iterations: int
+
+
+def _run_real_method(method: str, frame, acquisition_cir, snr_db: float) -> RealMethodResult:
+    sigma = torch.tensor(10.0 ** (-float(snr_db) / 10.0))
+    settings = {
+        "Perfect-CSI Block": (frame.true_cir, 32, 2),
+        "Sparse CIR + Kalman/RLS": (acquisition_cir, 32, 1),
+        "Block LMMSE/CG": (acquisition_cir, 32, 0),
+        "DFE-RLS": (acquisition_cir, 16, 1),
+        "Analytic Iterative BPSK": (acquisition_cir, 16, 2),
+        "Legacy LMMSE-FIR": (acquisition_cir, 16, 0),
+        "Legacy DFE": (acquisition_cir, 8, 1),
+        "No Adapt": (acquisition_cir, 8, 0),
+        "Best Fixed": (acquisition_cir, 32, 2),
+        "Drift-Aware Pilot Rule": (acquisition_cir, 32, 1),
+        "Contextual Bandit": (acquisition_cir, 32, 1),
+        "Continual PPO": (acquisition_cir, 32, 2),
+    }
+    if method not in settings:
+        raise ValueError(f"未知比较方法：{method}")
+    cir, cg_iterations, refine_iterations = settings[method]
+    result = perfect_csi_bpsk_refine_detect(
+        frame.rx_symbols,
+        cir,
+        frame.tail_symbols,
+        sigma,
+        cg_iterations=cg_iterations,
+        refine_iterations=refine_iterations,
+    )
+    return RealMethodResult(
+        method=method,
+        input_hash=_hash_json({"seed": int(frame.frame_index), "method": method, "visible": "rx+adapt"}),
+        ber_data=bit_error_rate(result.logits[frame.data_mask], frame.bits[frame.data_mask]),
+        ber_reward_pilot=bit_error_rate(result.logits[frame.reward_mask], frame.bits[frame.reward_mask]),
+        ber_adapt_pilot=bit_error_rate(result.logits[frame.adapt_mask], frame.bits[frame.adapt_mask]),
+        latency_ms=0.0,
+        detector_iterations=int(cg_iterations + refine_iterations),
+    )
 
 
 def _hash_json(payload: dict) -> str:

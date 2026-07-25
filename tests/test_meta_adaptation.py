@@ -7,10 +7,13 @@ import torch
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from env.frame_structure import FrameConfig, FrameGenerator
 from training.curriculum import build_curriculum, load_config
+from training.curriculum import CurriculumTrainer
 from training.meta_training import (
     FixedGate,
     MetaTrainer,
     build_meta_episode,
+    evaluate_best_fixed_level_b,
+    evaluate_reward_data_alignment,
     first_order_inner_update,
 )
 
@@ -51,6 +54,22 @@ def test_curriculum_is_always_pilot_conditioned_and_level_ordered():
     assert all(phase.total_pilot in {64, 96, 128, 160} for phase in schedule)
     assert all(phase.layout in {"prefix", "two_block", "multi_block"} for phase in schedule)
     assert all(phase.uses_pilot_condition for phase in schedule)
+
+
+def test_curriculum_validate_level_b_runs_real_nine_config_gate():
+    config = load_config("configs/continual_ppo.json")
+    config["validation_frames_per_config"] = 1
+    trainer = CurriculumTrainer(config, device=torch.device("cpu"))
+
+    validation = trainer._validate_level_b()
+
+    assert validation["selection_metric"] == "mean_level_b_ber_data"
+    assert validation["gate"] == "perfect_cir_bpsk_refine"
+    assert validation["gate_threshold"] == 0.01
+    assert len(validation["per_config"]) == 9
+    assert all(row["frames"] == 1 for row in validation["per_config"])
+    assert not all(row["ber_data"] == 1.0 for row in validation["per_config"])
+    assert isinstance(validation["gate_pass"], bool)
 
 
 def test_build_meta_episode_keeps_support_query_masks_and_hides_data_bits():
@@ -104,6 +123,47 @@ def test_fixed_gate_enumerates_legal_grid_and_saves_best(tmp_path):
     payload = json.loads(best_path.read_text(encoding="utf-8"))
     assert payload["best"]["score"] == best.score
     assert payload["gate_checked"] == len(candidates)
+
+
+def test_best_fixed_gate_uses_real_reward_selection_and_data_gate(tmp_path):
+    config = load_config("configs/continual_ppo.json")
+    result = evaluate_best_fixed_level_b(
+        config,
+        output_dir=tmp_path,
+        frames_per_config=1,
+        seeds=[0],
+        cg_grid=[32],
+        refine_grid=[1, 2],
+    )
+
+    assert result["gate"] == "best_fixed_acquisition_cir"
+    assert result["gate_threshold"] == 0.1
+    assert result["gate_pass"] is True
+    assert len(result["per_config"]) == 9
+    assert all(row["ber_data"] < 0.1 for row in result["per_config"])
+    assert result["selected"]["selection_metric"] == "mean_reward_pilot_ber"
+    assert (tmp_path / "fixed_gate" / "best_fixed.json").exists()
+
+
+def test_reward_data_alignment_uses_real_grouped_pairs(tmp_path):
+    config = load_config("configs/continual_ppo.json")
+    result = evaluate_reward_data_alignment(
+        config,
+        output_dir=tmp_path,
+        frames_per_config=2,
+        seeds=[0, 1],
+        pilot_total=128,
+        pilot_layout="two_block",
+        action_grid=[(16, 0), (16, 1), (32, 1), (32, 2)],
+    )
+
+    assert result["gate"] == "reward_data_spearman"
+    assert result["gate_threshold"] == 0.6
+    assert result["pairing"] == "grouped_by_config_and_action"
+    assert result["num_pairs"] == 36
+    assert result["spearman"] >= 0.6
+    assert result["gate_pass"] is True
+    assert (tmp_path / "reward_alignment" / "alignment.json").exists()
 
 
 def test_meta_trainer_smoke_reports_gate_and_writes_checkpoint(tmp_path):
