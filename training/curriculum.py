@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from agent.cir_estimator import CIRCondition
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
-from env.comm_env import CommEnvConfig, CommunicationEnvironment
+from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
 
 
 @dataclass(frozen=True)
@@ -141,17 +141,19 @@ class CurriculumTrainer:
                             seed=10_000 + int(seed),
                         )
                     )
-                    env.reset_episode()
+                    start = env.reset_episode()
+                    receiver_state = ReceiverState(start.initial_soft_tail)
                     for _ in range(frames_per_config):
                         frame = env.next_frame()
                         result = perfect_csi_bpsk_refine_detect(
                             frame.rx_symbols,
                             frame.true_cir,
-                            frame.tail_symbols,
+                            receiver_state.soft_tail,
                             torch.tensor(10.0 ** (-float(snr_db) / 10.0)),
                             cg_iterations=int(self.config.get("perfect_cir_cg_iterations", 64)),
                             refine_iterations=int(self.config.get("perfect_cir_refine_iterations", 2)),
                         )
+                        receiver_state.update_tail(result.soft_tail)
                         bers.append(bit_error_rate(result.logits[frame.data_mask], frame.bits[frame.data_mask]))
                 rows.append(
                     {

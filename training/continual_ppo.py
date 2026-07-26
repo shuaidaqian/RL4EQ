@@ -7,12 +7,14 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import torch
+import torch.nn.functional as F
 
-from agent.continual_policy import ContinualPolicy
+from agent.continual_policy import ITERATION_CHOICES, MODES, ContinualPolicy, ObservationEncoder
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
-from env.comm_env import CommEnvConfig, CommunicationEnvironment
+from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
 from training.meta_training import _estimate_cir_from_known_frame
 
 
@@ -121,8 +123,9 @@ def run_real_online_experiment(
 ) -> dict:
     """真实环境在线 runner。
 
-    当前 PPO policy 使用已通过 gate 的固定强动作初始化；每 32 帧记录一次
-    policy update。后续可在同一 schema 下替换为真正的 PPO 梯度更新。
+    策略只读取接收端可见 observation；动作影响检测迭代数和判决导向 CIR
+    跟踪强度。Reward Pilot 只在动作执行后计算 reward，Data BER 只作为仿真
+    指标记录。
     """
 
     config = json.loads(Path(config_path).read_text(encoding="utf-8"))
@@ -132,9 +135,14 @@ def run_real_online_experiment(
     target.mkdir(parents=True, exist_ok=True)
     rows = []
     policy_update_frames = [frame for frame in range(1, frames + 1) if frame % update_interval == 0]
+    policy = ContinualPolicy()
+    _initialize_safe_policy_prior(policy)
+    optimizer = torch.optim.AdamW(policy.parameters(), lr=3e-5)
+    encoder = ObservationEncoder()
     for delay in selected_delays:
         for snr_db in selected_snrs:
             for seed in range(num_seeds):
+                torch.manual_seed(90_000 + int(seed) + int(delay) * 17 + int(float(snr_db)) * 31)
                 env = CommunicationEnvironment(
                     CommEnvConfig(
                         level="B",
@@ -147,17 +155,72 @@ def run_real_online_experiment(
                     )
                 )
                 start = env.reset_episode()
+                receiver_state = ReceiverState(start.initial_soft_tail)
                 cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                hidden = torch.zeros(1, 1, policy.hidden_size)
+                previous_reward = 0.0
+                last_parameter_delta_norm = 0.0
+                rollout: list[dict] = []
+                last_good_cir = cir.clone()
+                last_good_tail = receiver_state.soft_tail.clone()
                 for frame_index in range(1, frames + 1):
                     frame = env.next_frame()
+                    sigma = torch.tensor(10.0 ** (-float(snr_db) / 10.0))
+                    before = perfect_csi_bpsk_refine_detect(
+                        frame.rx_symbols,
+                        cir,
+                        receiver_state.soft_tail,
+                        sigma,
+                        cg_iterations=8,
+                        refine_iterations=0,
+                    )
+                    view = _policy_view(
+                        frame=frame,
+                        cir=cir,
+                        snr_db=float(snr_db),
+                        previous_reward=previous_reward,
+                        last_parameter_delta_norm=last_parameter_delta_norm,
+                        confidence=_confidence(before.logits),
+                    )
+                    observation = encoder(view).tensor.unsqueeze(0)
+                    hidden_in = hidden.detach()
+                    action, log_prob, value, hidden = policy.sample(observation, hidden_in)
+                    if action.mode == "rollback":
+                        cir = last_good_cir.clone()
+                        receiver_state.update_tail(last_good_tail)
+                    cg_iterations, refine_iterations = _detector_settings(action)
                     result = perfect_csi_bpsk_refine_detect(
                         frame.rx_symbols,
                         cir,
-                        frame.tail_symbols,
-                        torch.tensor(10.0 ** (-float(snr_db) / 10.0)),
-                        cg_iterations=32,
-                        refine_iterations=2,
+                        receiver_state.soft_tail,
+                        sigma,
+                        cg_iterations=cg_iterations,
+                        refine_iterations=refine_iterations,
                     )
+                    reward_loss_before = _masked_bce(before.logits, frame.bits, frame.reward_mask)
+                    reward_loss_after = _masked_bce(result.logits, frame.bits, frame.reward_mask)
+                    reward = float((reward_loss_before - reward_loss_after).detach().cpu())
+                    reward -= 0.0005 * max(0, cg_iterations - 8)
+                    reward -= 0.001 * refine_iterations
+                    if reward > 0:
+                        last_good_cir = cir.clone()
+                        last_good_tail = result.soft_tail.clone()
+                    parameter_delta_norm = float(torch.norm(cir - last_good_cir).detach().cpu())
+                    rollout.append(
+                        {
+                            "observation": observation.detach(),
+                            "hidden": hidden_in.detach(),
+                            "action": action,
+                            "old_log_prob": log_prob.detach(),
+                            "value": value.detach(),
+                            "reward": reward,
+                        }
+                    )
+                    policy_loss = None
+                    should_update = frame_index in policy_update_frames
+                    if should_update:
+                        policy_loss = _ppo_update(policy, optimizer, rollout)
+                        rollout.clear()
                     rows.append(
                         {
                             "method": method,
@@ -173,16 +236,26 @@ def run_real_online_experiment(
                             "ber_reward_pilot": bit_error_rate(result.logits[frame.reward_mask], frame.bits[frame.reward_mask]),
                             "ber_adapt_pilot": bit_error_rate(result.logits[frame.adapt_mask], frame.bits[frame.adapt_mask]),
                             "measured_before_current_frame_update": True,
-                            "policy_updated": frame_index in policy_update_frames,
-                            "detector_iterations": 34,
-                            "adapt_steps": 1 if frame_index in policy_update_frames else 0,
-                            "adapt_params": 0,
-                            "parameter_delta_norm": 0.0,
+                            "policy_updated": should_update,
+                            "policy_learning": "clipped_ppo_reward_pilot",
+                            "policy_loss": policy_loss,
+                            "policy_action_mode": action.mode,
+                            "policy_action_group": action.parameter_group,
+                            "reward": reward,
+                            "reward_pilot_loss_before": float(reward_loss_before.detach().cpu()),
+                            "reward_pilot_loss_after": float(reward_loss_after.detach().cpu()),
+                            "detector_iterations": int(cg_iterations + refine_iterations),
+                            "adapt_steps": int(action.steps if action.mode in {"update-channel", "update-equalizer", "joint-update"} else 0),
+                            "adapt_params": int(policy.parameter_count() if should_update else 0),
+                            "parameter_delta_norm": parameter_delta_norm,
                             "cir_update": "decision_directed",
                         }
                     )
-                    cir = _decision_directed_cir_update(frame, result.logits, int(delay), cir, alpha=0.2)
-    policy = ContinualPolicy()
+                    receiver_state.update_tail(result.soft_tail)
+                    cir_alpha = 0.2 if action.mode not in {"skip", "rollback"} else 0.05
+                    cir = _decision_directed_cir_update(frame, result.logits, int(delay), cir, alpha=cir_alpha * float(action.cir_trust))
+                    previous_reward = reward
+                    last_parameter_delta_norm = parameter_delta_norm
     torch.save({"schema_version": "continual-ppo-policy-v1", "state_dict": policy.state_dict(), "config": config}, target / "policy.pt")
     jsonl = target / "frame_metrics.jsonl"
     with jsonl.open("w", encoding="utf-8") as handle:
@@ -194,6 +267,7 @@ def run_real_online_experiment(
         "num_seeds": num_seeds,
         "update_interval": update_interval,
         "policy_update_frames": policy_update_frames,
+        "policy_learning": "clipped_ppo_reward_pilot",
         "rows": rows,
         "mean_ber_data": float(sum(row["ber_data"] for row in rows) / max(1, len(rows))),
         "max_config_ber_data": _max_config_ber(rows),
@@ -227,6 +301,89 @@ def _decision_directed_cir_update(frame, logits: torch.Tensor, max_delay: int, p
     estimate = estimate / torch.sqrt(torch.sum(torch.abs(estimate) ** 2).clamp_min(1e-12))
     blended = (1.0 - alpha) * previous_cir + alpha * estimate
     return blended / torch.sqrt(torch.sum(torch.abs(blended) ** 2).clamp_min(1e-12))
+
+
+def _initialize_safe_policy_prior(policy: ContinualPolicy) -> None:
+    """用 Best Fixed 等价动作初始化策略，避免部署首轮随机探索破坏 BER。"""
+
+    with torch.no_grad():
+        policy.mode_head.bias.fill_(-4.0)
+        policy.mode_head.bias[MODES.index("detector-refine")] = 4.0
+        policy.iter_head.bias.fill_(-4.0)
+        policy.iter_head.bias[ITERATION_CHOICES.index(6)] = 4.0
+        policy.steps_head.bias.fill_(-2.0)
+        policy.steps_head.bias[0] = 2.0
+
+
+def _policy_view(frame, cir: torch.Tensor, snr_db: float, previous_reward: float, last_parameter_delta_norm: float, confidence: torch.Tensor):
+    view = frame.receiver_view()
+    return SimpleNamespace(
+        rx_symbols=view.rx_symbols,
+        adapt_symbols=view.adapt_symbols,
+        adapt_mask=view.adapt_mask,
+        model_region_ids=view.model_region_ids,
+        complex_cir=cir,
+        support_probability=torch.abs(cir) / torch.abs(cir).sum().clamp_min(1e-8),
+        noise_variance=torch.tensor(10.0 ** (-float(snr_db) / 10.0)),
+        confidence=confidence,
+        previous_reward=torch.tensor(float(previous_reward)),
+        last_parameter_delta_norm=torch.tensor(float(last_parameter_delta_norm)),
+    )
+
+
+def _confidence(logits: torch.Tensor) -> torch.Tensor:
+    return torch.sigmoid(torch.abs(logits)).mean()
+
+
+def _masked_bce(logits: torch.Tensor, bits: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    if int(mask.sum().item()) == 0:
+        return torch.zeros(())
+    return F.binary_cross_entropy_with_logits(logits[mask].float(), bits[mask].float())
+
+
+def _detector_settings(action) -> tuple[int, int]:
+    if action.mode == "skip":
+        return 8, 0
+    if action.mode == "rollback":
+        return 16, 0
+    if action.mode == "detector-refine":
+        return max(16, 8 + int(action.detector_iterations) * 4), 2
+    if action.mode == "joint-update":
+        return max(16, 8 + int(action.detector_iterations) * 4), 2
+    return max(16, 8 + int(action.detector_iterations) * 2), 1
+
+
+def _ppo_update(policy: ContinualPolicy, optimizer: torch.optim.Optimizer, rollout: list[dict]) -> float | None:
+    if not rollout:
+        return None
+    rewards = torch.tensor([item["reward"] for item in rollout], dtype=torch.float32)
+    returns = []
+    running = torch.zeros(())
+    for reward in reversed(rewards):
+        running = reward + 0.95 * running
+        returns.append(running)
+    returns = torch.stack(list(reversed(returns)))
+    values_old = torch.cat([item["value"].flatten().float() for item in rollout]).detach()
+    advantages = returns - values_old
+    if advantages.numel() > 1:
+        advantages = (advantages - advantages.mean()) / advantages.std(unbiased=False).clamp_min(1e-6)
+    loss_value = torch.zeros(())
+    for _ in range(2):
+        losses = []
+        for index, item in enumerate(rollout):
+            new_log_prob, value, entropy = policy.evaluate_action(item["observation"], item["hidden"], item["action"])
+            ratio = torch.exp(new_log_prob.flatten()[0] - item["old_log_prob"].flatten()[0])
+            clipped = torch.clamp(ratio, 0.8, 1.2) * advantages[index]
+            policy_loss = -torch.minimum(ratio * advantages[index], clipped)
+            value_loss = 0.5 * (value.flatten()[0] - returns[index]).pow(2)
+            losses.append(policy_loss + value_loss - 0.001 * entropy.flatten()[0])
+        loss = torch.stack(losses).mean()
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(policy.parameters(), 1.0)
+        optimizer.step()
+        loss_value = loss.detach()
+    return float(loss_value.cpu())
 
 
 def _module_hash(module: torch.nn.Module) -> str:

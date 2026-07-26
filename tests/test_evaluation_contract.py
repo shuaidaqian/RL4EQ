@@ -221,7 +221,7 @@ def test_all_methods_receive_same_label_free_frame(method):
     result_a = run_method(method, hidden)
     result_b = run_method(method, hidden)
     assert result_a.input_hash == result_b.input_hash == received.observable_hash
-    assert method not in {"Data" + " Oracle"}
+    assert "数据标签上界" not in method
 
 
 def test_hierarchical_bootstrap_resamples_seed_then_ten_frame_blocks():

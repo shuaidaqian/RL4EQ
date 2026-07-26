@@ -29,7 +29,7 @@ Gauss-Markov rho = 0.99
 4. Reward Pilot loss 改善与 Data BER 改善的验证集 Spearman 相关系数至少为 0.6。
 5. Continual PPO 在九配置分别达到 `BER_data < 0.01`，并配对显著优于 Best Fixed、Drift-Aware Rule 和 Contextual Bandit。
 
-不实现 Data Oracle、Trajectory Data Oracle、Frozen PPO 或 PPO-from-random-init。
+不实现任何数据标签上界、轨迹标签上界、Frozen PPO 或 PPO-from-random-init。
 
 ## 3. 信道族
 
@@ -194,5 +194,4 @@ Continual PPO 成功要求：九配置分别平均 `<0.01`，每配置至少 8/1
 
 ## 11. 文档与清理
 
-实施时从零重写根目录 `开发框架.md` 和 `RL信道均衡研究分析.md`，同步更新 README、AGENTS、配置和测试。旧 checkpoint 与新架构不兼容，不做转换。旧 Data Oracle、固定动作表、latent-only生产主干和旧全量结果只保留在带时间戳迭代记录中，不继续作为当前结论。
-
+实施时从零重写根目录 `开发框架.md` 和 `RL信道均衡研究分析.md`，同步更新 README、AGENTS、配置和测试。旧 checkpoint 与新架构不兼容，不做转换。旧数据标签上界、固定动作表、latent-only生产主干和旧全量结果只保留在带时间戳迭代记录中，不继续作为当前结论。

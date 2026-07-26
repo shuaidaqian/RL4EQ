@@ -904,7 +904,7 @@ Expected: FAIL，错误包含 `No module named 'evaluation.bootstrap'`。
 
 - [ ] **Step 3: 完成正式方法集合**
 
-固定方法为 `Perfect-CSI Block`、`Sparse CIR + Kalman/RLS`、`Block LMMSE/CG`、`DFE-RLS`、`Analytic Iterative BPSK`、`Legacy LMMSE-FIR`、`Legacy DFE`、`No Adapt`、`Best Fixed`、`Drift-Aware Pilot Rule`、`Contextual Bandit`、`Continual PPO`。除明确标注 Perfect-CSI 的可达性基线外，所有方法只能用 acquisition/Adapt Pilot；Reward Pilot 只用于动作后的 reward/评估；Data 标签只用于仿真指标。代码、CLI 和文档中均不得存在 Data Oracle。
+固定方法为 `Perfect-CSI Block`、`Sparse CIR + Kalman/RLS`、`Block LMMSE/CG`、`DFE-RLS`、`Analytic Iterative BPSK`、`Legacy LMMSE-FIR`、`Legacy DFE`、`No Adapt`、`Best Fixed`、`Drift-Aware Pilot Rule`、`Contextual Bandit`、`Continual PPO`。除明确标注 Perfect-CSI 的可达性基线外，所有方法只能用 acquisition/Adapt Pilot；Reward Pilot 只用于动作后的 reward/评估；Data 标签只用于仿真指标。代码、CLI 和文档中均不得存在数据标签上界方法。
 
 - [ ] **Step 4: 实现正式矩阵、最小消融和报告**
 
@@ -921,7 +921,7 @@ git add baseline evaluation compare.py tests/test_evaluation_contract.py
 git commit -m "feat: add paired formal evaluation and required baselines"
 ```
 
-Expected: 每种方法写齐统一 schema；主 Level B 与 Level C 文件分离；没有 Data Oracle 行；失败门槛逐配置列出。
+Expected: 每种方法写齐统一 schema；主 Level B 与 Level C 文件分离；没有数据标签上界方法行；失败门槛逐配置列出。
 
 ---
 
@@ -938,21 +938,21 @@ Expected: 每种方法写齐统一 schema；主 Level B 与 Level C 文件分离
 ```python
 def test_docs_share_single_research_contract():
     docs = read_project_docs()
-    required = ["Level B", "Continual PPO", "整帧缓冲", "非因果", "BER_data < 0.01", "不实现 Data Oracle"]
-    forbidden = ["Data Oracle（诊断上界）", "逐符号实时输出", "LDPC 编解码实验", "CFO 补偿实验"]
+    required = ["Level B", "Continual PPO", "整帧缓冲", "非因果", "BER_data < 0.01", "不实现数据标签上界"]
+    forbidden = ["数据标签上界（诊断上界）", "逐符号实时输出", "LDPC 编解码实验", "CFO 补偿实验"]
     assert all(all(term in text for term in required) for text in docs.values())
     assert all(all(term not in text for term in forbidden) for text in docs.values())
 ```
 
 - [ ] **Step 2: 重写四份根文档与文献索引**
 
-文档统一说明：Level B 为主论文场景；Level C 仅压力测试；全程 Pilot 条件课程预训练；12 种 Pilot 开销/布局选择；物理展开接收机；first-order meta；Continual PPO 是第一贡献；不做 Frozen PPO 和 Data Oracle；PPO 以进一步降低 BER 为目标；只有真实重跑结果可以进入结果章节。保留 P-FTNet、在线持续学习、online Bayesian receiver、PPO reward 直接相关文献，删除 MIMO MCTS、RIS equalizer 和重复副本。
+文档统一说明：Level B 为主论文场景；Level C 仅压力测试；全程 Pilot 条件课程预训练；12 种 Pilot 开销/布局选择；物理展开接收机；first-order meta；Continual PPO 是第一贡献；不做 Frozen PPO 和数据标签上界方法；PPO 以进一步降低 BER 为目标；只有真实重跑结果可以进入结果章节。保留 P-FTNet、在线持续学习、online Bayesian receiver、PPO reward 直接相关文献，删除 MIMO MCTS、RIS equalizer 和重复副本。
 
 - [ ] **Step 3: 清理并执行静态质量检查**
 
 ```powershell
 git ls-files | Where-Object { $_ -match '(__pycache__|\.pyc$)' } | ForEach-Object { git rm -- $_ }
-rg -n "actor_critic|agent\.ppo|ldpc_coding|DataOracle|data_oracle|FrozenHierarchical" agent env baseline training evaluation *.py tests
+rg -n "actor_critic|agent\.ppo|ldpc_coding|label_upper_bound|FrozenHierarchical" agent env baseline training evaluation *.py tests
 .\.venv-gpu\Scripts\python.exe -m compileall agent env baseline training evaluation
 git diff --check
 ```

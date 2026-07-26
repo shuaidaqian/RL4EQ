@@ -5,9 +5,11 @@ import sys
 import torch
 
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+from baseline.block_equalizers import DetectionResult
 from env.frame_structure import FrameConfig, FrameGenerator
 from training.curriculum import build_curriculum, load_config
 from training.curriculum import CurriculumTrainer
+import training.meta_training as meta_training
 from training.meta_training import (
     FixedGate,
     MetaTrainer,
@@ -143,6 +145,44 @@ def test_best_fixed_gate_uses_real_reward_selection_and_data_gate(tmp_path):
     assert all(row["ber_data"] < 0.1 for row in result["per_config"])
     assert result["selected"]["selection_metric"] == "mean_reward_pilot_ber"
     assert (tmp_path / "fixed_gate" / "best_fixed.json").exists()
+
+
+def test_best_fixed_selection_does_not_use_data_ber_as_tiebreaker(monkeypatch, tmp_path):
+    metric_state = {"last_cg": None, "metric_index": 0}
+
+    def fake_detect(rx, cir, soft_tail, noise_variance, cg_iterations, refine_iterations):
+        del cir, noise_variance, refine_iterations
+        metric_state["last_cg"] = int(cg_iterations)
+        metric_state["metric_index"] = 0
+        logits = torch.zeros(rx.shape, dtype=torch.float32)
+        return DetectionResult(
+            logits=logits,
+            probabilities=torch.full_like(logits, 0.5),
+            soft_tail=soft_tail.detach().clone(),
+            iterations=int(cg_iterations),
+        )
+
+    def fake_bit_error_rate(logits, bits):
+        del logits, bits
+        metric_state["metric_index"] += 1
+        if metric_state["metric_index"] == 1:
+            return 0.05
+        return 0.90 if metric_state["last_cg"] == 8 else 0.00
+
+    monkeypatch.setattr(meta_training, "perfect_csi_bpsk_refine_detect", fake_detect)
+    monkeypatch.setattr(meta_training, "bit_error_rate", fake_bit_error_rate)
+
+    result = evaluate_best_fixed_level_b(
+        {"main_delays": [20], "main_snrs": [10], "pilot_total": 128, "pilot_layout": "multi_block"},
+        output_dir=tmp_path,
+        frames_per_config=1,
+        seeds=[0],
+        cg_grid=[8, 16],
+        refine_grid=[0],
+    )
+
+    assert result["selected"]["cg_iterations"] == 8
+    assert result["selected"]["mean_ber_data"] == 0.90
 
 
 def test_reward_data_alignment_uses_real_grouped_pairs(tmp_path):

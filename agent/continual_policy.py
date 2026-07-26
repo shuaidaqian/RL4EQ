@@ -41,6 +41,11 @@ class HierarchicalAction:
     reconstruction_weight: float
     damping: float
     cir_trust: float
+    mode_index: int = -1
+    group_index: int = -1
+    steps_index: int = -1
+    iteration_index: int = -1
+    continuous_raw: tuple[float, float, float, float, float] = (0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 class ObservationEncoder:
@@ -154,19 +159,7 @@ class ContinualPolicy(nn.Module):
         self.value_head = nn.Linear(hidden_size, 1)
 
     def sample(self, observation: torch.Tensor, hidden: torch.Tensor) -> tuple[HierarchicalAction, torch.Tensor, torch.Tensor, torch.Tensor]:
-        if observation.dim() == 1:
-            observation = observation.unsqueeze(0)
-        encoded = self.encoder(observation.float())
-        if self.ablation == "no_gru":
-            core = self.no_gru_mlp(encoded).unsqueeze(0)
-            next_hidden = hidden
-        else:
-            core, next_hidden = self.gru(encoded.unsqueeze(0), hidden)
-        state = core.squeeze(0)
-        mode_dist = Categorical(logits=self.mode_head(state))
-        group_dist = Categorical(logits=self.group_head(state))
-        steps_dist = Categorical(logits=self.steps_head(state))
-        iter_dist = Categorical(logits=self.iter_head(state))
+        mode_dist, group_dist, steps_dist, iter_dist, continuous_dist, state, next_hidden = self._dists(observation, hidden)
         mode_idx = mode_dist.sample()
         group_idx = group_dist.sample()
         steps_idx = steps_dist.sample()
@@ -176,17 +169,71 @@ class ContinualPolicy(nn.Module):
         else:
             iter_idx = iter_dist.sample()
             iter_log_prob = iter_dist.log_prob(iter_idx)
-        mean = self.continuous_mean(state)
-        std = self.continuous_log_std.exp().expand_as(mean)
-        continuous_dist = Normal(mean, std)
         raw = continuous_dist.rsample()
+        action = self._build_action(mode_idx, group_idx, steps_idx, iter_idx, raw)
+        log_prob = (
+            mode_dist.log_prob(mode_idx)
+            + group_dist.log_prob(group_idx)
+            + steps_dist.log_prob(steps_idx)
+            + iter_log_prob
+            + continuous_dist.log_prob(raw).sum(dim=-1)
+        )
+        value = self.value_head(state).squeeze(-1)
+        return action, log_prob, value, next_hidden
+
+    def evaluate_action(self, observation: torch.Tensor, hidden: torch.Tensor, action: HierarchicalAction) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """重新计算给定动作的 log_prob/value，用于 clipped PPO 更新。"""
+
+        mode_dist, group_dist, steps_dist, iter_dist, continuous_dist, state, _ = self._dists(observation, hidden)
+        device = state.device
+        mode_idx = torch.tensor([_resolve_index(action.mode_index, MODES, action.mode)], dtype=torch.long, device=device)
+        group_idx = torch.tensor([_resolve_index(action.group_index, PARAMETER_GROUPS, action.parameter_group)], dtype=torch.long, device=device)
+        steps_idx = torch.tensor([_resolve_index(action.steps_index, STEP_CHOICES, action.steps)], dtype=torch.long, device=device)
+        iter_idx = torch.tensor([_resolve_index(action.iteration_index, ITERATION_CHOICES, action.detector_iterations)], dtype=torch.long, device=device)
+        raw = torch.tensor([action.continuous_raw], dtype=torch.float32, device=device)
+        iter_log_prob = (
+            torch.zeros_like(mode_dist.log_prob(mode_idx))
+            if self.ablation == "no_detector_control"
+            else iter_dist.log_prob(iter_idx)
+        )
+        log_prob = (
+            mode_dist.log_prob(mode_idx)
+            + group_dist.log_prob(group_idx)
+            + steps_dist.log_prob(steps_idx)
+            + iter_log_prob
+            + continuous_dist.log_prob(raw).sum(dim=-1)
+        )
+        value = self.value_head(state).squeeze(-1)
+        entropy = mode_dist.entropy() + group_dist.entropy() + steps_dist.entropy() + iter_dist.entropy()
+        return log_prob, value, entropy
+
+    def _dists(self, observation: torch.Tensor, hidden: torch.Tensor):
+        if observation.dim() == 1:
+            observation = observation.unsqueeze(0)
+        encoded = self.encoder(observation.float())
+        if self.ablation == "no_gru":
+            core = self.no_gru_mlp(encoded).unsqueeze(0)
+            next_hidden = hidden
+        else:
+            core, next_hidden = self.gru(encoded.unsqueeze(0), hidden)
+        state = core.squeeze(0)
+        return (
+            Categorical(logits=self.mode_head(state)),
+            Categorical(logits=self.group_head(state)),
+            Categorical(logits=self.steps_head(state)),
+            Categorical(logits=self.iter_head(state)),
+            Normal(self.continuous_mean(state), self.continuous_log_std.exp().expand_as(self.continuous_mean(state))),
+            state,
+            next_hidden,
+        )
+
+    def _build_action(self, mode_idx: torch.Tensor, group_idx: torch.Tensor, steps_idx: torch.Tensor, iter_idx: torch.Tensor, raw: torch.Tensor) -> HierarchicalAction:
         squashed = torch.sigmoid(raw)
-        continuous_log_prob = continuous_dist.log_prob(raw).sum(dim=-1)
         mode = MODES[int(mode_idx[0].item())]
         parameter_group = PARAMETER_GROUPS[int(group_idx[0].item())]
         if mode in {"skip", "rollback", "detector-refine"}:
             parameter_group = "conditioner_film"
-        action = HierarchicalAction(
+        return HierarchicalAction(
             mode=mode,
             parameter_group=parameter_group,
             steps=STEP_CHOICES[int(steps_idx[0].item())],
@@ -196,16 +243,12 @@ class ContinualPolicy(nn.Module):
             reconstruction_weight=float(squashed[0, 2].detach().cpu()),
             damping=float(_scale(squashed[0, 3], 0.0, 0.95).detach().cpu()),
             cir_trust=float(squashed[0, 4].detach().cpu()),
+            mode_index=int(mode_idx[0].item()),
+            group_index=int(group_idx[0].item()),
+            steps_index=int(steps_idx[0].item()),
+            iteration_index=int(iter_idx[0].item()),
+            continuous_raw=tuple(float(value) for value in raw[0].detach().cpu().tolist()),
         )
-        log_prob = (
-            mode_dist.log_prob(mode_idx)
-            + group_dist.log_prob(group_idx)
-            + steps_dist.log_prob(steps_idx)
-            + iter_log_prob
-            + continuous_log_prob
-        )
-        value = self.value_head(state).squeeze(-1)
-        return action, log_prob, value, next_hidden
 
     def parameter_count(self) -> int:
         return sum(parameter.numel() for parameter in self.parameters())
@@ -226,3 +269,9 @@ def _scalar(value: torch.Tensor) -> torch.Tensor:
 
 def _scale(value: torch.Tensor, low: float, high: float) -> torch.Tensor:
     return low + (high - low) * value
+
+
+def _resolve_index(index: int, choices: tuple, value) -> int:
+    if index >= 0:
+        return int(index)
+    return int(choices.index(value))

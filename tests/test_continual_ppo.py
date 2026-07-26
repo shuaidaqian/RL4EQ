@@ -4,9 +4,11 @@ import sys
 
 from agent.adaptation_controller import AdaptationController, compute_reward
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
-from agent.continual_policy import ContinualPolicy, ObservationEncoder
+from agent.continual_policy import ContinualPolicy, ObservationEncoder, MODES, ITERATION_CHOICES
 from agent.continual_policy import HierarchicalAction
-from training.continual_ppo import run_real_online_experiment, tiny_online_run
+from baseline.block_equalizers import DetectionResult
+from training.continual_ppo import run_real_online_experiment, tiny_online_run, _initialize_safe_policy_prior
+import training.continual_ppo as continual_ppo
 
 
 class _HiddenLabelView:
@@ -60,6 +62,13 @@ def test_policy_ablations_keep_contract_and_parameter_budget():
         if ablation == "no_detector_control":
             assert action.detector_iterations == 4
         assert hidden.shape == (1, 1, 128)
+
+
+def test_safe_policy_prior_starts_from_best_fixed_like_action():
+    policy = ContinualPolicy()
+    _initialize_safe_policy_prior(policy)
+    assert int(torch.argmax(policy.mode_head.bias).item()) == MODES.index("detector-refine")
+    assert int(torch.argmax(policy.iter_head.bias).item()) == ITERATION_CHOICES.index(6)
 
 
 def _controller_model():
@@ -131,7 +140,48 @@ def test_real_online_experiment_reports_level_b_frame_metrics(tmp_path):
     assert all(row["method"] == "Continual PPO" for row in result["rows"])
     assert all(0.0 <= row["ber_data"] <= 1.0 for row in result["rows"])
     assert all(row["cir_update"] == "decision_directed" for row in result["rows"])
+    assert result["policy_learning"] == "clipped_ppo_reward_pilot"
+    assert any(row["policy_loss"] is not None for row in result["rows"])
+    assert all("policy_action_mode" in row for row in result["rows"])
     assert (tmp_path / "online_metrics.json").exists()
+
+
+def test_real_online_experiment_uses_receiver_soft_tail_after_first_frame(monkeypatch, tmp_path):
+    captured_tails = []
+    returned_tails = []
+
+    def fake_detect(rx, cir, soft_tail, noise_variance, cg_iterations, refine_iterations):
+        del cir, noise_variance, cg_iterations, refine_iterations
+        captured_tails.append(soft_tail.detach().clone())
+        logits = torch.zeros(rx.shape, dtype=torch.float32)
+        marker = 0.25 + 0.25 * len(captured_tails)
+        next_tail = torch.complex(
+            torch.full_like(soft_tail.real, marker),
+            torch.zeros_like(soft_tail.real),
+        )
+        returned_tails.append(next_tail.clone())
+        return DetectionResult(
+            logits=logits,
+            probabilities=torch.full_like(logits, 0.5),
+            soft_tail=next_tail,
+            iterations=0,
+        )
+
+    monkeypatch.setattr(continual_ppo, "perfect_csi_bpsk_refine_detect", fake_detect)
+    monkeypatch.setattr(continual_ppo, "_decision_directed_cir_update", lambda frame, logits, max_delay, previous_cir, alpha: previous_cir)
+
+    run_real_online_experiment(
+        config_path="configs/continual_ppo.json",
+        frames=2,
+        num_seeds=1,
+        update_interval=1,
+        output_dir=tmp_path,
+        delays=[20],
+        snrs=[10],
+    )
+
+    assert len(captured_tails) == 4
+    assert torch.equal(captured_tails[2], returned_tails[1])
 
 
 def test_online_train_cli_supports_config_slicing(tmp_path):

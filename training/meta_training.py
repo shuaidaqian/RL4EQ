@@ -20,7 +20,7 @@ from agent.peft import PEFTSnapshot
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
 from evaluation.metrics import spearman_reward_data
-from env.comm_env import CommEnvConfig, CommunicationEnvironment
+from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
 from env.frame_structure import Frame, ReceiverFrameView
 
 
@@ -334,17 +334,19 @@ def evaluate_best_fixed_level_b(
                         )
                     )
                     start = env.reset_episode()
+                    receiver_state = ReceiverState(start.initial_soft_tail)
                     cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
                     for _ in range(frames_per_config):
                         frame = env.next_frame()
                         result = perfect_csi_bpsk_refine_detect(
                             frame.rx_symbols,
                             cir,
-                            frame.tail_symbols,
+                            receiver_state.soft_tail,
                             torch.tensor(10.0 ** (-float(snr_db) / 10.0)),
                             cg_iterations=candidate["cg_iterations"],
                             refine_iterations=candidate["refine_iterations"],
                         )
+                        receiver_state.update_tail(result.soft_tail)
                         reward_ber = bit_error_rate(result.logits[frame.reward_mask], frame.bits[frame.reward_mask])
                         data_ber = bit_error_rate(result.logits[frame.data_mask], frame.bits[frame.data_mask])
                         config_reward.append(reward_ber)
@@ -370,7 +372,14 @@ def evaluate_best_fixed_level_b(
                 "per_config": per_config,
             }
         )
-    best = min(scored, key=lambda item: (item["mean_reward_pilot_ber"], item["mean_ber_data"]))
+    best = min(
+        scored,
+        key=lambda item: (
+            item["mean_reward_pilot_ber"],
+            item["candidate"]["cg_iterations"],
+            item["candidate"]["refine_iterations"],
+        ),
+    )
     threshold = 0.1
     result = {
         "gate": "best_fixed_acquisition_cir",
@@ -433,6 +442,7 @@ def evaluate_reward_data_alignment(
                         )
                     )
                     start = env.reset_episode()
+                    receiver_state = ReceiverState(start.initial_soft_tail)
                     cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
                     for _ in range(frames_per_config):
                         frame = env.next_frame()
@@ -440,7 +450,7 @@ def evaluate_reward_data_alignment(
                         before = perfect_csi_bpsk_refine_detect(
                             frame.rx_symbols,
                             cir,
-                            frame.tail_symbols,
+                            receiver_state.soft_tail,
                             sigma,
                             cg_iterations=8,
                             refine_iterations=0,
@@ -448,11 +458,12 @@ def evaluate_reward_data_alignment(
                         after = perfect_csi_bpsk_refine_detect(
                             frame.rx_symbols,
                             cir,
-                            frame.tail_symbols,
+                            receiver_state.soft_tail,
                             sigma,
                             cg_iterations=int(cg_iterations),
                             refine_iterations=int(refine_iterations),
                         )
+                        receiver_state.update_tail(after.soft_tail)
                         reward_improvements.append(
                             _masked_bce(before.logits, frame.bits, frame.reward_mask)
                             - _masked_bce(after.logits, frame.bits, frame.reward_mask)

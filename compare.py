@@ -11,7 +11,7 @@ import torch
 
 from baseline.legacy_equalizers import legacy_dfe, legacy_lmmse_fir
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
-from env.comm_env import CommEnvConfig, CommunicationEnvironment
+from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
 from evaluation.bootstrap import paired_block_bootstrap
 from evaluation.metrics import FrameMetric, summarize_main_matrix
 from training.meta_training import _estimate_cir_from_known_frame
@@ -132,10 +132,14 @@ def main() -> None:
                     )
                     start = env.reset_episode()
                     acquisition_cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                    receiver_states = {
+                        method: ReceiverState(start.initial_soft_tail)
+                        for method in FORMAL_METHODS
+                    }
                     for frame_index in range(1, args.frames + 1):
                         frame = env.next_frame()
                         for method in FORMAL_METHODS:
-                            result = _run_real_method(method, frame, acquisition_cir, float(snr_db))
+                            result = _run_real_method(method, frame, acquisition_cir, float(snr_db), receiver_states[method])
                             metric = FrameMetric(
                                 method=method,
                                 level="B",
@@ -164,7 +168,7 @@ def main() -> None:
         "per_config": [item.__dict__ for item in summary.per_config],
         "generalization": summary.generalization,
         "bootstrap": interval.__dict__,
-        "forbidden": {"oracle_from_data_labels_present": any(("Data" + " Oracle") in method for method in FORMAL_METHODS)},
+        "forbidden": {"data_label_upper_bound_method_present": any("数据标签上界" in method for method in FORMAL_METHODS)},
     }
     (target / "summary.json").write_text(json.dumps(summary_payload, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"saved {args.output_dir}")
@@ -181,7 +185,7 @@ class RealMethodResult:
     detector_iterations: int
 
 
-def _run_real_method(method: str, frame, acquisition_cir, snr_db: float) -> RealMethodResult:
+def _run_real_method(method: str, frame, acquisition_cir, snr_db: float, receiver_state: ReceiverState) -> RealMethodResult:
     sigma = torch.tensor(10.0 ** (-float(snr_db) / 10.0))
     settings = {
         "Perfect-CSI Block": (frame.true_cir, 32, 2),
@@ -203,11 +207,12 @@ def _run_real_method(method: str, frame, acquisition_cir, snr_db: float) -> Real
     result = perfect_csi_bpsk_refine_detect(
         frame.rx_symbols,
         cir,
-        frame.tail_symbols,
+        receiver_state.soft_tail,
         sigma,
         cg_iterations=cg_iterations,
         refine_iterations=refine_iterations,
     )
+    receiver_state.update_tail(result.soft_tail)
     return RealMethodResult(
         method=method,
         input_hash=_hash_json({"seed": int(frame.frame_index), "method": method, "visible": "rx+adapt"}),
