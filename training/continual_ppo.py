@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import torch
 import torch.nn.functional as F
 
+from agent.cir_estimator import decision_directed_cir_update as _decision_directed_cir_update
 from agent.continual_policy import ITERATION_CHOICES, MODES, ContinualPolicy, ObservationEncoder
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
@@ -283,24 +284,6 @@ def _max_config_ber(rows: list[dict]) -> float:
     if not grouped:
         return 1.0
     return max(sum(values) / len(values) for values in grouped.values())
-
-
-def _decision_directed_cir_update(frame, logits: torch.Tensor, max_delay: int, previous_cir: torch.Tensor, alpha: float) -> torch.Tensor:
-    hard_symbols = torch.where(logits >= 0, torch.ones_like(logits), -torch.ones_like(logits)).to(torch.complex64)
-    tx_estimate = hard_symbols.clone()
-    tx_estimate[frame.adapt_mask] = frame.tx_symbols[frame.adapt_mask]
-    rows = []
-    targets = []
-    for pos in range(max_delay, tx_estimate.numel()):
-        row = torch.zeros(max_delay + 1, dtype=torch.complex64)
-        for delay in range(max_delay + 1):
-            row[delay] = tx_estimate[pos - delay]
-        rows.append(row)
-        targets.append(frame.rx_symbols[pos])
-    estimate = torch.linalg.lstsq(torch.stack(rows), torch.stack(targets)).solution.to(torch.complex64)
-    estimate = estimate / torch.sqrt(torch.sum(torch.abs(estimate) ** 2).clamp_min(1e-12))
-    blended = (1.0 - alpha) * previous_cir + alpha * estimate
-    return blended / torch.sqrt(torch.sum(torch.abs(blended) ** 2).clamp_min(1e-12))
 
 
 def _initialize_safe_policy_prior(policy: ContinualPolicy) -> None:

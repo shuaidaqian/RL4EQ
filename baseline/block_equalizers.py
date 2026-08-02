@@ -77,24 +77,13 @@ def perfect_csi_bpsk_refine_detect(
     tail_b = soft_tail if soft_tail.ndim == 2 else soft_tail.unsqueeze(0)
     sigma = torch.as_tensor(noise_variance, dtype=torch.float32, device=rx_b.device).clamp_min(1e-8)
     initial = perfect_csi_cg_detect(rx_b, cir_b, tail_b, sigma, iterations=cg_iterations)
-    logits = []
-    tails = []
-    for batch_index in range(rx_b.shape[0]):
-        refined = _coordinate_refine_single(
-            rx_b[batch_index],
-            cir_b[batch_index],
-            tail_b[batch_index],
-            initial.logits[batch_index],
-            refine_iterations,
-        )
-        logits.append(refined)
-        tail_len = tail_b.shape[1]
-        tails.append(torch.complex(torch.tanh(refined[-tail_len:] / 2.0), torch.zeros(tail_len, device=refined.device)))
-    logits_b = torch.stack(logits, dim=0)
+    logits_b = _coordinate_refine_batch(rx_b, cir_b, tail_b, initial.logits, refine_iterations)
+    tail_len = tail_b.shape[1]
+    tails_b = torch.complex(torch.tanh(logits_b[:, -tail_len:] / 2.0), torch.zeros_like(tail_b.real))
     result = DetectionResult(
         logits=logits_b,
         probabilities=torch.sigmoid(logits_b),
-        soft_tail=torch.stack(tails, dim=0),
+        soft_tail=tails_b,
         iterations=cg_iterations + refine_iterations,
     )
     return result if batched else DetectionResult(
@@ -132,46 +121,95 @@ def _coordinate_refine_single(
     initial_logits: torch.Tensor,
     refine_iterations: int,
 ) -> torch.Tensor:
-    frame_len = rx.numel()
-    max_delay = cir.numel() - 1
-    operator = LinearChannelOperator(frame_len=frame_len, max_delay=max_delay)
-    tail_contribution = operator.forward(
-        torch.zeros(1, frame_len, dtype=torch.complex64, device=rx.device),
+    return _coordinate_refine_batch(
+        rx.unsqueeze(0),
         cir.unsqueeze(0),
         tail.unsqueeze(0),
+        initial_logits.unsqueeze(0),
+        refine_iterations,
     ).squeeze(0)
+
+
+def _coordinate_refine_batch(
+    rx: torch.Tensor,
+    cir: torch.Tensor,
+    tail: torch.Tensor,
+    initial_logits: torch.Tensor,
+    refine_iterations: int,
+) -> torch.Tensor:
+    frame_len = rx.numel()
+    if rx.ndim != 2:
+        raise ValueError("rx 必须是 (B, T)。")
+    batch_size, frame_len = rx.shape
+    max_delay = cir.shape[1] - 1
+    operator = LinearChannelOperator(frame_len=frame_len, max_delay=max_delay)
+    tail_contribution = operator.forward(
+        torch.zeros(batch_size, frame_len, dtype=torch.complex64, device=rx.device),
+        cir,
+        tail,
+    )
     target = rx - tail_contribution
     symbols = torch.where(initial_logits >= 0, torch.ones_like(initial_logits), -torch.ones_like(initial_logits)).to(torch.complex64)
     frame_cir = cir.to(torch.complex64)
-    prediction = _current_frame_convolution(symbols, frame_cir)
+    prediction = _current_frame_convolution_batch(symbols, frame_cir)
     residual = target - prediction
     for _ in range(max(0, refine_iterations)):
-        changed = 0
-        for index in range(frame_len):
-            length = min(max_delay + 1, frame_len - index)
-            if length <= 0:
-                continue
-            column = frame_cir[:length]
-            delta = 2.0 * symbols[index] * column
-            residual_slice = residual[index : index + length]
-            before = torch.sum(torch.abs(residual_slice) ** 2)
-            after = torch.sum(torch.abs(residual_slice + delta) ** 2)
-            if torch.real(after - before) < -1e-8:
-                symbols[index] = -symbols[index]
-                residual[index : index + length] = residual_slice + delta
-                changed += 1
-        if changed == 0:
+        gain = _parallel_flip_gain_batch(residual, symbols, frame_cir)
+        flip_mask = gain < -1e-8
+        if not bool(flip_mask.any()):
             break
+        previous_energy = torch.sum(torch.abs(residual) ** 2, dim=1)
+        proposal = symbols.clone()
+        proposal[flip_mask] = -proposal[flip_mask]
+        proposal_residual = target - _current_frame_convolution_batch(proposal, frame_cir)
+        proposal_energy = torch.sum(torch.abs(proposal_residual) ** 2, dim=1)
+        accept_all = torch.real(proposal_energy - previous_energy) < -1e-8
+
+        best_indices = torch.argmin(gain, dim=1)
+        best_proposal = symbols.clone()
+        best_proposal[torch.arange(batch_size, device=symbols.device), best_indices] *= -1.0
+        best_residual = target - _current_frame_convolution_batch(best_proposal, frame_cir)
+        best_energy = torch.sum(torch.abs(best_residual) ** 2, dim=1)
+        accept_best = (~accept_all) & (torch.real(best_energy - previous_energy) < -1e-8)
+
+        if not bool((accept_all | accept_best).any()):
+            break
+        symbols = torch.where(accept_all.unsqueeze(1), proposal, symbols)
+        residual = torch.where(accept_all.unsqueeze(1), proposal_residual, residual)
+        symbols = torch.where(accept_best.unsqueeze(1), best_proposal, symbols)
+        residual = torch.where(accept_best.unsqueeze(1), best_residual, residual)
     return symbols.real * 20.0
 
 
-def _current_frame_convolution(symbols: torch.Tensor, cir: torch.Tensor) -> torch.Tensor:
-    frame_len = symbols.numel()
-    max_delay = cir.numel() - 1
-    output = torch.zeros(frame_len, dtype=torch.complex64, device=symbols.device)
+def _parallel_flip_gain_batch(residual: torch.Tensor, symbols: torch.Tensor, cir: torch.Tensor) -> torch.Tensor:
+    """向量化估计翻转每个 BPSK 符号的残差能量变化。"""
+
+    batch_size, frame_len = symbols.shape
+    max_delay = cir.shape[1] - 1
+    gain = torch.zeros(batch_size, frame_len, dtype=torch.float32, device=symbols.device)
+    norm = torch.zeros(batch_size, frame_len, dtype=torch.float32, device=symbols.device)
     for delay in range(max_delay + 1):
-        if cir[delay] != 0:
-            output[delay:] = output[delay:] + cir[delay] * symbols[: frame_len - delay]
+        valid = frame_len - delay
+        if valid <= 0:
+            continue
+        delta = 2.0 * symbols[:, :valid] * cir[:, delay].unsqueeze(1)
+        residual_slice = residual[:, delay:]
+        gain[:, :valid] = gain[:, :valid] + 2.0 * torch.real(torch.conj(residual_slice) * delta)
+        norm[:, :valid] = norm[:, :valid] + torch.abs(delta).pow(2).real
+    return gain + norm
+
+
+def _current_frame_convolution(symbols: torch.Tensor, cir: torch.Tensor) -> torch.Tensor:
+    return _current_frame_convolution_batch(symbols.unsqueeze(0), cir.unsqueeze(0)).squeeze(0)
+
+
+def _current_frame_convolution_batch(symbols: torch.Tensor, cir: torch.Tensor) -> torch.Tensor:
+    frame_len = symbols.numel()
+    batch_size, frame_len = symbols.shape
+    max_delay = cir.shape[1] - 1
+    output = torch.zeros(batch_size, frame_len, dtype=torch.complex64, device=symbols.device)
+    for delay in range(max_delay + 1):
+        output[:, delay:] = output[:, delay:] + cir[:, delay].unsqueeze(1) * symbols[:, : frame_len - delay]
     return output
 
 

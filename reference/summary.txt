@@ -1,19 +1,61 @@
 RL4EQ reference summary
-更新日期：2026-07-25
+更新日期：2026-07-31
 
-研究路线：Level B 极端稀疏长回波信道 + 整帧缓冲、非因果 Physics-Guided Unfolded Equalizer + Continual PPO。
+研究路线：
+Level B 极端稀疏长回波信道 + 整帧缓冲、非因果块均衡器 + Pilot 条件监督预训练 + 在线按帧持续适配 + Continual PPO 控制器。
 
-保留资料：
-1. P-FTNet extreme delay spread equalization
-   价值：Pilot 条件、长上下文 Transformer、极端 delay spread 的神经均衡背景。
+一、神经接收机与在线学习
 
-2. Obeed & Jian 2026, Learning During Detection
-   价值：部署期间用 Pilot/DMRS 持续更新神经接收机；非 RL，但与在线接收机学习边界最接近。
+1. DeepRx: Fully Convolutional Deep Learning Receiver
+   文件：DeepRx Fully Convolutional Deep Learning Receiver.pdf
+   价值：深度学习接收机代表工作；用于说明 neural receiver 已是成熟研究方向，本项目不能声称“首次提出神经接收机”。
 
-3. Gusakov et al. 2025, Online Modular Bayesian Deep Receivers
-   价值：单步/低延迟在线适配思想，可作为非 RL 在线学习对照。
+2. Learning During Detection: Continual Learning for Neural OFDM Receivers via DMRS
+   文件：Learning During Detection Continual Learning for Neural OFDM Receivers via DMRS.pdf
+   价值：部署期间使用 DMRS/pilot 持续更新接收机；与本项目“在线期间按帧适配”最接近，但不是 PPO 控制 PEFT/块检测策略。
 
-4. Bereketoglu 2025, PPO-driven adaptive filtering
-   价值：PPO 控制滤波器更新与复合 reward 设计参考。
+3. Online Learning of Modular Bayesian Deep Receivers: Single-Step Adaptation with Streaming Data
+   文件：Online Learning of Modular Bayesian Deep Receivers Single-Step Adaptation.pdf
+   价值：在线 Bayesian deep receiver / streaming adaptation 参考；适合作为非 RL 在线学习 baseline 背景。
 
-当前不使用数据标签上界，不迁移旧分支历史数字。Level C 仅压力测试，不混入 Level B 主平均。
+4. P-FTNet: Pilot-Conditioned and Feature-Augmented Transformer Network for Equalization Under Extreme Delay Spread
+   文件：P-FTNet Pilot-Conditioned and Feature-Augmented Transformer Network for Equalization Under Extreme Delay Spread.pdf
+   价值：Pilot 条件、Transformer、极端 delay spread 下神经均衡背景。
+
+二、RL / PPO / 动作控制
+
+5. Proximal Policy Optimization Algorithms
+   文件：Proximal Policy Optimization Algorithms.pdf
+   价值：PPO 方法基础引用。
+
+6. Composite Reward Design in PPO-Driven Adaptive Filtering
+   文件：Composite Reward Design in PPO-Driven Adaptive Filtering.pdf
+   价值：PPO 控制滤波器更新和复合 reward 设计参考。
+
+7. Improved Channel Equalization using Deep Reinforcement Learning and Optimization
+   文件：Improved Channel Equalization using Deep Reinforcement Learning and Optimization.pdf
+   价值：DRL channel equalization 直接相关工作；用于说明 RL 均衡已有研究。
+
+8. RIS-Enabled Wireless Channel Equalization: Adaptive RIS Equalizer and Deep Reinforcement Learning
+   文件：RIS-Enabled Wireless Channel Equalization Adaptive RIS Equalizer and Deep Reinforcement Learning.pdf
+   价值：RIS 场景 DRL equalization 工作；只作为相关工作边界，不引入 RIS 研发路线。
+
+9. Cluster channel equalization using adaptive sensing and reinforcement learning for UAV communication
+   文件：当前未下载 PDF；见 download_manifest.json
+   DOI：10.7717/peerj-cs.2557
+   价值：UAV 场景 RL/自适应 sensing 与信道均衡相关工作；当前命令行环境下载 PDF 返回 403。
+
+三、EME / 极端长回波场景
+
+10. Modeling and Characterization of Broadband Earth-Moon-Earth Communication Channels
+    文件：Modeling and Characterization of Broadband Earth-Moon-Earth Communication Channels.pdf
+    价值：EME 宽带信道建模与表征；用于说明 EME-inspired 极端稀疏长回波场景来源。
+
+11. Frequency-Dependent Characteristics of the EME Path
+    文件：Frequency-Dependent Characteristics of the EME Path.pdf
+    价值：EME 路径频率相关特征背景；用于场景动机，不等同于完整物理 EME 仿真。
+
+写作注意：
+- 不能写“无人研究过神经均衡 / RL 均衡 / PPO / EME 信道建模”。
+- 可以写：现有工作分别覆盖神经接收机、在线学习、RL equalization、PPO 控制和 EME 建模，但当前项目关注的组合是 Level B EME-inspired 极端稀疏长回波 + 整帧非因果块均衡 + Pilot/Reward 隔离 + Data-label isolation + 公平配对 baseline 矩阵。
+- 修复 baseline 后的正式矩阵显示 PPO 已达到 BER_data < 0.01，但未优于 Best Fixed；论文结论必须按新矩阵结果表述。

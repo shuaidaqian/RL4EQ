@@ -104,3 +104,27 @@ class HybridCIREstimator(nn.Module):
             return visible[:, : self.latent_dim].to(torch.float32)
         padding = torch.zeros(visible.shape[0], self.latent_dim - visible.shape[1], device=visible.device)
         return torch.cat([visible, padding], dim=1).to(torch.float32)
+
+
+def decision_directed_cir_update(frame, logits: torch.Tensor, max_delay: int, previous_cir: torch.Tensor, alpha: float) -> torch.Tensor:
+    """用当前帧硬判决和 Adapt Pilot 标签更新接收端 CIR。
+
+    该更新只使用接收端在线可见信息：Data 区域使用模型硬判决，Adapt Pilot
+    区域使用已知导频符号；Reward/Data 标签不会进入估计。
+    """
+
+    hard_symbols = torch.where(logits >= 0, torch.ones_like(logits), -torch.ones_like(logits)).to(torch.complex64)
+    tx_estimate = hard_symbols.clone()
+    tx_estimate[frame.adapt_mask] = frame.tx_symbols[frame.adapt_mask]
+    rows = []
+    targets = []
+    for pos in range(max_delay, tx_estimate.numel()):
+        row = torch.zeros(max_delay + 1, dtype=torch.complex64, device=tx_estimate.device)
+        for delay in range(max_delay + 1):
+            row[delay] = tx_estimate[pos - delay]
+        rows.append(row)
+        targets.append(frame.rx_symbols[pos])
+    estimate = torch.linalg.lstsq(torch.stack(rows), torch.stack(targets)).solution.to(torch.complex64)
+    estimate = estimate / torch.sqrt(torch.sum(torch.abs(estimate) ** 2).clamp_min(1e-12))
+    blended = (1.0 - alpha) * previous_cir + alpha * estimate
+    return blended / torch.sqrt(torch.sum(torch.abs(blended) ** 2).clamp_min(1e-12))

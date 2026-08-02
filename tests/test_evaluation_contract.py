@@ -1,4 +1,5 @@
 import json
+import inspect
 from pathlib import Path
 import subprocess
 import sys
@@ -6,7 +7,11 @@ import sys
 import pytest
 import torch
 
-from compare import FORMAL_METHODS, paired_frame, run_method
+from compare import FORMAL_METHODS, _build_method_states, _run_baseline_method_batch, paired_frame, run_method
+from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect, _coordinate_refine_single
+from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
+from training.continual_ppo import _decision_directed_cir_update
+from training.meta_training import _estimate_cir_from_known_frame
 from evaluation.bootstrap import paired_block_bootstrap
 from training.checkpointing import CheckpointError, load_checkpoint, run_tiny_training
 from evaluation.metrics import (
@@ -266,6 +271,111 @@ def test_compare_cli_writes_real_level_b_metrics(tmp_path):
     assert rows
     assert all(row["level"] == "B" for row in rows)
     assert all(row["ber_data"] != 0.02 for row in rows if row["method"] == "Continual PPO")
+    ppo_rows = [row for row in rows if row["method"] == "Continual PPO"]
+    assert ppo_rows
+    assert all(row["policy_learning"] == "clipped_ppo_reward_pilot" for row in ppo_rows)
+    assert all("policy_action_mode" in row for row in ppo_rows)
+
+
+def test_compare_resume_replays_state_without_duplicate_rows(tmp_path):
+    base = [
+        sys.executable,
+        "compare.py",
+        "--config",
+        "configs/continual_ppo.json",
+        "--delays",
+        "20",
+        "--snrs",
+        "10",
+        "--num-seeds",
+        "1",
+        "--output-dir",
+        str(tmp_path),
+    ]
+    subprocess.run([*base, "--frames", "1"], check=True, text=True, capture_output=True)
+    subprocess.run([*base, "--frames", "2", "--resume"], check=True, text=True, capture_output=True)
+    rows = [json.loads(line) for line in (tmp_path / "frame_metrics.jsonl").read_text(encoding="utf-8").splitlines()]
+    keys = [(row["method"], row["delay"], row["snr_db"], row["seed"], row["frame"]) for row in rows]
+    assert len(keys) == len(set(keys))
+    assert len(rows) == len(FORMAL_METHODS) * 2
+    ppo_rows = [row for row in rows if row["method"] == "Continual PPO"]
+    assert [row["frame"] for row in ppo_rows] == [1, 2]
+
+
+def test_compare_cli_can_run_selected_methods_for_affected_matrix(tmp_path):
+    subprocess.run(
+        [
+            sys.executable,
+            "compare.py",
+            "--config",
+            "configs/continual_ppo.json",
+            "--methods",
+            "Best Fixed",
+            "Continual PPO",
+            "--delays",
+            "20",
+            "--snrs",
+            "10",
+            "--num-seeds",
+            "1",
+            "--frames",
+            "1",
+            "--output-dir",
+            str(tmp_path),
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    rows = [json.loads(line) for line in (tmp_path / "frame_metrics.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert {row["method"] for row in rows} == {"Best Fixed", "Continual PPO"}
+    assert len(rows) == 2
+
+
+def test_compare_best_fixed_matches_gate_online_cir_and_tail_dynamics():
+    config = json.loads(Path("configs/continual_ppo.json").read_text(encoding="utf-8"))
+    delay = 20
+    snr_db = 10.0
+    env = CommunicationEnvironment(
+        CommEnvConfig(
+            level="B",
+            max_delay=delay,
+            snr_db=snr_db,
+            rho=float(config.get("rho", 0.99)),
+            total_pilot=int(config.get("pilot_total", 128)),
+            layout=str(config.get("pilot_layout", "multi_block")),
+            seed=20_000,
+        )
+    )
+    start = env.reset_episode()
+    gate_cir = _estimate_cir_from_known_frame(start.acquisition, delay)
+    gate_state = ReceiverState(start.initial_soft_tail)
+    compare_states = _build_method_states(("Best Fixed",), start.initial_soft_tail, gate_cir, config, delay, snr_db, seed=0)
+    sigma = torch.tensor(10.0 ** (-snr_db / 10.0))
+
+    for _ in range(2):
+        frame = env.next_frame()
+        gate_result = perfect_csi_bpsk_refine_detect(
+            frame.rx_symbols,
+            gate_cir,
+            gate_state.soft_tail,
+            sigma,
+            cg_iterations=32,
+            refine_iterations=2,
+        )
+        gate_state.update_tail(gate_result.soft_tail)
+        gate_cir = _decision_directed_cir_update(frame, gate_result.logits, delay, gate_cir, alpha=0.2)
+
+        compare_result = _run_baseline_method_batch(["Best Fixed"], frame, snr_db, compare_states, delay=delay)["Best Fixed"]
+
+        assert compare_result.ber_data == pytest.approx(bit_error_rate(gate_result.logits[frame.data_mask], frame.bits[frame.data_mask]))
+        assert torch.allclose(compare_states["Best Fixed"].receiver_state.soft_tail, gate_state.soft_tail)
+        assert torch.allclose(compare_states["Best Fixed"].cir, gate_cir)
+
+
+def test_coordinate_refine_single_has_no_per_symbol_python_loop():
+    source = inspect.getsource(_coordinate_refine_single)
+    assert "for index in range(frame_len)" not in source
 
 
 def test_docs_share_single_research_contract():

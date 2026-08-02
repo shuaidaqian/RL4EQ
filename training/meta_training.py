@@ -15,7 +15,7 @@ from typing import Callable, Iterable
 import torch
 import torch.nn.functional as F
 
-from agent.cir_estimator import CIRCondition
+from agent.cir_estimator import CIRCondition, decision_directed_cir_update
 from agent.peft import PEFTSnapshot
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
@@ -347,6 +347,7 @@ def evaluate_best_fixed_level_b(
                             refine_iterations=candidate["refine_iterations"],
                         )
                         receiver_state.update_tail(result.soft_tail)
+                        cir = decision_directed_cir_update(frame, result.logits, int(delay), cir, alpha=0.2)
                         reward_ber = bit_error_rate(result.logits[frame.reward_mask], frame.bits[frame.reward_mask])
                         data_ber = bit_error_rate(result.logits[frame.data_mask], frame.bits[frame.data_mask])
                         config_reward.append(reward_ber)
