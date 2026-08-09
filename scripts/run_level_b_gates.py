@@ -36,7 +36,7 @@ def main() -> None:
     parser.add_argument("--frames-per-config", type=int, default=5)
     parser.add_argument("--seeds", nargs="*", type=int, default=[0, 1, 2, 3, 4])
     parser.add_argument("--pilot-total", type=int, default=128)
-    parser.add_argument("--pilot-layout", default="two_block")
+    parser.add_argument("--pilot-layout", default="prefix")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)

@@ -114,6 +114,42 @@ def test_unfolded_equalizer_is_noncausal_and_peft_is_bounded():
     assert model.trainable_parameter_count() <= 0.10 * model.parameter_count()
 
 
+def test_unfolded_equalizer_optional_conditioner_uses_cir_support_and_noise():
+    config = UnfoldedConfig(
+        frame_len=64,
+        max_delay=6,
+        iterations=1,
+        d_model=32,
+        num_heads=4,
+        conditioner_uses_cir_summary=True,
+    )
+    model = UnfoldedEqualizer(config)
+    rx_iq = torch.randn(1, 64, 2)
+    cir = torch.zeros(1, 7, dtype=torch.complex64)
+    cir[:, 0] = 1.0 + 0.0j
+    latent = torch.zeros(1, 96)
+    condition_a = HybridCIREstimator(max_delay=6)(rx_iq, torch.ones(1, 64, dtype=torch.complex64), torch.ones(1, 64, dtype=torch.bool), torch.zeros(1, 64, dtype=torch.long))
+    condition_a.complex_cir = cir
+    condition_a.support_probability = torch.zeros(1, 7)
+    condition_a.support_probability[:, 0] = 1.0
+    condition_a.noise_variance = torch.tensor([0.01])
+    condition_a.confidence = torch.tensor([1.0])
+    condition_a.latent_residual = latent
+    condition_b = HybridCIREstimator(max_delay=6)(rx_iq, torch.ones(1, 64, dtype=torch.complex64), torch.ones(1, 64, dtype=torch.bool), torch.zeros(1, 64, dtype=torch.long))
+    condition_b.complex_cir = cir
+    condition_b.support_probability = torch.ones(1, 7) / 7.0
+    condition_b.noise_variance = torch.tensor([0.5])
+    condition_b.confidence = torch.tensor([0.2])
+    condition_b.latent_residual = latent
+    region_ids = torch.zeros(1, 64, dtype=torch.long)
+    soft_tail = torch.zeros(1, 6, dtype=torch.complex64)
+
+    logits_a, _ = model(rx_iq, condition_a, region_ids, soft_tail)
+    logits_b, _ = model(rx_iq, condition_b, region_ids, soft_tail)
+
+    assert not torch.allclose(logits_a, logits_b)
+
+
 def test_unfolded_equalizer_strict_checkpoint_and_peft_snapshot(tmp_path):
     model = UnfoldedEqualizer(UnfoldedConfig(frame_len=64, max_delay=6, iterations=2, d_model=32, num_heads=4))
     checkpoint = tmp_path / "model.pt"

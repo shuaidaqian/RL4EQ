@@ -6,13 +6,6 @@
   "snrs_pressure": [],
   "pilot_sweep_totals": [64, 96, 128, 160],
   "pilot_sweep_layout": "prefix",
-  "optional_impairments": {
-    "cfo": false,
-    "phase_perturbation": false,
-    "nonlinearity": false,
-    "coding": false,
-    "higher_order_modulation": false
-  },
   "curriculum_max_frame_offset": 4,
   "cir_condition_augmentation": {
     "enabled": true,
@@ -33,7 +26,7 @@
     "lora_rank": 8
   },
   "main_level": "B",
-  "main_delays": [20, 30, 40],
-  "main_snrs": [0, 5, 10, 15],
+  "main_delays": [40],
+  "main_snrs": [10],
   "rho": 0.99
 }

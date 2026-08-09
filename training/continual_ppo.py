@@ -131,7 +131,7 @@ def run_real_online_experiment(
 
     config = json.loads(Path(config_path).read_text(encoding="utf-8"))
     selected_delays = delays or [int(value) for value in config.get("main_delays", [20, 30, 40])]
-    selected_snrs = snrs or [float(value) for value in config.get("main_snrs", [10, 15, 20])]
+    selected_snrs = snrs or [float(value) for value in config.get("main_snrs", [0, 5, 10, 15])]
     target = Path(output_dir)
     target.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -151,7 +151,7 @@ def run_real_online_experiment(
                         snr_db=float(snr_db),
                         rho=float(config.get("rho", 0.99)),
                         total_pilot=int(config.get("pilot_total", 128)),
-                        layout=str(config.get("pilot_layout", "two_block")),
+                        layout=str(config.get("pilot_layout", "prefix")),
                         seed=40_000 + int(seed),
                     )
                 )
@@ -230,7 +230,7 @@ def run_real_online_experiment(
                             "snr_db": float(snr_db),
                             "rho": float(config.get("rho", 0.99)),
                             "pilot_total": int(config.get("pilot_total", 128)),
-                            "pilot_layout": str(config.get("pilot_layout", "two_block")),
+                            "pilot_layout": str(config.get("pilot_layout", "prefix")),
                             "seed": int(seed),
                             "frame": int(frame_index),
                             "ber_data": bit_error_rate(result.logits[frame.data_mask], frame.bits[frame.data_mask]),

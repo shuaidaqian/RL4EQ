@@ -23,6 +23,84 @@ from evaluation.metrics import (
 )
 
 
+def test_main_method_group_excludes_strong_model_based_diagnostics():
+    from compare import method_group
+
+    traditional = method_group("traditional")
+    proposed = method_group("proposed")
+    diagnostic = method_group("diagnostic")
+
+    assert "Best Fixed" not in traditional
+    assert "Contextual Bandit" not in traditional
+    assert "Drift-Aware Pilot Rule" not in traditional
+    assert "Fixed CG-BPSK-DD Block Detector" not in traditional
+    assert "Perfect-CSI Block" not in traditional
+
+    assert set(traditional) == {
+        "LMMSE-FIR",
+        "LMS",
+        "NLMS",
+        "RLS Linear",
+        "DFE-RLS",
+        "SC-FDE-MMSE",
+    }
+    assert "RL-Modulated Neural Block Equalizer" in proposed
+    assert "Fixed CG-BPSK-DD Block Detector" in diagnostic
+    assert "Perfect-CSI Block" in diagnostic
+
+
+def test_config_exposes_new_snr_and_pilot_sweep_contract():
+    config = json.loads(Path("configs/continual_ppo.json").read_text(encoding="utf-8"))
+
+    assert config["pilot_layout"] == "prefix"
+    assert config["snrs_main"] == [0, 5, 10, 15]
+    assert config["snrs_pressure"] == []
+    assert config["pilot_sweep_totals"] == [64, 96, 128, 160]
+    assert config["pilot_sweep_layout"] == "prefix"
+    assert config["optional_impairments"] == {
+        "cfo": False,
+        "phase_perturbation": False,
+        "nonlinearity": False,
+        "coding": False,
+        "higher_order_modulation": False,
+    }
+
+
+def test_default_entrypoints_use_prefix_pilot_and_correct_main_snrs(tmp_path):
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "compare.py",
+            "--methods",
+            "LMMSE-FIR",
+            "--delays",
+            "20",
+            "--num-seeds",
+            "1",
+            "--frames",
+            "1",
+            "--pilot-total",
+            "64",
+            "--output-dir",
+            str(tmp_path / "compare_defaults"),
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "compare_defaults" / "frame_metrics.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+
+    assert "saved" in result.stdout
+    assert {row["pilot_layout"] for row in rows} == {"prefix"}
+    assert [row["snr_db"] for row in rows] == [0.0, 5.0, 10.0, 15.0]
+
+
 def test_repository_contains_only_continual_ppo_entrypoints():
     root = Path(__file__).resolve().parents[1]
     required = {"calibrate_channel.py", "pretrain.py", "online_train.py", "compare.py"}
@@ -386,7 +464,14 @@ def test_docs_share_single_research_contract():
         "开发框架.md": (root / "开发框架.md").read_text(encoding="utf-8"),
         "RL信道均衡研究分析.md": (root / "RL信道均衡研究分析.md").read_text(encoding="utf-8"),
     }
-    required = ["Level B", "Continual PPO", "整帧缓冲", "非因果", "BER_data < 0.01", "不使用数据标签上界"]
-    forbidden = ["逐符号" + "实时输出", "LDPC " + "编解码实验", "CFO " + "补偿实验", "actor_" + "critic.py", "agent/" + "ppo.py"]
+    required = ["Level B", "RL-Modulated Neural Block Equalizer", "整帧缓冲", "非因果", "BER_data < 0.01", "不使用数据标签上界"]
+    forbidden = [
+        "逐符号" + "实时输出",
+        "LDPC " + "编解码实验",
+        "CFO " + "补偿实验",
+        "actor_" + "critic.py",
+        "agent/" + "ppo.py",
+        "Best Fixed 前置门槛",
+    ]
     assert all(all(term in text for term in required) for text in docs.values())
     assert all(all(term not in text for term in forbidden) for text in docs.values())

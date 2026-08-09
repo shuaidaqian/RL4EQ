@@ -242,7 +242,7 @@ class MetaTrainer:
         max_delay = self.model.config.max_delay
         total_pilot = 64 if frame_len <= 128 else int(self.config.get("pilot_total", 128))
         frame_generator = FrameGenerator(
-            FrameConfig(frame_len=frame_len, total_pilot=total_pilot, layout=self.config.get("pilot_layout", "multi_block"), max_delay=max_delay),
+            FrameConfig(frame_len=frame_len, total_pilot=total_pilot, layout=self.config.get("pilot_layout", "prefix"), max_delay=max_delay),
             seed=31,
         )
         for step in range(max(1, steps)):
@@ -318,7 +318,7 @@ def evaluate_best_fixed_level_b(
         data_bers = []
         per_config = []
         for delay in config.get("main_delays", [20, 30, 40]):
-            for snr_db in config.get("main_snrs", [10, 15, 20]):
+            for snr_db in config.get("main_snrs", [0, 5, 10, 15]):
                 config_reward = []
                 config_data = []
                 for seed in seed_list:
@@ -329,7 +329,7 @@ def evaluate_best_fixed_level_b(
                             snr_db=float(snr_db),
                             rho=float(config.get("rho", 0.99)),
                             total_pilot=int(config.get("pilot_total", 128)),
-                            layout=str(config.get("pilot_layout", "multi_block")),
+                            layout=str(config.get("pilot_layout", "prefix")),
                             seed=20_000 + int(seed),
                         )
                     )
@@ -426,7 +426,7 @@ def evaluate_reward_data_alignment(
     actions = action_grid or [(16, 0), (16, 1), (32, 1), (32, 2)]
     grouped_pairs = []
     for delay in config.get("main_delays", [20, 30, 40]):
-        for snr_db in config.get("main_snrs", [10, 15, 20]):
+        for snr_db in config.get("main_snrs", [0, 5, 10, 15]):
             for cg_iterations, refine_iterations in actions:
                 reward_improvements = []
                 data_improvements = []
@@ -438,7 +438,7 @@ def evaluate_reward_data_alignment(
                             snr_db=float(snr_db),
                             rho=float(config.get("rho", 0.99)),
                             total_pilot=int(pilot_total or config.get("pilot_total", 128)),
-                            layout=str(pilot_layout or config.get("pilot_layout", "multi_block")),
+                            layout=str(pilot_layout or config.get("pilot_layout", "prefix")),
                             seed=30_000 + int(seed),
                         )
                     )
@@ -496,7 +496,7 @@ def evaluate_reward_data_alignment(
         "num_pairs": spearman.n,
         "pairing": "grouped_by_config_and_action",
         "pilot_total": int(pilot_total or config.get("pilot_total", 128)),
-        "pilot_layout": str(pilot_layout or config.get("pilot_layout", "multi_block")),
+        "pilot_layout": str(pilot_layout or config.get("pilot_layout", "prefix")),
         "pairs": grouped_pairs,
     }
     target = Path(output_dir) / "reward_alignment"

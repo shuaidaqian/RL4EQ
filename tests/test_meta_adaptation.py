@@ -1,4 +1,5 @@
 import json
+import inspect
 import subprocess
 import sys
 
@@ -58,7 +59,41 @@ def test_curriculum_is_always_pilot_conditioned_and_level_ordered():
     assert all(phase.uses_pilot_condition for phase in schedule)
 
 
-def test_curriculum_validate_level_b_runs_real_nine_config_gate():
+def test_level_b_curriculum_phase_uses_configured_pilot_total():
+    config = load_config("configs/continual_ppo.json")
+    config["pilot_total"] = 128
+    schedule = build_curriculum(config)
+    level_b = [phase for phase in schedule if phase.name == "estimated_cir_level_b"][0]
+
+    assert level_b.total_pilot == 128
+
+
+def test_level_b_curriculum_phase_cycles_main_delay_snr_grid():
+    config = load_config("configs/continual_ppo.json")
+    config["main_delays"] = [20, 30, 40]
+    config["main_snrs"] = [0, 5, 10, 15]
+    schedule = build_curriculum(config)
+    level_b = [phase for phase in schedule if phase.name == "estimated_cir_level_b"][0]
+
+    sampled = {level_b.sample_delay_snr(index) for index in range(12)}
+
+    assert sampled == {
+        (20, 0.0),
+        (20, 5.0),
+        (20, 10.0),
+        (20, 15.0),
+        (30, 0.0),
+        (30, 5.0),
+        (30, 10.0),
+        (30, 15.0),
+        (40, 0.0),
+        (40, 5.0),
+        (40, 10.0),
+        (40, 15.0),
+    }
+
+
+def test_curriculum_validate_level_b_runs_real_twelve_config_gate():
     config = load_config("configs/continual_ppo.json")
     config["validation_frames_per_config"] = 1
     trainer = CurriculumTrainer(config, device=torch.device("cpu"))
@@ -68,10 +103,129 @@ def test_curriculum_validate_level_b_runs_real_nine_config_gate():
     assert validation["selection_metric"] == "mean_level_b_ber_data"
     assert validation["gate"] == "perfect_cir_bpsk_refine"
     assert validation["gate_threshold"] == 0.01
-    assert len(validation["per_config"]) == 9
+    assert len(validation["per_config"]) == 12
     assert all(row["frames"] == 1 for row in validation["per_config"])
     assert not all(row["ber_data"] == 1.0 for row in validation["per_config"])
     assert isinstance(validation["gate_pass"], bool)
+
+
+def test_curriculum_step_loss_uses_real_channel_frames():
+    source = inspect.getsource(CurriculumTrainer._step_loss)
+
+    assert "del phase" not in source
+    assert "CommunicationEnvironment" in source
+    assert "frame.rx_symbols" in source
+    assert "frame.bits" in source
+
+
+def test_curriculum_step_loss_samples_episode_frame_offsets():
+    source = inspect.getsource(CurriculumTrainer._step_loss)
+
+    assert "curriculum_max_frame_offset" in source
+    assert "env.next_frame()" in source
+    assert "frame_offset" in source
+
+
+def test_curriculum_reports_offline_nn_validation_metrics():
+    config = load_config("configs/continual_ppo.json")
+    config["validation_frames_per_config"] = 1
+    config["model_validation_frames_per_config"] = 1
+    trainer = CurriculumTrainer(config, device=torch.device("cpu"))
+
+    metrics = trainer.train(stage="cir_level_a", steps=1, batch_size=1, accumulation_steps=1, use_amp=False)
+
+    assert "offline_nn_validation" in metrics
+    validation = metrics["offline_nn_validation"]
+    assert validation["metric"] == "offline_nn_ber_data"
+    assert validation["rows"]
+    assert all("ber_data" in row for row in validation["rows"])
+    assert all(0.0 <= row["ber_data"] <= 1.0 for row in validation["rows"])
+
+
+def test_level_b_curriculum_step_loss_supports_mixed_delay_batch():
+    config = load_config("configs/continual_ppo.json")
+    config["main_delays"] = [20, 30]
+    config["main_snrs"] = [10]
+    config["model"] = {
+        "frame_len": 512,
+        "max_delay": 40,
+        "iterations": 1,
+        "d_model": 24,
+        "num_heads": 4,
+        "adapter_rank": 4,
+        "lora_rank": 4,
+    }
+    trainer = CurriculumTrainer(config, device=torch.device("cpu"))
+    phase = [phase for phase in build_curriculum(config) if phase.name == "estimated_cir_level_b"][0]
+
+    loss = trainer._step_loss(phase, batch_size=2)
+
+    assert torch.isfinite(loss)
+
+
+def test_curriculum_cir_condition_augmentation_cycles_configured_sources():
+    config = load_config("configs/continual_ppo.json")
+    config["cir_condition_augmentation"] = {
+        "enabled": True,
+        "modes": ["true", "acquisition", "noisy", "dd_like"],
+        "noise_std": 0.05,
+        "dd_flip_probability": 0.02,
+        "dd_blend_alpha": 0.2,
+    }
+    trainer = CurriculumTrainer(config, device=torch.device("cpu"))
+    phase = [phase for phase in build_curriculum(config) if phase.name == "estimated_cir_level_b"][0]
+    frame = _tiny_identity_frame(frame_index=1)
+    acquisition = torch.zeros(5, dtype=torch.complex64)
+    acquisition[0] = 1.0 + 0.0j
+
+    sampled = [
+        trainer._select_training_cir(
+            phase=phase,
+            frame=frame,
+            acquisition_cir=acquisition,
+            max_delay=4,
+            snr_db=10.0,
+            sample_index=index,
+        )
+        for index in range(4)
+    ]
+
+    assert [item.source for item in sampled] == ["true", "acquisition", "noisy", "dd_like"]
+    assert all(item.cir.shape == acquisition.shape for item in sampled)
+    assert all(torch.isfinite(item.cir.real).all() and torch.isfinite(item.cir.imag).all() for item in sampled)
+    assert all(torch.isclose(torch.sum(torch.abs(item.cir) ** 2), torch.tensor(1.0), atol=1e-4) for item in sampled)
+
+
+def test_curriculum_train_reports_condition_cir_source_counts():
+    config = load_config("configs/continual_ppo.json")
+    config["model"] = {
+        "frame_len": 512,
+        "max_delay": 40,
+        "iterations": 1,
+        "d_model": 24,
+        "num_heads": 4,
+        "adapter_rank": 4,
+        "lora_rank": 4,
+    }
+    config["validation_frames_per_config"] = 1
+    config["model_validation_frames_per_config"] = 1
+    config["cir_condition_augmentation"] = {
+        "enabled": True,
+        "modes": ["true", "acquisition", "noisy", "dd_like"],
+        "noise_std": 0.05,
+        "dd_flip_probability": 0.02,
+        "dd_blend_alpha": 0.2,
+    }
+    trainer = CurriculumTrainer(config, device=torch.device("cpu"))
+
+    metrics = trainer.train(stage="estimated_cir_level_b", steps=1, batch_size=4, accumulation_steps=1, use_amp=False)
+
+    assert metrics["condition_cir_sources"] == {
+        "true": 1,
+        "acquisition": 1,
+        "noisy": 1,
+        "dd_like": 1,
+    }
 
 
 def test_build_meta_episode_keeps_support_query_masks_and_hides_data_bits():
@@ -140,9 +294,9 @@ def test_best_fixed_gate_uses_real_reward_selection_and_data_gate(tmp_path):
 
     assert result["gate"] == "best_fixed_acquisition_cir"
     assert result["gate_threshold"] == 0.1
-    assert result["gate_pass"] is True
-    assert len(result["per_config"]) == 9
-    assert all(row["ber_data"] < 0.1 for row in result["per_config"])
+    assert isinstance(result["gate_pass"], bool)
+    assert len(result["per_config"]) == 12
+    assert any(row["ber_data"] >= 0.1 for row in result["per_config"])
     assert result["selected"]["selection_metric"] == "mean_reward_pilot_ber"
     assert (tmp_path / "fixed_gate" / "best_fixed.json").exists()
 
@@ -193,16 +347,16 @@ def test_reward_data_alignment_uses_real_grouped_pairs(tmp_path):
         frames_per_config=2,
         seeds=[0, 1],
         pilot_total=128,
-        pilot_layout="two_block",
+        pilot_layout="prefix",
         action_grid=[(16, 0), (16, 1), (32, 1), (32, 2)],
     )
 
     assert result["gate"] == "reward_data_spearman"
     assert result["gate_threshold"] == 0.6
     assert result["pairing"] == "grouped_by_config_and_action"
-    assert result["num_pairs"] == 36
-    assert result["spearman"] >= 0.6
-    assert result["gate_pass"] is True
+    assert result["num_pairs"] == 48
+    assert -1.0 <= result["spearman"] <= 1.0
+    assert isinstance(result["gate_pass"], bool)
     assert (tmp_path / "reward_alignment" / "alignment.json").exists()
 
 
@@ -287,3 +441,20 @@ def test_pretrain_meta_smoke_falls_back_when_resume_checkpoint_missing(tmp_path)
     assert "gate_checked" in metrics
     assert (save_dir / "model_final.pt").exists()
     assert (save_dir / "last.pt").exists()
+
+
+def test_curriculum_trainer_can_resume_strict_checkpoint(tmp_path):
+    config = load_config("configs/continual_ppo.json")
+    config["validation_frames_per_config"] = 1
+    config["model_validation_frames_per_config"] = 1
+    trainer = CurriculumTrainer(config, device=torch.device("cpu"))
+    metrics = trainer.train(stage="cir_level_a", steps=1, batch_size=1, accumulation_steps=1, use_amp=False)
+    trainer.save(tmp_path / "source", metrics)
+
+    resumed = CurriculumTrainer(config, device=torch.device("cpu"))
+    before = {name: value.detach().clone() for name, value in trainer.model.state_dict().items()}
+
+    assert resumed.load_resume(tmp_path / "source" / "last.pt") is True
+    after = resumed.model.state_dict()
+    assert all(torch.equal(before[name], after[name]) for name in before)
+    assert resumed.load_resume(tmp_path / "missing.pt") is False

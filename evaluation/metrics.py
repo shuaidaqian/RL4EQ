@@ -20,7 +20,7 @@ class FrameMetric:
     snr_db: float
     rho: float = 0.99
     pilot_total: int = 128
-    pilot_layout: str = "multi_block"
+    pilot_layout: str = "prefix"
     seed: int = 0
     frame: int = 0
     ber_data: float = 1.0

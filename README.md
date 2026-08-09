@@ -1,35 +1,67 @@
-# RL4EQ：极端长时延块均衡中的 Continual PPO 研究路线
+# RL4EQ：Level B 极端长回波下的 RL-Modulated Neural Block Equalizer
 
-本项目研究 EME 启发的极端稀疏长回波信道下的单载波 BPSK 整帧块均衡。核心目标不是在常规无线信道里替代成熟传统均衡器，而是在传统方法明显受限的 20–40 符号长时延扩展场景中，验证物理展开神经接收机与部署期间持续更新 PPO 的增益边界。
-
-当前唯一主线：
+本项目研究 EME 启发但不等同于完整物理 EME 的极端稀疏长时延扩展信道。当前唯一主线是：
 
 ```text
 Level A/B/C 可控信道族
 -> 全程 Pilot 条件课程监督预训练
--> First-order meta 初始化与 Best Fixed 前置门槛
--> 整帧缓冲、非因果 Physics-Guided Unfolded Equalizer
--> Continual PPO 在信道运行期间按帧持续更新策略
--> 与传统、固定微调、规则控制和 Bandit baseline 配对比较
+-> 整帧缓冲、非因果神经块均衡器
+-> 部署期间 RL 选择离散安全动作
+-> 按窗口聚合 Reward Pilot 反馈并持续更新 PPO
+-> 与传统非神经、非 RL baseline 公平比较
 ```
 
-研究契约：
+研究目标不是超过所有可能的强模型驱动序列检测器，而是在 Level B 主论文场景中让 `RL-Modulated Neural Block Equalizer` 超过传统非神经、非 RL 均衡器，并达到每个主配置 `BER_data < 0.01`。
 
-- 主论文场景是 Level B：20/30/40 符号最大相对时延，SNR=10/15/20 dB，稀疏强长回波，`rho=0.99`。
-- Level A 用于课程学习和可达性校准；Level C 只作为压力测试，不混入 Level B 主平均，也不要求所有 Level C 配置达到 `BER_data < 0.01`。
-- 接收机是整帧缓冲、非因果块神经均衡器；“在线”指信道运行期间按帧持续适配，不是逐符号即时判决式输出。
-- 全程使用 Pilot 条件监督预训练；Pilot 开销/布局按 `64/96/128/160 × prefix/two_block/multi_block` 做消融。
-- Reward Pilot 只用于动作完成后的 reward 与留出评估；Data 标签只用于离线监督 outer loss 和仿真 `BER_data` 评估。
-- 在线 observation、reward、动作选择和参数更新不使用数据标签上界。
-- Continual PPO 的第一目标是进一步降低 `BER_data`；前置门槛是每个主配置 Best Fixed 低于 0.1，PPO 目标是每个主配置 `BER_data < 0.01`。
+## 研究契约
+
+- 主论文场景是 Level B：20/30/40 符号最大相对时延，主 SNR 为 `[0, 5, 10, 15]` dB。
+- Pilot 只放在帧前缀；`two_block` 和 `multi_block` 不再作为主论文 Pilot 布局。
+- Level A 用于课程学习和可达性校准；Level C 只作为压力测试，不混入 Level B 主平均。
+- 接收机是整帧缓冲、非因果块神经均衡器；“在线”指信道运行期间按帧持续适配，不是逐符号即时输出。
+- Proposed 方法是唯一使用神经网络和 RL 的方法。
+- 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则。
+- Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真 `BER_data` 评估。
+- 在线 observation、reward、动作选择和调制更新不使用数据标签上界。
+- 当前 RL 路线采用离散安全动作和窗口级 reward；逐帧连续 modulation 不再作为主实施路线。
+- Data Oracle 不恢复。
+- CFO、额外相位扰动、非线性、信道编码和高阶调制只作为后续按需扩展开关；当前主实验默认关闭，不混入主平均。
+
+## 方法分组
+
+正式主比较包含：
+
+```text
+traditional:
+  LMMSE-FIR
+  LMS
+  NLMS
+  RLS Linear
+  DFE-RLS
+  SC-FDE-MMSE
+
+proposed:
+  Offline NN only
+  NN + Fixed Modulation
+  NN + Rule Modulation
+  NN + Discrete PEFT Scheduler
+  RL-Modulated Neural Block Equalizer
+```
+
+诊断参考单独报告，不进入主成功门槛：
+
+```text
+diagnostic:
+  Perfect-CSI Block
+  Fixed CG-BPSK-DD Block Detector
+```
 
 ## 当前代码入口
 
 ```powershell
 .\.venv-gpu\Scripts\python.exe pretrain.py --config configs/continual_ppo.json --stage all --steps 2 --batch-size 1 --amp --save-dir pretrained/final_smoke
-.\.venv-gpu\Scripts\python.exe pretrain.py --config configs/continual_ppo.json --stage meta --steps 2 --batch-size 1 --resume pretrained/final_smoke/last.pt --save-dir pretrained/meta_smoke
-.\.venv-gpu\Scripts\python.exe online_train.py --config configs/continual_ppo.json --pretrained pretrained/meta_smoke/model_best.pt --frames 65 --num-seeds 1 --update-interval 32 --amp --output-dir logs/final_online_smoke
-.\.venv-gpu\Scripts\python.exe compare.py --config configs/continual_ppo.json --pretrained pretrained/meta_smoke/model_best.pt --policy logs/final_online_smoke/policy.pt --delays 20 40 --snrs 10 20 --num-seeds 1 --frames 2 --output-dir logs/final_compare_smoke
+.\.venv-gpu\Scripts\python.exe online_train.py --config configs/continual_ppo.json --pretrained pretrained/final_smoke/model_best.pt --frames 8 --num-seeds 1 --window-size 4 --update-interval 4 --delays 20 --snrs 10 --pilot-total 64 --pilot-layout prefix --amp --output-dir logs/final_online_smoke
+.\.venv-gpu\Scripts\python.exe compare.py --config configs/continual_ppo.json --method-group main --pretrained pretrained/final_smoke/model_best.pt --delays 20 --snrs 10 --num-seeds 1 --frames 1 --pilot-total 64 --pilot-layout prefix --resume --output-dir logs/final_compare_smoke
 .\.venv-gpu\Scripts\python.exe -m pytest -q -p no:cacheprovider
 ```
 
@@ -46,41 +78,45 @@ PyTorch wheel 自带 CUDA runtime；脚本不修改系统 CUDA Toolkit。
 
 ```text
 agent/
-  cir_estimator.py              Hybrid Sparse CIR Estimator
-  unfolded_equalizer.py         Physics-Guided Unfolded Equalizer
-  continual_policy.py           分层 recurrent mixed-action PPO policy
-  adaptation_controller.py      PEFT 动作执行、shadow reward、安全回滚
+  cir_estimator.py              Adapt/acquisition 驱动 CIR 条件
+  modulation.py                 有界低维调制状态
+  discrete_safe_policy.py       离散安全动作 PPO 策略
+  rl_modulator.py               observation 编码器；旧连续 policy 仅保留兼容
+  unfolded_equalizer.py         整帧非因果神经块均衡器
 baseline/
-  block_equalizers.py           Perfect/Pilot-estimated 块均衡与迭代检测
-  channel_tracking.py           Sparse-LS、Kalman/RLS 跟踪接口
-  legacy_equalizers.py          传统 LMMSE-FIR 与 DFE 标签隔离 baseline
+  traditional_equalizers.py     传统非神经、非 RL baseline
+  block_equalizers.py           强模型驱动诊断检测器
 env/
   channel_profiles.py           Level A/B/C 信道族
   extreme_delay_channel.py      长回波、漂移、跨帧 ISI
-  frame_structure.py            多 Pilot 子块帧结构
+  frame_structure.py            前缀 Pilot 帧结构；其他布局仅保留消融/诊断兼容
   comm_env.py                   acquisition + 普通帧 episode 环境
 training/
-  curriculum.py                 Pilot 条件课程监督预训练
-  meta_training.py              first-order episodic meta 与 Best Fixed gate
-  continual_ppo.py              部署期间持续更新 PPO runner
+  curriculum.py                 真实信道 Pilot 条件课程预训练
+  windowed_discrete_ppo.py      离散安全动作 + 窗口级 reward 在线 runner
+  rl_modulated_online.py        旧连续调制 runner，仅保留历史诊断兼容
+  continual_ppo.py              旧兼容 smoke runner，不作为新主路线
 evaluation/
   metrics.py                    BER、goodput、Spearman、逐配置汇总
   bootstrap.py                  seed + 连续帧块 bootstrap
-  runner.py                     分片与 resume 支撑
 ```
 
-## 阶段门槛
+## 门槛式自动推进
+
+执行顺序固定为：
 
 ```text
-Perfect-CSI 强检测器：Level B 九配置分别 BER_data < 0.01
-Perfect-CIR Unfolded：Level B 九配置分别 BER_data < 0.01
-Best Fixed Adaptation：Level B 九配置分别 BER_data < 0.1
-Reward/Data Spearman：>= 0.6
-Continual PPO：Level B 九配置分别 BER_data < 0.01
+1. 真实传统 baseline 可运行且标签隔离
+2. 离线预训练 checkpoint strict-load
+3. Windowed Discrete PPO 在线 smoke
+4. append-safe compare smoke
+5. 小样本门槛矩阵
+6. 只有前置门槛通过，才进入 pilot sweep
+7. 只有 pilot sweep 通过，才进入正式主矩阵
 ```
 
-任何前置门槛失败时，必须停在对应阶段定位假设，不能用总体平均或 PPO 后处理掩盖接收机不可达。
+任何前置门槛失败时，必须停止并分析原因，不能用总体平均、强诊断方法或 Data 标签上界掩盖失败。
 
 ## 当前实现边界
 
-当前分支已建立可运行的 GPU smoke、协议测试和评估契约。部分训练/比较入口仍是面向 smoke 与工程契约验证的轻量实现；正式论文结论必须来自后续完整开发规模与正式 10 seed × 1000 frame 配对矩阵。未真实重跑前，不写“显著优于传统算法”或“PPO 显著优于固定微调”。
+当前代码已经补齐真实传统 baseline、神经均衡器最小链路、离散安全动作窗口级 PPO、真实信道预训练数据流、strict-load checkpoint、append-safe compare smoke。当前执行门槛是先让 Offline NN 在 Level B 主工作区稳定达到 `BER_data < 0.01`，再要求 RL 进一步达到 `RL < Offline NN only`。未通过前不能启动正式 pilot sweep 或主矩阵。

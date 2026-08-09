@@ -31,6 +31,7 @@ def main() -> None:
         metrics = trainer.train(steps=args.steps, batch_size=args.batch_size, smoke=args.steps <= 2, resume_loaded=resume_loaded)
     else:
         trainer = CurriculumTrainer(config, device=device)
+        resume_loaded = trainer.load_resume(args.resume)
         metrics = trainer.train(
             stage=args.stage,
             steps=args.steps,
@@ -38,6 +39,7 @@ def main() -> None:
             accumulation_steps=args.accumulation_steps,
             use_amp=args.amp,
         )
+        metrics["resume_loaded"] = resume_loaded
     trainer.save(args.save_dir, metrics)
     print(f"saved {args.save_dir}")
 

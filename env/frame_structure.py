@@ -17,7 +17,7 @@ REGION_UNKNOWN = 0
 class FrameConfig:
     frame_len: int = 512
     total_pilot: int = 128
-    layout: str = "multi_block"
+    layout: str = "prefix"
     max_delay: int = 40
 
     def __post_init__(self) -> None:

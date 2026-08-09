@@ -26,11 +26,12 @@
   "model": {
     "frame_len": 512,
     "max_delay": 40,
-    "iterations": 4,
+    "iterations": 6,
     "d_model": 96,
     "num_heads": 4,
     "adapter_rank": 8,
-    "lora_rank": 8
+    "lora_rank": 8,
+    "conditioner_uses_cir_summary": true
   },
   "main_level": "B",
   "main_delays": [20, 30, 40],

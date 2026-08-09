@@ -18,7 +18,7 @@ class CommEnvConfig:
     snr_db: float = 10.0
     rho: float = 0.99
     total_pilot: int = 128
-    layout: str = "multi_block"
+    layout: str = "prefix"
     seed: int = 42
 
 
