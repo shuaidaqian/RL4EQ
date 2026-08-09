@@ -11,7 +11,7 @@ from typing import Any
 import torch
 import torch.nn.functional as F
 
-from agent.cir_estimator import CIRCondition
+from agent.cir_estimator import CIRCondition, decision_directed_cir_update
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
@@ -89,6 +89,35 @@ def _estimate_cir_from_tx_symbols(rx_symbols: torch.Tensor, tx_symbols: torch.Te
     return _normalize_cir(estimate)
 
 
+def supervised_equalization_loss(
+    logits: torch.Tensor,
+    bits: torch.Tensor,
+    adapt_mask: torch.Tensor,
+    reward_mask: torch.Tensor,
+    data_mask: torch.Tensor,
+    *,
+    data_margin_loss_weight: float = 0.0,
+    data_margin: float = 1.0,
+) -> torch.Tensor:
+    """离线监督均衡损失。
+
+    基础项保持原研究契约：Data BCE 为主，Adapt/Reward Pilot BCE 各 0.25。
+    可选 Data margin 项只使用离线 Data 标签，目的是强化接近判决边界的
+    Data 符号；该项不进入在线 observation/reward/PPO。
+    """
+
+    data_loss = F.binary_cross_entropy_with_logits(logits[data_mask], bits[data_mask].float())
+    adapt_loss = F.binary_cross_entropy_with_logits(logits[adapt_mask], bits[adapt_mask].float())
+    reward_loss = F.binary_cross_entropy_with_logits(logits[reward_mask], bits[reward_mask].float())
+    loss = data_loss + 0.25 * adapt_loss + 0.25 * reward_loss
+    if float(data_margin_loss_weight) > 0.0:
+        labels = bits[data_mask].float() * 2.0 - 1.0
+        signed_margin = labels * logits[data_mask].float()
+        margin_loss = torch.relu(float(data_margin) - signed_margin).mean()
+        loss = loss + float(data_margin_loss_weight) * margin_loss
+    return loss
+
+
 def build_curriculum(config: dict[str, Any]) -> list[CurriculumPhase]:
     default_layout = config.get("pilot_layout", "prefix")
     level_b_pilot = int(config.get("pilot_total", 128))
@@ -123,6 +152,9 @@ class CurriculumTrainer:
         self.history: list[dict[str, Any]] = []
         self._sample_counter = 0
         self.condition_cir_source_counts: dict[str, int] = {}
+        self.best_model_state_dict: dict[str, torch.Tensor] | None = None
+        self.best_model_metric: float = float("inf")
+        self.best_model_validation: dict[str, Any] | None = None
 
     def train(self, stage: str, steps: int, batch_size: int, accumulation_steps: int, use_amp: bool) -> dict[str, Any]:
         phases = build_curriculum(self.config)
@@ -131,6 +163,10 @@ class CurriculumTrainer:
             raise ValueError(f"未知训练阶段：{stage}")
         amp_enabled = False
         scaler = torch.amp.GradScaler("cuda", enabled=amp_enabled)
+        best_interval = int(self.config.get("offline_best_validation_interval", 0))
+        if best_interval > 0:
+            initial_validation = self._validate_offline_nn()
+            self._record_best_model(initial_validation, tag="initial")
         for phase in selected:
             for step in range(steps):
                 with torch.amp.autocast("cuda", enabled=amp_enabled):
@@ -141,11 +177,27 @@ class CurriculumTrainer:
                     scaler.update()
                     self.optimizer.zero_grad(set_to_none=True)
                 self.history.append({"phase": phase.name, "step": step + 1, "loss": float(loss.detach().cpu())})
+                if best_interval > 0 and (step + 1) % best_interval == 0:
+                    validation = self._validate_offline_nn()
+                    self._record_best_model(validation, tag=f"{phase.name}:{step + 1}")
+                    self.history.append(
+                        {
+                            "phase": phase.name,
+                            "step": step + 1,
+                            "validation_mean_ber_data": float(validation["mean_ber_data"]),
+                            "best_model_metric": float(self.best_model_metric),
+                        }
+                    )
+        validation = self._validate_level_b()
+        offline_validation = self._validate_offline_nn()
+        self._record_best_model(offline_validation, tag="final")
         return {
             "history": self.history,
             "condition_cir_sources": dict(self.condition_cir_source_counts),
-            "validation": self._validate_level_b(),
-            "offline_nn_validation": self._validate_offline_nn(),
+            "validation": validation,
+            "offline_nn_validation": offline_validation,
+            "best_offline_nn_validation": self.best_model_validation,
+            "best_model_metric": float(self.best_model_metric),
         }
 
     def save(self, save_dir: str | Path, metrics: dict[str, Any]) -> None:
@@ -161,7 +213,13 @@ class CurriculumTrainer:
             "state_dict": self.model.state_dict(),
             "metrics": metrics,
         }
-        torch.save(payload, target / "model_best.pt")
+        best_state = self.best_model_state_dict or self._snapshot_model_state()
+        best_payload = dict(payload)
+        best_payload["state_dict"] = best_state
+        best_payload["selected_by"] = "offline_nn_validation_mean_ber_data"
+        best_payload["best_model_metric"] = float(self.best_model_metric)
+        best_payload["best_offline_nn_validation"] = self.best_model_validation
+        torch.save(best_payload, target / "model_best.pt")
         torch.save(payload, target / "model_final.pt")
         torch.save(payload, target / "last.pt")
 
@@ -179,6 +237,21 @@ class CurriculumTrainer:
             raise KeyError("curriculum checkpoint 必须包含 state_dict。")
         self.model.load_state_dict(state_dict, strict=True)
         return True
+
+    def _snapshot_model_state(self) -> dict[str, torch.Tensor]:
+        """把当前模型权重复制到 CPU，避免后续训练原地修改 best checkpoint。"""
+
+        return {name: value.detach().cpu().clone() for name, value in self.model.state_dict().items()}
+
+    def _record_best_model(self, validation: dict[str, Any], tag: str) -> None:
+        """按离线神经均衡器验证 BER 选择 best checkpoint。"""
+
+        metric = float(validation.get("mean_ber_data", float("inf")))
+        if metric < float(self.best_model_metric):
+            self.best_model_metric = metric
+            self.best_model_validation = dict(validation)
+            self.best_model_validation["selected_at"] = str(tag)
+            self.best_model_state_dict = self._snapshot_model_state()
 
     def _step_loss(self, phase: CurriculumPhase, batch_size: int) -> torch.Tensor:
         from training.meta_training import _estimate_cir_from_known_frame
@@ -255,10 +328,15 @@ class CurriculumTrainer:
         adapt_mask = torch.stack(adapt_masks).to(self.device)
         reward_mask = torch.stack(reward_masks).to(self.device)
         data_mask = torch.stack(data_masks).to(self.device)
-        data_loss = F.binary_cross_entropy_with_logits(logits[data_mask], bits[data_mask])
-        adapt_loss = F.binary_cross_entropy_with_logits(logits[adapt_mask], bits[adapt_mask])
-        reward_loss = F.binary_cross_entropy_with_logits(logits[reward_mask], bits[reward_mask])
-        return data_loss + 0.25 * adapt_loss + 0.25 * reward_loss
+        return supervised_equalization_loss(
+            logits,
+            bits,
+            adapt_mask,
+            reward_mask,
+            data_mask,
+            data_margin_loss_weight=float(self.config.get("data_margin_loss_weight", 0.0)),
+            data_margin=float(self.config.get("data_margin", 1.0)),
+        )
 
     def _select_training_cir(
         self,
@@ -424,9 +502,15 @@ class CurriculumTrainer:
             ],
         )
         rows = []
+        seed_base = int(self.config.get("model_validation_seed_base", 90_000))
         with torch.no_grad():
             for item in configs:
                 bers = []
+                reward_bers = []
+                adapt_bers = []
+                sequence_state = bool(item.get("sequence_state", self.config.get("model_validation_sequence_state", False)))
+                cir_mode = str(item.get("cir", "estimated"))
+                tail_mode = str(item.get("tail_mode", "soft" if sequence_state else "oracle"))
                 for seed in seeds:
                     env = CommunicationEnvironment(
                         CommEnvConfig(
@@ -436,16 +520,26 @@ class CurriculumTrainer:
                             rho=float(self.config.get("rho", 0.99)),
                             total_pilot=int(item["pilot_total"]),
                             layout=str(item["pilot_layout"]),
-                            seed=90_000 + int(seed),
+                            seed=seed_base + int(seed),
                         )
                     )
                     start = env.reset_episode()
+                    acquisition_cir = _estimate_cir_from_known_frame(start.acquisition, int(item["delay"]))
+                    receiver_state = ReceiverState(start.initial_soft_tail.to(self.device).to(torch.complex64))
+                    cir_state = acquisition_cir.to(self.device).to(torch.complex64)
                     for _ in range(frames_per_config):
                         frame = env.next_frame()
-                        cir = frame.true_cir if item.get("cir") == "true" else _estimate_cir_from_known_frame(start.acquisition, int(item["delay"]))
+                        cir = self._select_validation_cir(
+                            cir_mode=cir_mode,
+                            cir_state=cir_state,
+                            frame=frame,
+                        )
                         rx_iq = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0).to(self.device).float()
                         region_ids = frame.model_region_ids.unsqueeze(0).to(self.device).long()
-                        soft_tail = frame.tail_symbols.unsqueeze(0).to(self.device).to(torch.complex64)
+                        if sequence_state:
+                            soft_tail = receiver_state.soft_tail.unsqueeze(0).to(self.device).to(torch.complex64)
+                        else:
+                            soft_tail = frame.tail_symbols.unsqueeze(0).to(self.device).to(torch.complex64)
                         cir_b = cir.unsqueeze(0).to(self.device).to(torch.complex64)
                         power = cir_b.abs()
                         condition = CIRCondition(
@@ -457,8 +551,25 @@ class CurriculumTrainer:
                         )
                         logits, _ = self.model(rx_iq, condition, region_ids, soft_tail)
                         data_mask = frame.data_mask.to(self.device)
+                        reward_mask = frame.reward_mask.to(self.device)
+                        adapt_mask = frame.adapt_mask.to(self.device)
                         bits = frame.bits.to(self.device)
-                        bers.append(bit_error_rate(logits.squeeze(0)[data_mask], bits[data_mask]))
+                        frame_logits = logits.squeeze(0)
+                        bers.append(bit_error_rate(frame_logits[data_mask], bits[data_mask]))
+                        reward_bers.append(bit_error_rate(frame_logits[reward_mask], bits[reward_mask]))
+                        adapt_bers.append(bit_error_rate(frame_logits[adapt_mask], bits[adapt_mask]))
+                        if sequence_state:
+                            tail_len = receiver_state.soft_tail.numel()
+                            tail_logits = frame_logits[-tail_len:].detach()
+                            receiver_state.update_tail(torch.complex(torch.tanh(tail_logits / 2.0), torch.zeros_like(tail_logits)))
+                            if cir_mode in {"decision_directed", "dd", "dd_cir"}:
+                                cir_state = decision_directed_cir_update(
+                                    _frame_to_device_for_validation(frame, self.device),
+                                    frame_logits.detach(),
+                                    int(item["delay"]),
+                                    cir_state,
+                                    alpha=float(item.get("cir_alpha", self.config.get("model_validation_cir_alpha", 0.2))),
+                                ).to(self.device)
                 rows.append(
                     {
                         "level": str(item["level"]),
@@ -466,10 +577,16 @@ class CurriculumTrainer:
                         "snr_db": float(item["snr_db"]),
                         "pilot_total": int(item["pilot_total"]),
                         "pilot_layout": str(item["pilot_layout"]),
-                        "cir": str(item.get("cir", "estimated")),
+                        "cir": cir_mode,
+                        "cir_update_uses_data_labels": False,
+                        "tail_mode": tail_mode,
+                        "sequence_state": sequence_state,
+                        "seed_base": int(seed_base),
                         "frames": int(frames_per_config),
                         "seeds": list(seeds),
                         "ber_data": float(sum(bers) / max(1, len(bers))),
+                        "ber_reward_pilot": float(sum(reward_bers) / max(1, len(reward_bers))),
+                        "ber_adapt_pilot": float(sum(adapt_bers) / max(1, len(adapt_bers))),
                     }
                 )
         self.model.train(was_training)
@@ -481,3 +598,29 @@ class CurriculumTrainer:
             "mean_ber_data": float(sum(row["ber_data"] for row in rows) / max(1, len(rows))),
             "rows": rows,
         }
+
+    def _select_validation_cir(self, *, cir_mode: str, cir_state: torch.Tensor, frame) -> torch.Tensor:
+        """选择离线验证帧使用的 CIR 条件。"""
+
+        if cir_mode in {"true", "oracle"}:
+            return frame.true_cir
+        return cir_state
+
+
+def _frame_to_device_for_validation(frame, device: torch.device):
+    """把验证帧迁移到设备，供 DD-CIR 更新使用。"""
+
+    from dataclasses import replace
+
+    return replace(
+        frame,
+        bits=frame.bits.to(device),
+        tx_symbols=frame.tx_symbols.to(device),
+        rx_symbols=frame.rx_symbols.to(device),
+        adapt_mask=frame.adapt_mask.to(device),
+        reward_mask=frame.reward_mask.to(device),
+        data_mask=frame.data_mask.to(device),
+        model_region_ids=frame.model_region_ids.to(device),
+        tail_symbols=frame.tail_symbols.to(device) if frame.tail_symbols is not None else None,
+        true_cir=frame.true_cir.to(device) if frame.true_cir is not None else None,
+    )

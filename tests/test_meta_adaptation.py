@@ -9,7 +9,7 @@ from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.block_equalizers import DetectionResult
 from env.frame_structure import FrameConfig, FrameGenerator
 from training.curriculum import build_curriculum, load_config
-from training.curriculum import CurriculumTrainer
+from training.curriculum import CurriculumTrainer, supervised_equalization_loss
 import training.meta_training as meta_training
 from training.meta_training import (
     FixedGate,
@@ -458,3 +458,83 @@ def test_curriculum_trainer_can_resume_strict_checkpoint(tmp_path):
     after = resumed.model.state_dict()
     assert all(torch.equal(before[name], after[name]) for name in before)
     assert resumed.load_resume(tmp_path / "missing.pt") is False
+
+
+def test_curriculum_save_keeps_distinct_best_and_final_checkpoints(tmp_path):
+    """训练后期退化时，model_best.pt 不能被最后一步权重覆盖。"""
+
+    config = load_config("configs/continual_ppo.json")
+    config["model"] = _tiny_model().config.to_dict()
+    trainer = CurriculumTrainer(config, device=torch.device("cpu"))
+
+    best_state = {name: torch.zeros_like(value) for name, value in trainer.model.state_dict().items()}
+    trainer.best_model_state_dict = {name: value.clone() for name, value in best_state.items()}
+    trainer.best_model_metric = 0.01
+    trainer.best_model_validation = {"mean_ber_data": 0.01}
+    with torch.no_grad():
+        for parameter in trainer.model.parameters():
+            parameter.add_(1.0)
+
+    trainer.save(tmp_path, {"offline_nn_validation": {"mean_ber_data": 0.2}})
+
+    best_payload = torch.load(tmp_path / "model_best.pt", map_location="cpu", weights_only=False)
+    final_payload = torch.load(tmp_path / "model_final.pt", map_location="cpu", weights_only=False)
+    for name, value in best_state.items():
+        assert torch.equal(best_payload["state_dict"][name], value)
+        assert not torch.equal(final_payload["state_dict"][name], value)
+
+
+def test_curriculum_offline_validation_can_match_online_sequence_state():
+    """Offline NN validation 需要能按真实在线序列维护 soft tail 与 DD-CIR。"""
+
+    config = load_config("configs/continual_ppo.json")
+    config["model"] = _tiny_model().config.to_dict()
+    config["model_validation_sequence_state"] = True
+    config["model_validation_seed_base"] = 70000
+    config["model_validation_frames_per_config"] = 2
+    config["model_validation_seeds"] = [0]
+    config["model_validation_configs"] = [
+        {"level": "B", "delay": 4, "snr_db": 10.0, "pilot_total": 64, "pilot_layout": "prefix", "cir": "decision_directed", "cir_alpha": 0.4}
+    ]
+    trainer = CurriculumTrainer(config, device=torch.device("cpu"))
+
+    result = trainer._validate_offline_nn()
+
+    row = result["rows"][0]
+    assert row["sequence_state"] is True
+    assert row["cir"] == "decision_directed"
+    assert row["cir_update_uses_data_labels"] is False
+    assert row["tail_mode"] == "soft"
+    assert row["frames"] == 2
+    assert row["seed_base"] == 70000
+
+
+def test_supervised_equalization_loss_can_add_data_margin_penalty():
+    """可选 margin loss 只强化 Data 区域的低置信判决边界。"""
+
+    logits = torch.tensor([[0.1, 4.0, -4.0, -0.1]])
+    bits = torch.tensor([[True, True, False, False]])
+    adapt_mask = torch.tensor([[False, True, False, False]])
+    reward_mask = torch.tensor([[False, False, True, False]])
+    data_mask = torch.tensor([[True, False, False, True]])
+
+    base = supervised_equalization_loss(
+        logits,
+        bits,
+        adapt_mask,
+        reward_mask,
+        data_mask,
+        data_margin_loss_weight=0.0,
+        data_margin=1.0,
+    )
+    with_margin = supervised_equalization_loss(
+        logits,
+        bits,
+        adapt_mask,
+        reward_mask,
+        data_mask,
+        data_margin_loss_weight=0.5,
+        data_margin=1.0,
+    )
+
+    assert with_margin > base
