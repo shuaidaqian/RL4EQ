@@ -142,7 +142,13 @@ def run_windowed_discrete_online(
                 encoder = ModulationObservationEncoder()
                 policy = DiscreteSafePolicy(len(encoder.FIELDS), len(actions)).to(device)
                 initialize_safe_discrete_policy_prior(policy, actions)
-                policy_loaded = _load_discrete_policy_if_available(policy, Path(policy_path) if policy_path else None, device, policy_required)
+                policy_loaded = _load_discrete_policy_if_available(
+                    policy,
+                    Path(policy_path) if policy_path else None,
+                    device,
+                    policy_required,
+                    expected_action_names=[action.name for action in actions],
+                )
                 optimizer = torch.optim.AdamW(policy.parameters(), lr=3e-5)
                 last_policy = policy
                 last_actions = actions
@@ -333,13 +339,20 @@ def run_windowed_discrete_frame(
     tail_len = state.receiver_state.soft_tail.numel()
     state.receiver_state.update_tail(torch.complex(torch.tanh(after[-tail_len:] / 2.0), torch.zeros_like(after[-tail_len:])))
     if state.cir_update_mode == "decision_directed":
+        selected_cir_alpha = (
+            float(sampled_action.cir_alpha)
+            if getattr(sampled_action, "cir_alpha", None) is not None
+            else float(getattr(state, "cir_update_alpha", 0.2))
+        )
         state.cir = decision_directed_cir_update(
             frame,
             after.detach(),
             int(tail_len),
             state.cir,
-            alpha=float(getattr(state, "cir_update_alpha", 0.2)),
+            alpha=selected_cir_alpha,
         ).to(state.cir.device)
+    else:
+        selected_cir_alpha = float(getattr(state, "cir_update_alpha", 0.0))
     return {
         "method": "RL-Modulated Neural Block Equalizer",
         "snr_db": float(snr_db),
@@ -356,6 +369,7 @@ def run_windowed_discrete_frame(
         "policy_learning": "windowed_discrete_safe_ppo",
         "cir_update_mode": str(state.cir_update_mode),
         "cir_update_alpha": float(getattr(state, "cir_update_alpha", 0.0)),
+        "selected_cir_update_alpha": float(selected_cir_alpha),
         "cir_update_uses_data_labels": False,
         "policy_loss": policy_loss,
         "policy_action_name": sampled_action.name,
@@ -484,7 +498,13 @@ def _restore_snapshot(model: UnfoldedEqualizer, snapshot: dict[str, torch.Tensor
             lookup[name].copy_(value.to(lookup[name].device))
 
 
-def _load_discrete_policy_if_available(policy: DiscreteSafePolicy, policy_path: Path | None, device: str, required: bool) -> bool:
+def _load_discrete_policy_if_available(
+    policy: DiscreteSafePolicy,
+    policy_path: Path | None,
+    device: str,
+    required: bool,
+    expected_action_names: list[str] | None = None,
+) -> bool:
     if policy_path is None:
         if required:
             raise FileNotFoundError("已显式要求加载 policy，但 policy_path 为空。")
@@ -492,10 +512,22 @@ def _load_discrete_policy_if_available(policy: DiscreteSafePolicy, policy_path: 
     checkpoint = torch.load(policy_path, map_location=device, weights_only=False)
     if not isinstance(checkpoint, dict):
         raise TypeError("policy checkpoint 必须是字典。")
+    stored_actions = checkpoint.get("action_names")
+    if expected_action_names is not None and stored_actions is not None and list(stored_actions) != list(expected_action_names):
+        message = "动作表不兼容，跳过旧 policy checkpoint。"
+        if required:
+            raise ValueError(message)
+        return False
     state_dict = checkpoint.get("state_dict")
     if not state_dict:
         raise ValueError("policy checkpoint 缺少非空 state_dict。")
-    policy.load_state_dict(state_dict, strict=True)
+    try:
+        policy.load_state_dict(state_dict, strict=True)
+    except RuntimeError as exc:
+        message = f"动作表不兼容，无法加载 policy checkpoint：{exc}"
+        if required:
+            raise ValueError(message) from exc
+        return False
     return True
 
 

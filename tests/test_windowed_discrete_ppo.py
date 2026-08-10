@@ -11,6 +11,9 @@ def test_discrete_safe_action_catalog_is_bounded_and_has_identity():
 
     assert names == [
         "identity",
+        "cir_alpha_slow",
+        "cir_alpha_nominal",
+        "cir_alpha_fast",
         "peft_head_light",
         "peft_head_fast",
         "peft_adapter_lora_conservative",
@@ -21,6 +24,10 @@ def test_discrete_safe_action_catalog_is_bounded_and_has_identity():
     assert actions[0].delta_norm == 0.0
     assert all(torch.isfinite(action.modulation.to_vector()).all() for action in actions)
     assert all(action.delta_norm >= 0.0 for action in actions)
+    assert actions[names.index("cir_alpha_slow")].cir_alpha == 0.3
+    assert actions[names.index("cir_alpha_nominal")].cir_alpha == 0.6
+    assert actions[names.index("cir_alpha_fast")].cir_alpha == 0.8
+    assert actions[names.index("cir_alpha_fast")].peft_groups is None
     assert actions[names.index("peft_head_light")].peft_groups == {"head"}
     assert actions[names.index("peft_head_fast")].peft_lr == 5e-4
     assert actions[names.index("peft_adapter_lora_conservative")].peft_lr == 5e-5
@@ -178,6 +185,69 @@ def test_windowed_discrete_runner_can_enable_decision_directed_cir_update(tmp_pa
     assert result["rows"][0]["cir_update_uses_data_labels"] is False
 
 
+def test_windowed_frame_can_use_receiver_level_cir_alpha_action(monkeypatch):
+    from agent.cir_estimator import condition_from_cir
+    from agent.discrete_safe_policy import DiscreteSafePolicy, safe_modulation_actions
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+    from env.comm_env import ReceiverState
+    from training import windowed_discrete_ppo
+    from training.windowed_discrete_ppo import WindowRewardAccumulator, WindowedDiscreteOnlineState, run_windowed_discrete_frame
+    from types import SimpleNamespace
+
+    model = UnfoldedEqualizer(UnfoldedConfig(frame_len=32, max_delay=4, iterations=1, d_model=24, num_heads=4))
+    actions = safe_modulation_actions(num_blocks=len(model.blocks), device="cpu")
+    names = [action.name for action in actions]
+    captured = {}
+
+    def fake_update(frame, logits, max_delay, previous_cir, alpha, confidence_threshold=None):
+        captured["alpha"] = alpha
+        captured["confidence_threshold"] = confidence_threshold
+        return previous_cir
+
+    monkeypatch.setattr(windowed_discrete_ppo, "decision_directed_cir_update", fake_update)
+    frame = SimpleNamespace(
+        rx_symbols=torch.randn(32, dtype=torch.complex64),
+        tx_symbols=torch.sign(torch.randn(32)).to(torch.complex64),
+        bits=torch.randint(0, 2, (32,), dtype=torch.bool),
+        adapt_mask=torch.arange(32) < 8,
+        reward_mask=(torch.arange(32) >= 8) & (torch.arange(32) < 12),
+        data_mask=torch.arange(32) >= 12,
+        model_region_ids=torch.zeros(32, dtype=torch.long),
+    )
+    state = WindowedDiscreteOnlineState(
+        cir=torch.zeros(5, dtype=torch.complex64),
+        receiver_state=ReceiverState(torch.zeros(4, dtype=torch.complex64)),
+        model=model,
+        policy=DiscreteSafePolicy(observation_dim=4, action_count=len(actions), hidden_size=8),
+        optimizer=torch.optim.AdamW(model.parameters(), lr=1e-4),
+        encoder=SimpleNamespace(),
+        actions=actions,
+        hidden=torch.zeros(1, 1, 8),
+        window_size=4,
+        previous_window_reward=0.0,
+        last_action_delta_norm=0.0,
+        rollout=[],
+        cir_update_mode="decision_directed",
+        cir_update_alpha=0.6,
+        current_action=actions[names.index("cir_alpha_fast")],
+        current_accumulator=WindowRewardAccumulator(action_delta_norm=0.0),
+        frames_in_window=1,
+    )
+
+    row = run_windowed_discrete_frame(
+        state,
+        frame,
+        condition_from_cir(state.cir, 10.0),
+        snr_db=10.0,
+        frame_index=1,
+        update_interval=16,
+    )
+
+    assert captured["alpha"] == 0.8
+    assert row["selected_cir_update_alpha"] == 0.8
+    assert row["cir_update_uses_data_labels"] is False
+
+
 def test_compare_rl_modulated_uses_windowed_discrete_policy(tmp_path):
     import subprocess
     import sys
@@ -279,3 +349,42 @@ def test_compare_can_enable_decision_directed_cir_update_for_proposed(tmp_path):
     assert all(row["cir_update_mode"] == "decision_directed" for row in rows)
     assert all(row["cir_update_alpha"] == 0.6 for row in rows)
     assert all(row["cir_update_uses_data_labels"] is False for row in rows)
+
+
+def test_discrete_policy_loader_skips_incompatible_action_catalog_when_optional(tmp_path):
+    from agent.discrete_safe_policy import DiscreteSafePolicy, safe_modulation_actions
+    from training.windowed_discrete_ppo import _load_discrete_policy_if_available
+
+    actions = safe_modulation_actions(num_blocks=3, device="cpu")
+    policy = DiscreteSafePolicy(observation_dim=4, action_count=len(actions), hidden_size=8)
+    old_policy = DiscreteSafePolicy(observation_dim=4, action_count=7, hidden_size=8)
+    checkpoint = tmp_path / "old_policy.pt"
+    torch.save(
+        {
+            "schema_version": "windowed-discrete-policy-v1",
+            "state_dict": old_policy.state_dict(),
+            "action_names": ["identity", "old_peft"],
+        },
+        checkpoint,
+    )
+
+    assert _load_discrete_policy_if_available(
+        policy,
+        checkpoint,
+        "cpu",
+        required=False,
+        expected_action_names=[action.name for action in actions],
+    ) is False
+
+    try:
+        _load_discrete_policy_if_available(
+            policy,
+            checkpoint,
+            "cpu",
+            required=True,
+            expected_action_names=[action.name for action in actions],
+        )
+    except ValueError as exc:
+        assert "动作表不兼容" in str(exc)
+    else:
+        raise AssertionError("required=True 时旧 policy 必须明确报错。")

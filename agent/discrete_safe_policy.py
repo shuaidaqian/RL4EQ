@@ -25,6 +25,7 @@ class DiscreteSafeAction:
     peft_groups: set[str] | None = None
     peft_lr: float = 0.0
     peft_steps: int = 0
+    cir_alpha: float | None = None
 
 
 @dataclass(frozen=True)
@@ -42,17 +43,20 @@ def safe_modulation_actions(num_blocks: int, device: torch.device | str = "cpu")
     config = ModulationConfig(num_adapter_gates=int(num_blocks), num_lora_scales=int(num_blocks))
     identity = ModulationState.identity(config, device=device)
     identity_vector = identity.to_vector()
-    raw_actions: list[tuple[str, ModulationState, set[str] | None, float, int]] = [
-        ("identity", identity, None, 0.0, 0),
-        ("peft_head_light", identity, {"head"}, 1e-4, 1),
-        ("peft_head_fast", identity, {"head"}, 5e-4, 1),
-        ("peft_adapter_lora_conservative", identity, {"adapter", "attention_lora", "ffn_lora"}, 5e-5, 1),
-        ("peft_adapter_lora_light", identity, {"adapter", "attention_lora", "ffn_lora"}, 1e-4, 1),
-        ("peft_adapter_lora_head_light", identity, {"adapter_lora"}, 1e-4, 1),
-        ("rollback_identity", identity, None, 0.0, 0),
+    raw_actions: list[tuple[str, ModulationState, set[str] | None, float, int, float | None]] = [
+        ("identity", identity, None, 0.0, 0, None),
+        ("cir_alpha_slow", identity, None, 0.0, 0, 0.3),
+        ("cir_alpha_nominal", identity, None, 0.0, 0, 0.6),
+        ("cir_alpha_fast", identity, None, 0.0, 0, 0.8),
+        ("peft_head_light", identity, {"head"}, 1e-4, 1, None),
+        ("peft_head_fast", identity, {"head"}, 5e-4, 1, None),
+        ("peft_adapter_lora_conservative", identity, {"adapter", "attention_lora", "ffn_lora"}, 5e-5, 1, None),
+        ("peft_adapter_lora_light", identity, {"adapter", "attention_lora", "ffn_lora"}, 1e-4, 1, None),
+        ("peft_adapter_lora_head_light", identity, {"adapter_lora"}, 1e-4, 1, None),
+        ("rollback_identity", identity, None, 0.0, 0, None),
     ]
     actions = []
-    for index, (name, modulation, peft_groups, peft_lr, peft_steps) in enumerate(raw_actions):
+    for index, (name, modulation, peft_groups, peft_lr, peft_steps, cir_alpha) in enumerate(raw_actions):
         delta = float(torch.norm(modulation.to_vector() - identity_vector).detach().cpu())
         actions.append(
             DiscreteSafeAction(
@@ -63,6 +67,7 @@ def safe_modulation_actions(num_blocks: int, device: torch.device | str = "cpu")
                 peft_groups=peft_groups,
                 peft_lr=float(peft_lr),
                 peft_steps=int(peft_steps),
+                cir_alpha=cir_alpha,
             )
         )
     return actions
@@ -87,6 +92,8 @@ def initialize_safe_discrete_policy_prior(policy: "DiscreteSafePolicy", actions:
         for action in actions:
             if action.name == "identity":
                 policy.logits.bias[action.index] = 3.0
+            elif action.name in {"cir_alpha_slow", "cir_alpha_nominal", "cir_alpha_fast"}:
+                policy.logits.bias[action.index] = -0.2
             elif action.name == "peft_head_fast":
                 policy.logits.bias[action.index] = -0.5
             elif action.name == "peft_adapter_lora_conservative":

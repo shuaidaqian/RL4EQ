@@ -385,7 +385,13 @@ def _build_method_states(
             encoder = ModulationObservationEncoder()
             policy = DiscreteSafePolicy(len(encoder.FIELDS), len(actions)).to(device)
             initialize_safe_discrete_policy_prior(policy)
-            policy_loaded = _load_discrete_policy_if_available(policy, policy_path, device, required=policy_required)
+            policy_loaded = _load_discrete_policy_if_available(
+                policy,
+                policy_path,
+                device,
+                required=policy_required,
+                expected_action_names=[action.name for action in actions],
+            )
             states[method] = RLModulatedMethodState(
                 online_state=WindowedDiscreteOnlineState(
                     cir=acquisition_cir.clone().to(device),
