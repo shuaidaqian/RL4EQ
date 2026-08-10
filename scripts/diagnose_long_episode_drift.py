@@ -22,6 +22,8 @@ def main() -> None:
     parser.add_argument("--seeds", nargs="*", type=int, default=[0, 1, 2])
     parser.add_argument("--tail-modes", nargs="*", default=["soft", "hard", "oracle", "zero"])
     parser.add_argument("--cir-modes", nargs="*", default=["fixed", "decision_directed", "oracle"])
+    parser.add_argument("--cir-alpha", type=float, default=0.2)
+    parser.add_argument("--cir-confidence-threshold", type=float, default=None)
     parser.add_argument("--rhos", nargs="*", type=float, default=[0.99, 1.0])
     parser.add_argument("--pilot-total", type=int, default=128)
     parser.add_argument("--pilot-layout", default="prefix")
@@ -40,6 +42,8 @@ def main() -> None:
         rhos=args.rhos,
         pilot_total=args.pilot_total,
         pilot_layout=args.pilot_layout,
+        cir_alpha=args.cir_alpha,
+        cir_confidence_threshold=args.cir_confidence_threshold,
         device=args.device or "cuda",
     )
     print(f"saved {args.output_dir}")

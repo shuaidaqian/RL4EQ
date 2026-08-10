@@ -35,6 +35,8 @@ def run_long_episode_diagnostic(
     rhos: Iterable[float] = (0.99, 1.0),
     pilot_total: int = 128,
     pilot_layout: str = "prefix",
+    cir_alpha: float = 0.2,
+    cir_confidence_threshold: float | None = None,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> dict:
     """运行 tail/CIR/drift 正交诊断并写出 JSONL 与 summary。"""
@@ -89,6 +91,13 @@ def run_long_episode_diagnostic(
                                 "uses_oracle_tail": str(tail_mode) == "oracle",
                                 "uses_oracle_cir": str(cir_mode) == "oracle",
                                 "cir_estimation_uses_adapt_pilot": str(cir_mode) == "adapt_pilot",
+                                "cir_update_alpha": float(cir_alpha) if str(cir_mode) == "decision_directed" else None,
+                                "cir_confidence_threshold": (
+                                    float(cir_confidence_threshold)
+                                    if str(cir_mode) == "decision_directed" and cir_confidence_threshold is not None
+                                    else None
+                                ),
+                                "cir_update_uses_data_labels": False,
                             }
                         )
                         if str(cir_mode) == "decision_directed":
@@ -97,7 +106,8 @@ def run_long_episode_diagnostic(
                                 logits.detach(),
                                 int(delay),
                                 cir_state,
-                                alpha=0.2,
+                                alpha=float(cir_alpha),
+                                confidence_threshold=cir_confidence_threshold,
                             ).to(device)
                         receiver_state.update_tail(_next_tail(str(tail_mode), logits.detach(), frame, int(delay)))
     _write_rows(target / "frame_metrics.jsonl", rows)

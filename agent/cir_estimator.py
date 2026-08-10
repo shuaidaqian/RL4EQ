@@ -106,7 +106,14 @@ class HybridCIREstimator(nn.Module):
         return torch.cat([visible, padding], dim=1).to(torch.float32)
 
 
-def decision_directed_cir_update(frame, logits: torch.Tensor, max_delay: int, previous_cir: torch.Tensor, alpha: float) -> torch.Tensor:
+def decision_directed_cir_update(
+    frame,
+    logits: torch.Tensor,
+    max_delay: int,
+    previous_cir: torch.Tensor,
+    alpha: float,
+    confidence_threshold: float | None = None,
+) -> torch.Tensor:
     """用当前帧硬判决和 Adapt Pilot 标签更新接收端 CIR。
 
     该更新只使用接收端在线可见信息：Data 区域使用模型硬判决，Adapt Pilot
@@ -116,18 +123,37 @@ def decision_directed_cir_update(frame, logits: torch.Tensor, max_delay: int, pr
     hard_symbols = torch.where(logits >= 0, torch.ones_like(logits), -torch.ones_like(logits)).to(torch.complex64)
     tx_estimate = hard_symbols.clone()
     tx_estimate[frame.adapt_mask] = frame.tx_symbols[frame.adapt_mask]
+    fit_mask = _decision_directed_fit_mask(frame.adapt_mask, logits, confidence_threshold)
     rows = []
     targets = []
     for pos in range(max_delay, tx_estimate.numel()):
+        if not bool(fit_mask[pos].item()):
+            continue
         row = torch.zeros(max_delay + 1, dtype=torch.complex64, device=tx_estimate.device)
         for delay in range(max_delay + 1):
             row[delay] = tx_estimate[pos - delay]
         rows.append(row)
         targets.append(frame.rx_symbols[pos])
+    if len(rows) < max_delay + 1:
+        return previous_cir / torch.sqrt(torch.sum(torch.abs(previous_cir) ** 2).clamp_min(1e-12))
     estimate = torch.linalg.lstsq(torch.stack(rows), torch.stack(targets)).solution.to(torch.complex64)
     estimate = estimate / torch.sqrt(torch.sum(torch.abs(estimate) ** 2).clamp_min(1e-12))
     blended = (1.0 - alpha) * previous_cir + alpha * estimate
     return blended / torch.sqrt(torch.sum(torch.abs(blended) ** 2).clamp_min(1e-12))
+
+
+def _decision_directed_fit_mask(
+    adapt_mask: torch.Tensor,
+    logits: torch.Tensor,
+    confidence_threshold: float | None,
+) -> torch.Tensor:
+    """选择 DD-CIR LS 更新可使用的观测位置。"""
+
+    if confidence_threshold is None:
+        return torch.ones_like(adapt_mask, dtype=torch.bool)
+    confidence = torch.sigmoid(torch.abs(logits.float()))
+    fit_mask = confidence >= float(confidence_threshold)
+    return fit_mask.to(torch.bool) | adapt_mask.to(torch.bool)
 
 
 def condition_from_cir(cir: torch.Tensor, snr_db: float) -> CIRCondition:

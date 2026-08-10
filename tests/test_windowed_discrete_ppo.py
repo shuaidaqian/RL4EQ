@@ -27,7 +27,7 @@ def test_discrete_safe_action_catalog_is_bounded_and_has_identity():
     assert actions[names.index("peft_adapter_lora_light")].peft_groups == {"adapter", "attention_lora", "ffn_lora"}
 
 
-def test_discrete_policy_prior_prefers_safe_peft_exploration_over_rollback():
+def test_discrete_policy_prior_starts_conservatively_from_identity():
     from agent.discrete_safe_policy import DiscreteSafePolicy, initialize_safe_discrete_policy_prior, safe_modulation_actions
 
     actions = safe_modulation_actions(num_blocks=3, device="cpu")
@@ -36,8 +36,10 @@ def test_discrete_policy_prior_prefers_safe_peft_exploration_over_rollback():
 
     initialize_safe_discrete_policy_prior(policy, actions)
 
-    assert policy.logits.bias[names.index("peft_head_fast")] > policy.logits.bias[names.index("identity")]
-    assert policy.logits.bias[names.index("peft_adapter_lora_conservative")] >= policy.logits.bias[names.index("identity")]
+    probabilities = torch.softmax(policy.logits.bias, dim=0)
+    assert policy.logits.bias[names.index("identity")] > policy.logits.bias[names.index("peft_head_fast")]
+    assert probabilities[names.index("identity")] > 0.6
+    assert probabilities[names.index("peft_head_fast")] < 0.1
     assert policy.logits.bias[names.index("rollback_identity")] < policy.logits.bias[names.index("identity")]
 
 
@@ -259,6 +261,8 @@ def test_compare_can_enable_decision_directed_cir_update_for_proposed(tmp_path):
             "two_block",
             "--cir-update",
             "decision_directed",
+            "--cir-alpha",
+            "0.6",
             "--output-dir",
             str(tmp_path / "compare_cir_update"),
         ],
@@ -273,4 +277,5 @@ def test_compare_can_enable_decision_directed_cir_update_for_proposed(tmp_path):
 
     assert {row["method"] for row in rows} == {"Offline NN only", "RL-Modulated Neural Block Equalizer"}
     assert all(row["cir_update_mode"] == "decision_directed" for row in rows)
+    assert all(row["cir_update_alpha"] == 0.6 for row in rows)
     assert all(row["cir_update_uses_data_labels"] is False for row in rows)

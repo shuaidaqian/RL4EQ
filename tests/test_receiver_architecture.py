@@ -1,6 +1,7 @@
 import torch
+from types import SimpleNamespace
 
-from agent.cir_estimator import HybridCIREstimator
+from agent.cir_estimator import HybridCIREstimator, decision_directed_cir_update
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect, perfect_csi_cg_detect
 from env.comm_env import CommEnvConfig, CommunicationEnvironment
@@ -95,6 +96,43 @@ def test_cir_estimator_recovers_noiseless_sparse_channel():
     nmse = torch.sum(torch.abs(out.complex_cir - true_cir) ** 2) / torch.sum(torch.abs(true_cir) ** 2)
     assert 10.0 * torch.log10(nmse.clamp_min(1e-12)).item() < -20.0
     assert torch.mean(out.support_probability[true_cir.abs() > 1e-4]).item() > 0.8
+
+
+def test_decision_directed_cir_update_can_gate_low_confidence_data_decisions():
+    """低置信错误 Data 判决不应强行进入 DD-CIR 最小二乘更新。"""
+
+    max_delay = 2
+    tx = torch.tensor([1, -1, 1, -1, 1, -1, 1, -1], dtype=torch.float32)
+    tx_complex = torch.complex(tx, torch.zeros_like(tx))
+    true_cir = torch.tensor([0.9 + 0.0j, 0.25 + 0.0j, -0.15 + 0.0j], dtype=torch.complex64)
+    true_cir = true_cir / torch.sqrt(torch.sum(torch.abs(true_cir) ** 2))
+    rx = LinearChannelOperator(frame_len=tx.numel(), max_delay=max_delay).forward(
+        tx_complex.unsqueeze(0),
+        true_cir.unsqueeze(0),
+        torch.zeros(1, max_delay, dtype=torch.complex64),
+    ).squeeze(0)
+    adapt_mask = torch.tensor([True, True, True, True, False, False, False, False])
+    wrong_logits = torch.tensor([6.0, -6.0, 6.0, -6.0, -0.05, 0.05, -0.05, 0.05])
+    frame = SimpleNamespace(
+        adapt_mask=adapt_mask,
+        tx_symbols=tx_complex,
+        rx_symbols=rx,
+    )
+    previous = true_cir.clone()
+
+    ungated = decision_directed_cir_update(frame, wrong_logits, max_delay, previous, alpha=1.0)
+    gated = decision_directed_cir_update(
+        frame,
+        wrong_logits,
+        max_delay,
+        previous,
+        alpha=1.0,
+        confidence_threshold=0.6,
+    )
+
+    ungated_nmse = torch.sum(torch.abs(ungated - true_cir) ** 2)
+    gated_nmse = torch.sum(torch.abs(gated - true_cir) ** 2)
+    assert gated_nmse < ungated_nmse
 
 
 def test_unfolded_equalizer_is_noncausal_and_peft_is_bounded():

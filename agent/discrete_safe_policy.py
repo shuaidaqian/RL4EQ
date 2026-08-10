@@ -71,8 +71,9 @@ def safe_modulation_actions(num_blocks: int, device: torch.device | str = "cpu")
 def initialize_safe_discrete_policy_prior(policy: "DiscreteSafePolicy", actions: list[DiscreteSafeAction] | None = None) -> None:
     """为未训练策略设置安全探索先验。
 
-    先验不使用 Data 标签；它只把探索质量集中到诊断后保留的安全 PEFT 动作上，
-    避免初期 rollout 大量浪费在 rollback 或完全无动作上。
+    先验不使用 Data 标签。当前 Offline NN 已经是强接收机，未训练 PPO
+    不能在部署初期大量扰动 PEFT；因此默认从 identity 保守启动，只保留
+    小概率 PEFT 探索。
     """
 
     with torch.no_grad():
@@ -80,20 +81,20 @@ def initialize_safe_discrete_policy_prior(policy: "DiscreteSafePolicy", actions:
             parameter.zero_()
         policy.logits.bias.fill_(0.0)
         if actions is None:
-            policy.logits.bias[0] = 1.0
-            policy.logits.bias[-1] = 0.5
+            policy.logits.bias[0] = 3.0
+            policy.logits.bias[-1] = 0.0
             return
         for action in actions:
             if action.name == "identity":
-                policy.logits.bias[action.index] = 0.3
+                policy.logits.bias[action.index] = 3.0
             elif action.name == "peft_head_fast":
-                policy.logits.bias[action.index] = 2.0
-            elif action.name == "peft_adapter_lora_conservative":
-                policy.logits.bias[action.index] = 0.8
-            elif action.name in {"peft_head_light", "peft_adapter_lora_light", "peft_adapter_lora_head_light"}:
-                policy.logits.bias[action.index] = 0.0
-            elif action.name == "rollback_identity":
                 policy.logits.bias[action.index] = -0.5
+            elif action.name == "peft_adapter_lora_conservative":
+                policy.logits.bias[action.index] = -0.2
+            elif action.name in {"peft_head_light", "peft_adapter_lora_light", "peft_adapter_lora_head_light"}:
+                policy.logits.bias[action.index] = -0.5
+            elif action.name == "rollback_identity":
+                policy.logits.bias[action.index] = 0.0
 
 
 class DiscreteSafePolicy(nn.Module):

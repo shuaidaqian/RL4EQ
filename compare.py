@@ -171,6 +171,7 @@ def main() -> None:
     parser.add_argument("--pilot-layout", default=None)
     parser.add_argument("--update-interval", type=int, default=32)
     parser.add_argument("--cir-update", choices=["fixed", "decision_directed"], default="fixed")
+    parser.add_argument("--cir-alpha", type=float, default=0.2)
     parser.add_argument("--output-dir", default="logs/compare")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--resume", action="store_true")
@@ -229,6 +230,7 @@ def main() -> None:
                         policy_required=policy_required,
                         device=str(args.device),
                         cir_update_mode=str(args.cir_update),
+                        cir_alpha=float(args.cir_alpha),
                     )
                     for frame_index in range(1, args.frames + 1):
                         frame = env.next_frame()
@@ -330,6 +332,7 @@ class NeuralMethodState:
     modulation: ModulationState
     pretrained_loaded: bool
     cir_update_mode: str = "fixed"
+    cir_update_alpha: float = 0.2
 
 
 @dataclass
@@ -366,6 +369,7 @@ def _build_method_states(
     policy_required: bool = False,
     device: str = "cpu",
     cir_update_mode: str = "fixed",
+    cir_alpha: float = 0.2,
 ) -> dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState]:
     states: dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState] = {}
     model_config = _load_model_config(config, pretrained_path)
@@ -396,6 +400,7 @@ def _build_method_states(
                     previous_window_reward=0.0,
                     last_action_delta_norm=0.0,
                     cir_update_mode=str(cir_update_mode),
+                    cir_update_alpha=float(cir_alpha),
                     rollout=[],
                 ),
                 pretrained_loaded=pretrained_path is not None,
@@ -411,6 +416,7 @@ def _build_method_states(
                 modulation=_fixed_modulation_for(method, modulation_config, device),
                 pretrained_loaded=pretrained_path is not None,
                 cir_update_mode=str(cir_update_mode),
+                cir_update_alpha=float(cir_alpha),
             )
         elif method == "Continual PPO":
             torch.manual_seed(90_000 + int(seed) + int(delay) * 17 + int(float(snr_db)) * 31)
@@ -527,7 +533,7 @@ def _run_new_or_single_method(
                 logits.detach(),
                 int(delay),
                 state.cir,
-                alpha=0.2,
+                alpha=float(state.cir_update_alpha),
             ).to(device)
         return _result_from_logits(
             method,
@@ -539,6 +545,7 @@ def _run_new_or_single_method(
                 "uses_rl": False,
                 "pretrained_loaded": state.pretrained_loaded,
                 "cir_update_mode": str(state.cir_update_mode),
+                "cir_update_alpha": float(state.cir_update_alpha),
                 "cir_update_uses_data_labels": False,
             },
         )
