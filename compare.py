@@ -384,7 +384,7 @@ def _build_method_states(
 
             encoder = ModulationObservationEncoder()
             policy = DiscreteSafePolicy(len(encoder.FIELDS), len(actions)).to(device)
-            initialize_safe_discrete_policy_prior(policy)
+            initialize_safe_discrete_policy_prior(policy, actions)
             policy_loaded = _load_discrete_policy_if_available(
                 policy,
                 policy_path,

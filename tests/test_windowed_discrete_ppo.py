@@ -248,6 +248,95 @@ def test_windowed_frame_can_use_receiver_level_cir_alpha_action(monkeypatch):
     assert row["cir_update_uses_data_labels"] is False
 
 
+def test_window_action_is_judged_by_window_reward_before_state_rollback(monkeypatch):
+    from agent.cir_estimator import condition_from_cir
+    from agent.discrete_safe_policy import DiscreteSafeAction, DiscreteSafePolicy, safe_modulation_actions
+    from agent.modulation import ModulationConfig, ModulationState
+    from env.comm_env import ReceiverState
+    from training import windowed_discrete_ppo
+    from training.windowed_discrete_ppo import WindowRewardAccumulator, WindowedDiscreteOnlineState, run_windowed_discrete_frame
+    from types import SimpleNamespace
+
+    class DummyModel:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, rx_iq, condition, region_ids, tail, modulation=None):
+            del condition, region_ids, tail, modulation
+            self.calls += 1
+            value = 10.0 if self.calls == 1 else -10.0
+            return torch.full(rx_iq.shape[:2], value), torch.empty(rx_iq.shape[:2])
+
+    model = DummyModel()
+    actions = safe_modulation_actions(num_blocks=1, device="cpu")
+    identity = actions[0]
+    config = ModulationConfig(num_adapter_gates=1, num_lora_scales=1)
+    risky = DiscreteSafeAction(
+        index=99,
+        name="risky_window_action",
+        modulation=ModulationState.identity(config),
+        delta_norm=0.0,
+        cir_alpha=0.8,
+    )
+    captured = {"alphas": []}
+
+    def fake_update(frame, logits, max_delay, previous_cir, alpha, confidence_threshold=None):
+        del frame, logits, max_delay, previous_cir, confidence_threshold
+        captured["alphas"].append(float(alpha))
+        return torch.ones(5, dtype=torch.complex64) / torch.sqrt(torch.tensor(5.0))
+
+    monkeypatch.setattr(windowed_discrete_ppo, "decision_directed_cir_update", fake_update)
+    frame = SimpleNamespace(
+        rx_symbols=torch.randn(32, dtype=torch.complex64),
+        tx_symbols=torch.ones(32, dtype=torch.complex64),
+        bits=torch.ones(32, dtype=torch.bool),
+        adapt_mask=torch.arange(32) < 8,
+        reward_mask=(torch.arange(32) >= 8) & (torch.arange(32) < 12),
+        data_mask=torch.arange(32) >= 12,
+        model_region_ids=torch.zeros(32, dtype=torch.long),
+    )
+    initial_cir = torch.zeros(5, dtype=torch.complex64)
+    initial_tail = torch.zeros(4, dtype=torch.complex64)
+    state = WindowedDiscreteOnlineState(
+        cir=initial_cir.clone(),
+        receiver_state=ReceiverState(initial_tail.clone()),
+        model=model,
+        policy=DiscreteSafePolicy(observation_dim=4, action_count=len(actions), hidden_size=8),
+        optimizer=torch.optim.AdamW([torch.nn.Parameter(torch.zeros(()))], lr=1e-4),
+        encoder=SimpleNamespace(),
+        actions=[identity, risky],
+        hidden=torch.zeros(1, 1, 8),
+        window_size=1,
+        previous_window_reward=0.0,
+        last_action_delta_norm=0.0,
+        rollout=[],
+        cir_update_mode="decision_directed",
+        cir_update_alpha=0.6,
+        current_action=risky,
+        current_accumulator=WindowRewardAccumulator(action_delta_norm=0.0),
+        current_window_cir_snapshot=initial_cir.clone(),
+        current_window_tail_snapshot=initial_tail.clone(),
+        frames_in_window=1,
+    )
+
+    row = run_windowed_discrete_frame(
+        state,
+        frame,
+        condition_from_cir(initial_cir, 10.0),
+        snr_db=10.0,
+        frame_index=1,
+        update_interval=16,
+    )
+
+    assert row["reward_pilot_ber_before"] == 0.0
+    assert row["reward_pilot_ber_after"] == 1.0
+    assert row["window_reward_rollback"] is True
+    assert row["safe_action_accepted"] is False
+    assert torch.equal(state.cir, initial_cir)
+    assert torch.equal(state.receiver_state.soft_tail, initial_tail)
+    assert captured["alphas"] == [0.8]
+
+
 def test_compare_rl_modulated_uses_windowed_discrete_policy(tmp_path):
     import subprocess
     import sys

@@ -98,6 +98,8 @@ class WindowedDiscreteOnlineState:
     current_value: torch.Tensor | None = None
     current_accumulator: WindowRewardAccumulator | None = None
     current_window_peft_snapshot: dict[str, torch.Tensor] | None = None
+    current_window_cir_snapshot: torch.Tensor | None = None
+    current_window_tail_snapshot: torch.Tensor | None = None
     frames_in_window: int = 0
 
 
@@ -252,13 +254,22 @@ def run_windowed_discrete_frame(
             if state.current_action.peft_groups
             else None
         )
+        state.current_window_cir_snapshot = state.cir.detach().clone()
+        state.current_window_tail_snapshot = state.receiver_state.soft_tail.detach().clone()
         state.frames_in_window = 0
     sampled_action = state.current_action
     applied_action = sampled_action
-    peft_snapshot = None
+    if state.current_window_cir_snapshot is None:
+        state.current_window_cir_snapshot = state.cir.detach().clone()
+    if state.current_window_tail_snapshot is None:
+        state.current_window_tail_snapshot = state.receiver_state.soft_tail.detach().clone()
+    selected_cir_alpha = (
+        float(sampled_action.cir_alpha)
+        if getattr(sampled_action, "cir_alpha", None) is not None
+        else float(getattr(state, "cir_update_alpha", 0.2))
+    )
     peft_delta_norm = 0.0
     if sampled_action.peft_groups:
-        peft_snapshot = _snapshot_peft_groups(state.model, sampled_action.peft_groups)
         peft_delta_norm = _apply_adapt_peft_update(
             state.model,
             frame,
@@ -276,22 +287,6 @@ def run_windowed_discrete_frame(
     reward_after_loss = _masked_bce(after, frame.bits, frame.reward_mask)
     reward_before_ber = bit_error_rate(base[frame.reward_mask], frame.bits[frame.reward_mask])
     reward_after_ber = bit_error_rate(after[frame.reward_mask], frame.bits[frame.reward_mask])
-    accepted = should_accept_reward_guard(
-        reward_loss_before=float(reward_before_loss.detach().cpu()),
-        reward_loss_after=float(reward_after_loss.detach().cpu()),
-        reward_ber_before=float(reward_before_ber),
-        reward_ber_after=float(reward_after_ber),
-        allow_loss_only=bool(sampled_action.peft_groups),
-        peft_delta_norm=float(peft_delta_norm),
-    )
-    if not accepted:
-        if peft_snapshot is not None:
-            _restore_snapshot(state.model, peft_snapshot)
-        after = base
-        applied_action = identity
-        peft_delta_norm = 0.0
-        reward_after_loss = reward_before_loss
-        reward_after_ber = reward_before_ber
     data_before_ber = bit_error_rate(base[frame.data_mask], frame.bits[frame.data_mask])
     data_after_ber = bit_error_rate(after[frame.data_mask], frame.bits[frame.data_mask])
     assert state.current_accumulator is not None
@@ -303,6 +298,18 @@ def run_windowed_discrete_frame(
         data_ber_before=float(data_before_ber),
         data_ber_after=float(data_after_ber),
     )
+    tail_len = state.receiver_state.soft_tail.numel()
+    state.receiver_state.update_tail(torch.complex(torch.tanh(after[-tail_len:] / 2.0), torch.zeros_like(after[-tail_len:])))
+    if state.cir_update_mode == "decision_directed":
+        state.cir = decision_directed_cir_update(
+            frame,
+            after.detach(),
+            int(tail_len),
+            state.cir,
+            alpha=selected_cir_alpha,
+        ).to(state.cir.device)
+    else:
+        selected_cir_alpha = float(getattr(state, "cir_update_alpha", 0.0))
     state.frames_in_window += 1
     window_closed = state.frames_in_window >= max(1, int(state.window_size))
     window_reward: WindowReward | None = None
@@ -310,8 +317,13 @@ def run_windowed_discrete_frame(
     window_rollback = False
     if window_closed:
         window_reward = state.current_accumulator.finalize()
-        if window_reward.reward <= 0.0 and state.current_window_peft_snapshot is not None:
-            _restore_snapshot(state.model, state.current_window_peft_snapshot)
+        if window_reward.reward <= 0.0 and sampled_action.name != "identity":
+            if state.current_window_peft_snapshot is not None:
+                _restore_snapshot(state.model, state.current_window_peft_snapshot)
+            if state.current_window_cir_snapshot is not None:
+                state.cir = state.current_window_cir_snapshot.to(state.cir.device).clone()
+            if state.current_window_tail_snapshot is not None:
+                state.receiver_state.update_tail(state.current_window_tail_snapshot.to(state.receiver_state.soft_tail.device))
             window_rollback = True
         state.rollout.append(
             {
@@ -335,24 +347,10 @@ def run_windowed_discrete_frame(
         state.current_value = None
         state.current_accumulator = None
         state.current_window_peft_snapshot = None
+        state.current_window_cir_snapshot = None
+        state.current_window_tail_snapshot = None
         state.frames_in_window = 0
-    tail_len = state.receiver_state.soft_tail.numel()
-    state.receiver_state.update_tail(torch.complex(torch.tanh(after[-tail_len:] / 2.0), torch.zeros_like(after[-tail_len:])))
-    if state.cir_update_mode == "decision_directed":
-        selected_cir_alpha = (
-            float(sampled_action.cir_alpha)
-            if getattr(sampled_action, "cir_alpha", None) is not None
-            else float(getattr(state, "cir_update_alpha", 0.2))
-        )
-        state.cir = decision_directed_cir_update(
-            frame,
-            after.detach(),
-            int(tail_len),
-            state.cir,
-            alpha=selected_cir_alpha,
-        ).to(state.cir.device)
-    else:
-        selected_cir_alpha = float(getattr(state, "cir_update_alpha", 0.0))
+    accepted = not bool(window_rollback)
     return {
         "method": "RL-Modulated Neural Block Equalizer",
         "snr_db": float(snr_db),
@@ -371,6 +369,7 @@ def run_windowed_discrete_frame(
         "cir_update_alpha": float(getattr(state, "cir_update_alpha", 0.0)),
         "selected_cir_update_alpha": float(selected_cir_alpha),
         "cir_update_uses_data_labels": False,
+        "receiver_action_type": _receiver_action_type(sampled_action),
         "policy_loss": policy_loss,
         "policy_action_name": sampled_action.name,
         "applied_action_name": applied_action.name,
@@ -386,6 +385,16 @@ def run_windowed_discrete_frame(
         "adapt_steps": int(1 if policy_loss is not None else 0),
         "parameter_delta_norm": float(applied_action.delta_norm + peft_delta_norm),
     }
+
+
+def _receiver_action_type(action: DiscreteSafeAction) -> str:
+    if getattr(action, "cir_alpha", None) is not None:
+        return "cir_alpha"
+    if action.peft_groups:
+        return "peft"
+    if action.name == "rollback_identity":
+        return "rollback"
+    return "identity"
 
 
 def _ppo_update(policy: DiscreteSafePolicy, optimizer: torch.optim.Optimizer, rollout: list[dict]) -> float | None:

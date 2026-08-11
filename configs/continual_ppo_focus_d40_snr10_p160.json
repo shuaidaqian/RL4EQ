@@ -1,0 +1,46 @@
+{
+  "schema_version": "continual-ppo-config-v1",
+  "pilot_layout": "prefix",
+  "pilot_total": 160,
+  "snrs_main": [0, 5, 10, 15],
+  "snrs_pressure": [],
+  "pilot_sweep_totals": [64, 96, 128, 160],
+  "pilot_sweep_layout": "prefix",
+  "curriculum_max_frame_offset": 4,
+  "cir_condition_augmentation": {
+    "enabled": true,
+    "modes": ["acquisition", "dd_like", "acquisition", "dd_like", "noisy"],
+    "noise_std": 0.012,
+    "dd_flip_probability": 0.003,
+    "dd_blend_alpha": 0.08
+  },
+  "ppo_window_size": 8,
+  "learning_rate": 0.00001,
+  "data_margin_loss_weight": 0.0,
+  "data_margin": 1.0,
+  "model": {
+    "frame_len": 512,
+    "max_delay": 40,
+    "iterations": 4,
+    "d_model": 96,
+    "num_heads": 4,
+    "adapter_rank": 8,
+    "lora_rank": 8
+  },
+  "main_level": "B",
+  "main_delays": [40],
+  "main_snrs": [10],
+  "rho": 0.99,
+  "offline_best_validation_interval": 100,
+  "model_validation_sequence_state": true,
+  "model_validation_seed_base": 70000,
+  "model_validation_cir_alpha": 0.6,
+  "validation_frames_per_config": 1,
+  "validation_seeds": [0],
+  "model_validation_frames_per_config": 64,
+  "model_validation_seeds": [0, 1],
+  "model_validation_configs": [
+    {"level": "B", "delay": 40, "snr_db": 10.0, "pilot_total": 160, "pilot_layout": "prefix", "cir": "decision_directed", "cir_alpha": 0.6}
+  ],
+  "offline_nn_gate_ber": 0.01
+}
