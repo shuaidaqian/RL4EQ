@@ -401,6 +401,51 @@ def test_traditional_difficulty_calibration_cli_uses_prefix_and_low_snr_defaults
     assert all(row["uses_neural_network"] is False and row["uses_rl"] is False for row in payload["level_b_difficulty"]["rows"])
 
 
+def test_traditional_difficulty_calibration_cli_can_enable_cfo_phase_impairments(tmp_path):
+    import json
+    import subprocess
+    import sys
+
+    output_dir = tmp_path / "traditional_difficulty_cfo_phase"
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/calibrate_traditional_difficulty.py",
+            "--delays",
+            "20",
+            "--snrs",
+            "0",
+            "--pilot-totals",
+            "64",
+            "--seeds",
+            "0",
+            "--frames",
+            "1",
+            "--methods",
+            "DFE-RLS",
+            "CFO-Corrected DFE-RLS",
+            "--enable-cfo",
+            "--enable-phase-perturbation",
+            "--impairment-profile",
+            "cfo_phase_light",
+            "--output-dir",
+            str(output_dir),
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+
+    payload = json.loads((output_dir / "traditional_difficulty_calibration.json").read_text(encoding="utf-8"))
+    assert payload["optional_impairments"]["cfo"] is True
+    assert payload["optional_impairments"]["phase_perturbation"] is True
+    assert payload["impairment_profile"] == "cfo_phase_light"
+    rows = payload["level_b_difficulty"]["rows"]
+    assert rows
+    assert {row["impairment_profile"] for row in rows} == {"cfo_phase_light"}
+    assert all(row["uses_neural_network"] is False and row["uses_rl"] is False for row in rows)
+
+
 def test_research_diagnostics_cli_smoke_writes_report(tmp_path):
     import json
     import subprocess

@@ -16,7 +16,7 @@ from agent.cir_estimator import decision_directed_cir_update as _decision_direct
 from agent.continual_policy import ITERATION_CHOICES, MODES, ContinualPolicy, ObservationEncoder
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
-from training.meta_training import _estimate_cir_from_known_frame
+from training.meta_training import estimate_acquisition_cir_for_profile
 
 
 @dataclass(frozen=True)
@@ -153,11 +153,16 @@ def run_real_online_experiment(
                         total_pilot=int(config.get("pilot_total", 128)),
                         layout=str(config.get("pilot_layout", "prefix")),
                         seed=40_000 + int(seed),
+                        impairment_profile=str(config.get("impairment_profile", "clean")),
                     )
                 )
                 start = env.reset_episode()
                 receiver_state = ReceiverState(start.initial_soft_tail)
-                cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                cir = estimate_acquisition_cir_for_profile(
+                    start.acquisition,
+                    int(delay),
+                    str(config.get("impairment_profile", "clean")),
+                )
                 hidden = torch.zeros(1, 1, policy.hidden_size)
                 previous_reward = 0.0
                 last_parameter_delta_norm = 0.0

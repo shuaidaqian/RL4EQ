@@ -11,7 +11,7 @@ Level A/B/C 可控信道族
 -> 与传统非神经、非 RL baseline 公平比较
 ```
 
-研究目标不是超过所有可能的强模型驱动序列检测器，而是在 Level B 主论文场景中让 `RL-Modulated Neural Block Equalizer` 超过传统非神经、非 RL 均衡器，并达到每个主配置 `BER_data < 0.01`。
+研究目标不是超过所有可能的强模型驱动序列检测器，也不是只找到一个传统方法很弱的工作区。当前第一性目标是在 Level B 主论文场景中逐级增加 residual CFO 与慢相位扰动复杂度，让 `RL-Modulated Neural Block Equalizer` 在所有主 SNR 条件下明显超过传统非神经、非 RL 均衡器；同时要求这种优势随在线帧数增加而变得更明显。`BER_data < 0.01` 保留为辅助系统指标，不再作为第一成功门槛。
 
 ## 研究契约
 
@@ -20,12 +20,13 @@ Level A/B/C 可控信道族
 - Level A 用于课程学习和可达性校准；Level C 只作为压力测试，不混入 Level B 主平均。
 - 接收机是整帧缓冲、非因果块神经均衡器；“在线”指信道运行期间按帧持续适配，不是逐符号即时输出。
 - Proposed 方法是唯一使用神经网络和 RL 的方法。
-- 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则。
+- 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须包含基于 Pilot 的合理补偿，不能人为打残 baseline。
 - Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真 `BER_data` 评估。
 - 在线 observation、reward、动作选择和调制更新不使用数据标签上界。
 - 当前 RL 路线采用离散安全动作和窗口级 reward；逐帧连续 modulation 不再作为主实施路线。
 - Data Oracle 不恢复。
-- CFO、额外相位扰动、非线性、信道编码和高阶调制只作为后续按需扩展开关；当前主实验默认关闭，不混入主平均。
+- clean Level B 作为 sanity check，用来证明传统均衡器在干净线性 BPSK 下确实很强；主攻场景逐级加入 residual CFO 与慢相位扰动。
+- 非线性、信道编码和高阶调制只作为后续按需扩展，不进入当前主实验。
 
 ## 方法分组
 
@@ -39,6 +40,10 @@ traditional:
   RLS Linear
   DFE-RLS
   SC-FDE-MMSE
+  CFO-Corrected LMMSE-FIR
+  CFO-Corrected DFE-RLS
+  CFO+DD-Phase LMMSE-FIR
+  CFO+DD-Phase DFE-RLS
 
 proposed:
   Offline NN only
@@ -89,6 +94,7 @@ baseline/
 env/
   channel_profiles.py           Level A/B/C 信道族
   extreme_delay_channel.py      长回波、漂移、跨帧 ISI
+  impairments.py                residual CFO 与慢相位扰动
   frame_structure.py            前缀 Pilot 帧结构；其他布局仅保留消融/诊断兼容
   comm_env.py                   acquisition + 普通帧 episode 环境
 training/
@@ -119,4 +125,4 @@ evaluation/
 
 ## 当前实现边界
 
-当前代码已经补齐真实传统 baseline、神经均衡器最小链路、离散安全动作窗口级 PPO、真实信道预训练数据流、strict-load checkpoint、append-safe compare smoke。当前执行门槛是先让 Offline NN 在 Level B 主工作区稳定达到 `BER_data < 0.01`，再要求 RL 进一步达到 `RL < Offline NN only`。未通过前不能启动正式 pilot sweep 或主矩阵。
+当前代码已经补齐真实传统 baseline、神经均衡器最小链路、离散安全动作窗口级 PPO、真实信道预训练数据流、strict-load checkpoint、append-safe compare smoke。当前执行门槛调整为：先用传统难度校准脚本确认 clean、CFO、慢相位、CFO+慢相位四级复杂度下传统 baseline 的真实难度；再训练 Proposed，使其在选定 Level B impaired 主场景逐配置明显超过带合理补偿的传统 baseline。未通过前不能启动正式主矩阵或撰写“神经/RL 显著优于传统”的结论。

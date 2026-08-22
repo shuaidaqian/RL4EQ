@@ -8,8 +8,7 @@
 - 传统方法不使用神经网络或 RL；
 - CFO、额外相位扰动、非线性、编码和高阶调制默认关闭。
 
-这些可选 impairment 先记录为实验开关；真正启用前需要在信道/调制链路中
-实现对应物理过程，不能只在报告里声明。
+当前已支持 residual CFO 与慢相位扰动；非线性、编码和高阶调制仍不进入本轮主线。
 """
 
 from __future__ import annotations
@@ -48,6 +47,11 @@ def main() -> None:
     parser.add_argument("--enable-nonlinearity", action="store_true")
     parser.add_argument("--enable-coding", action="store_true")
     parser.add_argument("--enable-higher-order-modulation", action="store_true")
+    parser.add_argument(
+        "--impairment-profile",
+        default="clean",
+        choices=["clean", "cfo_tiny", "phase_tiny", "cfo_phase_tiny", "cfo_light", "phase_light", "cfo_phase_light", "cfo_phase_mid"],
+    )
     args = parser.parse_args()
     if args.version:
         print("RL4EQ traditional-difficulty-calibration schema-v1")
@@ -62,8 +66,10 @@ def main() -> None:
         "coding": bool(args.enable_coding),
         "higher_order_modulation": bool(args.enable_higher_order_modulation),
     }
-    if any(impairments.values()):
-        raise SystemExit("当前校准入口只记录 impairment 开关；启用前需要先实现对应信道/调制链路。")
+    if args.enable_nonlinearity or args.enable_coding or args.enable_higher_order_modulation:
+        raise SystemExit("当前校准入口仅支持 CFO/慢相位扰动；非线性、编码和高阶调制留作后续扩展。")
+    if (args.enable_cfo or args.enable_phase_perturbation) and args.impairment_profile == "clean":
+        raise SystemExit("启用 CFO/相位扰动时必须选择非 clean 的 --impairment-profile。")
 
     target = Path(args.output_dir)
     target.mkdir(parents=True, exist_ok=True)
@@ -76,6 +82,7 @@ def main() -> None:
         frames=int(args.frames),
         output_dir=target,
         methods=tuple(methods),
+        impairment_profile=str(args.impairment_profile),
     )
     payload = {
         "schema_version": "traditional-difficulty-calibration-v1",
@@ -88,6 +95,7 @@ def main() -> None:
         "frames": int(args.frames),
         "methods": methods,
         "optional_impairments": impairments,
+        "impairment_profile": str(args.impairment_profile),
         "traditional_only": True,
         "level_b_difficulty": difficulty,
         "difficulty_bands": _difficulty_bands(difficulty["summary"]),

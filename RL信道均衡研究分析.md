@@ -4,7 +4,9 @@
 
 在常规无线信道中，LMMSE、DFE、RLS、Kalman tracking 和频域 MMSE 等传统均衡方法已经非常强。若只在短时延或温和多径上使用神经网络，很难形成稳定、可辩护的创新优势。
 
-当前研究转向 EME 启发的极端稀疏长时延扩展场景。这里的 EME 是启发来源，不是完整物理 EME 仿真；研究重点是 20–40 符号相对多径时延、跨帧 ISI 和稀疏长回波，而不是同步前约 2.5 秒的绝对地月传播时延。
+当前研究转向 EME 启发的极端稀疏长时延扩展场景。这里的 EME 是启发来源，不是完整物理 EME 仿真；研究重点是 20–40 符号相对多径时延、跨帧 ISI、稀疏长回波，以及同步后仍可能存在的 residual CFO 与慢相位扰动，而不是同步前约 2.5 秒的绝对地月传播时延。
+
+clean 线性 BPSK Level B 不再被视为主攻胜负场，而是 sanity check：如果传统 DFE-RLS 在该场景 BER 很低，这是符合第一性原理的，因为传统算法在干净线性模型、充足 Pilot 和低阶调制下非常强。新的主攻方向是逐级增加 CFO/相位复杂度，同时给传统 baseline 合理补偿，检验神经/RL 是否能在更接近真实同步残差的条件下形成稳定优势。
 
 ## 2. 当前唯一方法
 
@@ -33,9 +35,15 @@ NLMS
 RLS Linear
 DFE-RLS
 SC-FDE-MMSE
+CFO-Corrected LMMSE-FIR
+CFO-Corrected DFE-RLS
+CFO+DD-Phase LMMSE-FIR
+CFO+DD-Phase DFE-RLS
 ```
 
 `Perfect-CSI Block` 与 `Fixed CG-BPSK-DD Block Detector` 属于强模型驱动诊断参考，不是主 baseline。它们可以帮助判断信道/检测可达性，但不能作为“传统 baseline”压制 proposed，也不能作为论文主成功门槛。
+
+CFO/慢相位扰动实验中，传统 baseline 必须做基于 Adapt Pilot 的合理补偿。补偿只能使用接收信号和 Adapt Pilot 发送符号估计相位斜率，不能读取 Reward Pilot、Data 标签或真实 impairment 参数。
 
 ## 4. Pilot 与标签隔离
 
@@ -51,17 +59,14 @@ SC-FDE-MMSE
 
 ## 5. 成功标准
 
-主论文成功标准：
+主论文成功标准从“硬 BER 门槛优先”调整为“相对传统优势优先”：
 
 ```text
-BER_data(RL-Modulated Neural Block Equalizer) < 0.01
-即每个主配置 BER_data < 0.01
-并且
 BER_data(RL-Modulated Neural Block Equalizer)
   < min BER_data(所有传统非神经、非 RL baseline)
 ```
 
-该标准必须在 Level B 主配置逐配置成立，不能只看总体平均。
+该标准必须在 Level B impaired 主配置逐配置成立，不能只看总体平均；同时优势应随在线帧数增加而更明显。`BER_data < 0.01` 保留为辅助系统指标：如果能同时达到当然更好，但不能再让它替代“明显超过传统”这一第一性目标。
 
 ## 6. 当前执行结果与局限
 
@@ -84,7 +89,7 @@ DFE-RLS BER_data = 0.0
 RL-Modulated Neural Block Equalizer BER_data ≈ 0.509
 ```
 
-因此当前执行顺序调整为：先把 Offline NN 稳定打到 `<0.01`，再训练窗口级离散 PPO，只有 `RL-Modulated Neural Block Equalizer < Offline NN only` 后才进入正式 pilot sweep 或主矩阵。
+因此当前执行顺序调整为：先用传统难度校准脚本扫描 clean、CFO、慢相位、CFO+慢相位四级复杂度，确认传统 baseline 在合理补偿后的真实性能；再训练 Offline NN 与窗口级离散 PPO。只有 `RL-Modulated Neural Block Equalizer` 在选定 Level B impaired 主场景逐配置明显超过传统 baseline 后，才进入正式主矩阵。
 
 ## 7. 下一阶段优先级
 

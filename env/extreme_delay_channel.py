@@ -9,6 +9,7 @@ import numpy as np
 import torch
 
 from env.channel_profiles import ChannelLevel, ChannelProfileConfig, sample_profile
+from env.impairments import PhaseImpairmentSettings, apply_phase_impairment, settings_from_profile
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,9 @@ class ExtremeDelayChannelConfig:
     snr_db: float = 10.0
     rho: float = 0.99
     seed: int = 42
+    impairment_profile: str = "clean"
+    cfo_cycles_per_symbol: float = 0.0
+    phase_noise_std: float = 0.0
 
     def __post_init__(self) -> None:
         ChannelLevel(self.level)
@@ -40,6 +44,9 @@ class ExtremeDelayChannel:
         self._current_cir = torch.zeros(config.max_delay + 1, dtype=torch.complex64)
         self._last_cir_used = torch.zeros(config.max_delay + 1, dtype=torch.complex64)
         self._history = torch.zeros(config.max_delay, dtype=torch.complex64)
+        self._global_symbol_index = 0
+        self._phase_state = 0.0
+        self._impairment = PhaseImpairmentSettings()
 
     @property
     def delays(self) -> tuple[int, ...]:
@@ -69,6 +76,14 @@ class ExtremeDelayChannel:
         self._history = warmup[-self.config.max_delay :].clone()
         self._rng = np.random.default_rng(self.config.seed)
         self._torch_rng = torch.Generator(device="cpu").manual_seed(self.config.seed + 10_000)
+        self._global_symbol_index = 0
+        self._phase_state = 0.0
+        self._impairment = settings_from_profile(
+            self.config.impairment_profile,
+            self._rng,
+            cfo_cycles_per_symbol=self.config.cfo_cycles_per_symbol,
+            phase_noise_std=self.config.phase_noise_std,
+        )
 
     def transmit(self, symbols: torch.Tensor, add_noise: bool = True) -> torch.Tensor:
         """施加线性卷积、跨帧历史、固定 Es/N0 噪声，并在帧末更新 tap。"""
@@ -78,10 +93,18 @@ class ExtremeDelayChannel:
         tx = symbols.detach().to(dtype=torch.complex64, device="cpu")
         rx = self._convolve_with_history(tx, self._current_cir)
         self._last_cir_used = self._current_cir.clone()
+        rx, self._phase_state = apply_phase_impairment(
+            rx,
+            global_start=self._global_symbol_index,
+            settings=self._impairment,
+            phase_state=self._phase_state,
+            torch_rng=self._torch_rng,
+        )
         if add_noise:
             rx = rx + self._sample_noise(tx.numel())
         combined = torch.cat([self._history, tx])
         self._history = combined[-self.config.max_delay :].clone()
+        self._global_symbol_index += int(tx.numel())
         self._evolve_taps()
         return rx
 

@@ -21,7 +21,7 @@ from agent.cir_estimator import CIRCondition, condition_from_cir
 from agent.modulation import ModulationConfig, ModulationState
 from agent.unfolded_equalizer import UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate
-from baseline.traditional_equalizers import TRADITIONAL_BASELINES, run_traditional_equalizer
+from baseline.traditional_equalizers import TRADITIONAL_BASELINES, TraditionalPhaseState, estimate_acquisition_cir_with_cfo, run_traditional_equalizer
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
 from evaluation.metrics import spearman_reward_data
 from training.meta_training import _estimate_cir_from_known_frame
@@ -627,6 +627,7 @@ def run_level_b_difficulty_scan(
     output_dir: str | Path,
     methods: tuple[str, ...] = TRADITIONAL_BASELINES,
     seed_offset: int = 80_000,
+    impairment_profile: str = "clean",
 ) -> dict:
     """扫描 Level B 下传统 baseline 难度，不包含神经网络或 RL。"""
 
@@ -644,11 +645,17 @@ def run_level_b_difficulty_scan(
                                 total_pilot=int(pilot_total),
                                 layout=str(layout),
                                 seed=int(seed_offset) + int(seed),
+                                impairment_profile=str(impairment_profile),
                             )
                         )
                         start = env.reset_episode()
-                        cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                        if str(impairment_profile) == "clean":
+                            cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                            acquisition_cfo_hat = 0.0
+                        else:
+                            cir, acquisition_cfo_hat = estimate_acquisition_cir_with_cfo(start.acquisition, int(delay))
                         states = {method: ReceiverState(start.initial_soft_tail.clone()) for method in methods}
+                        phase_states = {method: TraditionalPhaseState() for method in methods}
                         for frame_index in range(1, int(frames) + 1):
                             frame = env.next_frame()
                             for method in methods:
@@ -658,6 +665,7 @@ def run_level_b_difficulty_scan(
                                     cir,
                                     states[method].soft_tail,
                                     float(snr_db),
+                                    phase_state=phase_states[method],
                                 )
                                 states[method].update_tail(result.soft_tail)
                                 rows.append(
@@ -668,6 +676,8 @@ def run_level_b_difficulty_scan(
                                         "snr_db": float(snr_db),
                                         "pilot_total": int(pilot_total),
                                         "pilot_layout": str(layout),
+                                        "impairment_profile": str(impairment_profile),
+                                        "acquisition_cfo_hat": float(acquisition_cfo_hat),
                                         "seed": int(seed),
                                         "frame": int(frame_index),
                                         "ber_data": bit_error_rate(result.logits[frame.data_mask], frame.bits[frame.data_mask]),
@@ -678,7 +688,16 @@ def run_level_b_difficulty_scan(
                                 )
     grouped = defaultdict(list)
     for row in rows:
-        grouped[(row["method"], row["delay"], row["snr_db"], row["pilot_total"], row["pilot_layout"])].append(float(row["ber_data"]))
+        grouped[
+            (
+                row["method"],
+                row["delay"],
+                row["snr_db"],
+                row["pilot_total"],
+                row["pilot_layout"],
+                row["impairment_profile"],
+            )
+        ].append(float(row["ber_data"]))
     summary = [
         {
             "method": key[0],
@@ -686,6 +705,7 @@ def run_level_b_difficulty_scan(
             "snr_db": key[2],
             "pilot_total": key[3],
             "pilot_layout": key[4],
+            "impairment_profile": key[5],
             "mean_ber_data": float(sum(values) / max(1, len(values))),
             "frames": len(values),
         }

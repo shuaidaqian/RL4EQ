@@ -17,7 +17,13 @@ from agent.modulation import ModulationConfig, ModulationState
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.legacy_equalizers import legacy_dfe, legacy_lmmse_fir
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
-from baseline.traditional_equalizers import TRADITIONAL_BASELINES, run_traditional_equalizer
+from baseline.traditional_equalizers import (
+    TRADITIONAL_BASELINES,
+    TraditionalPhaseState,
+    estimate_acquisition_cir_with_cfo,
+    estimate_phase_residual_vector,
+    run_traditional_equalizer,
+)
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
 from evaluation.bootstrap import paired_block_bootstrap
 from evaluation.metrics import FrameMetric, summarize_main_matrix
@@ -60,6 +66,10 @@ TRADITIONAL_METHODS = (
     "RLS Linear",
     "DFE-RLS",
     "SC-FDE-MMSE",
+    "CFO-Corrected LMMSE-FIR",
+    "CFO-Corrected DFE-RLS",
+    "CFO+DD-Phase LMMSE-FIR",
+    "CFO+DD-Phase DFE-RLS",
 )
 
 PROPOSED_METHODS = (
@@ -169,6 +179,11 @@ def main() -> None:
     parser.add_argument("--frames", type=int, default=2)
     parser.add_argument("--pilot-total", type=int, default=None)
     parser.add_argument("--pilot-layout", default=None)
+    parser.add_argument(
+        "--impairment-profile",
+        default=None,
+        choices=["clean", "cfo_tiny", "phase_tiny", "cfo_phase_tiny", "cfo_light", "phase_light", "cfo_phase_light", "cfo_phase_mid"],
+    )
     parser.add_argument("--update-interval", type=int, default=32)
     parser.add_argument("--cir-update", choices=["fixed", "decision_directed"], default="fixed")
     parser.add_argument("--cir-alpha", type=float, default=0.2)
@@ -190,6 +205,9 @@ def main() -> None:
         policy_path = None
     pilot_total = int(args.pilot_total if args.pilot_total is not None else config.get("pilot_total", 128))
     pilot_layout = str(args.pilot_layout if args.pilot_layout is not None else config.get("pilot_layout", "prefix"))
+    impairment_profile = str(
+        args.impairment_profile if args.impairment_profile is not None else config.get("impairment_profile", "clean")
+    )
     pretrained_path = Path(args.pretrained) if args.pretrained else None
     if pretrained_path is not None and not pretrained_path.exists():
         pretrained_path = None
@@ -213,10 +231,14 @@ def main() -> None:
                             total_pilot=pilot_total,
                             layout=pilot_layout,
                             seed=50_000 + int(seed),
+                            impairment_profile=impairment_profile,
                         )
                     )
                     start = env.reset_episode()
-                    acquisition_cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                    if impairment_profile == "clean":
+                        acquisition_cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                    else:
+                        acquisition_cir, _ = estimate_acquisition_cir_with_cfo(start.acquisition, int(delay))
                     method_states = _build_method_states(
                         selected_methods,
                         start.initial_soft_tail,
@@ -265,6 +287,7 @@ def main() -> None:
                                 parameter_delta_norm=float(result.extra.get("parameter_delta_norm", 0.0)),
                             )
                             payload = metric.to_json()
+                            payload["impairment_profile"] = impairment_profile
                             payload["input_hash"] = result.input_hash
                             payload.update(result.extra)
                             key = _row_key(payload)
@@ -285,6 +308,7 @@ def main() -> None:
         "per_config": [item.__dict__ for item in summary.per_config],
         "generalization": summary.generalization,
         "bootstrap": interval.__dict__,
+        "impairment_profile": impairment_profile,
         "forbidden": {"data_label_upper_bound_method_present": any("数据标签上界" in method for method in selected_methods)},
     }
     (target / "summary.json").write_text(json.dumps(summary_payload, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -307,6 +331,7 @@ class RealMethodResult:
 class BaselineMethodState:
     cir: torch.Tensor
     receiver_state: ReceiverState
+    phase_state: TraditionalPhaseState | None = None
 
 
 @dataclass
@@ -442,7 +467,11 @@ def _build_method_states(
                 last_good_tail=initial_soft_tail.clone(),
             )
         else:
-            states[method] = BaselineMethodState(cir=acquisition_cir.clone(), receiver_state=ReceiverState(initial_soft_tail.clone()))
+            states[method] = BaselineMethodState(
+                cir=acquisition_cir.clone(),
+                receiver_state=ReceiverState(initial_soft_tail.clone()),
+                phase_state=TraditionalPhaseState(),
+            )
     return states
 
 
@@ -496,14 +525,27 @@ def _run_new_or_single_method(
     if method in TRADITIONAL_BASELINES:
         if not isinstance(state, BaselineMethodState):
             raise TypeError("传统 baseline 需要 BaselineMethodState。")
-        result = run_traditional_equalizer(method, frame.receiver_view(), state.cir, state.receiver_state.soft_tail, snr_db)
+        result = run_traditional_equalizer(
+            method,
+            frame.receiver_view(),
+            state.cir,
+            state.receiver_state.soft_tail,
+            snr_db,
+            phase_state=state.phase_state,
+        )
         state.receiver_state.update_tail(result.soft_tail)
         return _result_from_logits(method, result.logits, frame, result.iterations, result.extra)
     if method == "RL-Modulated Neural Block Equalizer":
         if not isinstance(state, RLModulatedMethodState):
             raise TypeError("RL-Modulated 方法需要 RLModulatedMethodState。")
         frame_device = _frame_to_device(frame, next(state.online_state.model.parameters()).device)
-        condition = condition_from_cir(state.online_state.cir, snr_db)
+        phase_features = estimate_phase_residual_vector(
+            frame.receiver_view(),
+            state.online_state.cir,
+            state.online_state.receiver_state.soft_tail,
+            blocks=4,
+        )
+        condition = condition_from_cir(state.online_state.cir, snr_db, phase_features=phase_features)
         row = run_windowed_discrete_frame(state.online_state, frame_device, condition, snr_db, frame_index, update_interval)
         return RealMethodResult(
             method=method,
@@ -522,7 +564,13 @@ def _run_new_or_single_method(
         frame_device = _frame_to_device(frame, device)
         rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
         region_ids = frame_device.model_region_ids.unsqueeze(0).long()
-        condition = condition_from_cir(state.cir, snr_db)
+        phase_features = estimate_phase_residual_vector(
+            frame.receiver_view(),
+            state.cir,
+            state.receiver_state.soft_tail,
+            blocks=4,
+        )
+        condition = condition_from_cir(state.cir, snr_db, phase_features=phase_features)
         logits, _ = state.model(
             rx_iq,
             condition,
@@ -858,7 +906,7 @@ def _load_existing_rows(jsonl: Path) -> list[dict]:
     return [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def _row_key(row: dict) -> tuple[str, int, float, int, int, int, str]:
+def _row_key(row: dict) -> tuple[str, int, float, int, int, int, str, str]:
     return (
         str(row["method"]),
         int(row["delay"]),
@@ -867,6 +915,7 @@ def _row_key(row: dict) -> tuple[str, int, float, int, int, int, str]:
         int(row["frame"]),
         int(row.get("pilot_total", 0)),
         str(row.get("pilot_layout", "")),
+        str(row.get("impairment_profile", "clean")),
     )
 
 

@@ -156,17 +156,36 @@ def _decision_directed_fit_mask(
     return fit_mask.to(torch.bool) | adapt_mask.to(torch.bool)
 
 
-def condition_from_cir(cir: torch.Tensor, snr_db: float) -> CIRCondition:
+def condition_from_cir(
+    cir: torch.Tensor,
+    snr_db: float,
+    phase_residual: float | torch.Tensor = 0.0,
+    cfo_residual: float | torch.Tensor = 0.0,
+    phase_features: torch.Tensor | None = None,
+) -> CIRCondition:
     """从显式 CIR 构造神经均衡器需要的帧级条件。"""
 
     cir_b = cir.unsqueeze(0) if cir.ndim == 1 else cir
     cir_b = cir_b.to(torch.complex64)
     power = cir_b.abs()
     support = power / power.sum(dim=1, keepdim=True).clamp_min(1e-8)
+    latent = torch.zeros(cir_b.shape[0], 96, dtype=torch.float32, device=cir_b.device)
+    if phase_features is not None:
+        features = torch.as_tensor(phase_features, dtype=torch.float32, device=cir_b.device)
+        if features.ndim == 1:
+            features = features.unsqueeze(0)
+        features = features.reshape(features.shape[0], -1)
+        if features.shape[0] == 1 and cir_b.shape[0] > 1:
+            features = features.expand(cir_b.shape[0], -1)
+        count = min(latent.shape[1], features.shape[1])
+        latent[:, :count] = features[: cir_b.shape[0], :count]
+    else:
+        latent[:, 0] = torch.as_tensor(phase_residual, dtype=torch.float32, device=cir_b.device).reshape(-1)[0]
+        latent[:, 1] = torch.as_tensor(cfo_residual, dtype=torch.float32, device=cir_b.device).reshape(-1)[0]
     return CIRCondition(
         complex_cir=cir_b,
         support_probability=support.to(torch.float32),
         noise_variance=torch.full((cir_b.shape[0],), 10.0 ** (-float(snr_db) / 10.0), dtype=torch.float32, device=cir_b.device),
         confidence=torch.ones(cir_b.shape[0], dtype=torch.float32, device=cir_b.device),
-        latent_residual=torch.zeros(cir_b.shape[0], 96, dtype=torch.float32, device=cir_b.device),
+        latent_residual=latent,
     )

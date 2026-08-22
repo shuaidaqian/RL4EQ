@@ -43,6 +43,10 @@ def test_main_method_group_excludes_strong_model_based_diagnostics():
         "RLS Linear",
         "DFE-RLS",
         "SC-FDE-MMSE",
+        "CFO-Corrected LMMSE-FIR",
+        "CFO-Corrected DFE-RLS",
+        "CFO+DD-Phase LMMSE-FIR",
+        "CFO+DD-Phase DFE-RLS",
     }
     assert "RL-Modulated Neural Block Equalizer" in proposed
     assert "Fixed CG-BPSK-DD Block Detector" in diagnostic
@@ -464,11 +468,20 @@ def test_docs_share_single_research_contract():
         "开发框架.md": (root / "开发框架.md").read_text(encoding="utf-8"),
         "RL信道均衡研究分析.md": (root / "RL信道均衡研究分析.md").read_text(encoding="utf-8"),
     }
-    required = ["Level B", "RL-Modulated Neural Block Equalizer", "整帧缓冲", "非因果", "BER_data < 0.01", "不使用数据标签上界"]
+    required = [
+        "Level B",
+        "RL-Modulated Neural Block Equalizer",
+        "整帧缓冲",
+        "非因果",
+        "明显超过传统",
+        "CFO",
+        "相位",
+        "合理补偿",
+        "不使用数据标签上界",
+    ]
     forbidden = [
         "逐符号" + "实时输出",
         "LDPC " + "编解码实验",
-        "CFO " + "补偿实验",
         "actor_" + "critic.py",
         "agent/" + "ppo.py",
         "Best Fixed 前置门槛",

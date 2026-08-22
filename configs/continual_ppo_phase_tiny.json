@@ -2,14 +2,14 @@
   "schema_version": "continual-ppo-config-v1",
   "pilot_layout": "prefix",
   "pilot_total": 128,
-  "impairment_profile": "clean",
+  "impairment_profile": "phase_tiny",
   "snrs_main": [0, 5, 10, 15],
   "snrs_pressure": [],
   "pilot_sweep_totals": [64, 96, 128, 160],
   "pilot_sweep_layout": "prefix",
   "optional_impairments": {
     "cfo": false,
-    "phase_perturbation": false,
+    "phase_perturbation": true,
     "nonlinearity": false,
     "coding": false,
     "higher_order_modulation": false

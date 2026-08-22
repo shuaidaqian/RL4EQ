@@ -24,6 +24,9 @@ class UnfoldedConfig:
     adapter_rank: int = 8
     lora_rank: int = 8
     conditioner_uses_cir_summary: bool = False
+    enable_phase_correction_branch: bool = False
+    phase_correction_segments: int = 4
+    phase_correction_initial_scale: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -99,6 +102,22 @@ class UnfoldedEqualizer(nn.Module):
         self.config = config or UnfoldedConfig()
         self.feature_proj = nn.Linear(4, self.config.d_model)
         self.region_embedding = nn.Embedding(2, self.config.d_model)
+        self.phase_correction = None
+        if self.config.enable_phase_correction_branch:
+            self.phase_correction = nn.Sequential(
+                nn.Linear(96, self.config.d_model),
+                nn.Tanh(),
+                nn.Linear(self.config.d_model, int(self.config.phase_correction_segments)),
+            )
+            nn.init.zeros_(self.phase_correction[-1].weight)
+            nn.init.zeros_(self.phase_correction[-1].bias)
+            self.phase_correction_scale = nn.Parameter(
+                torch.tensor(float(self.config.phase_correction_initial_scale), dtype=torch.float32)
+            )
+            mark_peft_group(self.phase_correction, "conditioner_film")
+            setattr(self.phase_correction_scale, "_peft_group", "conditioner_film")
+        else:
+            self.register_parameter("phase_correction_scale", None)
         conditioner_input_dim = 96
         if self.config.conditioner_uses_cir_summary:
             conditioner_input_dim += 2 * (self.config.max_delay + 1) + 2
@@ -124,6 +143,7 @@ class UnfoldedEqualizer(nn.Module):
         soft_tail: torch.Tensor,
         modulation: ModulationState | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        rx_iq = self._apply_phase_correction(rx_iq, condition)
         rx_complex = torch.complex(rx_iq[..., 0], rx_iq[..., 1]).to(torch.complex64)
         operator = LinearChannelOperator(frame_len=rx_complex.shape[1], max_delay=condition.complex_cir.shape[1] - 1)
         soft_symbols = torch.zeros_like(rx_complex)
@@ -151,6 +171,42 @@ class UnfoldedEqualizer(nn.Module):
             soft_update = torch.complex(torch.tanh(logits), torch.zeros_like(logits))
             soft_symbols = (1.0 - damping) * soft_update + damping * soft_symbols
         return logits, torch.sigmoid(logits)
+
+    def _apply_phase_correction(self, rx_iq: torch.Tensor, condition: CIRCondition) -> torch.Tensor:
+        """根据 phase-vector conditioner 对整帧接收 I/Q 做显式相位校正。"""
+
+        if not self.config.enable_phase_correction_branch:
+            return rx_iq
+        latent = condition.latent_residual
+        if latent.shape[1] < 96:
+            latent = torch.nn.functional.pad(latent, (0, 96 - latent.shape[1]))
+        latent = latent[:, :96].to(rx_iq.device, rx_iq.dtype)
+        batch, frame_len, _ = rx_iq.shape
+        segment_count = max(1, int(self.config.phase_correction_segments))
+        phase0_values = []
+        cfo_values = []
+        for segment in range(segment_count):
+            offset = segment * 4
+            if offset + 1 < latent.shape[1]:
+                phase0_values.append(latent[:, offset])
+                cfo_values.append(latent[:, offset + 1])
+            else:
+                phase0_values.append(torch.zeros(batch, device=rx_iq.device, dtype=rx_iq.dtype))
+                cfo_values.append(torch.zeros(batch, device=rx_iq.device, dtype=rx_iq.dtype))
+        phase0 = torch.stack(phase0_values, dim=1)
+        cfo = torch.stack(cfo_values, dim=1)
+        if self.phase_correction is not None:
+            phase0 = phase0 + self.phase_correction(latent)
+        positions = torch.arange(frame_len, device=rx_iq.device, dtype=rx_iq.dtype)
+        segment_index = torch.div(positions * segment_count, frame_len, rounding_mode="floor").long().clamp_max(segment_count - 1)
+        phase0_t = phase0[:, segment_index]
+        cfo_t = cfo[:, segment_index]
+        phase = phase0_t + 2.0 * torch.pi * cfo_t * positions.unsqueeze(0)
+        scale = self.phase_correction_scale.to(rx_iq.device, rx_iq.dtype)
+        phase = phase * scale
+        rx_complex = torch.complex(rx_iq[..., 0], rx_iq[..., 1]).to(torch.complex64)
+        corrected = rx_complex * torch.exp(-1j * phase.to(torch.float32)).to(torch.complex64)
+        return torch.stack((corrected.real, corrected.imag), dim=-1).to(rx_iq.dtype)
 
     def _apply_film(
         self,

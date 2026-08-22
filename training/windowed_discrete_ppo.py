@@ -22,8 +22,9 @@ from agent.discrete_safe_policy import (
 from agent.rl_modulator import ModulationObservationEncoder
 from agent.unfolded_equalizer import UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate
+from baseline.traditional_equalizers import estimate_phase_residual_vector
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
-from training.meta_training import _estimate_cir_from_known_frame
+from training.meta_training import estimate_acquisition_cir_for_profile
 from training.rl_modulated_online import _build_equalizer, _load_model_config
 
 
@@ -163,11 +164,16 @@ def run_windowed_discrete_online(
                         total_pilot=int(pilot_total),
                         layout=str(pilot_layout),
                         seed=70_000 + int(seed),
+                        impairment_profile=str(config.get("impairment_profile", "clean")),
                     )
                 )
                 start = env.reset_episode()
                 state = WindowedDiscreteOnlineState(
-                    cir=_estimate_cir_from_known_frame(start.acquisition, int(delay)).to(device),
+                    cir=estimate_acquisition_cir_for_profile(
+                        start.acquisition,
+                        int(delay),
+                        str(config.get("impairment_profile", "clean")),
+                    ).to(device),
                     receiver_state=ReceiverState(start.initial_soft_tail.to(device)),
                     model=model,
                     policy=policy,
@@ -184,10 +190,16 @@ def run_windowed_discrete_online(
                 )
                 for frame_index in range(1, int(frames) + 1):
                     frame = _frame_to_device(env.next_frame(), device)
+                    phase_features = estimate_phase_residual_vector(
+                        frame.receiver_view(),
+                        state.cir,
+                        state.receiver_state.soft_tail,
+                        blocks=4,
+                    )
                     row = run_windowed_discrete_frame(
                         state,
                         frame,
-                        condition_from_cir(state.cir, float(snr_db)),
+                        condition_from_cir(state.cir, float(snr_db), phase_features=phase_features),
                         float(snr_db),
                         frame_index,
                         update_interval,

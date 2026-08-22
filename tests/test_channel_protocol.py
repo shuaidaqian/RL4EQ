@@ -11,6 +11,7 @@ from env.channel_profiles import (
 )
 from env.extreme_delay_channel import ExtremeDelayChannel, ExtremeDelayChannelConfig
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
+from baseline.synchronization_compensation import unwrap_phase
 from env.frame_structure import FrameConfig, FrameGenerator
 
 
@@ -104,6 +105,94 @@ def test_channel_support_fixed_while_taps_evolve_slowly():
     assert channel.delays == delays
     assert torch.linalg.norm(first - second).item() > 0.0
     assert torch.linalg.norm(first - second).item() < 0.5
+
+
+def test_cfo_impairment_rotates_phase_continuously_across_frames():
+    """残余 CFO 必须按 episode 全局符号时钟连续旋转，不能每帧重置。"""
+
+    channel = ExtremeDelayChannel(
+        ExtremeDelayChannelConfig(
+            level="A",
+            max_delay=12,
+            snr_db=80.0,
+            rho=1.0,
+            seed=8100,
+            cfo_cycles_per_symbol=0.01,
+        )
+    )
+    warmup = torch.ones(12, dtype=torch.complex64)
+    symbols = torch.ones(32, dtype=torch.complex64)
+    channel.reset_episode(warmup)
+    first = channel.transmit(symbols, add_noise=False)
+    second = channel.transmit(symbols, add_noise=False)
+
+    combined = torch.cat((first, second))
+    phase = unwrap_phase(torch.angle(combined))
+    increments = phase[1:] - phase[:-1]
+    expected = torch.full_like(increments, 2.0 * torch.pi * 0.01)
+    assert torch.allclose(increments, expected, atol=2e-3)
+
+
+def test_phase_impairment_is_seed_reproducible_and_clean_default_unchanged():
+    """慢相位扰动必须可复现；默认 clean 配置不能改变既有线性信道行为。"""
+
+    symbols = torch.ones(64, dtype=torch.complex64)
+    warmup = torch.ones(12, dtype=torch.complex64)
+    clean_a = ExtremeDelayChannel(ExtremeDelayChannelConfig(level="A", max_delay=12, snr_db=80.0, rho=1.0, seed=8200))
+    clean_b = ExtremeDelayChannel(ExtremeDelayChannelConfig(level="A", max_delay=12, snr_db=80.0, rho=1.0, seed=8200))
+    clean_a.reset_episode(warmup)
+    clean_b.reset_episode(warmup)
+    assert torch.allclose(clean_a.transmit(symbols, add_noise=False), clean_b.transmit(symbols, add_noise=False))
+
+    impaired_a = ExtremeDelayChannel(
+        ExtremeDelayChannelConfig(
+            level="A",
+            max_delay=12,
+            snr_db=80.0,
+            rho=1.0,
+            seed=8300,
+            phase_noise_std=0.003,
+        )
+    )
+    impaired_b = ExtremeDelayChannel(
+        ExtremeDelayChannelConfig(
+            level="A",
+            max_delay=12,
+            snr_db=80.0,
+            rho=1.0,
+            seed=8300,
+            phase_noise_std=0.003,
+        )
+    )
+    impaired_c = ExtremeDelayChannel(
+        ExtremeDelayChannelConfig(
+            level="A",
+            max_delay=12,
+            snr_db=80.0,
+            rho=1.0,
+            seed=8301,
+            phase_noise_std=0.003,
+        )
+    )
+    for channel in (impaired_a, impaired_b, impaired_c):
+        channel.reset_episode(warmup)
+    out_a = impaired_a.transmit(symbols, add_noise=False)
+    out_b = impaired_b.transmit(symbols, add_noise=False)
+    out_c = impaired_c.transmit(symbols, add_noise=False)
+    assert torch.allclose(out_a, out_b)
+    assert not torch.allclose(out_a, out_c)
+
+
+def test_tiny_impairment_profiles_are_weaker_than_light_profiles():
+    from env.impairments import settings_from_profile
+
+    import numpy as np
+
+    tiny = settings_from_profile("cfo_phase_tiny", np.random.default_rng(9000))
+    light = settings_from_profile("cfo_phase_light", np.random.default_rng(9000))
+
+    assert abs(tiny.cfo_cycles_per_symbol) < abs(light.cfo_cycles_per_symbol)
+    assert tiny.phase_noise_std < light.phase_noise_std
 
 
 @pytest.mark.parametrize("total", [64, 96, 128, 160])

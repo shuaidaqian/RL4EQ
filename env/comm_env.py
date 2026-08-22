@@ -20,6 +20,9 @@ class CommEnvConfig:
     total_pilot: int = 128
     layout: str = "prefix"
     seed: int = 42
+    impairment_profile: str = "clean"
+    cfo_cycles_per_symbol: float = 0.0
+    phase_noise_std: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -52,6 +55,9 @@ class CommunicationEnvironment:
                 snr_db=config.snr_db,
                 rho=config.rho,
                 seed=config.seed,
+                impairment_profile=config.impairment_profile,
+                cfo_cycles_per_symbol=config.cfo_cycles_per_symbol,
+                phase_noise_std=config.phase_noise_std,
             )
         )
         self.frame_generator = FrameGenerator(

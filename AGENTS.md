@@ -10,13 +10,13 @@
 - 接收机是整帧缓冲、非因果块神经均衡器；在线适配按帧进行。
 - Proposed 方法是唯一使用神经网络和 RL 的方法。
 - RL 选择离散安全动作，调制神经均衡器 Adapter/FiLM/LoRA/head；同一动作作用于短窗口，reward 使用窗口级 Reward Pilot BER/loss 改善；不逐 bit 判决，不直接输出完整高维参数增量。
-- 传统 baseline 不使用神经网络，不使用 RL，只允许使用 acquisition/Adapt Pilot、接收信号和传统自适应规则。
+- 传统 baseline 不使用神经网络，不使用 RL，只允许使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须提供基于 Pilot 的合理补偿。
 - `Perfect-CSI Block` 与 `Fixed CG-BPSK-DD Block Detector` 只作为诊断参考，不作为主 baseline，不纳入主成功门槛。
 - Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真评估。
 - 在线 observation、reward、动作选择和调制更新不使用数据标签上界。
-- 正式目标为 proposed 在每个 Level B 主配置达到 `BER_data < 0.01`，并超过传统非神经、非 RL baseline。
+- 正式第一目标为 proposed 在 Level B 主配置逐配置明显超过传统非神经、非 RL baseline，并且优势随在线帧数增加而更明显；`BER_data < 0.01` 只作为辅助系统指标，不再作为第一门槛。
 - 不恢复旧 A2C、旧逐符号 PPO、Data Oracle、多载波、MIMO 或 RIS 路线。
-- CFO、额外相位扰动、非线性、信道编码和高阶调制只作为后续按需扩展开关；当前主实验默认关闭。
+- clean Level B 只作为 sanity check；主攻方向允许逐级加入 residual CFO 与慢相位扰动。非线性、信道编码和高阶调制只作为后续按需扩展，当前不进入主实验。
 - 代码入口以 `pretrain.py`、`online_train.py`、`compare.py`、`calibrate_channel.py` 和 `pytest` 为准。
 
 默认验证命令：

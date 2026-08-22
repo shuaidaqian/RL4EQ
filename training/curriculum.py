@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from agent.cir_estimator import CIRCondition, decision_directed_cir_update
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
+from baseline.traditional_equalizers import estimate_phase_residual_vector
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
 
 
@@ -60,6 +61,19 @@ def _pad_complex_1d(value: torch.Tensor, target_len: int) -> torch.Tensor:
     if vector.numel() > target:
         return vector[:target]
     return F.pad(vector, (0, target - vector.numel()))
+
+
+def _phase_feature_latent(phase_features: list[torch.Tensor], device: torch.device) -> torch.Tensor:
+    """构造 phase-aware conditioner latent。"""
+
+    batch_size = len(phase_features)
+    latent = torch.zeros(int(batch_size), 96, device=device, dtype=torch.float32)
+    if batch_size == 0:
+        return latent
+    features = torch.stack([item.reshape(-1).to(torch.float32) for item in phase_features], dim=0).to(device)
+    count = min(latent.shape[1], features.shape[1])
+    latent[:, :count] = features[:, :count]
+    return latent
 
 
 def _normalize_cir(cir: torch.Tensor) -> torch.Tensor:
@@ -254,7 +268,7 @@ class CurriculumTrainer:
             self.best_model_state_dict = self._snapshot_model_state()
 
     def _step_loss(self, phase: CurriculumPhase, batch_size: int) -> torch.Tensor:
-        from training.meta_training import _estimate_cir_from_known_frame
+        from training.meta_training import estimate_acquisition_cir_for_profile
 
         rx_iq_items = []
         bit_items = []
@@ -265,6 +279,7 @@ class CurriculumTrainer:
         reward_masks = []
         data_masks = []
         snr_items = []
+        phase_feature_items = []
         base_seed = int(self.config.get("curriculum_seed", 80_000))
         max_frame_offset = int(self.config.get("curriculum_max_frame_offset", 4))
         for _ in range(int(batch_size)):
@@ -282,6 +297,7 @@ class CurriculumTrainer:
                     total_pilot=int(phase.total_pilot),
                     layout=str(phase.layout),
                     seed=seed,
+                    impairment_profile=str(self.config.get("impairment_profile", "clean")),
                 )
             )
             start = env.reset_episode()
@@ -290,7 +306,11 @@ class CurriculumTrainer:
                 frame = env.next_frame()
             if frame is None:
                 raise RuntimeError("未能生成 curriculum 训练帧。")
-            acquisition_cir = _estimate_cir_from_known_frame(start.acquisition, int(max_delay))
+            acquisition_cir = estimate_acquisition_cir_for_profile(
+                start.acquisition,
+                int(max_delay),
+                str(self.config.get("impairment_profile", "clean")),
+            )
             selection = self._select_training_cir(
                 phase=phase,
                 frame=frame,
@@ -307,6 +327,7 @@ class CurriculumTrainer:
             region_items.append(frame.model_region_ids.long())
             tail_items.append(_pad_complex_1d(frame.tail_symbols.to(torch.complex64), int(self.model.config.max_delay)))
             cir_items.append(_pad_complex_1d(cir.to(torch.complex64), int(self.model.config.max_delay) + 1))
+            phase_feature_items.append(estimate_phase_residual_vector(frame.receiver_view(), cir, frame.tail_symbols, blocks=4))
             adapt_masks.append(frame.adapt_mask)
             reward_masks.append(frame.reward_mask)
             data_masks.append(frame.data_mask)
@@ -322,7 +343,7 @@ class CurriculumTrainer:
             support_probability=(power / power.sum(dim=1, keepdim=True).clamp_min(1e-8)).to(torch.float32),
             noise_variance=torch.tensor([10.0 ** (-snr / 10.0) for snr in snr_items], device=self.device, dtype=torch.float32),
             confidence=torch.ones(batch_size, device=self.device),
-            latent_residual=torch.zeros(batch_size, 96, device=self.device),
+            latent_residual=_phase_feature_latent(phase_feature_items, self.device),
         )
         logits, _ = self.model(rx_iq, condition, region_ids, soft_tail)
         adapt_mask = torch.stack(adapt_masks).to(self.device)
@@ -444,6 +465,7 @@ class CurriculumTrainer:
                             total_pilot=int(self.config.get("pilot_total", 128)),
                             layout=str(self.config.get("pilot_layout", "prefix")),
                             seed=10_000 + int(seed),
+                            impairment_profile=str(self.config.get("impairment_profile", "clean")),
                         )
                     )
                     start = env.reset_episode()
@@ -488,7 +510,7 @@ class CurriculumTrainer:
         这是训练是否有效的核心指标；强诊断检测器通过不代表神经模型已学会。
         """
 
-        from training.meta_training import _estimate_cir_from_known_frame
+        from training.meta_training import estimate_acquisition_cir_for_profile
 
         was_training = self.model.training
         self.model.eval()
@@ -521,10 +543,15 @@ class CurriculumTrainer:
                             total_pilot=int(item["pilot_total"]),
                             layout=str(item["pilot_layout"]),
                             seed=seed_base + int(seed),
+                            impairment_profile=str(item.get("impairment_profile", self.config.get("impairment_profile", "clean"))),
                         )
                     )
                     start = env.reset_episode()
-                    acquisition_cir = _estimate_cir_from_known_frame(start.acquisition, int(item["delay"]))
+                    acquisition_cir = estimate_acquisition_cir_for_profile(
+                        start.acquisition,
+                        int(item["delay"]),
+                        str(item.get("impairment_profile", self.config.get("impairment_profile", "clean"))),
+                    )
                     receiver_state = ReceiverState(start.initial_soft_tail.to(self.device).to(torch.complex64))
                     cir_state = acquisition_cir.to(self.device).to(torch.complex64)
                     for _ in range(frames_per_config):
@@ -542,12 +569,13 @@ class CurriculumTrainer:
                             soft_tail = frame.tail_symbols.unsqueeze(0).to(self.device).to(torch.complex64)
                         cir_b = cir.unsqueeze(0).to(self.device).to(torch.complex64)
                         power = cir_b.abs()
+                        phase_features = estimate_phase_residual_vector(frame.receiver_view(), cir, frame.tail_symbols, blocks=4)
                         condition = CIRCondition(
                             complex_cir=cir_b,
                             support_probability=(power / power.sum(dim=1, keepdim=True).clamp_min(1e-8)).to(torch.float32),
                             noise_variance=torch.full((1,), 10.0 ** (-float(item["snr_db"]) / 10.0), device=self.device),
                             confidence=torch.ones(1, device=self.device),
-                            latent_residual=torch.zeros(1, 96, device=self.device),
+                            latent_residual=_phase_feature_latent([phase_features], self.device),
                         )
                         logits, _ = self.model(rx_iq, condition, region_ids, soft_tail)
                         data_mask = frame.data_mask.to(self.device)

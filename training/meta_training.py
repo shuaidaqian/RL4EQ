@@ -331,11 +331,16 @@ def evaluate_best_fixed_level_b(
                             total_pilot=int(config.get("pilot_total", 128)),
                             layout=str(config.get("pilot_layout", "prefix")),
                             seed=20_000 + int(seed),
+                            impairment_profile=str(config.get("impairment_profile", "clean")),
                         )
                     )
                     start = env.reset_episode()
                     receiver_state = ReceiverState(start.initial_soft_tail)
-                    cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                    cir = estimate_acquisition_cir_for_profile(
+                        start.acquisition,
+                        int(delay),
+                        str(config.get("impairment_profile", "clean")),
+                    )
                     for _ in range(frames_per_config):
                         frame = env.next_frame()
                         result = perfect_csi_bpsk_refine_detect(
@@ -440,11 +445,16 @@ def evaluate_reward_data_alignment(
                             total_pilot=int(pilot_total or config.get("pilot_total", 128)),
                             layout=str(pilot_layout or config.get("pilot_layout", "prefix")),
                             seed=30_000 + int(seed),
+                            impairment_profile=str(config.get("impairment_profile", "clean")),
                         )
                     )
                     start = env.reset_episode()
                     receiver_state = ReceiverState(start.initial_soft_tail)
-                    cir = _estimate_cir_from_known_frame(start.acquisition, int(delay))
+                    cir = estimate_acquisition_cir_for_profile(
+                        start.acquisition,
+                        int(delay),
+                        str(config.get("impairment_profile", "clean")),
+                    )
                     for _ in range(frames_per_config):
                         frame = env.next_frame()
                         sigma = torch.tensor(10.0 ** (-float(snr_db) / 10.0))
@@ -520,6 +530,17 @@ def _estimate_cir_from_known_frame(frame: Frame, max_delay: int) -> torch.Tensor
     target = torch.stack(targets, dim=0)
     cir = torch.linalg.lstsq(design, target).solution.to(torch.complex64)
     return cir / torch.sqrt(torch.sum(torch.abs(cir) ** 2).clamp_min(1e-12))
+
+
+def estimate_acquisition_cir_for_profile(frame: Frame, max_delay: int, impairment_profile: str = "clean") -> torch.Tensor:
+    """按实验 profile 选择传统可见的 acquisition CIR 估计方式。"""
+
+    if str(impairment_profile) == "clean":
+        return _estimate_cir_from_known_frame(frame, int(max_delay))
+    from baseline.traditional_equalizers import estimate_acquisition_cir_with_cfo
+
+    cir, _ = estimate_acquisition_cir_with_cfo(frame, int(max_delay))
+    return cir
 
 
 def _masked_bce(logits: torch.Tensor, bits: torch.Tensor, mask: torch.Tensor) -> float:
