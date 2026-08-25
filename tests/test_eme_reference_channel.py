@@ -1,12 +1,15 @@
 import csv
 import json
+import math
 import sys
+import warnings
 from dataclasses import FrozenInstanceError, fields, is_dataclass
 from pathlib import Path
 from types import MappingProxyType
 
 import numpy as np
 import pytest
+import torch
 
 import env.eme_reference as eme_reference
 from env.eme_channel_profiles import (
@@ -19,6 +22,7 @@ from env.eme_reference import (
     load_evans_1965_envelope,
     physical_delay_samples,
 )
+from env.extreme_delay_channel import ExtremeDelayChannel, ExtremeDelayChannelConfig
 
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "eme"
@@ -423,6 +427,121 @@ def _profile_config(**changes):
     }
     payload.update(changes)
     return EMEChannelProfileConfig(**payload)
+
+
+def _eme_channel_config(**changes):
+    payload = {
+        "profile_name": "eme_measurement_v1",
+        "level": "B",
+        "sample_rate_hz": 2_000.0,
+        "symbol_rate_hz": 2_000.0,
+        "frame_len": 16,
+        "coherence_time_seconds": 120.0,
+        "strong_path_count": (3, 7),
+        "diffuse_energy_ratio": (0.05, 0.15),
+        "seed": 17,
+    }
+    payload.update(changes)
+    return ExtremeDelayChannelConfig(**payload)
+
+
+def test_eme_channel_config_derives_physical_time_scale_and_delay():
+    config = _eme_channel_config(frame_len=512)
+
+    assert config.samples_per_symbol == 1.0
+    assert config.max_delay == 24
+    assert config.frame_duration_seconds == pytest.approx(0.256)
+    assert config.rho_frame == pytest.approx(math.exp(-0.256 / 120.0))
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        "sample_rate_hz",
+        "symbol_rate_hz",
+        "frame_len",
+        "coherence_time_seconds",
+        "strong_path_count",
+        "diffuse_energy_ratio",
+    ],
+)
+def test_eme_channel_config_requires_complete_physical_candidates(missing_field):
+    with pytest.raises(ValueError, match=missing_field):
+        _eme_channel_config(**{missing_field: None})
+
+
+@pytest.mark.parametrize("coherence_time_seconds", [0.0, -1.0, np.nan, np.inf])
+def test_eme_channel_config_rejects_invalid_coherence_time(coherence_time_seconds):
+    with pytest.raises(ValueError, match="coherence_time_seconds.*正且有限"):
+        _eme_channel_config(coherence_time_seconds=coherence_time_seconds)
+
+
+def test_legacy_channel_config_keeps_explicit_delay_and_rho_defaults():
+    config = ExtremeDelayChannelConfig("B", 37, 10.0, 0.97, 23)
+
+    assert config.profile_name == "legacy_sparse_v1"
+    assert config.max_delay == 37
+    assert config.rho_frame == pytest.approx(0.97)
+    assert config.seed == 23
+
+
+def test_eme_channel_config_replaces_legacy_delay_and_rho_inputs():
+    config = _eme_channel_config(max_delay=0, rho=-1.0)
+
+    assert config.max_delay == 24
+    assert config.rho_frame == pytest.approx(math.exp(-0.008 / 120.0))
+
+
+def test_eme_full_cir_convolution_uses_diffuse_taps_and_cross_frame_history():
+    channel = ExtremeDelayChannel(_eme_channel_config())
+    channel.reset_episode(torch.zeros(24, dtype=torch.complex64))
+    strong_delays = set(channel.delays)
+
+    impulse_frame = torch.zeros(16, dtype=torch.complex64)
+    impulse_frame[-1] = 1.0 + 0.0j
+    channel.transmit(impulse_frame, add_noise=False)
+    second = channel.transmit(torch.zeros(32, dtype=torch.complex64), add_noise=False)
+    cir = channel.last_cir_used()
+
+    errors = torch.stack([torch.abs(second[delay - 1] - cir[delay]) for delay in range(1, 25)])
+    diffuse_delays = [delay for delay in range(1, 25) if delay not in strong_delays]
+    assert channel.max_delay == 24
+    assert torch.max(errors).item() < 1e-6
+    assert torch.allclose(second[24:], torch.zeros(8, dtype=torch.complex64), atol=1e-7)
+    assert diffuse_delays
+    assert torch.all(torch.abs(cir[diffuse_delays]) > 0.0)
+    assert torch.all(torch.abs(second[torch.as_tensor(diffuse_delays) - 1]) > 0.0)
+
+
+def test_eme_episode_keeps_full_support_fixed_while_taps_evolve_slowly():
+    channel = ExtremeDelayChannel(_eme_channel_config())
+    channel.reset_episode(torch.ones(24, dtype=torch.complex64))
+    strong_delays = channel.delays
+    diffuse_mask = channel._diffuse_mask.clone()
+    metadata = channel._profile_metadata
+    previous = channel.true_cir()
+    support = previous != 0
+
+    changes = []
+    for _ in range(4):
+        channel.transmit(torch.ones(16, dtype=torch.complex64), add_noise=False)
+        current = channel.true_cir()
+        assert channel.delays == strong_delays
+        assert torch.equal(current != 0, support)
+        assert torch.equal(channel._diffuse_mask, diffuse_mask)
+        changes.append(torch.linalg.norm(current - previous).item())
+        previous = current
+
+    assert metadata["modeling_ranges"]["strong_path_count"] == (3, 7)
+    assert all(0.0 < change < 0.1 for change in changes)
+
+
+def test_eme_channel_reset_copies_frozen_profile_arrays_without_warning():
+    channel = ExtremeDelayChannel(_eme_channel_config())
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        channel.reset_episode(torch.zeros(24, dtype=torch.complex64))
 
 
 def _effective_taps_90(cir):
