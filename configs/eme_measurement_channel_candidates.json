@@ -1,0 +1,75 @@
+{
+  "schema_version": "eme-measurement-channel-candidates-v1",
+  "traditional_only": true,
+  "proposed_methods_included": false,
+  "fixed": {
+    "profile_name": "eme_measurement_v1",
+    "level": "B",
+    "max_delay_seconds": 0.0116,
+    "sample_rate_hz": 2000,
+    "symbol_rate_hz": 2000,
+    "frame_len": 512,
+    "main_snrs": [0, 5, 10, 15],
+    "pilot_layout": "prefix",
+    "pilot_total": 128,
+    "sanity_impairment_profile": "clean"
+  },
+  "traditional_methods": [
+    "CFO+DD-Phase LMMSE-FIR",
+    "CFO+DD-Phase DFE-RLS"
+  ],
+  "selection_order": [
+    "physical_delay",
+    "support_stability",
+    "cross_frame_error",
+    "frame_lag_correlation",
+    "envelope_rmse",
+    "traditional_ber"
+  ],
+  "candidates": [
+    {
+      "candidate_id": "B-sanity",
+      "strong_path_count": [3, 5],
+      "diffuse_energy_ratio": [0.03, 0.08],
+      "coherence_time_seconds": 240,
+      "include_anomalous_scatterer": false,
+      "impairment_profile": "clean",
+      "residual_cfo_limit": 0.0012,
+      "aggregation_role": "sanity",
+      "semantics": "configured_modeling_candidates_not_direct_eme_measurements"
+    },
+    {
+      "candidate_id": "B-core",
+      "strong_path_count": [3, 7],
+      "diffuse_energy_ratio": [0.05, 0.15],
+      "coherence_time_seconds": 120,
+      "include_anomalous_scatterer": false,
+      "impairment_profile": "cfo_phase_tiny",
+      "residual_cfo_limit": 0.0012,
+      "aggregation_role": "main",
+      "semantics": "configured_modeling_candidates_not_direct_eme_measurements"
+    },
+    {
+      "candidate_id": "B-anomaly",
+      "strong_path_count": [3, 7],
+      "diffuse_energy_ratio": [0.05, 0.15],
+      "coherence_time_seconds": 120,
+      "include_anomalous_scatterer": true,
+      "impairment_profile": "cfo_phase_tiny",
+      "residual_cfo_limit": 0.0012,
+      "aggregation_role": "main",
+      "semantics": "configured_modeling_candidates_not_direct_eme_measurements"
+    },
+    {
+      "candidate_id": "B-upper",
+      "strong_path_count": [4, 7],
+      "diffuse_energy_ratio": [0.10, 0.20],
+      "coherence_time_seconds": 60,
+      "include_anomalous_scatterer": true,
+      "impairment_profile": "cfo_phase_tiny",
+      "residual_cfo_limit": 0.0012,
+      "aggregation_role": "main",
+      "semantics": "configured_modeling_candidates_not_direct_eme_measurements"
+    }
+  ]
+}

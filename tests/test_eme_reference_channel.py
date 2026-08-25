@@ -964,3 +964,188 @@ def test_profile_metadata_rejects_unknown_mutable_values():
         EMEChannelProfile(
             **_direct_profile_payload(metadata=metadata)
         )
+
+
+CALIBRATION_CONFIG_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "configs"
+    / "eme_measurement_channel_candidates.json"
+)
+CALIBRATION_SELECTION_ORDER = [
+    "physical_delay",
+    "support_stability",
+    "cross_frame_error",
+    "frame_lag_correlation",
+    "envelope_rmse",
+    "traditional_ber",
+]
+CALIBRATION_CANDIDATE_FIELDS = {
+    "candidate_id",
+    "strong_path_count",
+    "diffuse_energy_ratio",
+    "coherence_time_seconds",
+    "include_anomalous_scatterer",
+    "impairment_profile",
+    "residual_cfo_limit",
+    "aggregation_role",
+    "semantics",
+}
+
+
+def test_eme_measurement_candidate_config_freezes_main_contract_and_scan_fields():
+    config = json.loads(CALIBRATION_CONFIG_PATH.read_text(encoding="utf-8"))
+
+    assert config["schema_version"] == "eme-measurement-channel-candidates-v1"
+    assert config["traditional_only"] is True
+    assert config["proposed_methods_included"] is False
+    assert config["selection_order"] == CALIBRATION_SELECTION_ORDER
+    assert config["fixed"] == {
+        "profile_name": "eme_measurement_v1",
+        "level": "B",
+        "max_delay_seconds": 0.0116,
+        "sample_rate_hz": 2000,
+        "symbol_rate_hz": 2000,
+        "frame_len": 512,
+        "main_snrs": [0, 5, 10, 15],
+        "pilot_layout": "prefix",
+        "pilot_total": 128,
+        "sanity_impairment_profile": "clean",
+    }
+    assert 3 <= len(config["candidates"]) <= 4
+    assert all(set(candidate) == CALIBRATION_CANDIDATE_FIELDS for candidate in config["candidates"])
+    assert all(
+        candidate["semantics"]
+        == "configured_modeling_candidates_not_direct_eme_measurements"
+        for candidate in config["candidates"]
+    )
+    assert any(
+        candidate["impairment_profile"] == "clean"
+        and candidate["aggregation_role"] == "sanity"
+        for candidate in config["candidates"]
+    )
+    assert all(
+        candidate["aggregation_role"] != "main"
+        for candidate in config["candidates"]
+        if candidate["impairment_profile"] == "clean"
+    )
+    assert any(
+        candidate["impairment_profile"] == "cfo_phase_tiny"
+        and candidate["aggregation_role"] == "main"
+        for candidate in config["candidates"]
+    )
+    assert config["traditional_methods"] == [
+        "CFO+DD-Phase LMMSE-FIR",
+        "CFO+DD-Phase DFE-RLS",
+    ]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda config: config.update({"hidden_grid": True}),
+        lambda config: config["fixed"].update({"max_delay_seconds": 0.0100}),
+        lambda config: config["candidates"][0].update({"phase_noise_std": [0.0, 0.1]}),
+    ],
+)
+def test_eme_measurement_candidate_loader_strictly_rejects_schema_drift(
+    tmp_path, mutation
+):
+    from scripts.calibrate_eme_measurement_channel import load_candidate_config
+
+    config = json.loads(CALIBRATION_CONFIG_PATH.read_text(encoding="utf-8"))
+    mutation(config)
+    path = tmp_path / "invalid.json"
+    path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        load_candidate_config(path)
+
+
+def test_eme_measurement_calibration_smoke_is_traditional_only_and_writes_outputs(
+    tmp_path,
+):
+    from scripts.calibrate_eme_measurement_channel import run_calibration
+
+    candidate = {
+        "candidate_id": "B-smoke",
+        "strong_path_count": [3, 3],
+        "diffuse_energy_ratio": [0.05, 0.05],
+        "coherence_time_seconds": 120,
+        "include_anomalous_scatterer": False,
+        "impairment_profile": "cfo_phase_tiny",
+        "residual_cfo_limit": 0.0012,
+        "aggregation_role": "main",
+        "semantics": "configured_modeling_candidates_not_direct_eme_measurements",
+    }
+    fixed = {
+        "profile_name": "eme_measurement_v1",
+        "level": "B",
+        "max_delay_seconds": 0.0116,
+        "sample_rate_hz": 2000,
+        "symbol_rate_hz": 2000,
+        "frame_len": 128,
+        "main_snrs": [10],
+        "pilot_layout": "prefix",
+        "pilot_total": 64,
+        "sanity_impairment_profile": "clean",
+    }
+
+    payload = run_calibration(
+        [candidate],
+        seeds=[0, 1],
+        frames=4,
+        output_dir=tmp_path,
+        fixed=fixed,
+        traditional_methods=["CFO+DD-Phase LMMSE-FIR"],
+        snrs=[10],
+    )
+
+    assert payload["traditional_only"] is True
+    assert payload["proposed_methods_included"] is False
+    assert payload["uses_neural_network"] is False
+    assert payload["uses_rl"] is False
+    assert payload["uses_true_channel_for_statistics"] is True
+    assert payload["data_labels_used_for_adaptation"] is False
+    assert payload["max_delay_seconds"] == 0.0116
+    assert payload["selection_order"] == CALIBRATION_SELECTION_ORDER
+    assert len(payload["statistics"]) == 1
+    statistic = payload["statistics"][0]
+    assert {
+        "candidate_id",
+        "physical_delay_seconds",
+        "discrete_delay_samples",
+        "strong_path_count",
+        "strong_path_support",
+        "support_changed_frames",
+        "effective_taps_90",
+        "diffuse_energy_ratio",
+        "rho_frame_target",
+        "frame_lag_correlation",
+        "envelope_rmse_db",
+        "cross_frame_impulse_error",
+        "aggregation_role",
+    } <= set(statistic)
+    assert statistic["support_changed_frames"] == 0
+    assert statistic["cross_frame_impulse_error"] < 1e-6
+    assert len(payload["traditional_ber"]) == 1
+    baseline = payload["traditional_ber"][0]
+    assert baseline["candidate_id"] == "B-smoke"
+    assert baseline["method"] == "CFO+DD-Phase LMMSE-FIR"
+    assert baseline["snr_db"] == 10.0
+    assert 0.0 <= baseline["ber"] <= 1.0
+    assert baseline["bits"] > 0
+
+    expected_outputs = {
+        "summary.json",
+        "channel_statistics.csv",
+        "traditional_ber.csv",
+        "pdp_comparison.png",
+    }
+    assert expected_outputs <= {path.name for path in tmp_path.iterdir()}
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "calibrate_eme_measurement_channel.py"
+    ).read_text(encoding="utf-8")
+    assert "Proposed" not in source
+    assert "Proposed" not in (tmp_path / "summary.json").read_text(encoding="utf-8")
