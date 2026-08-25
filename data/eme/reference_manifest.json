@@ -13,7 +13,7 @@
     "y": "归一化对数回波功率（dB）"
   },
   "normalization": "两条曲线均在前沿（零时延）归一化为 0 dB",
-  "envelope_mapping": "digitized 锚点取 3.6 cm 与 68 cm 读数的较大值为 upper、较小值为 lower；support_extension 按端点延伸策略覆盖物理支撑",
+  "envelope_mapping": "digitized 锚点取 3.6 cm 与 68 cm 读数的较大值为 upper、较小值为 lower；support_extension 的 upper 按 hold_last_observed 保持最后一个 digitized 锚点的 -22.5 dB，下界按 right_censored 延伸至物理支撑边界",
   "digitization_date": "2026-08-25",
   "digitization_method": "人工数字化：仅适用于 point_kind=digitized 的 0 至 10 ms 行；从公开 PDF 的 Evans 1965 Fig. 8 选取少量可审计锚点，未对曲线进行高密度插值",
   "uncertainty": "digitized 行的人工读图不确定性来自原图线宽和扫描分辨率，功率值仅保留约 0.5 至 1 dB 精度；support_extension 行的 0.5 至 1 dB 读图精度不适用，其数值不是该时延处的精确测量",
@@ -22,7 +22,7 @@
     "delay_seconds": 0.0116,
     "upper": {
       "mode": "hold_last_observed",
-      "value_db": -23.0,
+      "value_db": -22.5,
       "observed": false
     },
     "lower": {

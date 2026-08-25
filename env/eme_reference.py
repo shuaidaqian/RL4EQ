@@ -30,6 +30,10 @@ _REQUIRED_CSV_COLUMNS = {
     "digitization_note",
 }
 _ALLOWED_POINT_KINDS = {"digitized", "support_extension"}
+_SOURCE_FIGURE_BY_POINT_KIND = {
+    "digitized": "Evans1965-Fig8",
+    "support_extension": "Evans1965-Text-SupportBoundary",
+}
 
 
 def _immutable_array(values: np.ndarray, dtype: np.dtype[Any]) -> np.ndarray:
@@ -168,6 +172,11 @@ class EMEEchoEnvelope:
             raise ValueError("端点策略类型无效。")
         if policy.kind != point_kind[-1] or not _is_close(policy.delay_seconds, delay[-1]):
             raise ValueError("端点策略与 CSV 末行的类型或时延不一致。")
+        last_observed_upper = upper[np.flatnonzero(observed_mask)[-1]]
+        if not _is_close(policy.upper.value_db, last_observed_upper):
+            raise ValueError(
+                "manifest hold_last_observed 值必须与最后一个观测点的上包络一致。"
+            )
         if not _is_close(policy.upper.value_db, upper[-1]):
             raise ValueError("端点策略与 CSV 末行的上包络功率不一致。")
         if not _is_close(policy.lower.censoring_limit_db, lower[-1]):
@@ -213,6 +222,12 @@ def _load_csv_rows(envelope_path: Path) -> list[dict[str, str]]:
     ]
     if extension_indices != [len(rows) - 1]:
         raise ValueError("CSV support_extension 必须唯一且位于末行。")
+    for row_number, row in enumerate(rows, start=2):
+        expected_source_figure = _SOURCE_FIGURE_BY_POINT_KIND[row["point_kind"]]
+        if row["source_figure"] != expected_source_figure:
+            raise ValueError(
+                f"CSV 第 {row_number} 行 source_figure 必须为 {expected_source_figure}。"
+            )
     return rows
 
 

@@ -19,7 +19,7 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "eme"
 VALID_CSV_TEXT = """delay_ms,power_db_3p6cm,power_db_68cm,point_kind,source_figure,digitization_note
 0.0,0.0,0.0,digitized,Evans1965-Fig8,前沿归一化
 10.0,-22.5,-35.0,digitized,Evans1965-Fig8,人工读图锚点
-11.6,-23.0,-40.0,support_extension,Evans1965-Text-SupportBoundary,物理支撑延伸
+11.6,-22.5,-40.0,support_extension,Evans1965-Text-SupportBoundary,物理支撑延伸
 """
 
 
@@ -33,7 +33,7 @@ def _valid_manifest():
             "delay_seconds": 0.0116,
             "upper": {
                 "mode": "hold_last_observed",
-                "value_db": -23.0,
+                "value_db": -22.5,
                 "observed": False,
             },
             "lower": {
@@ -200,8 +200,11 @@ def test_reference_csv_distinguishes_digitized_points_from_support_extension():
     assert rows[-1]["point_kind"] == "support_extension"
     assert {row["source_figure"] for row in rows[:-1]} == {"Evans1965-Fig8"}
     assert rows[-1]["source_figure"] == "Evans1965-Text-SupportBoundary"
-    assert rows[-1]["digitization_note"] == "论文正文给出的物理雷达深度边界，非 Fig.8 定量读图"
-    assert float(rows[-1]["power_db_3p6cm"]) == -23.0
+    assert rows[-1]["digitization_note"] == (
+        "论文正文给出的物理雷达深度边界；3.6 cm 上包络保持最后观测值 "
+        "-22.5 dB，非 Fig.8 定量读图"
+    )
+    assert float(rows[-1]["power_db_3p6cm"]) == -22.5
     assert float(rows[-1]["power_db_68cm"]) == -40.0
 
 
@@ -236,7 +239,9 @@ def test_loaded_reference_preserves_observation_and_endpoint_policy_metadata():
     assert policy.kind == "support_extension"
     assert policy.delay_seconds == 0.0116
     assert policy.upper.mode == "hold_last_observed"
-    assert policy.upper.value_db == -23.0
+    assert envelope.upper_power_db[-2] == -22.5
+    assert envelope.upper_power_db[-1] == -22.5
+    assert policy.upper.value_db == -22.5
     assert policy.upper.observed is False
     assert policy.lower.mode == "right_censored"
     assert policy.lower.censoring_limit_db == -40.0
@@ -274,6 +279,40 @@ def test_loader_rejects_missing_or_duplicate_csv_columns(tmp_path, header):
 def test_loader_rejects_invalid_support_extension_layout(tmp_path, malformed_csv):
     with pytest.raises(ValueError, match="point_kind|support_extension"):
         _load_fixture(tmp_path, csv_text=malformed_csv)
+
+
+@pytest.mark.parametrize(
+    "malformed_csv",
+    [
+        VALID_CSV_TEXT.replace(
+            "digitized,Evans1965-Fig8",
+            "digitized,Evans1965-Text-SupportBoundary",
+            1,
+        ),
+        VALID_CSV_TEXT.replace(
+            "support_extension,Evans1965-Text-SupportBoundary",
+            "support_extension,Evans1965-Fig8",
+            1,
+        ),
+    ],
+)
+def test_loader_rejects_point_kind_source_figure_mismatch(tmp_path, malformed_csv):
+    with pytest.raises(ValueError, match="source_figure"):
+        _load_fixture(tmp_path, csv_text=malformed_csv)
+
+
+def test_loader_rejects_hold_last_observed_value_different_from_observed_upper(
+    tmp_path,
+):
+    manifest = _valid_manifest()
+    manifest["endpoint_extension_policy"]["upper"]["value_db"] = -23.0
+    malformed_csv = VALID_CSV_TEXT.replace(
+        "11.6,-22.5,-40.0",
+        "11.6,-23.0,-40.0",
+    )
+
+    with pytest.raises(ValueError, match="hold_last_observed"):
+        _load_fixture(tmp_path, csv_text=malformed_csv, manifest=manifest)
 
 
 @pytest.mark.parametrize(
