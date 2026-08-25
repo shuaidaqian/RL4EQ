@@ -258,6 +258,8 @@ class ExtremeDelayChannel:
         self._current_cir = self._normalize_cir(next_cir)
 
     def _evolve_eme_taps(self) -> None:
+        """按物理复增益递推；瞬时总功率允许波动，长期期望由基准 tap 功率约束。"""
+
         rho = self.config.rho_frame
         if rho >= 1.0:
             return
@@ -270,7 +272,7 @@ class ExtremeDelayChannel:
         updated = rho * current + math.sqrt(max(0.0, 1.0 - rho**2)) * innovation
         next_cir = torch.zeros_like(self._current_cir)
         next_cir[support] = updated
-        self._current_cir = self._normalize_cir(next_cir)
+        self._current_cir = next_cir
 
     @staticmethod
     def _normalize_cir(cir: torch.Tensor) -> torch.Tensor:

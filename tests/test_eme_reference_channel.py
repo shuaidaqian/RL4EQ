@@ -536,6 +536,34 @@ def test_eme_episode_keeps_full_support_fixed_while_taps_evolve_slowly():
     assert all(0.0 < change < 0.1 for change in changes)
 
 
+def test_eme_tap_evolution_matches_exact_complex_gauss_markov_recursion():
+    channel = ExtremeDelayChannel(_eme_channel_config())
+    channel.reset_episode(torch.ones(24, dtype=torch.complex64))
+    current = channel.true_cir()
+    base = channel._base_cir.clone()
+    support = base != 0
+    rng_state = channel._torch_rng.get_state().clone()
+
+    independent_rng = torch.Generator(device="cpu")
+    independent_rng.set_state(rng_state)
+    support_size = int(support.sum().item())
+    real = torch.randn(support_size, generator=independent_rng) / np.sqrt(2.0)
+    imag = torch.randn(support_size, generator=independent_rng) / np.sqrt(2.0)
+    innovation = torch.complex(real, imag).to(torch.complex64) * torch.abs(base[support])
+    rho = channel.config.rho_frame
+    expected = torch.zeros_like(current)
+    expected[support] = (
+        rho * current[support]
+        + math.sqrt(1.0 - rho**2) * innovation
+    )
+
+    channel.transmit(torch.ones(16, dtype=torch.complex64), add_noise=False)
+    evolved = channel.true_cir()
+
+    assert torch.equal(evolved != 0, support)
+    torch.testing.assert_close(evolved, expected, rtol=1e-6, atol=1e-7)
+
+
 def test_eme_channel_reset_copies_frozen_profile_arrays_without_warning():
     channel = ExtremeDelayChannel(_eme_channel_config())
 
