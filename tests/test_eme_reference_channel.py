@@ -971,6 +971,17 @@ CALIBRATION_CONFIG_PATH = (
     / "configs"
     / "eme_measurement_channel_candidates.json"
 )
+FROZEN_CONFIG_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "configs"
+    / "continual_ppo_eme_measurement_v1.json"
+)
+CALIBRATION_SUMMARY_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "logs"
+    / "eme_measurement_channel_calibration_2026-08-26"
+    / "summary.json"
+)
 CALIBRATION_SELECTION_ORDER = [
     "physical_delay",
     "support_stability",
@@ -990,6 +1001,116 @@ CALIBRATION_CANDIDATE_FIELDS = {
     "aggregation_role",
     "semantics",
 }
+
+
+def test_eme_measurement_frozen_config_matches_b_core_and_physical_contract():
+    from training.curriculum import load_config
+
+    config = load_config(FROZEN_CONFIG_PATH)
+    candidates = json.loads(CALIBRATION_CONFIG_PATH.read_text(encoding="utf-8"))
+    core = next(
+        candidate
+        for candidate in candidates["candidates"]
+        if candidate["candidate_id"] == "B-core"
+    )
+
+    assert config["schema_version"] == "continual-ppo-eme-measurement-config-v1"
+    assert config["channel_profile"] == "eme_measurement_v1"
+    assert config["profile_name"] == "eme_measurement_v1"
+    assert config["profile_frozen_before_proposed"] is True
+    assert config["frozen_candidate_id"] == "B-core"
+    assert config["traditional_only_calibration"] is True
+    assert config["proposed_results_used_for_freeze"] is False
+    assert {
+        field_name: config[field_name]
+        for field_name in CALIBRATION_CANDIDATE_FIELDS
+    } == core
+    assert config["level"] == config["main_level"] == "B"
+    assert config["aggregation_role"] == "main"
+    assert config["max_delay_seconds"] == pytest.approx(0.0116)
+    assert config["sample_rate_hz"] == config["symbol_rate_hz"] == 2000
+    assert config["samples_per_symbol"] == 1
+    assert config["frame_len"] == config["model"]["frame_len"] == 512
+    assert config["max_delay"] == config["model"]["max_delay"] == 24
+    assert config["main_delays"] == [24]
+    assert config["main_snrs"] == config["snrs_main"] == [0, 5, 10, 15]
+    assert config["pilot_layout"] == "prefix"
+    assert config["pilot_total"] == 128
+    assert config["rho_frame"] == pytest.approx(math.exp(-0.256 / 120.0))
+    assert config["rho"] == pytest.approx(config["rho_frame"])
+    assert config["traditional_methods"] == candidates["traditional_methods"]
+    assert config["eme_physical_fields_passthrough"] == "not_implemented"
+
+
+def test_eme_measurement_frozen_config_excludes_non_main_profiles_from_main_average():
+    config = json.loads(FROZEN_CONFIG_PATH.read_text(encoding="utf-8"))
+    profiles = config["evaluation_profiles"]
+
+    assert profiles == {
+        "main": {
+            "candidate_id": "B-core",
+            "level": "B",
+            "aggregation_role": "main",
+            "include_in_level_b_main_average": True,
+        },
+        "sanity": {
+            "candidate_id": "B-sanity",
+            "level": "B",
+            "aggregation_role": "sanity",
+            "include_in_level_b_main_average": False,
+        },
+        "diagnostic": {
+            "candidate_id": "B-anomaly",
+            "level": "B",
+            "aggregation_role": "diagnostic",
+            "include_in_level_b_main_average": False,
+        },
+        "pressure": {
+            "candidate_id": "B-upper",
+            "level": "C",
+            "aggregation_role": "pressure",
+            "include_in_level_b_main_average": False,
+        },
+    }
+
+
+def test_eme_measurement_freeze_evidence_contains_no_proposed_results():
+    config = json.loads(FROZEN_CONFIG_PATH.read_text(encoding="utf-8"))
+    summary = json.loads(CALIBRATION_SUMMARY_PATH.read_text(encoding="utf-8"))
+    allowed_methods = {
+        "CFO+DD-Phase LMMSE-FIR",
+        "CFO+DD-Phase DFE-RLS",
+    }
+
+    assert config["calibration_evidence"] == {
+        "summary_path": (
+            "logs/eme_measurement_channel_calibration_2026-08-26/summary.json"
+        ),
+        "seeds": [0, 1, 2, 3, 4],
+        "frames_per_seed": 100,
+        "snrs_db": [0, 5, 10, 15],
+        "traditional_methods": [
+            "CFO+DD-Phase LMMSE-FIR",
+            "CFO+DD-Phase DFE-RLS",
+        ],
+    }
+    assert summary["traditional_only"] is True
+    assert summary["proposed_methods_included"] is False
+    assert summary["uses_neural_network"] is False
+    assert summary["uses_rl"] is False
+    assert summary["data_labels_used_for_adaptation"] is False
+    assert summary["seeds"] == [0, 1, 2, 3, 4]
+    assert summary["frames"] == 100
+    assert summary["snrs"] == [0.0, 5.0, 10.0, 15.0]
+    assert set(summary["traditional_methods"]) == allowed_methods
+    assert len(summary["traditional_ber"]) == 4 * 4 * 2
+    assert {
+        row["method"] for row in summary["traditional_ber"]
+    } == allowed_methods
+    assert all(
+        row["uses_neural_network"] is False and row["uses_rl"] is False
+        for row in summary["traditional_ber"]
+    )
 
 
 def test_eme_measurement_candidate_config_freezes_main_contract_and_scan_fields():

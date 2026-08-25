@@ -1,0 +1,107 @@
+{
+  "schema_version": "continual-ppo-eme-measurement-config-v1",
+  "channel_profile": "eme_measurement_v1",
+  "profile_name": "eme_measurement_v1",
+  "profile_frozen_before_proposed": true,
+  "frozen_candidate_id": "B-core",
+  "traditional_only_calibration": true,
+  "proposed_results_used_for_freeze": false,
+  "calibration_evidence": {
+    "summary_path": "logs/eme_measurement_channel_calibration_2026-08-26/summary.json",
+    "seeds": [0, 1, 2, 3, 4],
+    "frames_per_seed": 100,
+    "snrs_db": [0, 5, 10, 15],
+    "traditional_methods": [
+      "CFO+DD-Phase LMMSE-FIR",
+      "CFO+DD-Phase DFE-RLS"
+    ]
+  },
+  "candidate_id": "B-core",
+  "level": "B",
+  "main_level": "B",
+  "aggregation_role": "main",
+  "semantics": "configured_modeling_candidates_not_direct_eme_measurements",
+  "max_delay_seconds": 0.0116,
+  "sample_rate_hz": 2000,
+  "symbol_rate_hz": 2000,
+  "samples_per_symbol": 1,
+  "frame_len": 512,
+  "frame_duration_seconds": 0.256,
+  "max_delay": 24,
+  "main_delays": [24],
+  "main_snrs": [0, 5, 10, 15],
+  "snrs_main": [0, 5, 10, 15],
+  "snrs_pressure": [0, 5, 10, 15],
+  "pilot_layout": "prefix",
+  "pilot_total": 128,
+  "pilot_sweep_totals": [64, 96, 128, 160],
+  "pilot_sweep_layout": "prefix",
+  "strong_path_count": [3, 7],
+  "diffuse_energy_ratio": [0.05, 0.15],
+  "coherence_time_seconds": 120,
+  "rho_frame": 0.997868940604912,
+  "rho": 0.997868940604912,
+  "include_anomalous_scatterer": false,
+  "impairment_profile": "cfo_phase_tiny",
+  "residual_cfo_limit": 0.0012,
+  "traditional_methods": [
+    "CFO+DD-Phase LMMSE-FIR",
+    "CFO+DD-Phase DFE-RLS"
+  ],
+  "evaluation_profiles": {
+    "main": {
+      "candidate_id": "B-core",
+      "level": "B",
+      "aggregation_role": "main",
+      "include_in_level_b_main_average": true
+    },
+    "sanity": {
+      "candidate_id": "B-sanity",
+      "level": "B",
+      "aggregation_role": "sanity",
+      "include_in_level_b_main_average": false
+    },
+    "diagnostic": {
+      "candidate_id": "B-anomaly",
+      "level": "B",
+      "aggregation_role": "diagnostic",
+      "include_in_level_b_main_average": false
+    },
+    "pressure": {
+      "candidate_id": "B-upper",
+      "level": "C",
+      "aggregation_role": "pressure",
+      "include_in_level_b_main_average": false
+    }
+  },
+  "eme_physical_fields_passthrough": "not_implemented",
+  "optional_impairments": {
+    "cfo": true,
+    "phase_perturbation": true,
+    "nonlinearity": false,
+    "coding": false,
+    "higher_order_modulation": false
+  },
+  "curriculum_max_frame_offset": 4,
+  "cir_condition_augmentation": {
+    "enabled": true,
+    "modes": ["true", "acquisition", "noisy", "dd_like"],
+    "noise_std": 0.05,
+    "dd_flip_probability": 0.02,
+    "dd_blend_alpha": 0.2
+  },
+  "ppo_window_size": 8,
+  "learning_rate": 0.0001,
+  "model": {
+    "frame_len": 512,
+    "max_delay": 24,
+    "iterations": 4,
+    "d_model": 96,
+    "num_heads": 4,
+    "adapter_rank": 8,
+    "lora_rank": 8,
+    "enable_phase_correction_branch": true,
+    "phase_correction_segments": 4,
+    "phase_correction_initial_scale": 0.0
+  }
+}
