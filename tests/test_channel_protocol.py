@@ -290,6 +290,34 @@ def test_eme_environment_forwards_frame_length_and_uses_physical_tail():
     assert torch.equal(frame.tail_symbols, start.acquisition.tx_symbols[-24:])
 
 
+def test_eme_environment_retains_full_history_when_delay_exceeds_frame_length():
+    env = CommunicationEnvironment(
+        _eme_env_config(
+            sample_rate_hz=10_000.0,
+            symbol_rate_hz=10_000.0,
+            frame_len=80,
+        )
+    )
+    assert env.channel.max_delay == 116
+
+    start = env.reset_episode()
+    expected_initial = torch.cat(
+        (start.warmup_symbols, start.acquisition.tx_symbols)
+    )[-116:]
+
+    assert start.initial_soft_tail.shape == (116,)
+    assert torch.equal(start.initial_soft_tail, expected_initial)
+
+    first = env.next_frame()
+    assert first.tail_symbols.shape == (116,)
+    assert torch.equal(first.tail_symbols, expected_initial)
+
+    expected_after_first = torch.cat((expected_initial, first.tx_symbols))[-116:]
+    second = env.next_frame()
+    assert second.tail_symbols.shape == (116,)
+    assert torch.equal(second.tail_symbols, expected_after_first)
+
+
 def test_eme_environment_requires_prefix_but_legacy_keeps_diagnostic_layouts():
     with pytest.raises(ValueError, match="eme_measurement_v1.*prefix"):
         _eme_env_config(layout="two_block")

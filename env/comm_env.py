@@ -115,7 +115,7 @@ class CommunicationEnvironment:
         acquisition = acquisition.with_channel_output(
             rx, warmup[-tail_length:], self.channel.last_cir_used()
         )
-        self._last_tail = acquisition.tx_symbols[-tail_length:].clone()
+        self._last_tail = torch.cat((warmup, acquisition.tx_symbols))[-tail_length:].clone()
         self._frame_index = 0
         return EpisodeStart(
             warmup_symbols=warmup,
@@ -128,7 +128,7 @@ class CommunicationEnvironment:
         tail = self._last_tail.clone()
         rx = self.channel.transmit(frame.tx_symbols, add_noise=True)
         received = frame.with_channel_output(rx, tail, self.channel.last_cir_used())
-        self._last_tail = frame.tx_symbols[-self.channel.max_delay :].clone()
+        self._last_tail = torch.cat((tail, frame.tx_symbols))[-self.channel.max_delay :].clone()
         self._frame_index += 1
         return received
 
