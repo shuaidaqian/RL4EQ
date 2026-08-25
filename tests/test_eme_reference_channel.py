@@ -1,6 +1,8 @@
 import csv
+import hashlib
 import json
 import math
+import subprocess
 import sys
 import warnings
 from dataclasses import FrozenInstanceError, fields, is_dataclass
@@ -978,9 +980,24 @@ FROZEN_CONFIG_PATH = (
 )
 CALIBRATION_SUMMARY_PATH = (
     Path(__file__).resolve().parents[1]
+    / "data"
+    / "eme"
+    / "calibration"
+    / "eme_measurement_channel_calibration_2026-08-26"
+    / "summary.json"
+)
+CALIBRATION_SOURCE_SUMMARY_PATH = (
+    Path(__file__).resolve().parents[1]
     / "logs"
     / "eme_measurement_channel_calibration_2026-08-26"
     / "summary.json"
+)
+CALIBRATION_SUMMARY_RELATIVE_PATH = (
+    "data/eme/calibration/"
+    "eme_measurement_channel_calibration_2026-08-26/summary.json"
+)
+CALIBRATION_SUMMARY_SHA256 = (
+    "db174fa0d988ae24c2e2109ed6385f8baf56db5701328d573afcd603e0bd3961"
 )
 CALIBRATION_SELECTION_ORDER = [
     "physical_delay",
@@ -1074,6 +1091,34 @@ def test_eme_measurement_frozen_config_excludes_non_main_profiles_from_main_aver
     }
 
 
+def test_eme_measurement_freeze_evidence_is_versioned_and_not_ignored():
+    repository_root = Path(__file__).resolve().parents[1]
+    config = json.loads(FROZEN_CONFIG_PATH.read_text(encoding="utf-8"))
+    evidence = config["calibration_evidence"]
+
+    assert evidence["summary_path"] == CALIBRATION_SUMMARY_RELATIVE_PATH
+    assert evidence["summary_sha256"] == CALIBRATION_SUMMARY_SHA256
+    assert CALIBRATION_SUMMARY_PATH.is_file()
+    versioned_bytes = CALIBRATION_SUMMARY_PATH.read_bytes()
+    assert hashlib.sha256(versioned_bytes).hexdigest() == CALIBRATION_SUMMARY_SHA256
+
+    check_ignore = subprocess.run(
+        ["git", "check-ignore", "--quiet", "--", CALIBRATION_SUMMARY_RELATIVE_PATH],
+        cwd=repository_root,
+        check=False,
+    )
+    assert check_ignore.returncode == 1
+
+
+def test_eme_measurement_versioned_evidence_matches_local_source_when_available():
+    versioned_bytes = CALIBRATION_SUMMARY_PATH.read_bytes()
+
+    if CALIBRATION_SOURCE_SUMMARY_PATH.is_file():
+        source_bytes = CALIBRATION_SOURCE_SUMMARY_PATH.read_bytes()
+        assert versioned_bytes == source_bytes
+        assert hashlib.sha256(source_bytes).hexdigest() == CALIBRATION_SUMMARY_SHA256
+
+
 def test_eme_measurement_freeze_evidence_contains_no_proposed_results():
     config = json.loads(FROZEN_CONFIG_PATH.read_text(encoding="utf-8"))
     summary = json.loads(CALIBRATION_SUMMARY_PATH.read_text(encoding="utf-8"))
@@ -1083,9 +1128,8 @@ def test_eme_measurement_freeze_evidence_contains_no_proposed_results():
     }
 
     assert config["calibration_evidence"] == {
-        "summary_path": (
-            "logs/eme_measurement_channel_calibration_2026-08-26/summary.json"
-        ),
+        "summary_path": CALIBRATION_SUMMARY_RELATIVE_PATH,
+        "summary_sha256": CALIBRATION_SUMMARY_SHA256,
         "seeds": [0, 1, 2, 3, 4],
         "frames_per_seed": 100,
         "snrs_db": [0, 5, 10, 15],

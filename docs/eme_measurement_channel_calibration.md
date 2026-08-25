@@ -8,7 +8,9 @@
 
 ## 证据来源与数字化边界
 
-- 冻结证据：`logs/eme_measurement_channel_calibration_2026-08-26/summary.json`。
+- 受版本控制的正式冻结证据：`data/eme/calibration/eme_measurement_channel_calibration_2026-08-26/summary.json`。
+- 该文件从本地校准产物 `logs/eme_measurement_channel_calibration_2026-08-26/summary.json` 机械复制；冻结时两者均为 18061 byte 且逐字节一致。正式证据不依赖被 `.gitignore` 排除的 `logs/` 目录。
+- 正式冻结证据 SHA-256：`db174fa0d988ae24c2e2109ed6385f8baf56db5701328d573afcd603e0bd3961`。
 - 候选定义：`configs/eme_measurement_channel_candidates.json`。
 - 外部物理约束：Evans 1965，DOI `10.6028/jres.069d.195`，Fig. 8；仓库内数字化数据为 `data/eme/evans_1965_fig8_envelope.csv`，来源清单为 `data/eme/reference_manifest.json`。
 - Fig. 8 只被人工数字化为稀疏的归一化回波上下包络锚点。11.6 ms 端点是论文正文给出的物理雷达深度支撑边界，不是 Fig. 8 的额外定量观测点；3.6 cm 上包络在端点保持最后观测值 -22.5 dB，68 cm 下包络在 -40 dB 处按右删失处理。
@@ -65,7 +67,7 @@
 
 ## 完整传统 BER
 
-以下数值由 `summary.json` 程序化读取后转录；每行均为 192000 个 Data bit。
+以下数值由受版本控制的 `summary.json` 程序化读取后转录；每行均为 192000 个 Data bit。
 
 | 候选 | SNR/dB | CFO+DD-Phase LMMSE-FIR | CFO+DD-Phase DFE-RLS |
 |---|---:|---:|---:|

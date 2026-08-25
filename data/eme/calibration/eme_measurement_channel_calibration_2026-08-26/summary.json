@@ -1,0 +1,734 @@
+{
+  "schema_version": "eme-measurement-channel-calibration-v1",
+  "traditional_only": true,
+  "proposed_methods_included": false,
+  "uses_neural_network": false,
+  "uses_rl": false,
+  "uses_true_channel_for_statistics": true,
+  "data_labels_used_for_adaptation": false,
+  "max_delay_seconds": 0.0116,
+  "selection_order": [
+    "physical_delay",
+    "support_stability",
+    "cross_frame_error",
+    "frame_lag_correlation",
+    "envelope_rmse",
+    "traditional_ber"
+  ],
+  "range_semantics": "configured_modeling_candidates_not_direct_eme_measurements",
+  "fixed": {
+    "profile_name": "eme_measurement_v1",
+    "level": "B",
+    "max_delay_seconds": 0.0116,
+    "sample_rate_hz": 2000,
+    "symbol_rate_hz": 2000,
+    "frame_len": 512,
+    "main_snrs": [
+      0.0,
+      5.0,
+      10.0,
+      15.0
+    ],
+    "pilot_layout": "prefix",
+    "pilot_total": 128,
+    "sanity_impairment_profile": "clean"
+  },
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "frames": 100,
+  "snrs": [
+    0.0,
+    5.0,
+    10.0,
+    15.0
+  ],
+  "traditional_methods": [
+    "CFO+DD-Phase LMMSE-FIR",
+    "CFO+DD-Phase DFE-RLS"
+  ],
+  "statistics": [
+    {
+      "candidate_id": "B-sanity",
+      "physical_delay_seconds": 0.0116,
+      "discrete_delay_samples": 24,
+      "strong_path_count": 4.8,
+      "strong_path_count_observed_range": [
+        4,
+        5
+      ],
+      "strong_path_support": [
+        {
+          "seed": 0,
+          "delays": [
+            0,
+            1,
+            7,
+            17,
+            21
+          ]
+        },
+        {
+          "seed": 1,
+          "delays": [
+            0,
+            1,
+            15,
+            24
+          ]
+        },
+        {
+          "seed": 2,
+          "delays": [
+            0,
+            1,
+            3,
+            7,
+            21
+          ]
+        },
+        {
+          "seed": 3,
+          "delays": [
+            0,
+            1,
+            3,
+            7,
+            20
+          ]
+        },
+        {
+          "seed": 4,
+          "delays": [
+            0,
+            1,
+            3,
+            21,
+            23
+          ]
+        }
+      ],
+      "support_changed_frames": 0,
+      "effective_taps_90": 2.572,
+      "diffuse_energy_ratio": 0.0560323001787064,
+      "rho_frame_target": 0.9989339020200045,
+      "frame_lag_correlation": {
+        "real": 0.9991482510711207,
+        "imag": 0.0029323902486243186,
+        "magnitude": 0.9991525541833186
+      },
+      "envelope_rmse_db": 4.48947704604726,
+      "cross_frame_impulse_error": 0.0,
+      "aggregation_role": "sanity",
+      "uses_true_channel_for_statistics": true,
+      "semantics": "configured_modeling_candidates_not_direct_eme_measurements"
+    },
+    {
+      "candidate_id": "B-core",
+      "physical_delay_seconds": 0.0116,
+      "discrete_delay_samples": 24,
+      "strong_path_count": 6.4,
+      "strong_path_count_observed_range": [
+        5,
+        7
+      ],
+      "strong_path_support": [
+        {
+          "seed": 0,
+          "delays": [
+            0,
+            1,
+            3,
+            7,
+            10,
+            13,
+            21
+          ]
+        },
+        {
+          "seed": 1,
+          "delays": [
+            0,
+            1,
+            4,
+            15,
+            24
+          ]
+        },
+        {
+          "seed": 2,
+          "delays": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            7,
+            21
+          ]
+        },
+        {
+          "seed": 3,
+          "delays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            7,
+            20
+          ]
+        },
+        {
+          "seed": 4,
+          "delays": [
+            0,
+            1,
+            3,
+            11,
+            21,
+            23
+          ]
+        }
+      ],
+      "support_changed_frames": 0,
+      "effective_taps_90": 4.25,
+      "diffuse_energy_ratio": 0.16207804655363003,
+      "rho_frame_target": 0.997868940604912,
+      "frame_lag_correlation": {
+        "real": 0.9978592508971089,
+        "imag": 0.0002117593111479161,
+        "magnitude": 0.9978592733662124
+      },
+      "envelope_rmse_db": 1.9829712780026398,
+      "cross_frame_impulse_error": 0.0,
+      "aggregation_role": "main",
+      "uses_true_channel_for_statistics": true,
+      "semantics": "configured_modeling_candidates_not_direct_eme_measurements"
+    },
+    {
+      "candidate_id": "B-anomaly",
+      "physical_delay_seconds": 0.0116,
+      "discrete_delay_samples": 24,
+      "strong_path_count": 6.4,
+      "strong_path_count_observed_range": [
+        5,
+        7
+      ],
+      "strong_path_support": [
+        {
+          "seed": 0,
+          "delays": [
+            0,
+            1,
+            3,
+            7,
+            10,
+            13,
+            21
+          ]
+        },
+        {
+          "seed": 1,
+          "delays": [
+            0,
+            1,
+            4,
+            15,
+            24
+          ]
+        },
+        {
+          "seed": 2,
+          "delays": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            7,
+            21
+          ]
+        },
+        {
+          "seed": 3,
+          "delays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            7,
+            20
+          ]
+        },
+        {
+          "seed": 4,
+          "delays": [
+            0,
+            1,
+            3,
+            11,
+            21,
+            23
+          ]
+        }
+      ],
+      "support_changed_frames": 0,
+      "effective_taps_90": 3.41,
+      "diffuse_energy_ratio": 0.08031114164204048,
+      "rho_frame_target": 0.997868940604912,
+      "frame_lag_correlation": {
+        "real": 0.9986221355621261,
+        "imag": 0.0030589128115300836,
+        "magnitude": 0.998626820480128
+      },
+      "envelope_rmse_db": 2.5685235459241533,
+      "cross_frame_impulse_error": 0.0,
+      "aggregation_role": "main",
+      "uses_true_channel_for_statistics": true,
+      "semantics": "configured_modeling_candidates_not_direct_eme_measurements"
+    },
+    {
+      "candidate_id": "B-upper",
+      "physical_delay_seconds": 0.0116,
+      "discrete_delay_samples": 24,
+      "strong_path_count": 6.4,
+      "strong_path_count_observed_range": [
+        5,
+        7
+      ],
+      "strong_path_support": [
+        {
+          "seed": 0,
+          "delays": [
+            0,
+            1,
+            3,
+            7,
+            10,
+            13,
+            21
+          ]
+        },
+        {
+          "seed": 1,
+          "delays": [
+            0,
+            1,
+            4,
+            15,
+            24
+          ]
+        },
+        {
+          "seed": 2,
+          "delays": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            7,
+            21
+          ]
+        },
+        {
+          "seed": 3,
+          "delays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            7,
+            20
+          ]
+        },
+        {
+          "seed": 4,
+          "delays": [
+            0,
+            1,
+            3,
+            11,
+            21,
+            23
+          ]
+        }
+      ],
+      "support_changed_frames": 0,
+      "effective_taps_90": 4.166,
+      "diffuse_energy_ratio": 0.1158237330700683,
+      "rho_frame_target": 0.9957424226239695,
+      "frame_lag_correlation": {
+        "real": 0.997006227151312,
+        "imag": 0.004178920035977199,
+        "magnitude": 0.9970149850183601
+      },
+      "envelope_rmse_db": 2.5741578022930094,
+      "cross_frame_impulse_error": 0.0,
+      "aggregation_role": "main",
+      "uses_true_channel_for_statistics": true,
+      "semantics": "configured_modeling_candidates_not_direct_eme_measurements"
+    }
+  ],
+  "traditional_ber": [
+    {
+      "candidate_id": "B-anomaly",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 0.0,
+      "ber": 0.3158697916666667,
+      "bit_errors": 60647,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-anomaly",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 5.0,
+      "ber": 0.18847916666666667,
+      "bit_errors": 36188,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-anomaly",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 10.0,
+      "ber": 0.060296875,
+      "bit_errors": 11577,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-anomaly",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 15.0,
+      "ber": 0.031802083333333335,
+      "bit_errors": 6106,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-anomaly",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 0.0,
+      "ber": 0.3097552083333333,
+      "bit_errors": 59473,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-anomaly",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 5.0,
+      "ber": 0.17841666666666667,
+      "bit_errors": 34256,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-anomaly",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 10.0,
+      "ber": 0.053234375,
+      "bit_errors": 10221,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-anomaly",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 15.0,
+      "ber": 0.025427083333333333,
+      "bit_errors": 4882,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-core",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 0.0,
+      "ber": 0.36172916666666666,
+      "bit_errors": 69452,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-core",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 5.0,
+      "ber": 0.19925520833333332,
+      "bit_errors": 38257,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-core",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 10.0,
+      "ber": 0.07319270833333333,
+      "bit_errors": 14053,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-core",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 15.0,
+      "ber": 0.031989583333333335,
+      "bit_errors": 6142,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-core",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 0.0,
+      "ber": 0.3505520833333333,
+      "bit_errors": 67306,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-core",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 5.0,
+      "ber": 0.18785416666666666,
+      "bit_errors": 36068,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-core",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 10.0,
+      "ber": 0.06636458333333334,
+      "bit_errors": 12742,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-core",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 15.0,
+      "ber": 0.026505208333333332,
+      "bit_errors": 5089,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-sanity",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 0.0,
+      "ber": 0.3103385416666667,
+      "bit_errors": 59585,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-sanity",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 5.0,
+      "ber": 0.127515625,
+      "bit_errors": 24483,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-sanity",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 10.0,
+      "ber": 0.02246875,
+      "bit_errors": 4314,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-sanity",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 15.0,
+      "ber": 0.004203125,
+      "bit_errors": 807,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-sanity",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 0.0,
+      "ber": 0.30364583333333334,
+      "bit_errors": 58300,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-sanity",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 5.0,
+      "ber": 0.11977083333333334,
+      "bit_errors": 22996,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-sanity",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 10.0,
+      "ber": 0.0211875,
+      "bit_errors": 4068,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-sanity",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 15.0,
+      "ber": 0.0033229166666666667,
+      "bit_errors": 638,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-upper",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 0.0,
+      "ber": 0.33959375,
+      "bit_errors": 65202,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-upper",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 5.0,
+      "ber": 0.21040104166666668,
+      "bit_errors": 40397,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-upper",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 10.0,
+      "ber": 0.10784895833333333,
+      "bit_errors": 20707,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-upper",
+      "method": "CFO+DD-Phase DFE-RLS",
+      "snr_db": 15.0,
+      "ber": 0.07459895833333334,
+      "bit_errors": 14323,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-upper",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 0.0,
+      "ber": 0.337375,
+      "bit_errors": 64776,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-upper",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 5.0,
+      "ber": 0.20039583333333333,
+      "bit_errors": 38476,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-upper",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 10.0,
+      "ber": 0.121265625,
+      "bit_errors": 23283,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    },
+    {
+      "candidate_id": "B-upper",
+      "method": "CFO+DD-Phase LMMSE-FIR",
+      "snr_db": 15.0,
+      "ber": 0.064640625,
+      "bit_errors": 12411,
+      "bits": 192000,
+      "data_labels_used_for_adaptation": false,
+      "uses_neural_network": false,
+      "uses_rl": false
+    }
+  ]
+}
