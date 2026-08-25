@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 import env.eme_reference as eme_reference
+from env.eme_channel_profiles import EMEChannelProfileConfig, sample_eme_profile
 from env.eme_reference import (
     EME_FULL_RADAR_DEPTH_SECONDS,
     load_evans_1965_envelope,
@@ -403,3 +404,159 @@ def test_physical_delay_rejects_non_finite_or_overflowed_product(
 ):
     with pytest.raises(ValueError):
         physical_delay_samples(sample_rate_hz, max_delay_seconds)
+
+
+def _profile_config(**changes):
+    payload = {
+        "level": "B",
+        "sample_rate_hz": 2_000.0,
+        "symbol_rate_hz": 2_000.0,
+        "frame_len": 512,
+        "strong_path_count": (3, 7),
+        "diffuse_energy_ratio": (0.05, 0.15),
+        "seed": 17,
+    }
+    payload.update(changes)
+    return EMEChannelProfileConfig(**payload)
+
+
+def test_level_b_eme_profile_satisfies_sparse_long_echo_contract_and_reproduces():
+    config = _profile_config()
+
+    first = sample_eme_profile(config)
+    second = sample_eme_profile(config)
+
+    assert is_dataclass(config)
+    assert config.samples_per_symbol == 1.0
+    assert config.max_delay_samples == 24
+    assert first.max_delay_samples == 24
+    assert first.aggregation == "main"
+    assert np.array_equal(first.cir, second.cir)
+    assert np.array_equal(first.strong_delays, second.strong_delays)
+    assert np.array_equal(first.diffuse_mask, second.diffuse_mask)
+    assert first.diffuse_energy_ratio == second.diffuse_energy_ratio
+    assert first.strong_delays[0] == 0
+    assert first.strong_delays[-1] >= 18
+    assert 3 <= first.strong_delays.size <= 7
+    assert np.unique(first.strong_delays).size == first.strong_delays.size
+    assert 0.05 <= first.diffuse_energy_ratio <= 0.15
+    assert np.sum(np.abs(first.cir) ** 2) == pytest.approx(1.0, abs=1e-12)
+    assert not np.any(first.diffuse_mask[first.strong_delays])
+    assert 1 <= first.effective_taps_90 <= np.count_nonzero(np.abs(first.cir) > 0.0)
+
+    ranges = first.metadata["modeling_ranges"]
+    assert ranges["strong_path_count"] == (3, 7)
+    assert ranges["diffuse_energy_ratio"] == (0.05, 0.15)
+    assert ranges["semantics"] == "configured_modeling_candidates"
+    assert ranges["direct_eme_measurement"] is False
+    envelope = first.metadata["envelope_evidence"]
+    assert envelope["source_doi"] == "10.6028/jres.069d.195"
+    assert envelope["observed_power_rule"] == "midpoint_db"
+    assert envelope["endpoint_point_kind"] == "support_extension"
+    assert envelope["endpoint_power_rule"] == "upper_hold"
+    assert envelope["lower_endpoint_semantics"] == "right_censored_limit"
+    assert envelope["lower_endpoint_used_as_exact_power"] is False
+    assert first.metadata["include_in_main_average"] is True
+
+
+@pytest.mark.parametrize("field_name", ["cir", "strong_delays", "diffuse_mask"])
+def test_eme_profile_arrays_cannot_be_made_writeable(field_name):
+    profile = sample_eme_profile(_profile_config())
+    array = getattr(profile, field_name)
+
+    assert array.flags.writeable is False
+    with pytest.raises(ValueError):
+        array.setflags(write=True)
+
+
+def test_eme_profile_and_config_are_frozen():
+    config = _profile_config()
+    profile = sample_eme_profile(config)
+
+    with pytest.raises(FrozenInstanceError):
+        config.seed = 18
+    with pytest.raises(FrozenInstanceError):
+        profile.aggregation = "pressure"
+    with pytest.raises(TypeError):
+        profile.metadata["include_in_main_average"] = False
+
+
+def test_level_a_zero_diffuse_profile_is_sanity_only():
+    profile = sample_eme_profile(
+        _profile_config(
+            level="A",
+            strong_path_count=(2, 4),
+            diffuse_energy_ratio=(0.0, 0.0),
+            seed=3,
+        )
+    )
+
+    assert profile.aggregation == "sanity"
+    assert profile.diffuse_energy_ratio == 0.0
+    assert not np.any(profile.diffuse_mask)
+    assert np.count_nonzero(profile.cir) == profile.strong_delays.size
+    assert profile.metadata["include_in_main_average"] is False
+
+
+def test_level_c_uses_configured_nonoverlapping_diffuse_range_as_pressure_test():
+    profile = sample_eme_profile(
+        _profile_config(
+            level="C",
+            diffuse_energy_ratio=(0.25, 0.35),
+            seed=29,
+        )
+    )
+
+    assert profile.aggregation == "pressure"
+    assert 0.25 <= profile.diffuse_energy_ratio <= 0.35
+    assert profile.metadata["modeling_ranges"]["diffuse_energy_ratio"] == (0.25, 0.35)
+    assert profile.metadata["include_in_main_average"] is False
+
+
+def test_anomalous_scatterer_is_only_enabled_explicitly_and_records_evidence():
+    disabled = sample_eme_profile(_profile_config(seed=41))
+    enabled = sample_eme_profile(
+        _profile_config(seed=41, include_anomalous_scatterer=True)
+    )
+
+    assert disabled.anomalous_delay is None
+    assert disabled.metadata["anomalous_scatterer"]["enabled"] is False
+    assert "occurrence_probability" not in disabled.metadata["anomalous_scatterer"]
+
+    evidence = enabled.metadata["anomalous_scatterer"]
+    assert evidence["enabled"] is True
+    assert enabled.anomalous_delay in enabled.strong_delays
+    assert enabled.anomalous_delay != 0
+    assert evidence["delay"] == enabled.anomalous_delay
+    assert 7.0 <= evidence["power_gain"] <= 8.0
+    assert evidence["source_doi"] == "10.1029/JZ067i012p04881"
+    assert "occurrence_probability" not in evidence
+
+
+def test_symbol_rate_equivalent_model_rejects_different_sample_rate():
+    with pytest.raises(ValueError, match="符号率等效模型"):
+        _profile_config(sample_rate_hz=4_000.0)
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"level": "D"}, "level"),
+        ({"strong_path_count": (1, 3)}, "strong_path_count"),
+        ({"strong_path_count": (5, 4)}, "strong_path_count"),
+        ({"strong_path_count": (3.0, 7)}, "strong_path_count"),
+        ({"diffuse_energy_ratio": (-0.01, 0.1)}, "diffuse_energy_ratio"),
+        ({"diffuse_energy_ratio": (0.2, 0.1)}, "diffuse_energy_ratio"),
+        ({"diffuse_energy_ratio": (0.1, 1.0)}, "diffuse_energy_ratio"),
+        ({"anomalous_power_gain": (6.9, 8.0)}, "anomalous_power_gain"),
+        ({"frame_len": 24}, "frame_len"),
+    ],
+)
+def test_eme_profile_config_rejects_invalid_ranges(changes, message):
+    with pytest.raises(ValueError, match=message):
+        _profile_config(**changes)
+
+
+def test_eme_profile_config_rejects_infeasible_strong_tap_count():
+    with pytest.raises(ValueError, match="strong_path_count.*可用 tap"):
+        _profile_config(strong_path_count=(3, 26))
