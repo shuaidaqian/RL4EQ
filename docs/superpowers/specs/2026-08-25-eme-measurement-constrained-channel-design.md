@@ -84,7 +84,7 @@ T_{\max}=2R_{\text{moon}}/c \approx 11.6\ \text{ms}.
 D=\lceil T_{\max}F_s\rceil.
 \]
 
-配置必须显式记录 `sample_rate_hz`、`symbol_rate_hz`、`samples_per_symbol` 和 `max_delay_seconds`。主实验不再把无量纲 `max_delay` 当作独立物理参数。
+配置必须显式记录 `sample_rate_hz`、`symbol_rate_hz`、`samples_per_symbol` 和 `max_delay_seconds`。当前仿真链路是符号率等效离散模型，没有脉冲成形、插值和匹配滤波，因此必须固定 `samples_per_symbol = 1` 且 `sample_rate_hz = symbol_rate_hz`；不能只修改采样率就伪称实现了过采样。主实验不再把无量纲 `max_delay` 当作独立物理参数。真正的 2 samples/symbol 波形链路只能在后续显式加入发送插值和接收匹配滤波后扩展。
 
 ### 3.4 慢复增益状态
 

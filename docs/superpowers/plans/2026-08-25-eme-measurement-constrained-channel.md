@@ -125,7 +125,7 @@ def test_level_b_eme_profile_is_sparse_long_and_reproducible():
     config = EMEChannelProfileConfig(
         level="B",
         sample_rate_hz=2_000.0,
-        symbol_rate_hz=1_000.0,
+        symbol_rate_hz=2_000.0,
         frame_len=512,
         strong_path_count=(3, 7),
         diffuse_energy_ratio=(0.05, 0.15),
@@ -220,7 +220,7 @@ def test_eme_channel_derives_delay_and_carries_impulse_into_next_frame():
             profile_name="eme_measurement_v1",
             level="B",
             sample_rate_hz=2_000.0,
-            symbol_rate_hz=1_000.0,
+            symbol_rate_hz=2_000.0,
             frame_len=16,
             coherence_time_seconds=120.0,
             snr_db=80.0,
@@ -244,7 +244,7 @@ def test_rho_frame_is_derived_from_frame_duration_and_coherence_time():
     cfg = ExtremeDelayChannelConfig(
         profile_name="eme_measurement_v1",
         sample_rate_hz=2_000.0,
-        symbol_rate_hz=1_000.0,
+        symbol_rate_hz=2_000.0,
         frame_len=512,
         coherence_time_seconds=120.0,
     )
@@ -272,7 +272,7 @@ coherence_time_seconds: float | None = None
 diffuse_energy_ratio: tuple[float, float] | None = None
 ```
 
-仅当 `profile_name == "eme_measurement_v1"` 时要求物理字段完整，并计算 `max_delay`、`frame_duration_seconds` 和 `rho_frame`。旧 profile 保留当前行为，避免无关回归。
+仅当 `profile_name == "eme_measurement_v1"` 时要求物理字段完整，并计算 `max_delay`、`frame_duration_seconds` 和 `rho_frame`。当前发送链路每个复样本就是一个符号，必须验证 `sample_rate_hz == symbol_rate_hz`，并显式暴露 `samples_per_symbol == 1.0`；不得在没有脉冲成形和匹配滤波的情况下伪装 2 samples/symbol。旧 profile 保留当前行为，避免无关回归。
 
 - [ ] **Step 5: 用完整 CIR 执行连续卷积**
 
@@ -385,7 +385,7 @@ Expected: 生成 JSON、CSV 和参考包络/经验 PDP 图；输出中不含 Pro
   "channel_profile": "eme_measurement_v1",
   "max_delay_seconds": 0.0116,
   "sample_rate_hz": 2000.0,
-  "symbol_rate_hz": 1000.0,
+  "symbol_rate_hz": 2000.0,
   "main_snrs": [0, 5, 10, 15],
   "pilot_layout": "prefix",
   "profile_frozen_before_proposed": true
