@@ -428,6 +428,7 @@ def test_level_b_eme_profile_satisfies_sparse_long_echo_contract_and_reproduces(
 
     assert is_dataclass(config)
     assert config.samples_per_symbol == 1.0
+    assert config.max_delay_seconds == EME_FULL_RADAR_DEPTH_SECONDS
     assert config.max_delay_samples == 24
     assert first.max_delay_samples == 24
     assert first.aggregation == "main"
@@ -538,6 +539,33 @@ def test_symbol_rate_equivalent_model_rejects_different_sample_rate():
         _profile_config(sample_rate_hz=4_000.0)
 
 
+@pytest.mark.parametrize("field_name", ["sample_rate_hz", "symbol_rate_hz"])
+def test_eme_profile_config_rejects_boolean_rates(field_name):
+    rates = {"sample_rate_hz": 1.0, "symbol_rate_hz": 1.0}
+    rates[field_name] = True
+
+    with pytest.raises(ValueError, match=f"{field_name}.*布尔"):
+        _profile_config(
+            **rates,
+            strong_path_count=(2, 2),
+            diffuse_energy_ratio=(0.0, 0.0),
+        )
+
+
+@pytest.mark.parametrize("invalid_delay", [0.001, True, np.nan])
+def test_eme_profile_config_rejects_non_reference_max_delay(invalid_delay):
+    with pytest.raises(ValueError, match="max_delay_seconds.*0.0116"):
+        _profile_config(max_delay_seconds=invalid_delay)
+
+
+def test_short_frame_config_preserves_full_physical_delay_for_cross_frame_isi():
+    config = _profile_config(frame_len=16)
+
+    assert config.frame_len == 16
+    assert config.max_delay_seconds == EME_FULL_RADAR_DEPTH_SECONDS
+    assert config.max_delay_samples == 24
+
+
 @pytest.mark.parametrize(
     ("changes", "message"),
     [
@@ -549,7 +577,10 @@ def test_symbol_rate_equivalent_model_rejects_different_sample_rate():
         ({"diffuse_energy_ratio": (0.2, 0.1)}, "diffuse_energy_ratio"),
         ({"diffuse_energy_ratio": (0.1, 1.0)}, "diffuse_energy_ratio"),
         ({"anomalous_power_gain": (6.9, 8.0)}, "anomalous_power_gain"),
-        ({"frame_len": 24}, "frame_len"),
+        ({"frame_len": 0}, "frame_len"),
+        ({"frame_len": -1}, "frame_len"),
+        ({"frame_len": True}, "frame_len"),
+        ({"frame_len": 1.5}, "frame_len"),
     ],
 )
 def test_eme_profile_config_rejects_invalid_ranges(changes, message):

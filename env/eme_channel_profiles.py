@@ -11,7 +11,11 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from env.eme_reference import load_evans_1965_envelope, physical_delay_samples
+from env.eme_reference import (
+    EME_FULL_RADAR_DEPTH_SECONDS,
+    load_evans_1965_envelope,
+    physical_delay_samples,
+)
 
 
 _AGGREGATION_BY_LEVEL = {"A": "sanity", "B": "main", "C": "pressure"}
@@ -60,7 +64,7 @@ class EMEChannelProfileConfig:
     strong_path_count: tuple[int, int]
     diffuse_energy_ratio: tuple[float, float]
     seed: int
-    max_delay_seconds: float = 0.0116
+    max_delay_seconds: float = EME_FULL_RADAR_DEPTH_SECONDS
     include_anomalous_scatterer: bool = False
     anomalous_power_gain: tuple[float, float] = (7.0, 8.0)
 
@@ -68,6 +72,10 @@ class EMEChannelProfileConfig:
         if not isinstance(self.level, str) or self.level not in _AGGREGATION_BY_LEVEL:
             raise ValueError("level 必须为 A、B 或 C。")
 
+        if isinstance(self.sample_rate_hz, (bool, np.bool_)):
+            raise ValueError("sample_rate_hz 不得为布尔值。")
+        if isinstance(self.symbol_rate_hz, (bool, np.bool_)):
+            raise ValueError("symbol_rate_hz 不得为布尔值。")
         try:
             sample_rate = float(self.sample_rate_hz)
             symbol_rate = float(self.symbol_rate_hz)
@@ -83,16 +91,31 @@ class EMEChannelProfileConfig:
         if sample_rate != symbol_rate:
             raise ValueError("当前符号率等效模型要求 sample_rate_hz 等于 symbol_rate_hz。")
 
-        if isinstance(self.frame_len, bool) or not isinstance(self.frame_len, Integral):
+        if (
+            isinstance(self.frame_len, bool)
+            or not isinstance(self.frame_len, Integral)
+            or self.frame_len <= 0
+        ):
             raise ValueError("frame_len 必须为正整数。")
         if isinstance(self.seed, bool) or not isinstance(self.seed, Integral) or self.seed < 0:
             raise ValueError("seed 必须为非负整数。")
         if not isinstance(self.include_anomalous_scatterer, bool):
             raise ValueError("include_anomalous_scatterer 必须为布尔值。")
 
-        max_delay = physical_delay_samples(sample_rate, self.max_delay_seconds)
-        if self.frame_len <= max_delay:
-            raise ValueError("frame_len 必须大于 max_delay_samples。")
+        if isinstance(self.max_delay_seconds, (bool, np.bool_)):
+            raise ValueError("max_delay_seconds 必须严格等于 0.0116。")
+        try:
+            max_delay_seconds = float(self.max_delay_seconds)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("max_delay_seconds 必须严格等于 0.0116。") from exc
+        if (
+            not math.isfinite(max_delay_seconds)
+            or max_delay_seconds != EME_FULL_RADAR_DEPTH_SECONDS
+        ):
+            raise ValueError("max_delay_seconds 必须严格等于 0.0116。")
+        max_delay = physical_delay_samples(
+            sample_rate, EME_FULL_RADAR_DEPTH_SECONDS
+        )
 
         path_range = self.strong_path_count
         if not isinstance(path_range, tuple) or len(path_range) != 2:
@@ -124,6 +147,9 @@ class EMEChannelProfileConfig:
         object.__setattr__(self, "sample_rate_hz", sample_rate)
         object.__setattr__(self, "symbol_rate_hz", symbol_rate)
         object.__setattr__(self, "frame_len", int(self.frame_len))
+        object.__setattr__(
+            self, "max_delay_seconds", EME_FULL_RADAR_DEPTH_SECONDS
+        )
         object.__setattr__(self, "strong_path_count", (int(low_paths), int(high_paths)))
         object.__setattr__(self, "diffuse_energy_ratio", diffuse_range)
         object.__setattr__(self, "seed", int(self.seed))
@@ -139,7 +165,9 @@ class EMEChannelProfileConfig:
     def max_delay_samples(self) -> int:
         """按物理时延上界向上取整得到离散最大时延。"""
 
-        return physical_delay_samples(self.sample_rate_hz, self.max_delay_seconds)
+        return physical_delay_samples(
+            self.sample_rate_hz, EME_FULL_RADAR_DEPTH_SECONDS
+        )
 
 
 @dataclass(frozen=True)
