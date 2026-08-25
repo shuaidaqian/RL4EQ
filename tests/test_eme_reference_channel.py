@@ -5,7 +5,7 @@ import sys
 import warnings
 from dataclasses import FrozenInstanceError, fields, is_dataclass
 from pathlib import Path
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
 
 import numpy as np
 import pytest
@@ -1149,3 +1149,154 @@ def test_eme_measurement_calibration_smoke_is_traditional_only_and_writes_output
     ).read_text(encoding="utf-8")
     assert "Proposed" not in source
     assert "Proposed" not in (tmp_path / "summary.json").read_text(encoding="utf-8")
+
+
+def test_cross_frame_impulse_error_uses_previous_frame_tail_and_second_frame_cir():
+    from scripts import calibrate_eme_measurement_channel as calibration
+
+    channel = ExtremeDelayChannel(_eme_channel_config(frame_len=512))
+    channel.reset_episode(torch.zeros(channel.max_delay, dtype=torch.complex64))
+
+    error = calibration._cross_frame_impulse_error(channel, frame_len=512)
+
+    assert error < 1e-6
+
+
+def test_cross_frame_impulse_error_detects_cleared_channel_history(monkeypatch):
+    from scripts import calibrate_eme_measurement_channel as calibration
+
+    channel = ExtremeDelayChannel(_eme_channel_config(frame_len=512))
+    channel.reset_episode(torch.zeros(channel.max_delay, dtype=torch.complex64))
+    original_convolution = channel._convolve_with_history
+    call_count = 0
+
+    def convolution_with_cleared_history(symbols, cir):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 2:
+            channel._history.zero_()
+        return original_convolution(symbols, cir)
+
+    monkeypatch.setattr(channel, "_convolve_with_history", convolution_with_cleared_history)
+
+    error = calibration._cross_frame_impulse_error(channel, frame_len=512)
+
+    assert error > 1e-3
+
+
+def test_diffuse_energy_ratio_divides_by_non_unit_instantaneous_total_power():
+    from scripts import calibrate_eme_measurement_channel as calibration
+
+    power = np.asarray([2.0, 1.0, 1.0], dtype=np.float64)
+    diffuse_mask = np.asarray([False, True, False], dtype=np.bool_)
+
+    ratio = calibration._diffuse_energy_ratio(power, diffuse_mask)
+
+    assert ratio == pytest.approx(0.25)
+
+
+def test_diffuse_energy_ratio_rejects_zero_total_power():
+    from scripts import calibrate_eme_measurement_channel as calibration
+
+    with pytest.raises(ValueError, match="总能量"):
+        calibration._diffuse_energy_ratio(
+            np.zeros(3, dtype=np.float64),
+            np.asarray([False, True, True], dtype=np.bool_),
+        )
+
+
+def test_traditional_phase_states_start_from_acquisition_cfo_and_stay_independent(
+    monkeypatch,
+):
+    from scripts import calibrate_eme_measurement_channel as calibration
+
+    candidate = {
+        "candidate_id": "B-phase-state",
+        "strong_path_count": [3, 3],
+        "diffuse_energy_ratio": [0.05, 0.05],
+        "coherence_time_seconds": 120,
+        "include_anomalous_scatterer": False,
+        "impairment_profile": "cfo_phase_tiny",
+        "residual_cfo_limit": 0.0012,
+        "aggregation_role": "main",
+        "semantics": "configured_modeling_candidates_not_direct_eme_measurements",
+    }
+    fixed = {
+        "profile_name": "eme_measurement_v1",
+        "level": "B",
+        "max_delay_seconds": 0.0116,
+        "sample_rate_hz": 2000,
+        "symbol_rate_hz": 2000,
+        "frame_len": 128,
+        "main_snrs": [10],
+        "pilot_layout": "prefix",
+        "pilot_total": 64,
+        "sanity_impairment_profile": "clean",
+    }
+    data_mask = torch.tensor([False, True, True, False])
+    frame = SimpleNamespace(
+        data_mask=data_mask,
+        bits=torch.tensor([False, True, False, False]),
+        receiver_view=lambda: object(),
+    )
+
+    class FakeEnvironment:
+        def __init__(self, config):
+            self.config = config
+
+        def reset_episode(self):
+            return SimpleNamespace(
+                acquisition=object(),
+                initial_soft_tail=torch.zeros(24, dtype=torch.complex64),
+            )
+
+        def next_frame(self):
+            return frame
+
+    captured_states = []
+
+    def fake_estimate(acquisition, max_delay, cfo_limit):
+        cir = torch.zeros(max_delay + 1, dtype=torch.complex64)
+        cir[0] = 1.0 + 0.0j
+        return cir, 0.0009
+
+    def fake_equalizer(
+        method,
+        receiver_view,
+        cir,
+        soft_tail,
+        snr_db,
+        phase_state,
+        residual_cfo_limit,
+    ):
+        captured_states.append(
+            (method, id(phase_state), phase_state.cfo_cycles_per_symbol)
+        )
+        phase_state.cfo_cycles_per_symbol = -0.1
+        return SimpleNamespace(
+            logits=torch.zeros(4, dtype=torch.float32),
+            soft_tail=soft_tail.clone(),
+        )
+
+    monkeypatch.setattr(calibration, "CommunicationEnvironment", FakeEnvironment)
+    monkeypatch.setattr(
+        calibration, "estimate_acquisition_cir_with_cfo", fake_estimate
+    )
+    monkeypatch.setattr(calibration, "run_traditional_equalizer", fake_equalizer)
+
+    calibration._measure_traditional_ber(
+        [candidate],
+        fixed,
+        seeds=[0],
+        frames=1,
+        methods=[
+            "CFO+DD-Phase LMMSE-FIR",
+            "CFO+DD-Phase DFE-RLS",
+        ],
+        snrs=[10.0],
+    )
+
+    assert [state[2] for state in captured_states] == pytest.approx(
+        [0.0009, 0.0009]
+    )
+    assert captured_states[0][1] != captured_states[1][1]

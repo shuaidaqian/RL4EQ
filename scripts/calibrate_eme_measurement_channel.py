@@ -210,6 +210,16 @@ def _measure_channel_statistics(
 
     for seed in seeds:
         config = _diagnostic_channel_config(candidate, fixed, seed)
+        cross_channel = ExtremeDelayChannel(config)
+        cross_channel.reset_episode(
+            torch.zeros(max_delay, dtype=torch.complex64)
+        )
+        cross_errors.append(
+            _cross_frame_impulse_error(
+                cross_channel, frame_len=int(fixed["frame_len"])
+            )
+        )
+
         channel = ExtremeDelayChannel(config)
         channel.reset_episode(torch.zeros(max_delay, dtype=torch.complex64))
         initial_support = tuple(channel.delays)
@@ -217,14 +227,10 @@ def _measure_channel_statistics(
         path_counts.append(len(initial_support))
         previous_cir: torch.Tensor | None = None
         for _ in range(frames):
-            impulse = torch.zeros(int(fixed["frame_len"]), dtype=torch.complex64)
-            impulse[0] = 1.0 + 0.0j
-            received = channel.transmit(impulse, add_noise=False)
+            probe = torch.zeros(int(fixed["frame_len"]), dtype=torch.complex64)
+            channel.transmit(probe, add_noise=False)
             cir = channel.last_cir_used()
             support_changed_frames += int(tuple(channel.delays) != initial_support)
-            cross_errors.append(
-                float(torch.max(torch.abs(received[: cir.numel()] - cir)).item())
-            )
             if previous_cir is not None:
                 denominator = torch.linalg.vector_norm(previous_cir) * torch.linalg.vector_norm(cir)
                 correlation = torch.sum(torch.conj(previous_cir) * cir) / denominator.clamp_min(1e-12)
@@ -233,9 +239,10 @@ def _measure_channel_statistics(
             power = torch.abs(cir).square().cpu().numpy().astype(np.float64)
             cir_power_samples.append(power)
             effective_taps.append(_effective_taps_90(power))
-            strong_mask = np.zeros(power.size, dtype=bool)
-            strong_mask[list(initial_support)] = True
-            diffuse_ratios.append(float(np.sum(power[~strong_mask])))
+            diffuse_mask = channel._diffuse_mask.cpu().numpy().astype(np.bool_)
+            diffuse_ratios.append(
+                _diffuse_energy_ratio(power, diffuse_mask)
+            )
 
     empirical_power = np.mean(np.stack(cir_power_samples, axis=0), axis=0)
     empirical_pdp_db = _relative_power_db(empirical_power)
@@ -282,6 +289,49 @@ def _measure_channel_statistics(
     return statistic, plot_data
 
 
+def _cross_frame_impulse_error(
+    channel: ExtremeDelayChannel, frame_len: int
+) -> float:
+    """用上一帧末尾脉冲验证下一帧逐 tap 跨帧响应。"""
+
+    if frame_len <= channel.max_delay:
+        raise ValueError("frame_len 必须大于信道最大离散时延。")
+    previous = torch.zeros(frame_len, dtype=torch.complex64)
+    previous[-1] = 1.0 + 0.0j
+    channel.transmit(previous, add_noise=False)
+    second = channel.transmit(
+        torch.zeros(frame_len, dtype=torch.complex64), add_noise=False
+    )
+    cir = channel.last_cir_used()
+    delayed_cir = cir[1:]
+    if delayed_cir.numel() == 0:
+        return 0.0
+    return float(
+        torch.max(torch.abs(second[: delayed_cir.numel()] - delayed_cir)).item()
+    )
+
+
+def _diffuse_energy_ratio(
+    power: np.ndarray, diffuse_mask: np.ndarray
+) -> float:
+    """计算瞬时弥散 tap 能量占瞬时 CIR 总能量的比例。"""
+
+    normalized_power = np.asarray(power, dtype=np.float64)
+    normalized_mask = np.asarray(diffuse_mask, dtype=np.bool_)
+    if (
+        normalized_power.ndim != 1
+        or normalized_mask.ndim != 1
+        or normalized_power.shape != normalized_mask.shape
+    ):
+        raise ValueError("power 与 diffuse_mask 必须是一维等长数组。")
+    if np.any(~np.isfinite(normalized_power)) or np.any(normalized_power < 0.0):
+        raise ValueError("tap 功率必须为有限非负数。")
+    total_power = float(np.sum(normalized_power))
+    if not math.isfinite(total_power) or total_power <= 0.0:
+        raise ValueError("瞬时 CIR 总能量必须为正且有限。")
+    return float(np.sum(normalized_power[normalized_mask]) / total_power)
+
+
 def _measure_traditional_ber(
     candidates: Sequence[Mapping[str, Any]],
     fixed: Mapping[str, Any],
@@ -304,7 +354,7 @@ def _measure_traditional_ber(
                     _environment_config(candidate, fixed, seed, snr_db)
                 )
                 start = environment.reset_episode()
-                cir, _ = estimate_acquisition_cir_with_cfo(
+                cir, estimated_cfo = estimate_acquisition_cir_with_cfo(
                     start.acquisition,
                     max_delay,
                     cfo_limit=cfo_limit,
@@ -313,7 +363,10 @@ def _measure_traditional_ber(
                     method: start.initial_soft_tail.clone() for method in methods
                 }
                 phase_states = {
-                    method: TraditionalPhaseState() for method in methods
+                    method: TraditionalPhaseState(
+                        cfo_cycles_per_symbol=float(estimated_cfo)
+                    )
+                    for method in methods
                 }
                 for _ in range(frames):
                     frame = environment.next_frame()
