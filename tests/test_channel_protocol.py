@@ -67,6 +67,33 @@ def test_invalid_profile_configurations_raise_clear_errors():
         sample_profile(ChannelProfileConfig(level=ChannelLevel.A, max_delay=20, seed=18, max_attempts=1))
 
 
+@pytest.mark.parametrize("snr_db", [True, np.nan, np.inf, -np.inf])
+def test_channel_config_rejects_non_finite_or_boolean_snr(snr_db):
+    with pytest.raises(ValueError, match="snr_db"):
+        ExtremeDelayChannelConfig(snr_db=snr_db)
+
+
+def test_channel_config_allows_finite_negative_snr():
+    config = ExtremeDelayChannelConfig(snr_db=-5.0)
+
+    assert config.snr_db == -5.0
+
+
+@pytest.mark.parametrize(
+    "cfo_cycles_per_symbol",
+    [True, np.nan, np.inf, -np.inf, -0.5, 0.5],
+)
+def test_channel_config_rejects_invalid_or_aliased_cfo(cfo_cycles_per_symbol):
+    with pytest.raises(ValueError, match="cfo_cycles_per_symbol"):
+        ExtremeDelayChannelConfig(cfo_cycles_per_symbol=cfo_cycles_per_symbol)
+
+
+@pytest.mark.parametrize("phase_noise_std", [True, np.nan, np.inf, -np.inf, -0.001])
+def test_channel_config_rejects_invalid_phase_noise_std(phase_noise_std):
+    with pytest.raises(ValueError, match="phase_noise_std"):
+        ExtremeDelayChannelConfig(phase_noise_std=phase_noise_std)
+
+
 def test_channel_uses_known_history_and_preserves_support():
     channel = ExtremeDelayChannel(
         ExtremeDelayChannelConfig(level="B", max_delay=20, snr_db=10.0, rho=0.99, seed=3)
@@ -183,6 +210,65 @@ def test_phase_impairment_is_seed_reproducible_and_clean_default_unchanged():
     assert not torch.allclose(out_a, out_c)
 
 
+def _evolving_channel(profile_name, *, phase_noise_std=0.0):
+    if profile_name == "eme_measurement_v1":
+        config = ExtremeDelayChannelConfig(
+            profile_name=profile_name,
+            level="B",
+            sample_rate_hz=2_000.0,
+            symbol_rate_hz=2_000.0,
+            frame_len=16,
+            coherence_time_seconds=120.0,
+            strong_path_count=(3, 7),
+            diffuse_energy_ratio=(0.05, 0.15),
+            snr_db=20.0,
+            phase_noise_std=phase_noise_std,
+            seed=8400,
+        )
+    else:
+        config = ExtremeDelayChannelConfig(
+            level="B",
+            max_delay=20,
+            snr_db=20.0,
+            rho=0.99,
+            phase_noise_std=phase_noise_std,
+            seed=8400,
+        )
+    return ExtremeDelayChannel(config)
+
+
+@pytest.mark.parametrize("profile_name", ["legacy_sparse_v1", "eme_measurement_v1"])
+def test_awgn_toggle_does_not_change_next_frame_cir(profile_name):
+    clean_channel = _evolving_channel(profile_name)
+    noisy_channel = _evolving_channel(profile_name)
+    warmup = torch.ones(clean_channel.max_delay, dtype=torch.complex64)
+    symbols = torch.ones(64, dtype=torch.complex64)
+    clean_channel.reset_episode(warmup)
+    noisy_channel.reset_episode(warmup)
+
+    clean_output = clean_channel.transmit(symbols, add_noise=False)
+    noisy_output = noisy_channel.transmit(symbols, add_noise=True)
+
+    assert not torch.allclose(clean_output, noisy_output)
+    torch.testing.assert_close(clean_channel.true_cir(), noisy_channel.true_cir())
+
+
+@pytest.mark.parametrize("profile_name", ["legacy_sparse_v1", "eme_measurement_v1"])
+def test_phase_noise_toggle_does_not_change_next_frame_cir(profile_name):
+    clean_channel = _evolving_channel(profile_name, phase_noise_std=0.0)
+    phase_channel = _evolving_channel(profile_name, phase_noise_std=0.003)
+    warmup = torch.ones(clean_channel.max_delay, dtype=torch.complex64)
+    symbols = torch.ones(64, dtype=torch.complex64)
+    clean_channel.reset_episode(warmup)
+    phase_channel.reset_episode(warmup)
+
+    clean_output = clean_channel.transmit(symbols, add_noise=False)
+    phase_output = phase_channel.transmit(symbols, add_noise=False)
+
+    assert not torch.allclose(clean_output, phase_output)
+    torch.testing.assert_close(clean_channel.true_cir(), phase_channel.true_cir())
+
+
 def test_tiny_impairment_profiles_are_weaker_than_light_profiles():
     from env.impairments import settings_from_profile
 
@@ -204,6 +290,46 @@ def test_eme_slow_drift_v1_profile_freezes_calibrated_impairment_budget():
 
     assert abs(profile.cfo_cycles_per_symbol) == 0.0008
     assert profile.phase_noise_std == 0.003
+
+
+def test_settings_from_profile_rejects_unknown_profile_before_explicit_override():
+    from env.impairments import settings_from_profile
+
+    with pytest.raises(ValueError, match="未知 impairment_profile"):
+        settings_from_profile(
+            "unknown_profile",
+            np.random.default_rng(9002),
+            cfo_cycles_per_symbol=0.01,
+        )
+
+
+def test_settings_from_profile_accepts_registered_numeric_profile_with_override():
+    from env.impairments import settings_from_profile
+
+    settings = settings_from_profile(
+        "eme_slow_drift_numeric",
+        np.random.default_rng(9004),
+        cfo_cycles_per_symbol=0.0008,
+        phase_noise_std=0.0008,
+    )
+
+    assert settings.cfo_cycles_per_symbol == 0.0008
+    assert settings.phase_noise_std == 0.0008
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"cfo_cycles_per_symbol": np.nan},
+        {"phase_noise_std": np.nan},
+        {"phase_noise_std": -0.001},
+    ],
+)
+def test_settings_from_profile_validates_explicit_override_values(overrides):
+    from env.impairments import settings_from_profile
+
+    with pytest.raises(ValueError):
+        settings_from_profile("clean", np.random.default_rng(9003), **overrides)
 
 
 @pytest.mark.parametrize("total", [64, 96, 128, 160])

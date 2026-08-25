@@ -542,7 +542,7 @@ def test_eme_tap_evolution_matches_exact_complex_gauss_markov_recursion():
     current = channel.true_cir()
     base = channel._base_cir.clone()
     support = base != 0
-    rng_state = channel._torch_rng.get_state().clone()
+    rng_state = channel._tap_rng.get_state().clone()
 
     independent_rng = torch.Generator(device="cpu")
     independent_rng.set_state(rng_state)

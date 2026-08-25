@@ -13,7 +13,14 @@ import torch
 from env.channel_profiles import ChannelLevel, ChannelProfileConfig, sample_profile
 from env.eme_channel_profiles import EMEChannelProfileConfig, sample_eme_profile
 from env.eme_reference import EME_FULL_RADAR_DEPTH_SECONDS
-from env.impairments import PhaseImpairmentSettings, apply_phase_impairment, settings_from_profile
+from env.impairments import (
+    PhaseImpairmentSettings,
+    apply_phase_impairment,
+    settings_from_profile,
+    validate_cfo_cycles_per_symbol,
+    validate_impairment_profile,
+    validate_phase_noise_std,
+)
 
 
 @dataclass(frozen=True)
@@ -40,6 +47,24 @@ class ExtremeDelayChannelConfig:
     )
 
     def __post_init__(self) -> None:
+        if isinstance(self.snr_db, (bool, np.bool_)):
+            raise ValueError("snr_db 必须为有限非布尔数。")
+        try:
+            snr_db = float(self.snr_db)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("snr_db 必须为有限非布尔数。") from exc
+        if not math.isfinite(snr_db):
+            raise ValueError("snr_db 必须为有限非布尔数。")
+        cfo_cycles_per_symbol = validate_cfo_cycles_per_symbol(
+            self.cfo_cycles_per_symbol
+        )
+        phase_noise_std = validate_phase_noise_std(self.phase_noise_std)
+        validate_impairment_profile(self.impairment_profile)
+        object.__setattr__(self, "snr_db", snr_db)
+        object.__setattr__(
+            self, "cfo_cycles_per_symbol", cfo_cycles_per_symbol
+        )
+        object.__setattr__(self, "phase_noise_std", phase_noise_std)
         ChannelLevel(self.level)
         if self.profile_name not in {"legacy_sparse_v1", "eme_measurement_v1"}:
             raise ValueError("profile_name 必须是 legacy_sparse_v1 或 eme_measurement_v1。")
@@ -119,7 +144,9 @@ class ExtremeDelayChannel:
         self.config = config
         self.noise_variance = float(10.0 ** (-config.snr_db / 10.0))
         self._rng = np.random.default_rng(config.seed)
-        self._torch_rng = torch.Generator(device="cpu").manual_seed(config.seed + 10_000)
+        self._tap_rng = torch.Generator(device="cpu").manual_seed(config.seed + 10_000)
+        self._noise_rng = torch.Generator(device="cpu").manual_seed(config.seed + 20_000)
+        self._phase_rng = torch.Generator(device="cpu").manual_seed(config.seed + 30_000)
         self._delays: tuple[int, ...] = ()
         self._base_cir = torch.zeros(self.max_delay + 1, dtype=torch.complex64)
         self._current_cir = torch.zeros(self.max_delay + 1, dtype=torch.complex64)
@@ -176,7 +203,9 @@ class ExtremeDelayChannel:
         self._last_cir_used = torch.zeros_like(self._current_cir)
         self._history = warmup[-self.max_delay :].clone()
         self._rng = np.random.default_rng(self.config.seed)
-        self._torch_rng = torch.Generator(device="cpu").manual_seed(self.config.seed + 10_000)
+        self._tap_rng = torch.Generator(device="cpu").manual_seed(self.config.seed + 10_000)
+        self._noise_rng = torch.Generator(device="cpu").manual_seed(self.config.seed + 20_000)
+        self._phase_rng = torch.Generator(device="cpu").manual_seed(self.config.seed + 30_000)
         self._global_symbol_index = 0
         self._phase_state = 0.0
         self._impairment = settings_from_profile(
@@ -199,7 +228,7 @@ class ExtremeDelayChannel:
             global_start=self._global_symbol_index,
             settings=self._impairment,
             phase_state=self._phase_state,
-            torch_rng=self._torch_rng,
+            phase_rng=self._phase_rng,
         )
         if add_noise:
             rx = rx + self._sample_noise(tx.numel())
@@ -232,8 +261,8 @@ class ExtremeDelayChannel:
 
     def _sample_noise(self, frame_len: int) -> torch.Tensor:
         std = float(np.sqrt(self.noise_variance / 2.0))
-        real = torch.randn(frame_len, generator=self._torch_rng, dtype=torch.float32) * std
-        imag = torch.randn(frame_len, generator=self._torch_rng, dtype=torch.float32) * std
+        real = torch.randn(frame_len, generator=self._noise_rng, dtype=torch.float32) * std
+        imag = torch.randn(frame_len, generator=self._noise_rng, dtype=torch.float32) * std
         return torch.complex(real, imag)
 
     def _evolve_taps(self) -> None:
@@ -249,8 +278,8 @@ class ExtremeDelayChannel:
         base = self._base_cir[support]
         innovation_scale = np.sqrt(max(0.0, 1.0 - rho**2))
         base_power = torch.abs(base).clamp_min(1e-6)
-        real = torch.randn(len(support), generator=self._torch_rng) / np.sqrt(2.0)
-        imag = torch.randn(len(support), generator=self._torch_rng) / np.sqrt(2.0)
+        real = torch.randn(len(support), generator=self._tap_rng) / np.sqrt(2.0)
+        imag = torch.randn(len(support), generator=self._tap_rng) / np.sqrt(2.0)
         innovation = torch.complex(real, imag).to(torch.complex64) * base_power
         updated = rho * current + (1.0 - rho) * base + innovation_scale * innovation
         next_cir = torch.zeros_like(self._current_cir)
@@ -266,8 +295,8 @@ class ExtremeDelayChannel:
         support = torch.nonzero(self._base_cir != 0, as_tuple=False).flatten()
         current = self._current_cir[support]
         base_amplitude = torch.abs(self._base_cir[support])
-        real = torch.randn(support.numel(), generator=self._torch_rng) / np.sqrt(2.0)
-        imag = torch.randn(support.numel(), generator=self._torch_rng) / np.sqrt(2.0)
+        real = torch.randn(support.numel(), generator=self._tap_rng) / np.sqrt(2.0)
+        imag = torch.randn(support.numel(), generator=self._tap_rng) / np.sqrt(2.0)
         innovation = torch.complex(real, imag).to(torch.complex64) * base_amplitude
         updated = rho * current + math.sqrt(max(0.0, 1.0 - rho**2)) * innovation
         next_cir = torch.zeros_like(self._current_cir)
