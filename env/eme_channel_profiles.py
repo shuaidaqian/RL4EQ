@@ -24,7 +24,9 @@ _ANOMALOUS_SCATTERER_DOI = "10.1029/JZ067i012p04881"
 
 def _immutable_array(values: Any, dtype: np.dtype[Any]) -> np.ndarray:
     contiguous = np.ascontiguousarray(values, dtype=dtype)
-    return np.frombuffer(contiguous.tobytes(), dtype=contiguous.dtype)
+    return np.frombuffer(contiguous.tobytes(), dtype=contiguous.dtype).reshape(
+        contiguous.shape
+    )
 
 
 def _finite_pair(
@@ -41,16 +43,37 @@ def _finite_pair(
     return low, high
 
 
-def _freeze_mapping(value: Mapping[str, Any]) -> Mapping[str, Any]:
-    frozen: dict[str, Any] = {}
-    for key, item in value.items():
-        if isinstance(item, Mapping):
-            frozen[key] = _freeze_mapping(item)
-        elif isinstance(item, list):
-            frozen[key] = tuple(item)
-        else:
-            frozen[key] = item
-    return MappingProxyType(frozen)
+def _freeze_metadata_value(value: Any, path: str = "metadata") -> Any:
+    if isinstance(value, Mapping):
+        frozen: dict[str, Any] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise ValueError(f"{path} 的键必须为字符串，无法可靠冻结。")
+            frozen[key] = _freeze_metadata_value(item, f"{path}.{key}")
+        return MappingProxyType(frozen)
+    if isinstance(value, (list, tuple)):
+        return tuple(
+            _freeze_metadata_value(item, f"{path}[{index}]")
+            for index, item in enumerate(value)
+        )
+    if isinstance(value, np.ndarray):
+        if value.dtype.hasobject:
+            raise ValueError(f"{path} 的 object ndarray 无法可靠冻结。")
+        return _immutable_array(value, value.dtype)
+    if isinstance(value, np.generic):
+        return _freeze_metadata_value(value.item(), path)
+    if value is None or isinstance(value, (str, bytes, bool, int, float, complex)):
+        return value
+    raise ValueError(f"{path} 包含无法可靠冻结的可变或未知类型。")
+
+
+def _positive_integer(value: Any, field_name: str) -> int:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral):
+        raise ValueError(f"{field_name} 必须为非布尔正整数。")
+    normalized = int(value)
+    if normalized <= 0:
+        raise ValueError(f"{field_name} 必须为非布尔正整数。")
+    return normalized
 
 
 @dataclass(frozen=True)
@@ -185,23 +208,137 @@ class EMEChannelProfile:
     metadata: Mapping[str, Any]
 
     def __post_init__(self) -> None:
-        cir = np.asarray(self.cir, dtype=np.complex128)
-        strong_delays = np.asarray(self.strong_delays, dtype=np.int64)
-        diffuse_mask = np.asarray(self.diffuse_mask, dtype=np.bool_)
-        if cir.ndim != 1 or strong_delays.ndim != 1 or diffuse_mask.ndim != 1:
-            raise ValueError("profile 数组必须是一维数组。")
-        if cir.size != self.max_delay_samples + 1 or diffuse_mask.size != cir.size:
-            raise ValueError("CIR 与弥散 mask 必须覆盖完整时延支撑。")
+        max_delay_samples = _positive_integer(
+            self.max_delay_samples, "max_delay_samples"
+        )
+        effective_taps_90 = _positive_integer(
+            self.effective_taps_90, "effective_taps_90"
+        )
+        if self.anomalous_delay is None:
+            anomalous_delay = None
+        else:
+            anomalous_delay = _positive_integer(
+                self.anomalous_delay, "anomalous_delay"
+            )
+            if anomalous_delay > max_delay_samples:
+                raise ValueError("anomalous_delay 不得超过 max_delay_samples。")
+
+        try:
+            raw_strong_delays = np.asarray(self.strong_delays, dtype=object)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("strong_delays 必须是一维非布尔整数序列。") from exc
+        if raw_strong_delays.ndim != 1:
+            raise ValueError("strong_delays 必须是一维非布尔整数序列。")
+        if any(
+            isinstance(item, (bool, np.bool_)) or not isinstance(item, Integral)
+            for item in raw_strong_delays
+        ):
+            raise ValueError("strong_delays 的每个元素必须为非布尔整数。")
+        normalized_delays = [int(item) for item in raw_strong_delays]
+        if any(delay < 0 or delay > max_delay_samples for delay in normalized_delays):
+            raise ValueError("strong_delays 必须位于完整时延支撑内。")
+        strong_delays = np.asarray(normalized_delays, dtype=np.int64)
+
+        try:
+            cir = np.asarray(self.cir, dtype=np.complex128)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("CIR 必须是一维有限复数数组。") from exc
+        if cir.ndim != 1:
+            raise ValueError("CIR 必须是一维有限复数数组。")
+        if cir.size != max_delay_samples + 1:
+            raise ValueError("CIR 必须覆盖 max_delay_samples 定义的完整时延支撑。")
+        if not np.all(np.isfinite(cir)):
+            raise ValueError("CIR 的所有复数元素必须有限。")
+        powers = np.abs(cir) ** 2
+        total_energy = float(np.sum(powers))
+        if not math.isfinite(total_energy) or total_energy <= 0.0:
+            raise ValueError("CIR 总能量必须为有限非零值。")
+        if not math.isclose(total_energy, 1.0, rel_tol=1e-9, abs_tol=1e-12):
+            raise ValueError("CIR 总能量必须约等于 1。")
+
+        try:
+            raw_diffuse_mask = np.asarray(self.diffuse_mask, dtype=object)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("diffuse_mask 必须是一维布尔数组。") from exc
+        if raw_diffuse_mask.ndim != 1 or raw_diffuse_mask.size != cir.size:
+            raise ValueError("diffuse_mask 必须是一维且与 CIR 等长。")
+        if any(
+            not isinstance(item, (bool, np.bool_)) for item in raw_diffuse_mask
+        ):
+            raise ValueError("diffuse_mask 的每个元素必须为布尔值。")
+        diffuse_mask = np.asarray(
+            [bool(item) for item in raw_diffuse_mask], dtype=np.bool_
+        )
+
         if strong_delays.size < 2 or np.any(np.diff(strong_delays) <= 0):
             raise ValueError("强径时延必须至少含两条且严格递增。")
-        if strong_delays[0] != 0 or strong_delays[-1] > self.max_delay_samples:
+        if strong_delays[0] != 0:
             raise ValueError("强径时延必须从 0 开始且不得越过最大时延。")
         if np.any(diffuse_mask[strong_delays]):
             raise ValueError("弥散 mask 不得覆盖强径。")
+        if np.any(powers[strong_delays] <= 0.0):
+            raise ValueError("每条强径必须具有非零能量。")
+        strong_mask = np.zeros(cir.size, dtype=np.bool_)
+        strong_mask[strong_delays] = True
+        if np.any(powers[~(strong_mask | diffuse_mask)] != 0.0):
+            raise ValueError("强径与弥散支撑之外不得存在非零能量。")
+
+        if isinstance(self.diffuse_energy_ratio, (bool, np.bool_)):
+            raise ValueError("diffuse_energy_ratio 必须为 [0, 1) 内的有限数值。")
+        try:
+            diffuse_energy_ratio = float(self.diffuse_energy_ratio)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(
+                "diffuse_energy_ratio 必须为 [0, 1) 内的有限数值。"
+            ) from exc
+        if (
+            not math.isfinite(diffuse_energy_ratio)
+            or diffuse_energy_ratio < 0.0
+            or diffuse_energy_ratio >= 1.0
+        ):
+            raise ValueError("diffuse_energy_ratio 必须为 [0, 1) 内的有限数值。")
+        actual_diffuse_energy = float(np.sum(powers[diffuse_mask]))
+        if not math.isclose(
+            diffuse_energy_ratio,
+            actual_diffuse_energy,
+            rel_tol=1e-9,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("diffuse_energy_ratio 必须等于 mask 内的实际能量。")
+
+        if effective_taps_90 > cir.size:
+            raise ValueError("effective_taps_90 必须位于 [1, CIR 长度] 内。")
+        recomputed_effective_taps = _effective_taps_90(cir)
+        if effective_taps_90 != recomputed_effective_taps:
+            raise ValueError("effective_taps_90 必须等于从 CIR 重算的值。")
+
         if self.aggregation not in _AGGREGATION_BY_LEVEL.values():
             raise ValueError("aggregation 必须为 sanity、main 或 pressure。")
         if not isinstance(self.metadata, Mapping):
             raise ValueError("metadata 必须为映射。")
+        metadata = _freeze_metadata_value(self.metadata)
+        anomaly_metadata = metadata.get("anomalous_scatterer")
+        if not isinstance(anomaly_metadata, Mapping):
+            raise ValueError("anomalous_scatterer metadata 必须为映射。")
+        metadata_enabled = anomaly_metadata.get("enabled")
+        metadata_delay = anomaly_metadata.get("delay")
+        if not isinstance(metadata_enabled, bool):
+            raise ValueError("anomalous_scatterer metadata.enabled 必须为布尔值。")
+        if metadata_delay is not None and (
+            isinstance(metadata_delay, bool) or not isinstance(metadata_delay, Integral)
+        ):
+            raise ValueError("anomalous_scatterer metadata.delay 必须为整数或 None。")
+        normalized_metadata_delay = (
+            None if metadata_delay is None else int(metadata_delay)
+        )
+        if anomalous_delay is None:
+            if metadata_enabled or normalized_metadata_delay is not None:
+                raise ValueError("anomalous_delay 必须与异常 metadata 保持一致。")
+        else:
+            if anomalous_delay == 0 or anomalous_delay not in strong_delays:
+                raise ValueError("anomalous_delay 必须是非零 strong delay。")
+            if not metadata_enabled or normalized_metadata_delay != anomalous_delay:
+                raise ValueError("anomalous_delay 必须与异常 metadata 保持一致。")
 
         object.__setattr__(self, "cir", _immutable_array(cir, np.dtype(np.complex128)))
         object.__setattr__(
@@ -214,7 +351,11 @@ class EMEChannelProfile:
             "diffuse_mask",
             _immutable_array(diffuse_mask, np.dtype(np.bool_)),
         )
-        object.__setattr__(self, "metadata", _freeze_mapping(self.metadata))
+        object.__setattr__(self, "diffuse_energy_ratio", diffuse_energy_ratio)
+        object.__setattr__(self, "effective_taps_90", effective_taps_90)
+        object.__setattr__(self, "max_delay_samples", max_delay_samples)
+        object.__setattr__(self, "anomalous_delay", anomalous_delay)
+        object.__setattr__(self, "metadata", metadata)
 
 
 def _envelope_linear_power(max_delay_samples: int, sample_rate_hz: float) -> tuple[np.ndarray, Any]:

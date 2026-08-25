@@ -3,12 +3,17 @@ import json
 import sys
 from dataclasses import FrozenInstanceError, fields, is_dataclass
 from pathlib import Path
+from types import MappingProxyType
 
 import numpy as np
 import pytest
 
 import env.eme_reference as eme_reference
-from env.eme_channel_profiles import EMEChannelProfileConfig, sample_eme_profile
+from env.eme_channel_profiles import (
+    EMEChannelProfile,
+    EMEChannelProfileConfig,
+    sample_eme_profile,
+)
 from env.eme_reference import (
     EME_FULL_RADAR_DEPTH_SECONDS,
     load_evans_1965_envelope,
@@ -420,6 +425,33 @@ def _profile_config(**changes):
     return EMEChannelProfileConfig(**payload)
 
 
+def _effective_taps_90(cir):
+    descending_power = np.sort(np.abs(cir) ** 2)[::-1]
+    return int(np.searchsorted(np.cumsum(descending_power), 0.9, side="left") + 1)
+
+
+def _direct_profile_payload(**changes):
+    cir = np.asarray([np.sqrt(0.5), np.sqrt(0.5), 0.0], dtype=np.complex128)
+    payload = {
+        "cir": cir,
+        "strong_delays": [0, 1],
+        "diffuse_mask": [False, False, False],
+        "diffuse_energy_ratio": 0.0,
+        "effective_taps_90": _effective_taps_90(cir),
+        "max_delay_samples": 2,
+        "aggregation": "main",
+        "anomalous_delay": None,
+        "metadata": {
+            "anomalous_scatterer": {
+                "enabled": False,
+                "delay": None,
+            }
+        },
+    }
+    payload.update(changes)
+    return payload
+
+
 def test_level_b_eme_profile_satisfies_sparse_long_echo_contract_and_reproduces():
     config = _profile_config()
 
@@ -591,3 +623,197 @@ def test_eme_profile_config_rejects_invalid_ranges(changes, message):
 def test_eme_profile_config_rejects_infeasible_strong_tap_count():
     with pytest.raises(ValueError, match="strong_path_count.*可用 tap"):
         _profile_config(strong_path_count=(3, 26))
+
+
+@pytest.mark.parametrize(
+    "invalid_delays",
+    [
+        [0.2, 1.9],
+        [False, 1],
+        np.asarray([0.0, 1.0], dtype=np.float64),
+    ],
+)
+def test_profile_constructor_rejects_non_integer_strong_delays_without_casting(
+    invalid_delays,
+):
+    with pytest.raises(ValueError, match="strong_delays.*非布尔整数"):
+        EMEChannelProfile(
+            **_direct_profile_payload(strong_delays=invalid_delays)
+        )
+
+
+@pytest.mark.parametrize("invalid_value", [True, 2.0, 0, -1])
+def test_profile_constructor_validates_max_delay_samples_type_and_range(invalid_value):
+    with pytest.raises(ValueError, match="max_delay_samples"):
+        EMEChannelProfile(
+            **_direct_profile_payload(max_delay_samples=invalid_value)
+        )
+
+
+@pytest.mark.parametrize("invalid_value", [True, 2.0, 0, 4])
+def test_profile_constructor_validates_effective_taps_type_and_range(invalid_value):
+    with pytest.raises(ValueError, match="effective_taps_90"):
+        EMEChannelProfile(
+            **_direct_profile_payload(effective_taps_90=invalid_value)
+        )
+
+
+def test_profile_constructor_rejects_in_range_but_incorrect_effective_taps():
+    cir = np.asarray([np.sqrt(0.8), np.sqrt(0.1), np.sqrt(0.1)], dtype=np.complex128)
+
+    with pytest.raises(ValueError, match="effective_taps_90.*重算"):
+        EMEChannelProfile(
+            **_direct_profile_payload(
+                cir=cir,
+                strong_delays=[0, 1],
+                diffuse_mask=[False, False, True],
+                diffuse_energy_ratio=0.1,
+                effective_taps_90=1,
+            )
+        )
+
+
+@pytest.mark.parametrize("invalid_value", [True, 1.0, 0, -1, 2, 3])
+def test_profile_constructor_validates_anomalous_delay_type_and_membership(invalid_value):
+    with pytest.raises(ValueError, match="anomalous_delay"):
+        EMEChannelProfile(
+            **_direct_profile_payload(anomalous_delay=invalid_value)
+        )
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["two_dimensional", "wrong_length", "non_finite", "zero", "not_normalized"],
+)
+def test_profile_constructor_rejects_invalid_cir(case):
+    cir = np.asarray(_direct_profile_payload()["cir"], dtype=np.complex128)
+    if case == "two_dimensional":
+        cir = cir.reshape(1, -1)
+    elif case == "wrong_length":
+        cir = cir[:-1]
+    elif case == "non_finite":
+        cir = np.array(cir, copy=True)
+        cir[0] = np.nan + 1j * np.inf
+    elif case == "zero":
+        cir = np.zeros_like(cir)
+    elif case == "not_normalized":
+        cir = cir * 0.5
+
+    with pytest.raises(ValueError, match="CIR|cir|能量"):
+        EMEChannelProfile(**_direct_profile_payload(cir=cir))
+
+
+def test_profile_constructor_requires_nonzero_energy_on_every_strong_delay():
+    cir = np.asarray([0.0, 1.0, 0.0], dtype=np.complex128)
+
+    with pytest.raises(ValueError, match="强径.*非零能量"):
+        EMEChannelProfile(
+            **_direct_profile_payload(
+                cir=cir,
+                effective_taps_90=_effective_taps_90(cir),
+            )
+        )
+
+
+def test_profile_constructor_rejects_energy_outside_strong_and_diffuse_support():
+    cir = np.asarray(
+        [np.sqrt(0.45), np.sqrt(0.45), np.sqrt(0.1)],
+        dtype=np.complex128,
+    )
+
+    with pytest.raises(ValueError, match="strong.*diffuse|强径.*弥散"):
+        EMEChannelProfile(
+            **_direct_profile_payload(
+                cir=cir,
+                effective_taps_90=_effective_taps_90(cir),
+            )
+        )
+
+
+@pytest.mark.parametrize("invalid_ratio", [np.nan, -0.01, 1.0])
+def test_profile_constructor_validates_diffuse_energy_ratio_range(invalid_ratio):
+    with pytest.raises(ValueError, match="diffuse_energy_ratio"):
+        EMEChannelProfile(
+            **_direct_profile_payload(diffuse_energy_ratio=invalid_ratio)
+        )
+
+
+def test_profile_constructor_matches_diffuse_ratio_to_mask_energy():
+    with pytest.raises(ValueError, match="diffuse_energy_ratio.*mask"):
+        EMEChannelProfile(
+            **_direct_profile_payload(diffuse_energy_ratio=0.1)
+        )
+
+
+@pytest.mark.parametrize(
+    ("anomalous_delay", "enabled", "metadata_delay"),
+    [
+        (None, True, None),
+        (None, False, 1),
+        (1, False, 1),
+        (1, True, 2),
+    ],
+)
+def test_profile_constructor_keeps_anomaly_field_and_metadata_consistent(
+    anomalous_delay, enabled, metadata_delay
+):
+    metadata = {
+        "anomalous_scatterer": {
+            "enabled": enabled,
+            "delay": metadata_delay,
+        }
+    }
+
+    with pytest.raises(ValueError, match="anomalous.*metadata|异常.*metadata"):
+        EMEChannelProfile(
+            **_direct_profile_payload(
+                anomalous_delay=anomalous_delay,
+                metadata=metadata,
+            )
+        )
+
+
+def test_profile_metadata_is_recursively_frozen_and_detached_from_sources():
+    source_array = np.asarray([[1.0, 2.0]], dtype=np.float64)
+    source_list = [{"tuple": (source_array, [3, 4])}]
+    metadata = _direct_profile_payload()["metadata"]
+    metadata["nested"] = {"items": source_list}
+
+    profile = EMEChannelProfile(
+        **_direct_profile_payload(metadata=metadata)
+    )
+
+    nested = profile.metadata["nested"]
+    items = nested["items"]
+    frozen_array = items[0]["tuple"][0]
+    assert isinstance(profile.metadata, MappingProxyType)
+    assert isinstance(nested, MappingProxyType)
+    assert isinstance(items, tuple)
+    assert isinstance(items[0], MappingProxyType)
+    assert isinstance(items[0]["tuple"], tuple)
+    assert isinstance(items[0]["tuple"][1], tuple)
+    assert frozen_array.flags.writeable is False
+
+    source_array[0, 0] = 99.0
+    source_list[0]["tuple"][1].append(5)
+    assert frozen_array[0, 0] == 1.0
+    assert items[0]["tuple"][1] == (3, 4)
+
+    with pytest.raises(TypeError):
+        nested["new"] = "value"
+    with pytest.raises(TypeError):
+        items[0]["new"] = "value"
+    with pytest.raises(ValueError):
+        frozen_array[0, 0] = 7.0
+    with pytest.raises(ValueError):
+        frozen_array.setflags(write=True)
+
+
+def test_profile_metadata_rejects_unknown_mutable_values():
+    metadata = _direct_profile_payload()["metadata"]
+    metadata["unsupported"] = {"mutable"}
+
+    with pytest.raises(ValueError, match="metadata.*冻结"):
+        EMEChannelProfile(
+            **_direct_profile_payload(metadata=metadata)
+        )
