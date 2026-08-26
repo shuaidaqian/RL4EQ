@@ -1056,7 +1056,7 @@ def test_eme_measurement_frozen_config_matches_b_core_and_physical_contract():
     assert config["rho_frame"] == pytest.approx(math.exp(-0.256 / 120.0))
     assert config["rho"] == pytest.approx(config["rho_frame"])
     assert config["traditional_methods"] == candidates["traditional_methods"]
-    assert config["eme_physical_fields_passthrough"] == "not_implemented"
+    assert config["eme_physical_fields_passthrough"] == "implemented"
 
 
 def test_eme_measurement_frozen_config_excludes_non_main_profiles_from_main_average():

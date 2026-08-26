@@ -102,4 +102,5 @@
 - 校准只覆盖两种带合理 Pilot CFO/相位补偿的传统 baseline，没有使用神经网络、RL 或 Proposed 结果。
 - 异常散射体、强径数和弥散能量比是模型候选，不是从 EME 数据直接估计出的概率模型。
 - 数字化包络稀疏且带人工读图误差；11.6 ms 端点包含支撑延伸/删失语义，不能被解释成精确观测 PDP。
-- `continual_ppo_eme_measurement_v1.json` 保留了 `model`、`main_delays`、`main_snrs`、`rho`、Pilot 和 impairment 等现有入口可读取字段，同时新增物理字段。当前 `pretrain.py`、`online_train.py` 和 `compare.py` 尚未完成 `eme_measurement_v1` 物理字段的端到端透传，不能仅凭该配置声称训练入口已经运行 EME 测量约束信道。
+- `pretrain.py`、`online_train.py` 和 `compare.py` 已统一通过 `env/experiment_config.py` 构造实际信道。适配器重新计算并核对 `D=ceil(sample_rate_hz*max_delay_seconds)=24`，透传相干时间、强径数、弥散能量比和异常散射体开关；`max_delay`、模型维度、Level 或 Pilot layout 与冻结 B-core 冲突时立即失败，不允许静默回落 `legacy_sparse_v1`。
+- 预训练、在线训练和对比产物记录从已构造 `CommEnvConfig` 导出的 `effective_channel`；在线和对比的逐帧行另外记录实际 `profile_name`。这些字段用于审计实际运行信道，不从配置文件名推断。
