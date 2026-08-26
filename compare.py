@@ -271,7 +271,9 @@ def main() -> None:
     if pretrained_path is not None and not pretrained_path.exists():
         pretrained_path = None
     neural_methods = {"Offline NN only", "RL-Modulated Neural Block Equalizer"}
-    if any(method in neural_methods for method in selected_methods):
+    if config.get("channel_profile") == "eme_measurement_v1" and any(
+        method in neural_methods for method in selected_methods
+    ):
         validate_model_dimensions(
             _load_model_config(config, pretrained_path),
             next(iter(env_configs.values())),

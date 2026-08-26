@@ -153,7 +153,8 @@ def run_windowed_discrete_online(
     target.mkdir(parents=True, exist_ok=True)
     pretrained_path = Path(pretrained) if pretrained is not None else None
     model_config = _load_model_config(config, pretrained_path)
-    validate_model_dimensions(model_config, next(iter(env_configs.values())))
+    if config.get("channel_profile") == "eme_measurement_v1":
+        validate_model_dimensions(model_config, next(iter(env_configs.values())))
     rows = []
     last_policy: DiscreteSafePolicy | None = None
     last_actions: list[DiscreteSafeAction] = []
