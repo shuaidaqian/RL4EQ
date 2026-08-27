@@ -47,6 +47,7 @@ from training.windowed_discrete_ppo import (
     _load_discrete_policy_if_available,
     run_windowed_discrete_frame,
 )
+from training.online_adaptation import PilotDrivenOnlineAdapter
 
 
 FORMAL_METHODS = (
@@ -79,6 +80,7 @@ TRADITIONAL_METHODS = (
 
 PROPOSED_METHODS = (
     "Offline NN only",
+    "Pilot-Driven Online Adaptation",
     "NN + Fixed Modulation",
     "NN + Rule Modulation",
     "NN + Discrete PEFT Scheduler",
@@ -270,8 +272,8 @@ def main() -> None:
     pretrained_path = Path(args.pretrained) if args.pretrained else None
     if pretrained_path is not None and not pretrained_path.exists():
         pretrained_path = None
-    neural_methods = {"Offline NN only", "RL-Modulated Neural Block Equalizer"}
-    if config.get("channel_profile") == "eme_measurement_v1" and any(
+    neural_methods = {"Offline NN only", "Pilot-Driven Online Adaptation", "RL-Modulated Neural Block Equalizer"}
+    if config.get("channel_profile") in {"eme_measurement_v1", "eme_long_memory_v2"} and any(
         method in neural_methods for method in selected_methods
     ):
         validate_model_dimensions(
@@ -301,8 +303,9 @@ def main() -> None:
                     start = env.reset_episode()
                     if impairment_profile == "clean":
                         acquisition_cir = _estimate_cir_from_known_frame(start.acquisition, int(env_config.max_delay))
+                        acquisition_cfo = 0.0
                     else:
-                        acquisition_cir, _ = estimate_acquisition_cir_with_cfo(
+                        acquisition_cir, acquisition_cfo = estimate_acquisition_cir_with_cfo(
                             start.acquisition,
                             int(env_config.max_delay),
                             cfo_limit=acquisition_cfo_limit,
@@ -322,6 +325,7 @@ def main() -> None:
                         cir_update_mode=str(args.cir_update),
                         cir_alpha=float(args.cir_alpha),
                         residual_cfo_limit=residual_cfo_limit,
+                        acquisition_cfo=float(acquisition_cfo),
                     )
                     for frame_index in range(1, args.frames + 1):
                         frame = env.next_frame()
@@ -369,16 +373,35 @@ def main() -> None:
                             existing_keys.add(key)
                             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
                             handle.flush()
-    ppo_rows = [row for row in rows if row["method"] == "Continual PPO"]
-    summary = summarize_main_matrix(ppo_rows)
-    interval = paired_block_bootstrap(ppo_rows, seed=0, repetitions=200, block_length=min(10, max(1, args.frames)))
+    primary_method = _primary_summary_method(selected_methods)
+    primary_rows = [row for row in rows if row["method"] == primary_method]
+    summary = summarize_main_matrix(
+        primary_rows,
+        main_delays=config.get("main_delays"),
+        main_snrs=config.get("main_snrs"),
+    )
+    interval = paired_block_bootstrap(primary_rows, seed=0, repetitions=200, block_length=min(10, max(1, args.frames)))
+    per_method = {}
+    for method in selected_methods:
+        method_rows = [row for row in rows if row["method"] == method]
+        method_summary = summarize_main_matrix(
+            method_rows,
+            main_delays=config.get("main_delays"),
+            main_snrs=config.get("main_snrs"),
+        )
+        per_method[method] = {
+            "per_config": [item.__dict__ for item in method_summary.per_config],
+            "generalization": method_summary.generalization,
+        }
     summary_payload = {
         "schema_version": "continual-ppo-compare-v2",
         "methods": list(selected_methods),
+        "primary_summary_method": primary_method,
         "main_level": "B",
         "level_c_separate": True,
         "per_config": [item.__dict__ for item in summary.per_config],
         "generalization": summary.generalization,
+        "per_method": per_method,
         "bootstrap": interval.__dict__,
         "effective_channel": effective_channel,
         "impairment_profile": impairment_profile,
@@ -387,6 +410,22 @@ def main() -> None:
     }
     (target / "summary.json").write_text(json.dumps(summary_payload, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"saved {args.output_dir}")
+
+
+def _primary_summary_method(methods: tuple[str, ...]) -> str:
+    """选择默认主结果方法，优先使用当前在线 proposed 主线。"""
+
+    priority = (
+        "Pilot-Driven Online Adaptation",
+        "RL-Modulated Neural Block Equalizer",
+        "Offline NN only",
+    )
+    for method in priority:
+        if method in methods:
+            return method
+    if not methods:
+        raise ValueError("至少需要一个比较方法。")
+    return str(methods[0])
 
 
 @dataclass(frozen=True)
@@ -431,6 +470,7 @@ class NeuralMethodState:
     model: UnfoldedEqualizer
     modulation: ModulationState
     pretrained_loaded: bool
+    acquisition_cfo: float = 0.0
     cir_update_mode: str = "fixed"
     cir_update_alpha: float = 0.2
 
@@ -440,6 +480,20 @@ class RLModulatedMethodState:
     online_state: WindowedDiscreteOnlineState
     pretrained_loaded: bool
     policy_loaded: bool
+    acquisition_cfo: float = 0.0
+
+
+@dataclass
+class PilotOnlineMethodState:
+    model: UnfoldedEqualizer
+    adapter: PilotDrivenOnlineAdapter
+    cir: torch.Tensor
+    receiver_state: ReceiverState
+    pretrained_loaded: bool
+    acquisition_cfo: float = 0.0
+    cir_update_mode: str = "fixed"
+    cir_update_alpha: float = 0.2
+    tail_update_alpha: float = 0.5
 
 
 def _select_methods(methods: list[str] | None) -> tuple[str, ...]:
@@ -471,11 +525,32 @@ def _build_method_states(
     cir_update_mode: str = "fixed",
     cir_alpha: float = 0.2,
     residual_cfo_limit: float = 0.001,
+    acquisition_cfo: float = 0.0,
 ) -> dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState]:
     states: dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState] = {}
     model_config = _load_model_config(config, pretrained_path)
     for method in methods:
-        if method == "RL-Modulated Neural Block Equalizer":
+        if method == "Pilot-Driven Online Adaptation":
+            model = _build_equalizer(model_config, pretrained_path, device)
+            adapter = PilotDrivenOnlineAdapter(
+                model,
+                groups={"head", "conditioner_film"},
+                learning_rate=float(config.get("online_adaptation_learning_rate", 1e-4)),
+                steps=int(config.get("online_adaptation_steps", 1)),
+                max_delta_norm=float(config.get("online_adaptation_max_delta_norm", 0.5)),
+            )
+            states[method] = PilotOnlineMethodState(
+                model=model,
+                adapter=adapter,
+                cir=acquisition_cir.clone().to(device),
+                receiver_state=ReceiverState(initial_soft_tail.clone().to(device)),
+                pretrained_loaded=pretrained_path is not None,
+                acquisition_cfo=float(acquisition_cfo),
+                cir_update_mode=str(cir_update_mode),
+                cir_update_alpha=float(cir_alpha),
+                tail_update_alpha=float(config.get("tail_update_alpha", 0.5)),
+            )
+        elif method == "RL-Modulated Neural Block Equalizer":
             torch.manual_seed(_method_seed("rl_modulated", seed, delay, snr_db))
             if torch.cuda.is_available():
                 torch.cuda.manual_seed_all(_method_seed("rl_modulated", seed, delay, snr_db))
@@ -508,10 +583,13 @@ def _build_method_states(
                     last_action_delta_norm=0.0,
                     cir_update_mode=str(cir_update_mode),
                     cir_update_alpha=float(cir_alpha),
+                    tail_refinement_passes=int(config.get("tail_refinement_passes", 0)),
+                    tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
                     rollout=[],
                 ),
                 pretrained_loaded=pretrained_path is not None,
                 policy_loaded=policy_loaded,
+                acquisition_cfo=float(acquisition_cfo),
             )
         elif method in PROPOSED_METHODS:
             model = _build_equalizer(model_config, pretrained_path, device)
@@ -522,6 +600,7 @@ def _build_method_states(
                 model=model,
                 modulation=_fixed_modulation_for(method, modulation_config, device),
                 pretrained_loaded=pretrained_path is not None,
+                acquisition_cfo=float(acquisition_cfo),
                 cir_update_mode=str(cir_update_mode),
                 cir_update_alpha=float(cir_alpha),
             )
@@ -622,6 +701,7 @@ def _run_new_or_single_method(
             state.online_state.cir,
             state.online_state.receiver_state.soft_tail,
             blocks=4,
+            cfo_hint=state.acquisition_cfo,
         )
         condition = condition_from_cir(state.online_state.cir, snr_db, phase_features=phase_features)
         row = run_windowed_discrete_frame(state.online_state, frame_device, condition, snr_db, frame_index, update_interval)
@@ -635,6 +715,17 @@ def _run_new_or_single_method(
             detector_iterations=int(row.get("detector_iterations", 0)),
             extra={**row, "pretrained_loaded": state.pretrained_loaded, "policy_loaded": state.policy_loaded},
         )
+    if method == "Pilot-Driven Online Adaptation":
+        if not isinstance(state, PilotOnlineMethodState):
+            raise TypeError("Pilot-Driven Online Adaptation 需要 PilotOnlineMethodState。")
+        return _run_pilot_online_method(
+            method,
+            frame,
+            snr_db,
+            state,
+            delay,
+            frame_index,
+        )
     if method in PROPOSED_METHODS:
         if not isinstance(state, NeuralMethodState):
             raise TypeError("神经 proposed 消融需要 NeuralMethodState。")
@@ -647,6 +738,7 @@ def _run_new_or_single_method(
             state.cir,
             state.receiver_state.soft_tail,
             blocks=4,
+            cfo_hint=state.acquisition_cfo,
         )
         condition = condition_from_cir(state.cir, snr_db, phase_features=phase_features)
         logits, _ = state.model(
@@ -655,6 +747,8 @@ def _run_new_or_single_method(
             region_ids,
             state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64),
             modulation=state.modulation,
+            adapt_symbols=frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64),
+            adapt_mask=frame_device.adapt_mask.unsqueeze(0).bool(),
         )
         logits = logits.squeeze(0)
         tail_len = state.receiver_state.soft_tail.numel()
@@ -838,6 +932,106 @@ def _result_from_logits(method: str, logits: torch.Tensor, frame, iterations: in
         latency_ms=0.0,
         detector_iterations=int(iterations),
         extra=extra,
+    )
+
+
+def _run_pilot_online_method(
+    method: str,
+    frame,
+    snr_db: float,
+    state: PilotOnlineMethodState,
+    delay: int,
+    frame_index: int,
+) -> RealMethodResult:
+    """运行一帧不依赖 PPO 的 Pilot 驱动在线适配。"""
+
+    device = next(state.model.parameters()).device
+    frame_device = _frame_to_device(frame, device)
+    tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
+    phase_features = estimate_phase_residual_vector(
+        frame.receiver_view(),
+        state.cir,
+        state.receiver_state.soft_tail,
+        blocks=4,
+        cfo_hint=state.acquisition_cfo,
+    )
+    condition = condition_from_cir(state.cir, snr_db, phase_features=phase_features)
+    rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
+    region_ids = frame_device.model_region_ids.unsqueeze(0).long()
+    adapt_symbols = frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64)
+    adapt_mask = frame_device.adapt_mask.unsqueeze(0).bool()
+    with torch.no_grad():
+        before_logits, _ = state.model(
+            rx_iq,
+            condition,
+            region_ids,
+            tail,
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        )
+    before = before_logits.squeeze(0)
+    snapshot = state.model.peft.snapshot(state.adapter.groups)
+    adaptation = state.adapter.adapt(frame_device, condition, tail)
+    with torch.no_grad():
+        after_logits, _ = state.model(
+            rx_iq,
+            condition,
+            region_ids,
+            tail,
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        )
+    after = after_logits.squeeze(0)
+    reward_before = _masked_bce(before, frame_device.bits, frame_device.reward_mask)
+    reward_after = _masked_bce(after, frame_device.bits, frame_device.reward_mask)
+    accepted = bool(adaptation.accepted and float(reward_after) <= float(reward_before))
+    if not accepted:
+        state.model.peft.restore(snapshot)
+        final = before
+    else:
+        final = after
+    tail_len = state.receiver_state.soft_tail.numel()
+    detected_tail = torch.complex(
+        torch.tanh(final[-tail_len:] / 2.0),
+        torch.zeros_like(final[-tail_len:]),
+    )
+    state.receiver_state.update_tail(
+        (1.0 - state.tail_update_alpha) * state.receiver_state.soft_tail
+        + state.tail_update_alpha * detected_tail
+    )
+    if state.cir_update_mode == "decision_directed":
+        state.cir = decision_directed_cir_update(
+            frame_device,
+            final.detach(),
+            int(delay),
+            state.cir,
+            alpha=float(state.cir_update_alpha),
+        ).to(device)
+    return _result_from_logits(
+        method,
+        final,
+        frame_device,
+        0,
+        {
+            "uses_neural_network": True,
+            "uses_rl": False,
+            "online_algorithm": "pilot_driven_constrained_peft",
+            "online_update_source": "adapt_pilot_only",
+            "reward_pilot_guard": True,
+            "adapt_pilot_count": int(adaptation.adapt_pilot_count),
+            "adapt_loss_before": float(adaptation.adapt_loss_before),
+            "adapt_loss_after": float(adaptation.adapt_loss_after),
+            "adaptation_accepted": bool(accepted),
+            "reward_pilot_loss_before": float(reward_before.detach().cpu()),
+            "reward_pilot_loss_after": float(reward_after.detach().cpu()),
+            "parameter_delta_norm": float(adaptation.parameter_delta_norm if accepted else 0.0),
+            "tail_update_alpha": float(state.tail_update_alpha),
+            "cir_update_mode": str(state.cir_update_mode),
+            "cir_update_alpha": float(state.cir_update_alpha),
+            "data_labels_used_online": False,
+            "pretrained_loaded": bool(state.pretrained_loaded),
+            "frame_index": int(frame_index),
+        },
     )
 
 

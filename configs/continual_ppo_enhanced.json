@@ -1,0 +1,40 @@
+{
+  "schema_version": "continual-ppo-config-v1",
+  "pilot_layout": "prefix",
+  "pilot_total": 128,
+  "snrs_main": [0, 5, 10, 15],
+  "snrs_pressure": [],
+  "pilot_sweep_totals": [64, 96, 128, 160],
+  "pilot_sweep_layout": "prefix",
+  "optional_impairments": {
+    "cfo": false,
+    "phase_perturbation": false,
+    "nonlinearity": false,
+    "coding": false,
+    "higher_order_modulation": false
+  },
+  "curriculum_max_frame_offset": 4,
+  "cir_condition_augmentation": {
+    "enabled": true,
+    "modes": ["true", "acquisition", "noisy", "dd_like"],
+    "noise_std": 0.05,
+    "dd_flip_probability": 0.02,
+    "dd_blend_alpha": 0.2
+  },
+  "ppo_window_size": 8,
+  "learning_rate": 0.0001,
+  "model": {
+    "frame_len": 512,
+    "max_delay": 40,
+    "iterations": 6,
+    "d_model": 96,
+    "num_heads": 4,
+    "adapter_rank": 8,
+    "lora_rank": 8,
+    "conditioner_uses_cir_summary": true
+  },
+  "main_level": "B",
+  "main_delays": [20, 30, 40],
+  "main_snrs": [0, 5, 10, 15],
+  "rho": 0.99
+}

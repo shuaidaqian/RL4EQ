@@ -26,9 +26,10 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = load_config(args.config)
     if args.stage == "meta":
-        if config.get("channel_profile") == "eme_measurement_v1":
+        if config.get("channel_profile") in {"eme_measurement_v1", "eme_long_memory_v2"}:
             raise ValueError(
-                "meta 阶段尚未接入 eme_measurement_v1 物理信道，禁止静默训练单位信道。"
+                "EME 物理信道尚未接入 meta 阶段，禁止静默训练单位信道："
+                f"profile_name={config.get('profile_name', config.get('channel_profile'))}。"
             )
         trainer = MetaTrainer(config, device=device, save_dir=args.save_dir)
         resume_loaded = trainer.load_resume(args.resume)

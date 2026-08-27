@@ -28,6 +28,7 @@ class UnfoldedConfig:
     phase_correction_segments: int = 4
     phase_correction_initial_scale: float = 0.0
     analytic_logit_skip_scale: float = 0.0
+    pilot_conditioned: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -103,6 +104,13 @@ class UnfoldedEqualizer(nn.Module):
         self.config = config or UnfoldedConfig()
         self.feature_proj = nn.Linear(4, self.config.d_model)
         self.region_embedding = nn.Embedding(2, self.config.d_model)
+        self.pilot_encoder = None
+        if self.config.pilot_conditioned:
+            self.pilot_encoder = nn.Sequential(
+                nn.Conv1d(5, self.config.d_model, kernel_size=3, padding=1),
+                nn.GELU(),
+                nn.Conv1d(self.config.d_model, self.config.d_model, kernel_size=1),
+            )
         self.phase_correction = None
         if self.config.enable_phase_correction_branch:
             self.phase_correction = nn.Sequential(
@@ -120,6 +128,8 @@ class UnfoldedEqualizer(nn.Module):
         else:
             self.register_parameter("phase_correction_scale", None)
         conditioner_input_dim = 96
+        if self.config.pilot_conditioned:
+            conditioner_input_dim += self.config.d_model
         if self.config.conditioner_uses_cir_summary:
             conditioner_input_dim += 2 * (self.config.max_delay + 1) + 2
         self.conditioner = nn.Sequential(
@@ -143,8 +153,13 @@ class UnfoldedEqualizer(nn.Module):
         region_ids: torch.Tensor,
         soft_tail: torch.Tensor,
         modulation: ModulationState | None = None,
+        adapt_symbols: torch.Tensor | None = None,
+        adapt_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         rx_iq = self._apply_phase_correction(rx_iq, condition)
+        pilot_context = None
+        if self.config.pilot_conditioned:
+            pilot_context = self._pilot_context(rx_iq, adapt_symbols, adapt_mask)
         rx_complex = torch.complex(rx_iq[..., 0], rx_iq[..., 1]).to(torch.complex64)
         operator = LinearChannelOperator(frame_len=rx_complex.shape[1], max_delay=condition.complex_cir.shape[1] - 1)
         soft_symbols = torch.zeros_like(rx_complex)
@@ -155,7 +170,7 @@ class UnfoldedEqualizer(nn.Module):
             proposal = soft_symbols + self.alpha[layer].to(gradient.dtype) * gradient
             features = torch.stack((proposal.real, proposal.imag, residual.real, residual.imag), dim=-1)
             hidden = self.feature_proj(features) + self.region_embedding(region_ids.clamp_min(0).clamp_max(1))
-            hidden = self._apply_film(hidden, condition, modulation)
+            hidden = self._apply_film(hidden, condition, modulation, pilot_context)
             for block_index, block in enumerate(self.blocks):
                 adapter_gate = None
                 lora_scale = None
@@ -208,10 +223,13 @@ class UnfoldedEqualizer(nn.Module):
         cfo = torch.stack(cfo_values, dim=1)
         if self.phase_correction is not None:
             phase0 = phase0 + self.phase_correction(latent)
+        # CFO 与公共相位在当前 profile 中是慢状态；按 block 中位数聚合，
+        # 避免某个低信噪比 Pilot block 把整帧校正带偏。
+        phase0_global = torch.median(phase0, dim=1).values
+        cfo_global = torch.median(cfo, dim=1).values
         positions = torch.arange(frame_len, device=rx_iq.device, dtype=rx_iq.dtype)
-        segment_index = torch.div(positions * segment_count, frame_len, rounding_mode="floor").long().clamp_max(segment_count - 1)
-        phase0_t = phase0[:, segment_index]
-        cfo_t = cfo[:, segment_index]
+        phase0_t = phase0_global.unsqueeze(1)
+        cfo_t = cfo_global.unsqueeze(1)
         phase = phase0_t + 2.0 * torch.pi * cfo_t * positions.unsqueeze(0)
         scale = self.phase_correction_scale.to(rx_iq.device, rx_iq.dtype)
         phase = phase * scale
@@ -224,6 +242,7 @@ class UnfoldedEqualizer(nn.Module):
         hidden: torch.Tensor,
         condition: CIRCondition,
         modulation: ModulationState | None = None,
+        pilot_context: torch.Tensor | None = None,
     ) -> torch.Tensor:
         latent = condition.latent_residual
         if latent.shape[1] < 96:
@@ -241,6 +260,17 @@ class UnfoldedEqualizer(nn.Module):
                 ],
                 dim=-1,
             )
+        if self.config.pilot_conditioned:
+            if pilot_context is None:
+                pilot_context = torch.zeros(
+                    hidden.shape[0], self.config.d_model,
+                    device=hidden.device,
+                    dtype=hidden.dtype,
+                )
+            conditioner_features = torch.cat(
+                [conditioner_features, pilot_context.to(hidden.device, hidden.dtype)],
+                dim=-1,
+            )
         gamma_beta = self.conditioner(conditioner_features)
         gamma, beta = gamma_beta.chunk(2, dim=-1)
         if modulation is not None:
@@ -248,6 +278,38 @@ class UnfoldedEqualizer(nn.Module):
             gamma = gamma * (1.0 + scale)
             beta = beta * (1.0 + scale)
         return hidden * (1.0 + gamma.unsqueeze(1)) + beta.unsqueeze(1)
+
+    def _pilot_context(
+        self,
+        rx_iq: torch.Tensor,
+        adapt_symbols: torch.Tensor | None,
+        adapt_mask: torch.Tensor | None,
+    ) -> torch.Tensor:
+        """从已知 Adapt Pilot 提取不读取隐藏标签的帧级条件。"""
+
+        if self.pilot_encoder is None:
+            raise RuntimeError("pilot_conditioned 未启用。")
+        if adapt_symbols is None or adapt_mask is None:
+            return torch.zeros(
+                rx_iq.shape[0], self.config.d_model,
+                device=rx_iq.device,
+                dtype=rx_iq.dtype,
+            )
+        mask = adapt_mask.to(device=rx_iq.device, dtype=torch.bool)
+        if mask.ndim == 1:
+            mask = mask.unsqueeze(0)
+        symbols = adapt_symbols.to(device=rx_iq.device)
+        if symbols.ndim == 1:
+            symbols = symbols.unsqueeze(0)
+        mask_float = mask.to(rx_iq.dtype)
+        symbols_iq = torch.stack((symbols.real, symbols.imag), dim=-1).to(rx_iq.dtype)
+        features = torch.cat(
+            [rx_iq * mask_float.unsqueeze(-1), symbols_iq * mask_float.unsqueeze(-1), mask_float.unsqueeze(-1)],
+            dim=-1,
+        )
+        encoded = self.pilot_encoder(features.transpose(1, 2)).transpose(1, 2)
+        weights = mask_float.unsqueeze(-1)
+        return (encoded * weights).sum(dim=1) / weights.sum(dim=1).clamp_min(1.0)
 
     def _pad_condition_vector(self, value: torch.Tensor, target_len: int, hidden: torch.Tensor) -> torch.Tensor:
         """把帧级条件向量补齐到模型配置的 max_delay 长度。"""

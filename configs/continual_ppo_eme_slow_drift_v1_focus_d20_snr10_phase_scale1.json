@@ -1,0 +1,67 @@
+{
+  "schema_version": "continual-ppo-config-v1",
+  "pilot_layout": "prefix",
+  "pilot_total": 128,
+  "impairment_profile": "eme_slow_drift_v1",
+  "profile_prior": {
+    "candidate_id": "cfo0p0008_phase0p003_rho0p995",
+    "cfo_abs_cycles_per_symbol": 0.0008,
+    "phase_noise_std": 0.003,
+    "rho": 0.995,
+    "residual_cfo_limit": 0.0012,
+    "acquisition_cfo_limit": 0.004,
+    "selection_note": "traditional-only closest candidate; 5/10/15 dB in target, 0 dB slightly above target"
+  },
+  "snrs_main": [10],
+  "snrs_pressure": [],
+  "pilot_sweep_totals": [128],
+  "pilot_sweep_layout": "prefix",
+  "optional_impairments": {
+    "cfo": true,
+    "phase_perturbation": true,
+    "nonlinearity": false,
+    "coding": false,
+    "higher_order_modulation": false
+  },
+  "curriculum_max_frame_offset": 4,
+  "cir_condition_augmentation": {
+    "enabled": true,
+    "modes": ["acquisition", "dd_like", "acquisition", "dd_like", "noisy"],
+    "noise_std": 0.012,
+    "dd_flip_probability": 0.003,
+    "dd_blend_alpha": 0.08
+  },
+  "ppo_window_size": 8,
+  "learning_rate": 0.0001,
+  "data_margin_loss_weight": 0.0,
+  "data_margin": 1.0,
+  "model": {
+    "frame_len": 512,
+    "max_delay": 40,
+    "iterations": 6,
+    "d_model": 96,
+    "num_heads": 4,
+    "adapter_rank": 8,
+    "lora_rank": 8,
+    "conditioner_uses_cir_summary": true,
+    "enable_phase_correction_branch": true,
+    "phase_correction_segments": 4,
+    "phase_correction_initial_scale": 1.0
+  },
+  "main_level": "B",
+  "main_delays": [20],
+  "main_snrs": [10],
+  "rho": 0.995,
+  "offline_best_validation_interval": 100,
+  "model_validation_sequence_state": true,
+  "model_validation_seed_base": 70000,
+  "model_validation_cir_alpha": 0.6,
+  "validation_frames_per_config": 1,
+  "validation_seeds": [0],
+  "model_validation_frames_per_config": 32,
+  "model_validation_seeds": [0, 1],
+  "model_validation_configs": [
+    {"level": "B", "delay": 20, "snr_db": 10.0, "pilot_total": 128, "pilot_layout": "prefix", "cir": "decision_directed", "cir_alpha": 0.6}
+  ],
+  "offline_nn_gate_ber": 0.1
+}

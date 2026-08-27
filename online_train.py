@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""窗口级离散安全动作 PPO 在线训练入口。"""
+"""在线均衡入口；默认使用 Pilot 驱动在线适配，PPO 仅作可选消融。"""
 
 import argparse
 from pathlib import Path
 
 from training.windowed_discrete_ppo import run_windowed_discrete_online
+from training.online_adaptation import run_pilot_driven_online
 
 
 def main() -> None:
@@ -13,6 +14,7 @@ def main() -> None:
     parser.add_argument("--config", default="configs/continual_ppo.json")
     parser.add_argument("--pretrained", default="pretrained/model_best.pt")
     parser.add_argument("--phase", choices=["offline", "continual", "all"], default="all")
+    parser.add_argument("--method", choices=["pilot", "ppo"], default="pilot")
     parser.add_argument("--frames", type=int, default=300)
     parser.add_argument("--num-seeds", type=int, default=1)
     parser.add_argument("--update-interval", type=int, default=32)
@@ -31,21 +33,27 @@ def main() -> None:
         print("RL4EQ continual-ppo schema-v1")
         return
     del args.amp, args.phase, args.resume
-    run_windowed_discrete_online(
-        config_path=args.config,
-        frames=args.frames,
-        num_seeds=args.num_seeds,
-        output_dir=args.output_dir,
-        delays=args.delays,
-        snrs=args.snrs,
-        pilot_total=args.pilot_total,
-        pilot_layout=args.pilot_layout,
-        window_size=args.window_size,
-        update_interval=args.update_interval,
-        pretrained=args.pretrained if args.pretrained and Path(args.pretrained).exists() else None,
-        cir_update_mode=args.cir_update,
-        cir_update_alpha=args.cir_alpha,
-    )
+    common = {
+        "config_path": args.config,
+        "frames": args.frames,
+        "num_seeds": args.num_seeds,
+        "output_dir": args.output_dir,
+        "delays": args.delays,
+        "snrs": args.snrs,
+        "pilot_total": args.pilot_total,
+        "pilot_layout": args.pilot_layout,
+        "pretrained": args.pretrained if args.pretrained and Path(args.pretrained).exists() else None,
+        "cir_update_mode": args.cir_update,
+        "cir_update_alpha": args.cir_alpha,
+    }
+    if args.method == "pilot":
+        run_pilot_driven_online(**common)
+    else:
+        run_windowed_discrete_online(
+            **common,
+            window_size=args.window_size,
+            update_interval=args.update_interval,
+        )
     print(f"saved {args.output_dir}")
 
 

@@ -30,11 +30,14 @@ def estimate_pilot_phase_line(
     rx = receiver_view.rx_symbols.flatten().to(torch.complex64)
     tx = receiver_view.adapt_symbols.flatten().to(torch.complex64)
     mask = receiver_view.adapt_mask.flatten().bool()
-    if reference_symbols is not None:
+    has_reference_waveform = reference_symbols is not None
+    if has_reference_waveform:
         tx = reference_symbols.flatten().to(torch.complex64)
     if reference_mask is not None:
         mask = mask & reference_mask.flatten().bool()
     mask = mask & (tx.abs() > 1e-6)
+    if has_reference_waveform:
+        mask = _select_reliable_reference_samples(tx, mask)
     pilot_count = int(mask.sum().item())
     if pilot_count < 2:
         return PilotPhaseEstimate(0.0, 0.0, pilot_count)
@@ -53,6 +56,34 @@ def estimate_pilot_phase_line(
             max=float(max_abs_cfo_cycles_per_symbol),
         )
     return PilotPhaseEstimate(float(intercept.item()), float(cfo.item()), pilot_count)
+
+
+def _select_reliable_reference_samples(
+    reference_symbols: torch.Tensor,
+    candidate_mask: torch.Tensor,
+) -> torch.Tensor:
+    """从 CIR 参考波形中筛出不易受相消影响的 Pilot 样本。
+
+    长回波的多个路径可能在部分符号位置相消，使参考波形幅度很小；这些位置的
+    相位在噪声下不稳定。保留候选样本中幅度位于上半区的点，避免少数异常相位
+    拖偏整帧的 CFO 拟合。参考幅度近似恒定时该操作不会减少有效样本。
+    """
+
+    selected = candidate_mask.clone()
+    candidate_count = int(selected.sum().item())
+    if candidate_count < 4:
+        return selected
+    amplitudes = reference_symbols.abs()
+    candidate_amplitudes = amplitudes[selected]
+    threshold = torch.quantile(candidate_amplitudes, 0.5)
+    selected = selected & (amplitudes >= threshold)
+    if int(selected.sum().item()) < max(2, candidate_count // 2):
+        order = torch.argsort(candidate_amplitudes, descending=True)
+        keep_count = max(2, (candidate_count + 1) // 2)
+        positions = torch.nonzero(candidate_mask, as_tuple=False).flatten()[order[:keep_count]]
+        selected = torch.zeros_like(candidate_mask)
+        selected[positions] = True
+    return selected
 
 
 def apply_phase_correction(rx_symbols: torch.Tensor, phase0: float, cfo_cycles_per_symbol: float) -> torch.Tensor:

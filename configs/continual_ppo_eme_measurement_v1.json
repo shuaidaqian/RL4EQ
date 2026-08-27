@@ -84,6 +84,13 @@
     "higher_order_modulation": false
   },
   "curriculum_max_frame_offset": 4,
+  "training_tail_mode": "online_soft",
+  "model_validation_sequence_state": true,
+  "tail_refinement_passes": 0,
+  "tail_update_alpha": 0.5,
+  "online_adaptation_learning_rate": 0.0001,
+  "online_adaptation_steps": 1,
+  "online_adaptation_max_delta_norm": 0.5,
   "cir_condition_augmentation": {
     "enabled": true,
     "modes": ["true", "acquisition", "noisy", "dd_like"],
@@ -101,6 +108,8 @@
     "num_heads": 4,
     "adapter_rank": 8,
     "lora_rank": 8,
+    "conditioner_uses_cir_summary": true,
+    "pilot_conditioned": true,
     "enable_phase_correction_branch": true,
     "phase_correction_segments": 4,
     "phase_correction_initial_scale": 0.0

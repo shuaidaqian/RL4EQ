@@ -565,4 +565,6 @@ def _forward_episode(model: UnfoldedEqualizer, episode: MetaEpisode) -> tuple[to
         condition,
         episode.receiver_view.model_region_ids.unsqueeze(0).long(),
         episode.soft_tail.unsqueeze(0).to(torch.complex64),
+        adapt_symbols=episode.receiver_view.adapt_symbols.unsqueeze(0).to(torch.complex64),
+        adapt_mask=episode.receiver_view.adapt_mask.unsqueeze(0).bool(),
     )

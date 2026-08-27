@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 import torch
+from types import SimpleNamespace
 
 from env.channel_profiles import (
     ChannelLevel,
@@ -11,7 +12,10 @@ from env.channel_profiles import (
 )
 from env.extreme_delay_channel import ExtremeDelayChannel, ExtremeDelayChannelConfig
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
-from baseline.synchronization_compensation import unwrap_phase
+from baseline.synchronization_compensation import (
+    estimate_pilot_phase_line,
+    unwrap_phase,
+)
 from env.frame_structure import FrameConfig, FrameGenerator
 
 
@@ -505,3 +509,34 @@ def test_pilot_sequence_reproducible_per_frame_but_changes_across_frames():
     different = generator_a.generate(6)
     assert torch.equal(same_a.bits, same_b.bits)
     assert not torch.equal(same_a.bits[same_a.adapt_mask], different.bits[different.adapt_mask])
+
+
+def test_pilot_phase_line_downweights_low_amplitude_cancellation_samples():
+    """CIR 参考波形相消处的低幅度样本不能主导 CFO 拟合。"""
+
+    frame_len = 96
+    indices = torch.arange(frame_len, dtype=torch.float32)
+    reference = torch.ones(frame_len, dtype=torch.complex64)
+    reference[48:] = 0.03 + 0.0j
+    phase0 = 0.25
+    cfo = 0.0015
+    true_phase = phase0 + 2.0 * torch.pi * cfo * indices
+    rx = reference * torch.exp(1j * true_phase).to(torch.complex64)
+    rx[48:] *= torch.exp(torch.tensor(1j * 1.2, dtype=torch.complex64))
+    adapt_mask = torch.ones(frame_len, dtype=torch.bool)
+    view = SimpleNamespace(
+        rx_symbols=rx,
+        adapt_symbols=reference,
+        adapt_mask=adapt_mask,
+        model_region_ids=torch.zeros(frame_len, dtype=torch.long),
+    )
+
+    estimate = estimate_pilot_phase_line(
+        view,
+        reference_symbols=reference,
+        reference_mask=adapt_mask,
+    )
+
+    assert estimate.pilot_count >= 48
+    assert estimate.phase0 == pytest.approx(phase0, abs=2e-3)
+    assert estimate.cfo_cycles_per_symbol == pytest.approx(cfo, abs=2e-5)

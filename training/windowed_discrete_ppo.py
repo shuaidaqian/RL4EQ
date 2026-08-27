@@ -107,6 +107,8 @@ class WindowedDiscreteOnlineState:
     current_window_cir_snapshot: torch.Tensor | None = None
     current_window_tail_snapshot: torch.Tensor | None = None
     frames_in_window: int = 0
+    tail_refinement_passes: int = 0
+    tail_update_alpha: float = 1.0
 
 
 def run_windowed_discrete_online(
@@ -153,7 +155,7 @@ def run_windowed_discrete_online(
     target.mkdir(parents=True, exist_ok=True)
     pretrained_path = Path(pretrained) if pretrained is not None else None
     model_config = _load_model_config(config, pretrained_path)
-    if config.get("channel_profile") == "eme_measurement_v1":
+    if config.get("channel_profile") in {"eme_measurement_v1", "eme_long_memory_v2"}:
         validate_model_dimensions(model_config, next(iter(env_configs.values())))
     rows = []
     last_policy: DiscreteSafePolicy | None = None
@@ -201,6 +203,8 @@ def run_windowed_discrete_online(
                     rollout=[],
                     cir_update_mode=str(cir_update_mode),
                     cir_update_alpha=float(cir_update_alpha),
+                    tail_refinement_passes=int(config.get("tail_refinement_passes", 0)),
+                    tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
                 )
                 for frame_index in range(1, int(frames) + 1):
                     frame = _frame_to_device(env.next_frame(), device)
@@ -262,9 +266,21 @@ def run_windowed_discrete_frame(
 ) -> dict:
     rx_iq = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0).float()
     region_ids = frame.model_region_ids.unsqueeze(0).long()
+    adapt_symbols = frame.tx_symbols.unsqueeze(0).to(torch.complex64)
+    adapt_mask = frame.adapt_mask.unsqueeze(0).bool()
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
     identity = state.actions[0]
-    base_logits, _ = state.model(rx_iq, condition, region_ids, tail, modulation=identity.modulation)
+    base_logits = refine_logits_with_tail(
+        state.model,
+        rx_iq,
+        condition,
+        region_ids,
+        tail,
+        modulation=identity.modulation,
+        passes=int(state.tail_refinement_passes),
+        adapt_symbols=adapt_symbols,
+        adapt_mask=adapt_mask,
+    )
     base = base_logits.squeeze(0)
     if state.current_action is None or state.frames_in_window <= 0:
         observation = state.encoder(_policy_view(frame, float(snr_db), base, state.previous_window_reward, state.last_action_delta_norm)).tensor.unsqueeze(0)
@@ -309,7 +325,17 @@ def run_windowed_discrete_frame(
         )
         if state.current_accumulator is not None:
             state.current_accumulator.action_delta_norm += float(peft_delta_norm)
-    logits_after, _ = state.model(rx_iq, condition, region_ids, tail, modulation=sampled_action.modulation)
+    logits_after = refine_logits_with_tail(
+        state.model,
+        rx_iq,
+        condition,
+        region_ids,
+        tail,
+        modulation=sampled_action.modulation,
+        passes=int(state.tail_refinement_passes),
+        adapt_symbols=adapt_symbols,
+        adapt_mask=adapt_mask,
+    )
     after = logits_after.squeeze(0)
     reward_before_loss = _masked_bce(base, frame.bits, frame.reward_mask)
     reward_after_loss = _masked_bce(after, frame.bits, frame.reward_mask)
@@ -327,7 +353,19 @@ def run_windowed_discrete_frame(
         data_ber_after=float(data_after_ber),
     )
     tail_len = state.receiver_state.soft_tail.numel()
-    state.receiver_state.update_tail(torch.complex(torch.tanh(after[-tail_len:] / 2.0), torch.zeros_like(after[-tail_len:])))
+    detected_tail = torch.complex(
+        torch.tanh(after[-tail_len:] / 2.0),
+        torch.zeros_like(after[-tail_len:]),
+    )
+    selected_tail_alpha = (
+        float(sampled_action.tail_alpha)
+        if getattr(sampled_action, "tail_alpha", None) is not None
+        else float(getattr(state, "tail_update_alpha", 1.0))
+    )
+    selected_tail_alpha = min(1.0, max(0.0, selected_tail_alpha))
+    previous_tail = state.receiver_state.soft_tail
+    next_tail = (1.0 - selected_tail_alpha) * previous_tail + selected_tail_alpha * detected_tail
+    state.receiver_state.update_tail(next_tail)
     if state.cir_update_mode == "decision_directed":
         state.cir = decision_directed_cir_update(
             frame,
@@ -350,8 +388,6 @@ def run_windowed_discrete_frame(
                 _restore_snapshot(state.model, state.current_window_peft_snapshot)
             if state.current_window_cir_snapshot is not None:
                 state.cir = state.current_window_cir_snapshot.to(state.cir.device).clone()
-            if state.current_window_tail_snapshot is not None:
-                state.receiver_state.update_tail(state.current_window_tail_snapshot.to(state.receiver_state.soft_tail.device))
             window_rollback = True
         state.rollout.append(
             {
@@ -396,6 +432,7 @@ def run_windowed_discrete_frame(
         "cir_update_mode": str(state.cir_update_mode),
         "cir_update_alpha": float(getattr(state, "cir_update_alpha", 0.0)),
         "selected_cir_update_alpha": float(selected_cir_alpha),
+        "selected_tail_update_alpha": float(selected_tail_alpha),
         "cir_update_uses_data_labels": False,
         "receiver_action_type": _receiver_action_type(sampled_action),
         "policy_loss": policy_loss,
@@ -416,6 +453,8 @@ def run_windowed_discrete_frame(
 
 
 def _receiver_action_type(action: DiscreteSafeAction) -> str:
+    if getattr(action, "tail_alpha", None) is not None:
+        return "tail_alpha"
     if getattr(action, "cir_alpha", None) is not None:
         return "cir_alpha"
     if action.peft_groups:
@@ -423,6 +462,83 @@ def _receiver_action_type(action: DiscreteSafeAction) -> str:
     if action.name == "rollback_identity":
         return "rollback"
     return "identity"
+
+
+def refine_logits_with_tail(
+    model: UnfoldedEqualizer,
+    rx_iq: torch.Tensor,
+    condition: CIRCondition,
+    region_ids: torch.Tensor,
+    soft_tail: torch.Tensor,
+    *,
+    modulation,
+    passes: int,
+    adapt_symbols: torch.Tensor | None = None,
+    adapt_mask: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """用当前帧无标签输出做有限次跨帧 soft-tail fixed-point refinement。"""
+
+    logits, _ = _forward_model(
+        model,
+        rx_iq,
+        condition,
+        region_ids,
+        soft_tail,
+        modulation=modulation,
+        adapt_symbols=adapt_symbols,
+        adapt_mask=adapt_mask,
+    )
+    tail_length = int(soft_tail.shape[-1])
+    for _ in range(max(0, int(passes))):
+        tail_logits = logits[..., -tail_length:]
+        refined_tail = torch.complex(
+            torch.tanh(tail_logits / 2.0),
+            torch.zeros_like(tail_logits),
+        )
+        logits, _ = _forward_model(
+            model,
+            rx_iq,
+            condition,
+            region_ids,
+            refined_tail,
+            modulation=modulation,
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        )
+    return logits
+
+
+def _forward_model(
+    model,
+    rx_iq: torch.Tensor,
+    condition: CIRCondition,
+    region_ids: torch.Tensor,
+    soft_tail: torch.Tensor,
+    *,
+    modulation,
+    adapt_symbols: torch.Tensor | None,
+    adapt_mask: torch.Tensor | None,
+):
+    """兼容旧诊断桩，并向新模型传递 Adapt Pilot 条件。"""
+
+    model_config = getattr(model, "config", None)
+    if bool(getattr(model_config, "pilot_conditioned", False)):
+        return model(
+            rx_iq,
+            condition,
+            region_ids,
+            soft_tail,
+            modulation=modulation,
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        )
+    return model(
+        rx_iq,
+        condition,
+        region_ids,
+        soft_tail,
+        modulation=modulation,
+    )
 
 
 def _ppo_update(policy: DiscreteSafePolicy, optimizer: torch.optim.Optimizer, rollout: list[dict]) -> float | None:
@@ -504,7 +620,15 @@ def _apply_adapt_peft_update(
     for _ in range(max(1, int(steps))):
         rx_iq = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0).float()
         region_ids = frame.model_region_ids.unsqueeze(0).long()
-        logits, _ = model(rx_iq, condition, region_ids, tail)
+        device = rx_iq.device
+        logits, _ = model(
+            rx_iq,
+            condition,
+            region_ids,
+            tail,
+            adapt_symbols=frame.tx_symbols.to(device).unsqueeze(0).to(torch.complex64),
+            adapt_mask=frame.adapt_mask.to(device).unsqueeze(0).bool(),
+        )
         loss = _masked_bce(logits.squeeze(0), frame.bits, frame.adapt_mask)
         optimizer.zero_grad(set_to_none=True)
         loss.backward()

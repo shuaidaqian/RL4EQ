@@ -35,8 +35,8 @@ class CommEnvConfig:
     include_anomalous_scatterer: bool = False
 
     def __post_init__(self) -> None:
-        if self.profile_name == "eme_measurement_v1" and self.layout != "prefix":
-            raise ValueError("eme_measurement_v1 仅允许 prefix Pilot layout。")
+        if self.profile_name in {"eme_measurement_v1", "eme_long_memory_v2"} and self.layout != "prefix":
+            raise ValueError(f"{self.profile_name} 仅允许 prefix Pilot layout。")
 
 
 @dataclass(frozen=True)

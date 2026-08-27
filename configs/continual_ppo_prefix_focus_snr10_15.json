@@ -1,0 +1,53 @@
+{
+  "schema_version": "continual-ppo-config-v1",
+  "pilot_layout": "prefix",
+  "pilot_total": 128,
+  "snrs_main": [10, 15],
+  "snrs_pressure": [],
+  "pilot_sweep_totals": [64, 96, 128, 160],
+  "pilot_sweep_layout": "prefix",
+  "optional_impairments": {
+    "cfo": false,
+    "phase_perturbation": false,
+    "nonlinearity": false,
+    "coding": false,
+    "higher_order_modulation": false
+  },
+  "curriculum_max_frame_offset": 8,
+  "curriculum_seed": 180000,
+  "cir_condition_augmentation": {
+    "enabled": true,
+    "modes": ["acquisition", "dd_like", "acquisition", "noisy"],
+    "noise_std": 0.015,
+    "dd_flip_probability": 0.005,
+    "dd_blend_alpha": 0.1
+  },
+  "ppo_window_size": 8,
+  "learning_rate": 0.00005,
+  "model": {
+    "frame_len": 512,
+    "max_delay": 40,
+    "iterations": 4,
+    "d_model": 96,
+    "num_heads": 4,
+    "adapter_rank": 8,
+    "lora_rank": 8
+  },
+  "main_level": "B",
+  "main_delays": [20, 30, 40],
+  "main_snrs": [10, 15],
+  "rho": 0.99,
+  "validation_frames_per_config": 1,
+  "validation_seeds": [0],
+  "model_validation_frames_per_config": 1,
+  "model_validation_seeds": [0],
+  "model_validation_configs": [
+    {"level": "B", "delay": 20, "snr_db": 10.0, "pilot_total": 128, "pilot_layout": "prefix", "cir": "estimated"},
+    {"level": "B", "delay": 30, "snr_db": 10.0, "pilot_total": 128, "pilot_layout": "prefix", "cir": "estimated"},
+    {"level": "B", "delay": 40, "snr_db": 10.0, "pilot_total": 128, "pilot_layout": "prefix", "cir": "estimated"},
+    {"level": "B", "delay": 20, "snr_db": 15.0, "pilot_total": 128, "pilot_layout": "prefix", "cir": "estimated"},
+    {"level": "B", "delay": 30, "snr_db": 15.0, "pilot_total": 128, "pilot_layout": "prefix", "cir": "estimated"},
+    {"level": "B", "delay": 40, "snr_db": 15.0, "pilot_total": 128, "pilot_layout": "prefix", "cir": "estimated"}
+  ],
+  "offline_nn_gate_ber": 0.02
+}

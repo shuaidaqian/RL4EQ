@@ -12,7 +12,12 @@ from dataclasses import dataclass
 
 import torch
 
-from baseline.synchronization_compensation import apply_phase_correction, estimate_pilot_phase_line, unwrap_phase as _unwrap_phase_local
+from baseline.synchronization_compensation import (
+    _select_reliable_reference_samples,
+    apply_phase_correction,
+    estimate_pilot_phase_line,
+    unwrap_phase as _unwrap_phase_local,
+)
 
 
 TRADITIONAL_BASELINES = (
@@ -198,40 +203,57 @@ def estimate_phase_residual_vector(
     cir: torch.Tensor,
     soft_tail: torch.Tensor,
     blocks: int = 4,
+    cfo_hint: float | None = None,
 ) -> torch.Tensor:
     """提取局部 Pilot 相位统计，供神经 conditioner 使用。
 
     每个 block 输出四个传统可见统计：
-    phase intercept、phase slope(CFO cycles/symbol)、phase residual variance、
-    normalized residual energy。
+    全局 phase intercept、全局 phase slope(CFO cycles/symbol)、局部 residual variance、
+    normalized residual energy。全局相位参数由所有可靠 Pilot 共同估计。
     """
 
     reference, reference_mask = _pilot_reference_from_cir(receiver_view, cir, soft_tail)
     rx = receiver_view.rx_symbols.flatten().to(torch.complex64)
     adapt_mask = receiver_view.adapt_mask.flatten().bool()
     mask = adapt_mask & reference_mask.flatten().bool() & (reference.flatten().abs() > 1e-6)
+    mask = _select_reliable_reference_samples(reference.flatten().to(torch.complex64), mask)
     positions = torch.nonzero(mask, as_tuple=False).flatten()
     output = torch.zeros(int(blocks) * 4, dtype=torch.float32, device=rx.device)
     if positions.numel() < 2:
         return output.cpu()
-    chunks = torch.chunk(positions, int(blocks))
     reference_flat = reference.flatten().to(torch.complex64)
+    global_estimate = estimate_pilot_phase_line(
+        receiver_view,
+        reference_symbols=reference,
+        reference_mask=reference_mask,
+    )
+    global_cfo_value = (
+        global_estimate.cfo_cycles_per_symbol
+        if cfo_hint is None
+        else float(cfo_hint)
+    )
+    if cfo_hint is None:
+        global_phase0_value = global_estimate.phase0
+    else:
+        all_phase = _unwrap_phase_local(torch.angle(rx[positions] * torch.conj(reference_flat[positions])))
+        all_time = positions.to(torch.float32)
+        global_phase0_value = float(
+            torch.median(all_phase - 2.0 * torch.pi * global_cfo_value * all_time).item()
+        )
+    global_phase0 = torch.tensor(global_phase0_value, dtype=torch.float32, device=rx.device)
+    global_cfo = torch.tensor(global_cfo_value, dtype=torch.float32, device=rx.device)
+    chunks = torch.chunk(positions, int(blocks))
     for block_index, chunk in enumerate(chunks):
         if chunk.numel() < 2:
             continue
         phase = torch.angle(rx[chunk] * torch.conj(reference_flat[chunk]))
         phase = _unwrap_phase_local(phase)
         t = chunk.to(torch.float32)
-        centered_t = t - t.mean()
-        centered_phase = phase - phase.mean()
-        denom = centered_t.square().sum().clamp_min(1e-8)
-        slope = (centered_t * centered_phase).sum() / denom
-        intercept = phase.mean() - slope * t.mean()
-        residual = phase - (intercept + slope * t)
+        residual = phase - (global_phase0 + 2.0 * torch.pi * global_cfo * t)
         residual_energy = torch.mean(torch.abs(rx[chunk] - reference_flat[chunk]) ** 2) / torch.mean(torch.abs(reference_flat[chunk]) ** 2).clamp_min(1e-8)
         offset = block_index * 4
-        output[offset + 0] = intercept.to(torch.float32)
-        output[offset + 1] = (slope / (2.0 * torch.pi)).to(torch.float32)
+        output[offset + 0] = global_phase0
+        output[offset + 1] = global_cfo
         output[offset + 2] = torch.var(residual, unbiased=False).to(torch.float32)
         output[offset + 3] = residual_energy.real.to(torch.float32)
     return output.cpu()

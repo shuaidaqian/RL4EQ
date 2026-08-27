@@ -12,6 +12,7 @@ from env.eme_reference import physical_delay_samples
 
 
 _EME_PROFILE = "eme_measurement_v1"
+_EME_LONG_MEMORY_PROFILE = "eme_long_memory_v2"
 _EME_REQUIRED_FIELDS = (
     "profile_name",
     "sample_rate_hz",
@@ -80,10 +81,11 @@ def _build_eme_config(
         _required(experiment, field)
     if experiment.get("eme_physical_fields_passthrough") != "implemented":
         raise ValueError("eme_physical_fields_passthrough 必须为 implemented，禁止回落 legacy 信道。")
-    if str(experiment["profile_name"]) != _EME_PROFILE:
-        raise ValueError(f"profile_name 必须为 {_EME_PROFILE}。")
-    if str(experiment.get("channel_profile", "")) != _EME_PROFILE:
-        raise ValueError(f"channel_profile 必须为 {_EME_PROFILE}。")
+    profile_name = str(experiment["profile_name"])
+    if profile_name not in {_EME_PROFILE, _EME_LONG_MEMORY_PROFILE}:
+        raise ValueError(f"profile_name 必须为 {_EME_PROFILE} 或 {_EME_LONG_MEMORY_PROFILE}。")
+    if str(experiment.get("channel_profile", "")) != profile_name:
+        raise ValueError("channel_profile 必须与 profile_name 一致。")
 
     frozen_level = str(experiment.get("level", experiment.get("main_level", "B")))
     if str(level) != frozen_level:
@@ -104,7 +106,7 @@ def _build_eme_config(
 
     layout = str(pilot_layout if pilot_layout is not None else experiment.get("pilot_layout", "prefix"))
     if layout != "prefix":
-        raise ValueError("eme_measurement_v1 只允许 prefix Pilot layout。")
+            raise ValueError(f"{profile_name} 只允许 prefix Pilot layout。")
     selected_pilot = int(
         total_pilot if total_pilot is not None else experiment.get("pilot_total", 128)
     )
@@ -156,7 +158,7 @@ def _build_eme_config(
         layout=layout,
         seed=int(seed),
         impairment_profile=selected_impairment,
-        profile_name=_EME_PROFILE,
+        profile_name=profile_name,
         sample_rate_hz=sample_rate_hz,
         symbol_rate_hz=symbol_rate_hz,
         frame_len=frame_len,
@@ -188,7 +190,7 @@ def build_comm_env_config(
             f"channel_profile={channel_profile} 与 profile_name={profile_name} 不一致。"
         )
     profile = str(channel_profile if channel_profile is not None else profile_name or "legacy_sparse_v1")
-    if profile == _EME_PROFILE:
+    if profile in {_EME_PROFILE, _EME_LONG_MEMORY_PROFILE}:
         return _build_eme_config(
             experiment,
             level=level,

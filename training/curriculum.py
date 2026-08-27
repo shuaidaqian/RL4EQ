@@ -64,6 +64,55 @@ def _pad_complex_1d(value: torch.Tensor, target_len: int) -> torch.Tensor:
     return F.pad(vector, (0, target - vector.numel()))
 
 
+def select_training_tail(
+    *,
+    frame_tail: torch.Tensor,
+    receiver_tail: torch.Tensor,
+    mode: str,
+) -> torch.Tensor:
+    """选择训练帧的跨帧 ISI 状态。"""
+
+    selected_mode = str(mode)
+    if selected_mode == "oracle":
+        return frame_tail
+    if selected_mode == "online_soft":
+        return receiver_tail
+    if selected_mode == "corrupted_oracle":
+        return frame_tail
+    raise ValueError(f"未知 training_tail_mode：{selected_mode}")
+
+
+def corrupt_training_tail(
+    tail: torch.Tensor,
+    *,
+    flip_probability: float,
+    sample_index: int,
+) -> torch.Tensor:
+    """用可复现的符号翻转模拟不完全可靠的历史帧判决。"""
+
+    generator = torch.Generator(device="cpu")
+    generator.manual_seed(83_000 + int(sample_index) * 1_009)
+    random_values = torch.rand(tail.shape, generator=generator, dtype=torch.float32).to(tail.device)
+    flip_mask = random_values < float(flip_probability)
+    signs = torch.where(
+        flip_mask,
+        torch.full_like(random_values, -1.0),
+        torch.ones_like(random_values),
+    )
+    return tail.to(torch.complex64) * signs.to(torch.complex64)
+
+
+def select_validation_tail(
+    *,
+    frame_tail: torch.Tensor,
+    receiver_tail: torch.Tensor,
+    sequence_state: bool,
+) -> torch.Tensor:
+    """让离线序列验证的 phase 特征与实际输入 tail 保持一致。"""
+
+    return receiver_tail if bool(sequence_state) else frame_tail
+
+
 def _phase_feature_latent(phase_features: list[torch.Tensor], device: torch.device) -> torch.Tensor:
     """构造 phase-aware conditioner latent。"""
 
@@ -136,7 +185,7 @@ def supervised_equalization_loss(
 def build_curriculum(config: dict[str, Any]) -> list[CurriculumPhase]:
     default_layout = config.get("pilot_layout", "prefix")
     level_b_pilot = int(config.get("pilot_total", 128))
-    if config.get("channel_profile") == "eme_measurement_v1":
+    if config.get("channel_profile") in {"eme_measurement_v1", "eme_long_memory_v2"}:
         delays = tuple(int(value) for value in config.get("main_delays", [int(config["max_delay"])]))
         snrs = tuple(float(value) for value in config.get("main_snrs", [0, 5, 10, 15]))
         return [
@@ -191,7 +240,7 @@ class CurriculumTrainer:
         selected = phases if stage == "all" else [phase for phase in phases if phase.name == stage]
         if not selected:
             raise ValueError(f"未知训练阶段：{stage}")
-        amp_enabled = False
+        amp_enabled = bool(use_amp and self.device.type == "cuda")
         scaler = torch.amp.GradScaler("cuda", enabled=amp_enabled)
         best_interval = int(self.config.get("offline_best_validation_interval", 0))
         if best_interval > 0:
@@ -295,6 +344,7 @@ class CurriculumTrainer:
 
     def _step_loss(self, phase: CurriculumPhase, batch_size: int) -> torch.Tensor:
         from training.meta_training import estimate_acquisition_cir_for_profile
+        from training.windowed_discrete_ppo import refine_logits_with_tail
 
         rx_iq_items = []
         bit_items = []
@@ -306,8 +356,10 @@ class CurriculumTrainer:
         data_masks = []
         snr_items = []
         phase_feature_items = []
+        adapt_symbol_items = []
         base_seed = int(self.config.get("curriculum_seed", 80_000))
         max_frame_offset = int(self.config.get("curriculum_max_frame_offset", 4))
+        training_tail_mode = str(self.config.get("training_tail_mode", "oracle"))
         for _ in range(int(batch_size)):
             sample_index = self._sample_counter
             seed = base_seed + sample_index
@@ -328,15 +380,37 @@ class CurriculumTrainer:
             )
             start = env.reset_episode()
             frame = None
-            for _ in range(frame_offset + 1):
-                frame = env.next_frame()
+            receiver_state = ReceiverState(start.initial_soft_tail.to(self.device).to(torch.complex64))
+            impairment_profile = str(self.config.get("impairment_profile", "clean"))
+            if impairment_profile == "clean":
+                acquisition_cir = estimate_acquisition_cir_for_profile(
+                    start.acquisition,
+                    int(max_delay),
+                    "clean",
+                ).to(self.device).to(torch.complex64)
+                acquisition_cfo = 0.0
+            else:
+                from baseline.traditional_equalizers import estimate_acquisition_cir_with_cfo
+
+                acquisition_cir, acquisition_cfo = estimate_acquisition_cir_with_cfo(
+                    start.acquisition,
+                    int(max_delay),
+                    cfo_limit=float(self.config.get("acquisition_cfo_limit", 0.004)),
+                )
+                acquisition_cir = acquisition_cir.to(self.device).to(torch.complex64)
+            for history_index in range(frame_offset + 1):
+                candidate_frame = env.next_frame()
+                if history_index < frame_offset and training_tail_mode == "online_soft":
+                    self._advance_training_receiver_state(
+                        candidate_frame,
+                        acquisition_cir,
+                        float(snr_db),
+                        receiver_state,
+                        cfo_hint=float(acquisition_cfo),
+                    )
+                frame = candidate_frame
             if frame is None:
                 raise RuntimeError("未能生成 curriculum 训练帧。")
-            acquisition_cir = estimate_acquisition_cir_for_profile(
-                start.acquisition,
-                int(max_delay),
-                str(self.config.get("impairment_profile", "clean")),
-            )
             selection = self._select_training_cir(
                 phase=phase,
                 frame=frame,
@@ -351,9 +425,34 @@ class CurriculumTrainer:
             rx_iq_items.append(torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1))
             bit_items.append(frame.bits.float())
             region_items.append(frame.model_region_ids.long())
-            tail_items.append(_pad_complex_1d(frame.tail_symbols.to(torch.complex64), int(self.model.config.max_delay)))
-            cir_items.append(_pad_complex_1d(cir.to(torch.complex64), int(self.model.config.max_delay) + 1))
-            phase_feature_items.append(estimate_phase_residual_vector(frame.receiver_view(), cir, frame.tail_symbols, blocks=4))
+            selected_tail = select_training_tail(
+                frame_tail=frame.tail_symbols.to(torch.complex64),
+                receiver_tail=receiver_state.soft_tail,
+                mode=training_tail_mode,
+            )
+            if training_tail_mode == "corrupted_oracle":
+                selected_tail = corrupt_training_tail(
+                    selected_tail,
+                    flip_probability=float(self.config.get("tail_flip_probability", 0.1)),
+                    sample_index=int(sample_index),
+                )
+            tail_items.append(_pad_complex_1d(selected_tail, int(self.model.config.max_delay)))
+            cir_items.append(
+                _pad_complex_1d(
+                    cir.to(device=self.device, dtype=torch.complex64),
+                    int(self.model.config.max_delay) + 1,
+                )
+            )
+            phase_feature_items.append(
+                estimate_phase_residual_vector(
+                    frame.receiver_view(),
+                    cir,
+                    selected_tail,
+                    blocks=4,
+                    cfo_hint=float(acquisition_cfo),
+                )
+            )
+            adapt_symbol_items.append(frame.tx_symbols)
             adapt_masks.append(frame.adapt_mask)
             reward_masks.append(frame.reward_mask)
             data_masks.append(frame.data_mask)
@@ -363,6 +462,7 @@ class CurriculumTrainer:
         region_ids = torch.stack(region_items).to(self.device)
         soft_tail = torch.stack(tail_items).to(self.device)
         cir_batch = torch.stack(cir_items).to(self.device)
+        adapt_symbols = torch.stack(adapt_symbol_items).to(self.device).to(torch.complex64)
         power = cir_batch.abs()
         condition = CIRCondition(
             complex_cir=cir_batch,
@@ -371,7 +471,17 @@ class CurriculumTrainer:
             confidence=torch.ones(batch_size, device=self.device),
             latent_residual=_phase_feature_latent(phase_feature_items, self.device),
         )
-        logits, _ = self.model(rx_iq, condition, region_ids, soft_tail)
+        logits = refine_logits_with_tail(
+            self.model,
+            rx_iq,
+            condition,
+            region_ids,
+            soft_tail,
+            modulation=None,
+            passes=int(self.config.get("tail_refinement_passes", 0)),
+            adapt_symbols=adapt_symbols,
+            adapt_mask=torch.stack(adapt_masks).to(self.device),
+        )
         adapt_mask = torch.stack(adapt_masks).to(self.device)
         reward_mask = torch.stack(reward_masks).to(self.device)
         data_mask = torch.stack(data_masks).to(self.device)
@@ -384,6 +494,49 @@ class CurriculumTrainer:
             data_margin_loss_weight=float(self.config.get("data_margin_loss_weight", 0.0)),
             data_margin=float(self.config.get("data_margin", 1.0)),
         )
+
+    def _advance_training_receiver_state(
+        self,
+        frame,
+        cir: torch.Tensor,
+        snr_db: float,
+        receiver_state: ReceiverState,
+        cfo_hint: float | None = None,
+    ) -> None:
+        """无标签地模拟在线接收机对历史帧的 soft-tail 递推。"""
+
+        tail = receiver_state.soft_tail.to(self.device).to(torch.complex64)
+        rx_iq = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0).to(self.device).float()
+        region_ids = frame.model_region_ids.unsqueeze(0).to(self.device).long()
+        cir_batch = cir.reshape(1, -1)
+        power = cir_batch.abs()
+        phase_features = estimate_phase_residual_vector(
+            frame.receiver_view(), cir, tail, blocks=4, cfo_hint=cfo_hint
+        )
+        condition = CIRCondition(
+            complex_cir=cir_batch,
+            support_probability=(power / power.sum(dim=1, keepdim=True).clamp_min(1e-8)).to(torch.float32),
+            noise_variance=torch.tensor([10.0 ** (-float(snr_db) / 10.0)], device=self.device, dtype=torch.float32),
+            confidence=torch.ones(1, device=self.device),
+            latent_residual=_phase_feature_latent([phase_features], self.device),
+        )
+        with torch.no_grad():
+            from training.windowed_discrete_ppo import refine_logits_with_tail
+
+            logits = refine_logits_with_tail(
+                self.model,
+                rx_iq,
+                condition,
+                region_ids,
+                tail.unsqueeze(0),
+                modulation=None,
+                passes=int(self.config.get("tail_refinement_passes", 0)),
+                adapt_symbols=frame.tx_symbols.to(self.device).unsqueeze(0).to(torch.complex64),
+                adapt_mask=frame.adapt_mask.to(self.device).unsqueeze(0),
+            )
+        tail_len = receiver_state.soft_tail.numel()
+        tail_logits = logits.squeeze(0)[-tail_len:]
+        receiver_state.update_tail(torch.complex(torch.tanh(tail_logits / 2.0), torch.zeros_like(tail_logits)))
 
     def _select_training_cir(
         self,
@@ -442,8 +595,8 @@ class CurriculumTrainer:
         vector = cir.reshape(-1).to(torch.complex64)
         generator = torch.Generator(device="cpu")
         generator.manual_seed(int(self.config.get("curriculum_seed", 80_000)) + int(sample_index) * 1009 + 17)
-        real = torch.randn(vector.shape, generator=generator, dtype=torch.float32, device=vector.device)
-        imag = torch.randn(vector.shape, generator=generator, dtype=torch.float32, device=vector.device)
+        real = torch.randn(vector.shape, generator=generator, dtype=torch.float32).to(vector.device)
+        imag = torch.randn(vector.shape, generator=generator, dtype=torch.float32).to(vector.device)
         noise = torch.complex(real, imag) * float(noise_std)
         return _normalize_cir(vector + noise)
 
@@ -463,14 +616,19 @@ class CurriculumTrainer:
         再用整帧接收信号做 LS CIR 估计，最后与 acquisition CIR 混合。
         """
 
-        tx_estimate = frame.tx_symbols.detach().clone().to(torch.complex64)
+        target_device = acquisition_cir.device
+        tx_estimate = frame.tx_symbols.detach().clone().to(target_device).to(torch.complex64)
         generator = torch.Generator(device="cpu")
         generator.manual_seed(int(self.config.get("curriculum_seed", 80_000)) + int(sample_index) * 1619 + 31)
-        random_values = torch.rand(tx_estimate.shape, generator=generator, dtype=torch.float32, device=tx_estimate.device)
-        flip_mask = (random_values < float(flip_probability)) & (~frame.adapt_mask.to(torch.bool))
+        random_values = torch.rand(tx_estimate.shape, generator=generator, dtype=torch.float32).to(tx_estimate.device)
+        flip_mask = (random_values < float(flip_probability)) & (~frame.adapt_mask.to(target_device).to(torch.bool))
         tx_estimate[flip_mask] = -tx_estimate[flip_mask]
-        dd_estimate = _estimate_cir_from_tx_symbols(frame.rx_symbols, tx_estimate, int(max_delay))
-        acquisition = _normalize_cir(acquisition_cir)
+        dd_estimate = _estimate_cir_from_tx_symbols(
+            frame.rx_symbols.to(target_device),
+            tx_estimate,
+            int(max_delay),
+        )
+        acquisition = _normalize_cir(acquisition_cir).to(target_device)
         blended = (1.0 - float(blend_alpha)) * acquisition + float(blend_alpha) * dd_estimate
         return _normalize_cir(blended)
 
@@ -542,7 +700,7 @@ class CurriculumTrainer:
         self.model.eval()
         frames_per_config = int(self.config.get("model_validation_frames_per_config", 1))
         seeds = self.config.get("model_validation_seeds", [0])
-        if self.config.get("channel_profile") == "eme_measurement_v1":
+        if self.config.get("channel_profile") in {"eme_measurement_v1", "eme_long_memory_v2"}:
             configs = self.config.get(
                 "model_validation_configs",
                 [
@@ -590,11 +748,24 @@ class CurriculumTrainer:
                         )
                     )
                     start = env.reset_episode()
-                    acquisition_cir = estimate_acquisition_cir_for_profile(
-                        start.acquisition,
-                        int(item["delay"]),
-                        str(item.get("impairment_profile", self.config.get("impairment_profile", "clean"))),
+                    validation_impairment = str(
+                        item.get("impairment_profile", self.config.get("impairment_profile", "clean"))
                     )
+                    if validation_impairment == "clean":
+                        acquisition_cir = estimate_acquisition_cir_for_profile(
+                            start.acquisition,
+                            int(item["delay"]),
+                            "clean",
+                        )
+                        acquisition_cfo = 0.0
+                    else:
+                        from baseline.traditional_equalizers import estimate_acquisition_cir_with_cfo
+
+                        acquisition_cir, acquisition_cfo = estimate_acquisition_cir_with_cfo(
+                            start.acquisition,
+                            int(item["delay"]),
+                            cfo_limit=float(self.config.get("acquisition_cfo_limit", 0.004)),
+                        )
                     receiver_state = ReceiverState(start.initial_soft_tail.to(self.device).to(torch.complex64))
                     cir_state = acquisition_cir.to(self.device).to(torch.complex64)
                     for _ in range(frames_per_config):
@@ -612,7 +783,18 @@ class CurriculumTrainer:
                             soft_tail = frame.tail_symbols.unsqueeze(0).to(self.device).to(torch.complex64)
                         cir_b = cir.unsqueeze(0).to(self.device).to(torch.complex64)
                         power = cir_b.abs()
-                        phase_features = estimate_phase_residual_vector(frame.receiver_view(), cir, frame.tail_symbols, blocks=4)
+                        phase_tail = select_validation_tail(
+                            frame_tail=frame.tail_symbols,
+                            receiver_tail=receiver_state.soft_tail,
+                            sequence_state=sequence_state,
+                        )
+                        phase_features = estimate_phase_residual_vector(
+                            frame.receiver_view(),
+                            cir,
+                            phase_tail,
+                            blocks=4,
+                            cfo_hint=float(acquisition_cfo),
+                        )
                         condition = CIRCondition(
                             complex_cir=cir_b,
                             support_probability=(power / power.sum(dim=1, keepdim=True).clamp_min(1e-8)).to(torch.float32),
@@ -620,7 +802,19 @@ class CurriculumTrainer:
                             confidence=torch.ones(1, device=self.device),
                             latent_residual=_phase_feature_latent([phase_features], self.device),
                         )
-                        logits, _ = self.model(rx_iq, condition, region_ids, soft_tail)
+                        from training.windowed_discrete_ppo import refine_logits_with_tail
+
+                        logits = refine_logits_with_tail(
+                            self.model,
+                            rx_iq,
+                            condition,
+                            region_ids,
+                            soft_tail,
+                            modulation=None,
+                            passes=int(self.config.get("tail_refinement_passes", 0)),
+                            adapt_symbols=frame.tx_symbols.to(self.device).unsqueeze(0).to(torch.complex64),
+                            adapt_mask=frame.adapt_mask.to(self.device).unsqueeze(0),
+                        )
                         data_mask = frame.data_mask.to(self.device)
                         reward_mask = frame.reward_mask.to(self.device)
                         adapt_mask = frame.adapt_mask.to(self.device)

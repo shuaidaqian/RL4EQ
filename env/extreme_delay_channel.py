@@ -66,8 +66,8 @@ class ExtremeDelayChannelConfig:
         )
         object.__setattr__(self, "phase_noise_std", phase_noise_std)
         ChannelLevel(self.level)
-        if self.profile_name not in {"legacy_sparse_v1", "eme_measurement_v1"}:
-            raise ValueError("profile_name 必须是 legacy_sparse_v1 或 eme_measurement_v1。")
+        if self.profile_name not in {"legacy_sparse_v1", "eme_measurement_v1", "eme_long_memory_v2"}:
+            raise ValueError("profile_name 必须是 legacy_sparse_v1、eme_measurement_v1 或 eme_long_memory_v2。")
         if self.profile_name == "legacy_sparse_v1":
             if self.max_delay < 1:
                 raise ValueError("max_delay 必须为正。")
@@ -85,7 +85,7 @@ class ExtremeDelayChannelConfig:
         )
         for field_name in required_fields:
             if getattr(self, field_name) is None:
-                raise ValueError(f"eme_measurement_v1 要求配置 {field_name}。")
+                raise ValueError(f"{self.profile_name} 要求配置 {field_name}。")
 
         coherence = self.coherence_time_seconds
         if isinstance(coherence, (bool, np.bool_)):
@@ -176,7 +176,7 @@ class ExtremeDelayChannel:
         warmup = known_warmup.detach().to(dtype=torch.complex64, device="cpu")
         if warmup.numel() < self.max_delay:
             raise ValueError("known_warmup 长度必须不小于 max_delay。")
-        if self.config.profile_name == "eme_measurement_v1":
+        if self.config.profile_name in {"eme_measurement_v1", "eme_long_memory_v2"}:
             profile = sample_eme_profile(self.config._eme_profile_config)
             self._delays = tuple(int(delay) for delay in profile.strong_delays)
             self._base_cir = torch.as_tensor(
@@ -266,7 +266,7 @@ class ExtremeDelayChannel:
         return torch.complex(real, imag)
 
     def _evolve_taps(self) -> None:
-        if self.config.profile_name == "eme_measurement_v1":
+        if self.config.profile_name in {"eme_measurement_v1", "eme_long_memory_v2"}:
             self._evolve_eme_taps()
             return
 

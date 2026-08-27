@@ -1,0 +1,52 @@
+{
+  "schema_version": "continual-ppo-config-v1",
+  "pilot_layout": "prefix",
+  "pilot_total": 128,
+  "impairment_profile": "eme_slow_drift_v1",
+  "profile_prior": {
+    "candidate_id": "cfo0p0008_phase0p003_rho0p995",
+    "cfo_abs_cycles_per_symbol": 0.0008,
+    "phase_noise_std": 0.003,
+    "rho": 0.995,
+    "residual_cfo_limit": 0.0012,
+    "acquisition_cfo_limit": 0.004,
+    "selection_note": "traditional-only closest candidate; 5/10/15 dB in target, 0 dB slightly above target"
+  },
+  "snrs_main": [0, 5, 10, 15],
+  "snrs_pressure": [],
+  "pilot_sweep_totals": [64, 96, 128, 160],
+  "pilot_sweep_layout": "prefix",
+  "optional_impairments": {
+    "cfo": true,
+    "phase_perturbation": true,
+    "nonlinearity": false,
+    "coding": false,
+    "higher_order_modulation": false
+  },
+  "curriculum_max_frame_offset": 4,
+  "cir_condition_augmentation": {
+    "enabled": true,
+    "modes": ["true", "acquisition", "noisy", "dd_like"],
+    "noise_std": 0.05,
+    "dd_flip_probability": 0.02,
+    "dd_blend_alpha": 0.2
+  },
+  "ppo_window_size": 8,
+  "learning_rate": 0.0001,
+  "model": {
+    "frame_len": 512,
+    "max_delay": 40,
+    "iterations": 4,
+    "d_model": 96,
+    "num_heads": 4,
+    "adapter_rank": 8,
+    "lora_rank": 8,
+    "enable_phase_correction_branch": true,
+    "phase_correction_segments": 4,
+    "phase_correction_initial_scale": 0.0
+  },
+  "main_level": "B",
+  "main_delays": [20, 30, 40],
+  "main_snrs": [0, 5, 10, 15],
+  "rho": 0.995
+}

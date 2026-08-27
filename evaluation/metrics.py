@@ -91,16 +91,23 @@ def effective_goodput(
     return float(data_symbols * ordinary_frames * max(0.0, 1.0 - ber) / denominator)
 
 
-def summarize_main_matrix(rows: Iterable[FrameMetric | dict]) -> MatrixSummary:
-    """只把 Level B 主配置纳入主平均，Level C/未见配置单列 generalization。"""
+def summarize_main_matrix(
+    rows: Iterable[FrameMetric | dict],
+    *,
+    main_delays: Sequence[int] | None = None,
+    main_snrs: Sequence[float] | None = None,
+) -> MatrixSummary:
+    """按调用方给出的 Level B 主矩阵汇总，其他配置单列 generalization。"""
 
     normalized = [_coerce_metric(row) for row in rows]
+    allowed_delays = {int(value) for value in (main_delays or (20, 30, 40))}
+    allowed_snrs = {float(value) for value in (main_snrs or (10.0, 15.0, 20.0))}
     main: dict[tuple[int, float], list[float]] = {}
     generalization_values: list[float] = []
     for row in normalized:
-        if row.level == "B" and row.delay in {20, 30, 40} and float(row.snr_db) in {10.0, 15.0, 20.0}:
+        if row.level == "B" and row.delay in allowed_delays and float(row.snr_db) in allowed_snrs:
             main.setdefault((row.delay, float(row.snr_db)), []).append(float(row.ber_data))
-        elif row.level == "C" or row.delay not in {20, 30, 40}:
+        elif row.level == "C" or row.delay not in allowed_delays or float(row.snr_db) not in allowed_snrs:
             generalization_values.append(float(row.ber_data))
     per_config = [
         ConfigSummary("B", delay, snr_db, float(np.mean(values)), len(values))

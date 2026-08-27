@@ -1,0 +1,21 @@
+{
+  "A": {
+    "path_count": [3, 5],
+    "strongest_gap_db": [6, 15],
+    "max_delay_relative_db": [-20, -10],
+    "delayed_energy_ratio": [0.10, 0.35],
+    "aggregation": "main"
+  },
+  "B": {
+    "path_count": [3, 7],
+    "strongest_gap_db": [0, 6],
+    "max_delay_relative_db": [-10, 0],
+    "delayed_energy_ratio": [0.35, 0.75],
+    "aggregation": "main"
+  },
+  "C": {
+    "path_count": [3, 10],
+    "delayed_energy_ratio": [0.50, 0.90],
+    "aggregation": "pressure"
+  }
+}
