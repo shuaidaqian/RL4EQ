@@ -28,6 +28,9 @@ class UnfoldedConfig:
     phase_correction_segments: int = 4
     phase_correction_initial_scale: float = 0.0
     analytic_logit_skip_scale: float = 0.0
+    physics_warm_start_iterations: int = 0
+    physics_warm_start_scale: float = 1.0
+    neural_residual_scale: float = 1.0
     pilot_conditioned: bool = False
 
     def to_dict(self) -> dict:
@@ -139,6 +142,10 @@ class UnfoldedEqualizer(nn.Module):
         )
         self.blocks = nn.ModuleList([DenoiserBlock(self.config) for _ in range(3)])
         self.head = nn.Linear(self.config.d_model, 1)
+        if int(self.config.physics_warm_start_iterations) > 0:
+            # 物理检测器先提供可用判决，神经 head 只学习物理模型失配残差。
+            nn.init.zeros_(self.head.weight)
+            nn.init.zeros_(self.head.bias)
         self.alpha = nn.Parameter(torch.full((self.config.iterations,), 0.2))
         self.damping = nn.Parameter(torch.full((self.config.iterations,), 0.2))
         mark_peft_group(self.conditioner, "conditioner_film")
@@ -161,6 +168,7 @@ class UnfoldedEqualizer(nn.Module):
         if self.config.pilot_conditioned:
             pilot_context = self._pilot_context(rx_iq, adapt_symbols, adapt_mask)
         rx_complex = torch.complex(rx_iq[..., 0], rx_iq[..., 1]).to(torch.complex64)
+        physics_logits = self._physics_warm_start_logits(rx_complex, condition, soft_tail)
         operator = LinearChannelOperator(frame_len=rx_complex.shape[1], max_delay=condition.complex_cir.shape[1] - 1)
         soft_symbols = torch.zeros_like(rx_complex)
         logits = torch.zeros_like(rx_complex.real)
@@ -183,11 +191,71 @@ class UnfoldedEqualizer(nn.Module):
                     ].to(hidden.device, hidden.dtype)
                 hidden = block(hidden, adapter_gate=adapter_gate, lora_scale=lora_scale)
             neural_logits = self.head(hidden).squeeze(-1)
-            logits = self._apply_head_modulation(neural_logits + self._analytic_logit_skip(proposal, condition), modulation)
+            logits = self._apply_head_modulation(
+                float(self.config.neural_residual_scale) * neural_logits
+                + self._analytic_logit_skip(proposal, condition)
+                + physics_logits,
+                modulation,
+            )
             damping = torch.sigmoid(self.damping[layer])
             soft_update = torch.complex(torch.tanh(logits), torch.zeros_like(logits))
             soft_symbols = (1.0 - damping) * soft_update + damping * soft_symbols
         return logits, torch.sigmoid(logits)
+
+    def _physics_warm_start_logits(
+        self,
+        rx_complex: torch.Tensor,
+        condition: CIRCondition,
+        soft_tail: torch.Tensor,
+    ) -> torch.Tensor:
+        """用接收端可见 CIR 和 soft tail 计算可微的长记忆物理 warm-start。"""
+
+        iterations = int(self.config.physics_warm_start_iterations)
+        if iterations <= 0:
+            return torch.zeros_like(rx_complex.real)
+        cir = condition.complex_cir.to(device=rx_complex.device, dtype=torch.complex64)
+        tail = soft_tail.to(device=rx_complex.device, dtype=torch.complex64)
+        if tail.ndim == 1:
+            tail = tail.unsqueeze(0)
+        operator = LinearChannelOperator(
+            frame_len=rx_complex.shape[1],
+            max_delay=cir.shape[1] - 1,
+        )
+        zero = torch.zeros_like(rx_complex)
+        tail_contribution = operator.forward(zero, cir, tail)
+        rhs = operator.adjoint(rx_complex - tail_contribution, cir)
+        noise = condition.noise_variance.to(
+            device=rx_complex.device,
+            dtype=rx_complex.real.dtype,
+        ).reshape(-1, 1).clamp_min(1e-6)
+
+        def normal_matvec(vector: torch.Tensor) -> torch.Tensor:
+            return operator.adjoint(
+                operator.forward(vector, cir, torch.zeros_like(tail)),
+                cir,
+            ) + noise.to(vector.dtype) * vector
+
+        estimate = torch.zeros_like(rhs)
+        residual = rhs - normal_matvec(estimate)
+        direction = residual.clone()
+        residual_energy = torch.sum(torch.conj(residual) * residual, dim=1, keepdim=True).real
+        for _ in range(iterations):
+            mat_direction = normal_matvec(direction)
+            denominator = torch.sum(
+                torch.conj(direction) * mat_direction,
+                dim=1,
+                keepdim=True,
+            ).real.clamp_min(1e-8)
+            step = residual_energy / denominator
+            estimate = estimate + step.to(estimate.dtype) * direction
+            residual = residual - step.to(residual.dtype) * mat_direction
+            next_energy = torch.sum(torch.conj(residual) * residual, dim=1, keepdim=True).real
+            beta = next_energy / residual_energy.clamp_min(1e-8)
+            direction = residual + beta.to(direction.dtype) * direction
+            residual_energy = next_energy
+        logits = 2.0 * estimate.real / noise
+        scale = float(self.config.physics_warm_start_scale)
+        return (float(scale) * logits).clamp(-40.0, 40.0)
 
     def _analytic_logit_skip(self, proposal: torch.Tensor, condition: CIRCondition) -> torch.Tensor:
         """给神经 head 叠加 BPSK 解析 LLR warm-start，默认关闭。"""

@@ -70,8 +70,11 @@
     "conditioner_uses_cir_summary": true,
     "pilot_conditioned": true,
     "enable_phase_correction_branch": true,
-    "phase_correction_segments": 8,
+    "phase_correction_segments": 4,
     "phase_correction_initial_scale": 1.0,
-    "analytic_logit_skip_scale": 0.0
+    "analytic_logit_skip_scale": 0.0,
+    "physics_warm_start_iterations": 2,
+    "physics_warm_start_scale": 1.0,
+    "neural_residual_scale": 0.1
   }
 }

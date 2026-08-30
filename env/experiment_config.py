@@ -269,3 +269,14 @@ def validate_model_dimensions(
             "实际模型 frame_len="
             f"{model_frame_len} 与信道 frame_len={int(env_config.frame_len)} 冲突。"
         )
+    if env_config.profile_name in {_EME_PROFILE, _EME_LONG_MEMORY_PROFILE}:
+        phase_segments = int(
+            model_config.get("phase_correction_segments", 4)
+            if isinstance(model_config, Mapping)
+            else getattr(model_config, "phase_correction_segments", 4)
+        )
+        if phase_segments != 4:
+            raise ValueError(
+                "EME phase conditioner 必须使用 4 个 block，"
+                f"以匹配 phase residual 特征生成器；收到 {phase_segments}。"
+            )

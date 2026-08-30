@@ -66,6 +66,56 @@ def test_unfolded_equalizer_analytic_logit_skip_recovers_identity_bpsk_with_zero
     assert bit_error_rate(logits, bits) == 0.0
 
 
+def test_unfolded_equalizer_physics_warm_start_recovers_long_memory_identity():
+    """物理 warm-start 应在神经残差尚未训练时提供可用的长记忆检测结果。"""
+
+    torch.manual_seed(19)
+    frame_len = 48
+    max_delay = 7
+    bits = torch.randint(0, 2, (1, frame_len), dtype=torch.bool)
+    symbols = torch.complex(
+        bits.to(torch.float32) * 2.0 - 1.0,
+        torch.zeros(1, frame_len),
+    )
+    tail_bits = torch.randint(0, 2, (1, max_delay), dtype=torch.bool)
+    tail = torch.complex(
+        tail_bits.to(torch.float32) * 2.0 - 1.0,
+        torch.zeros(1, max_delay),
+    )
+    cir = torch.zeros(1, max_delay + 1, dtype=torch.complex64)
+    cir[:, 0] = 0.9 + 0.0j
+    cir[:, 3] = 0.3 + 0.2j
+    cir[:, 7] = -0.2 + 0.1j
+    cir = cir / torch.sqrt(torch.sum(torch.abs(cir) ** 2, dim=1, keepdim=True))
+    rx = LinearChannelOperator(frame_len=frame_len, max_delay=max_delay).forward(
+        symbols,
+        cir,
+        tail,
+    )
+    rx_iq = torch.stack((rx.real, rx.imag), dim=-1)
+    condition = condition_from_cir(cir, snr_db=80.0)
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=frame_len,
+            max_delay=max_delay,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            physics_warm_start_iterations=16,
+            neural_residual_scale=0.0,
+        )
+    )
+
+    logits, _ = model(
+        rx_iq,
+        condition,
+        torch.zeros_like(bits, dtype=torch.long),
+        tail,
+    )
+
+    assert bit_error_rate(logits, bits) == 0.0
+
+
 def test_perfect_cir_refine_recovers_noiseless_sparse_long_delay_bpsk():
     """Perfect-CIR 块检测器在无噪声长延迟稀疏信道下应恢复 BPSK，否则诊断上界无效。"""
 
@@ -376,6 +426,46 @@ def test_unfolded_equalizer_phase_correction_rejects_single_bad_pilot_block():
         noise_variance=torch.tensor([0.01]),
         confidence=torch.ones(1),
         latent_residual=phase_features,
+    )
+
+    corrected = model._apply_phase_correction(rx_iq, condition)
+    corrected_complex = torch.complex(corrected[..., 0], corrected[..., 1])
+
+    assert torch.mean(torch.abs(corrected_complex - clean)).item() < 1e-3
+
+
+def test_unfolded_equalizer_phase_correction_matches_four_block_conditioner():
+    """phase block 数必须与当前 phase 特征生成器一致，不能把零填充块混入聚合。"""
+
+    config = UnfoldedConfig(
+        frame_len=32,
+        max_delay=4,
+        iterations=1,
+        d_model=24,
+        num_heads=4,
+        enable_phase_correction_branch=True,
+        phase_correction_segments=4,
+        phase_correction_initial_scale=1.0,
+    )
+    model = UnfoldedEqualizer(config)
+    indices = torch.arange(32, dtype=torch.float32)
+    phase0 = -2.4
+    cfo = -0.0004
+    clean = torch.ones(1, 32, dtype=torch.complex64)
+    rotated = clean * torch.exp(
+        1j * (phase0 + 2.0 * torch.pi * cfo * indices)
+    ).unsqueeze(0)
+    rx_iq = torch.stack((rotated.real, rotated.imag), dim=-1)
+    features = torch.zeros(1, 96)
+    for block in range(4):
+        features[0, block * 4] = phase0
+        features[0, block * 4 + 1] = cfo
+    condition = SimpleNamespace(
+        complex_cir=torch.zeros(1, 5, dtype=torch.complex64),
+        support_probability=torch.zeros(1, 5),
+        noise_variance=torch.tensor([0.01]),
+        confidence=torch.ones(1),
+        latent_residual=features,
     )
 
     corrected = model._apply_phase_correction(rx_iq, condition)
