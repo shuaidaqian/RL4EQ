@@ -6,8 +6,9 @@
 Level A/B/C 可控信道族
 -> 全程 Pilot 条件课程监督预训练
 -> 整帧缓冲、非因果神经块均衡器
--> 部署期间 RL 选择离散安全动作
--> 按窗口聚合 Reward Pilot 反馈并持续更新 PPO
+-> Adapt Pilot 驱动受限在线元适配
+-> Reward Pilot 安全门控与跨帧 soft-tail 递推
+-> 可选 RL 选择离散更新强度和更新率
 -> 与传统非神经、非 RL baseline 公平比较
 ```
 
@@ -24,6 +25,7 @@ Level A/B/C 可控信道族
 - Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真 `BER_data` 评估。
 - 在线 observation、reward、动作选择和调制更新不使用数据标签上界。
 - 当前 RL 路线采用离散安全动作和窗口级 reward；逐帧连续 modulation 不再作为主实施路线。
+- 当前在线均衡主线是 Adapt Pilot 驱动的两时间尺度约束元适配；RL 只调度安全动作，不直接生成高维参数增量，PPO 仅作调度器消融。
 - Data Oracle 不恢复。
 - clean Level B 作为 sanity check，用来证明传统均衡器在干净线性 BPSK 下确实很强；主攻场景逐级加入 residual CFO 与慢相位扰动。
 - 非线性、信道编码和高阶调制只作为后续按需扩展，不进入当前主实验。
@@ -65,6 +67,7 @@ diagnostic:
 
 ```powershell
 .\.venv-gpu\Scripts\python.exe pretrain.py --config configs/continual_ppo.json --stage all --steps 2 --batch-size 1 --amp --save-dir pretrained/final_smoke
+.\.venv-gpu\Scripts\python.exe pretrain.py --config configs/eme_long_memory_v2.json --stage online_meta --steps 2 --batch-size 1 --amp --save-dir pretrained/eme_online_meta_smoke
 .\.venv-gpu\Scripts\python.exe online_train.py --config configs/continual_ppo.json --pretrained pretrained/final_smoke/model_best.pt --frames 8 --num-seeds 1 --window-size 4 --update-interval 4 --delays 20 --snrs 10 --pilot-total 64 --pilot-layout prefix --amp --output-dir logs/final_online_smoke
 .\.venv-gpu\Scripts\python.exe compare.py --config configs/continual_ppo.json --method-group main --pretrained pretrained/final_smoke/model_best.pt --delays 20 --snrs 10 --num-seeds 1 --frames 1 --pilot-total 64 --pilot-layout prefix --resume --output-dir logs/final_compare_smoke
 .\.venv-gpu\Scripts\python.exe -m pytest -q -p no:cacheprovider

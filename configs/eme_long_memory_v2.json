@@ -59,6 +59,11 @@
   "online_adaptation_learning_rate": 0.0001,
   "online_adaptation_steps": 1,
   "online_adaptation_max_delta_norm": 0.5,
+  "online_meta_training": true,
+  "meta_sequence_frames": 4,
+  "meta_inner_steps": 1,
+  "meta_inner_learning_rate": 0.0001,
+  "meta_peft_groups": ["head", "conditioner_film"],
   "model": {
     "frame_len": 1024,
     "max_delay": 116,

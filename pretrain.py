@@ -34,6 +34,17 @@ def main() -> None:
         trainer = MetaTrainer(config, device=device, save_dir=args.save_dir)
         resume_loaded = trainer.load_resume(args.resume)
         metrics = trainer.train(steps=args.steps, batch_size=args.batch_size, smoke=args.steps <= 2, resume_loaded=resume_loaded)
+    elif args.stage == "online_meta":
+        from training.online_meta_adaptation import OnlineMetaTrainer
+
+        trainer = OnlineMetaTrainer(config, device=device, save_dir=args.save_dir)
+        resume_loaded = trainer.load_resume(args.resume)
+        metrics = trainer.train(
+            steps=args.steps,
+            batch_size=args.batch_size,
+            smoke=args.steps <= 2,
+            resume_loaded=resume_loaded,
+        )
     else:
         trainer = CurriculumTrainer(config, device=device)
         resume_loaded = trainer.load_resume(args.resume)
