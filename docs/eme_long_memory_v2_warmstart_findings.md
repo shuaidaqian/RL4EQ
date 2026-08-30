@@ -84,6 +84,57 @@ logs/eme_long_memory_v2_warmstart_main3x8/frame_metrics.jsonl
 
 这组结果说明：在当前 Level B 长记忆、残余 CFO/慢相位和前缀 Pilot 约束下，物理引导神经块均衡器在小矩阵中逐 SNR 超过两个公平传统 baseline。它还不能作为正式论文统计，原因是每个配置只有 3 个 seed、8 帧，而且主模型的训练仍是 smoke 规模。
 
+### 3.4 Level B 5 seed × 30 帧主矩阵
+
+在同一主配置下，使用 5 个独立 seed、每个 seed 30 帧、4 个主 SNR、单进程运行，共生成 2400 条逐帧记录：
+
+| SNR | CFO+DD LMMSE-FIR | CFO+DD DFE-RLS | Offline NN | Pilot Online |
+|---:|---:|---:|---:|---:|
+| 0 dB | 0.4388 | 0.4447 | 0.2040 | 0.2056 |
+| 5 dB | 0.3184 | 0.3170 | 0.0874 | 0.0816 |
+| 10 dB | 0.1858 | 0.1715 | 0.0442 | 0.0443 |
+| 15 dB | 0.1255 | 0.1325 | 0.0330 | 0.0331 |
+
+原始文件为：
+
+```text
+logs/eme_long_memory_v2_warmstart_main5x30/summary.json
+logs/eme_long_memory_v2_warmstart_main5x30/frame_metrics.jsonl
+```
+
+按前 5 帧与后 5 帧比较，Pilot Online 的 Data BER 为：
+
+| SNR | 前 5 帧 | 后 5 帧 |
+|---:|---:|---:|
+| 0 dB | 0.1985 | 0.2211 |
+| 5 dB | 0.0750 | 0.0819 |
+| 10 dB | 0.0395 | 0.0463 |
+| 15 dB | 0.0289 | 0.0354 |
+
+600 个在线更新中有 361 个被 Adapt Pilot 更新和 Reward Pilot guard 接受，接受率为 `60.17%`。这证明在线链路可以在 30 帧递推中稳定运行，并且在四个主 SNR 上保持相对传统方法的明显优势；但它没有证明在线更新在每个 SNR 上都进一步超过 Offline NN。0 dB 的后段退化和 5 dB 的改善必须在正式论文中分别报告。
+
+### 3.5 Level B 5 seed × 60 帧延长矩阵
+
+将同一单进程矩阵扩展到每个 seed 60 帧后，共有 4800 条唯一逐帧记录：
+
+| SNR | CFO+DD LMMSE-FIR | CFO+DD DFE-RLS | Offline NN | Pilot Online |
+|---:|---:|---:|---:|---:|
+| 0 dB | 0.4529 | 0.4473 | 0.2059 | 0.2105 |
+| 5 dB | 0.3168 | 0.3038 | 0.0888 | 0.0910 |
+| 10 dB | 0.1855 | 0.1817 | 0.0473 | 0.0473 |
+| 15 dB | 0.1250 | 0.1215 | 0.0355 | 0.0355 |
+
+Pilot Online 的前 5 帧/后 5 帧 Data BER 为：
+
+| SNR | 前 5 帧 | 后 5 帧 |
+|---:|---:|---:|
+| 0 dB | 0.1985 | 0.2044 |
+| 5 dB | 0.0750 | 0.0884 |
+| 10 dB | 0.0395 | 0.0524 |
+| 15 dB | 0.0289 | 0.0398 |
+
+1200 个在线更新中有 722 个被接受，接受率仍为 `60.17%`；所有 `(method, SNR, seed, frame)` key 唯一。60 帧结果确认 proposed 在四个主 SNR 上持续明显优于公平传统 baseline，但在线相对 Offline NN 没有稳定的额外增益，甚至在 0/5 dB 有小幅代价。当前证据支持“在线 Pilot 适配在长时间递推中保持性能并受 guard 约束”，不支持“在线更新在所有条件下持续提升 BER”。
+
 ## 4. 在线性的证据边界
 
 Pilot-Driven Online Adaptation 的每帧更新仍遵循：
@@ -111,7 +162,7 @@ Pilot-Driven Online Adaptation 的每帧更新仍遵循：
 
 ## 6. 当前未完成项
 
-1. 以 2 次 warm-start 主配置重新进行至少 5 seed、30/60 帧的正式 Level B 主矩阵。
-2. 单列报告 0 dB 的在线更新退化和 guard 接受率，不能用总体平均掩盖。
+1. 对 5 seed × 60 帧结果计算并保存 seed/连续帧 block bootstrap 置信区间。
+2. 单列报告 0 dB 的在线更新退化、5 dB 的在线改善和 guard 接受率，不能用总体平均掩盖。
 3. 在不使用 Data 标签的前提下比较固定 Pilot 更新、规则调度和离散 RL 调度；RL 只作为在线更新率/校正强度调度器，不替代 Pilot 驱动参数更新。
-4. 若正式统计中在线相对 Offline 仍无稳定增益，应将论文创新表述为“Pilot 驱动安全在线适配框架在长记忆模型失配下保持稳健”，而不是捏造显著在线增益。
+4. 若 60 帧统计中在线相对 Offline 仍无全 SNR 稳定增益，应将论文创新表述为“Pilot 驱动安全在线适配框架在长记忆模型失配下保持稳健”，而不是捏造显著在线增益。
