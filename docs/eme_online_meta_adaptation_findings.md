@@ -53,3 +53,25 @@ logs/eme_online_meta_smoke_compare/
 当前最重要的实现修正是：post-Reward 外层梯度现在可以更新基础模型，而不仅仅是 PEFT 参数；内循环仍然只更新选定 PEFT group。下一步必须进行充分的序列元训练，并在同一个冻结 Level B profile 内构造合法的未见慢状态轨迹，比较 Frozen Offline NN、普通 Pilot PEFT 和在线元适配。
 
 如果在充分训练和有限状态失配主实验中，在线元适配仍不能稳定超过 Frozen Offline NN，则论文应报告“安全在线适配保持性能”，不能把 PPO 或更新接受率包装成在线均衡增益。
+
+## 32 步初始化加元训练的正式 Level B 矩阵
+
+训练流程为：先使用 `stage all --steps 32` 得到离线初始化，再使用 `stage online_meta --steps 32`、每个 episode 连续 4 帧进行序列元训练。使用的 checkpoint 和完整矩阵为：
+
+```text
+pretrained/eme_meta_from_offline_32/model_best.pt
+logs/eme_meta_from_offline_32_main5x60/
+```
+
+主矩阵使用固定 `eme_long_memory_v2`、`max_delay=116`、prefix Pilot、5 个 seed、每个 seed 60 帧、SNR `0/5/10/15 dB`。每个方法每个 SNR 均有 300 条逐帧记录，全部 19200 条记录的 `(method, SNR, seed, frame)` 唯一键检查通过。
+
+| SNR | CFO+DD LMMSE-FIR | CFO+DD DFE-RLS | Frozen Offline NN | Pilot Online |
+|---:|---:|---:|---:|---:|
+| 0 dB | 0.452857 | 0.447318 | 0.208590 | 0.211421 |
+| 5 dB | 0.316760 | 0.303754 | 0.089446 | 0.091298 |
+| 10 dB | 0.185510 | 0.181674 | 0.047281 | 0.047351 |
+| 15 dB | 0.124959 | 0.121466 | 0.035562 | 0.035543 |
+
+相对于两个传统方法中较强者，Pilot Online 的 BER 降幅约为 `52.7%/69.9%/73.9%/70.7%`（对应 `0/5/10/15 dB`）。因此当前正式证据支持：在线 Pilot 方法在 Level B 长记忆、残余 CFO 和慢相位条件下，四个主 SNR 均明显优于公平传统 baseline，并且 60 帧递推保持稳定。
+
+但是，Pilot Online 相对 Frozen Offline NN 的差异为：0 dB 略差、5 dB 略差、10 dB 基本持平、15 dB 基本持平。Online 的前 5 帧/后 5 帧 Data BER 为 `0.200402/0.203259`、`0.0752679/0.0887054`、`0.0390179/0.0526786`、`0.0289732/0.0395536`。因此不能声称在线增益随帧数增加而持续变大；下一阶段若要证明在线研究点的额外价值，必须增加同一冻结 profile 内、离线未见但物理合法的慢状态失配测试，并让训练外层目标显式优化跨帧恢复，而不是继续扩大匹配分布训练。
