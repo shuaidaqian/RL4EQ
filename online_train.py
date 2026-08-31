@@ -23,8 +23,10 @@ def main() -> None:
     parser.add_argument("--snrs", nargs="*", type=float, default=None)
     parser.add_argument("--pilot-total", type=int, default=128)
     parser.add_argument("--pilot-layout", default="prefix")
-    parser.add_argument("--cir-update", choices=["fixed", "decision_directed"], default="fixed")
+    parser.add_argument("--cir-update", choices=["fixed", "pilot_sparse", "decision_directed"], default="fixed")
     parser.add_argument("--cir-alpha", type=float, default=0.2)
+    parser.add_argument("--state-split", choices=["offline_train", "heldout_edge", "drift"], default=None)
+    parser.add_argument("--scheduler", choices=["fixed", "bandit"], default="fixed")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--output-dir", default="logs/online")
@@ -45,9 +47,10 @@ def main() -> None:
         "pretrained": args.pretrained if args.pretrained and Path(args.pretrained).exists() else None,
         "cir_update_mode": args.cir_update,
         "cir_update_alpha": args.cir_alpha,
+        "state_split": args.state_split,
     }
     if args.method == "pilot":
-        run_pilot_driven_online(**common)
+        run_pilot_driven_online(**common, scheduler=args.scheduler)
     else:
         run_windowed_discrete_online(
             **common,

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any, Mapping
 
 import torch
 
@@ -33,6 +34,9 @@ class CommEnvConfig:
     strong_path_count: tuple[int, int] | None = None
     diffuse_energy_ratio: tuple[float, float] | None = None
     include_anomalous_scatterer: bool = False
+    acquisition_to_data_gap_seconds: float = 0.0
+    state_split: str | None = None
+    state_ranges: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.profile_name in {"eme_measurement_v1", "eme_long_memory_v2"} and self.layout != "prefix":
@@ -81,6 +85,9 @@ class CommunicationEnvironment:
                 strong_path_count=config.strong_path_count,
                 diffuse_energy_ratio=config.diffuse_energy_ratio,
                 include_anomalous_scatterer=config.include_anomalous_scatterer,
+                acquisition_to_data_gap_seconds=config.acquisition_to_data_gap_seconds,
+                state_split=config.state_split,
+                state_ranges=config.state_ranges,
             )
         )
         self.frame_generator = FrameGenerator(
@@ -115,6 +122,7 @@ class CommunicationEnvironment:
         acquisition = acquisition.with_channel_output(
             rx, warmup[-tail_length:], self.channel.last_cir_used()
         )
+        self.channel.advance_after_acquisition()
         self._last_tail = torch.cat((warmup, acquisition.tx_symbols))[-tail_length:].clone()
         self._frame_index = 0
         return EpisodeStart(
@@ -131,6 +139,11 @@ class CommunicationEnvironment:
         self._last_tail = torch.cat((tail, frame.tx_symbols))[-self.channel.max_delay :].clone()
         self._frame_index += 1
         return received
+
+    def state_metadata(self) -> dict[str, Any]:
+        """返回当前 episode 的信道状态元数据，仅用于实验记录。"""
+
+        return self.channel.state_metadata()
 
     @staticmethod
     def _known_symbols(length: int, seed: int) -> torch.Tensor:

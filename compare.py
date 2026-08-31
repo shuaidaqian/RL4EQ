@@ -11,7 +11,12 @@ from pathlib import Path
 import torch
 
 from agent.continual_policy import ContinualPolicy, ObservationEncoder
-from agent.cir_estimator import CIRCondition, condition_from_cir, decision_directed_cir_update
+from agent.cir_estimator import (
+    CIRCondition,
+    condition_from_cir,
+    decision_directed_cir_update,
+    pilot_sparse_cir_update,
+)
 from agent.discrete_safe_policy import DiscreteSafePolicy, initialize_safe_discrete_policy_prior, safe_modulation_actions
 from agent.modulation import ModulationConfig, ModulationState
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
@@ -208,6 +213,7 @@ def main() -> None:
     parser.add_argument("--frames", type=int, default=2)
     parser.add_argument("--pilot-total", type=int, default=None)
     parser.add_argument("--pilot-layout", default=None)
+    parser.add_argument("--state-split", choices=["offline_train", "heldout_edge", "drift"], default=None)
     parser.add_argument(
         "--impairment-profile",
         default=None,
@@ -224,7 +230,7 @@ def main() -> None:
         ],
     )
     parser.add_argument("--update-interval", type=int, default=32)
-    parser.add_argument("--cir-update", choices=["fixed", "decision_directed"], default="fixed")
+    parser.add_argument("--cir-update", choices=["fixed", "pilot_sparse", "decision_directed"], default="fixed")
     parser.add_argument("--cir-alpha", type=float, default=0.2)
     parser.add_argument("--output-dir", default="logs/compare")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -258,6 +264,7 @@ def main() -> None:
             total_pilot=pilot_total,
             pilot_layout=pilot_layout,
             impairment_profile=impairment_profile,
+            state_split=args.state_split,
         )
         for delay in selected_delays
         for snr_db in args.snrs
@@ -364,6 +371,8 @@ def main() -> None:
                             payload["impairment_profile"] = impairment_profile
                             payload["profile_residual_cfo_limit"] = residual_cfo_limit
                             payload["profile_acquisition_cfo_limit"] = acquisition_cfo_limit
+                            payload["state_split"] = args.state_split
+                            payload["state_instance"] = env.state_metadata()
                             payload["input_hash"] = result.input_hash
                             payload.update(result.extra)
                             key = _row_key(payload)
@@ -405,6 +414,7 @@ def main() -> None:
         "bootstrap": interval.__dict__,
         "effective_channel": effective_channel,
         "impairment_profile": impairment_profile,
+        "state_split": args.state_split,
         "profile_prior": profile_prior,
         "forbidden": {"data_label_upper_bound_method_present": any("数据标签上界" in method for method in selected_methods)},
     }
@@ -446,6 +456,9 @@ class BaselineMethodState:
     receiver_state: ReceiverState
     phase_state: TraditionalPhaseState | None = None
     residual_cfo_limit: float = 0.001
+    cir_update_mode: str = "fixed"
+    cir_update_alpha: float = 0.2
+    acquisition_cfo: float = 0.0
 
 
 @dataclass
@@ -494,6 +507,7 @@ class PilotOnlineMethodState:
     cir_update_mode: str = "fixed"
     cir_update_alpha: float = 0.2
     tail_update_alpha: float = 0.5
+    candidate_specs: tuple[dict, ...] = ()
 
 
 def _select_methods(methods: list[str] | None) -> tuple[str, ...]:
@@ -532,13 +546,21 @@ def _build_method_states(
     for method in methods:
         if method == "Pilot-Driven Online Adaptation":
             model = _build_equalizer(model_config, pretrained_path, device)
+            online_groups = {
+                str(group)
+                for group in config.get(
+                    "online_adaptation_groups",
+                    ["head", "conditioner_film"],
+                )
+            }
             adapter = PilotDrivenOnlineAdapter(
                 model,
-                groups={"head", "conditioner_film"},
+                groups=online_groups,
                 learning_rate=float(config.get("online_adaptation_learning_rate", 1e-4)),
                 steps=int(config.get("online_adaptation_steps", 1)),
                 max_delta_norm=float(config.get("online_adaptation_max_delta_norm", 0.5)),
             )
+            candidate_specs = _online_candidate_specs(config, online_groups)
             states[method] = PilotOnlineMethodState(
                 model=model,
                 adapter=adapter,
@@ -549,6 +571,7 @@ def _build_method_states(
                 cir_update_mode=str(cir_update_mode),
                 cir_update_alpha=float(cir_alpha),
                 tail_update_alpha=float(config.get("tail_update_alpha", 0.5)),
+                candidate_specs=candidate_specs,
             )
         elif method == "RL-Modulated Neural Block Equalizer":
             torch.manual_seed(_method_seed("rl_modulated", seed, delay, snr_db))
@@ -627,6 +650,9 @@ def _build_method_states(
                 receiver_state=ReceiverState(initial_soft_tail.clone()),
                 phase_state=TraditionalPhaseState(),
                 residual_cfo_limit=float(residual_cfo_limit),
+                cir_update_mode=str(cir_update_mode),
+                cir_update_alpha=float(cir_alpha),
+                acquisition_cfo=float(acquisition_cfo),
             )
     return states
 
@@ -681,6 +707,15 @@ def _run_new_or_single_method(
     if method in TRADITIONAL_BASELINES:
         if not isinstance(state, BaselineMethodState):
             raise TypeError("传统 baseline 需要 BaselineMethodState。")
+        if state.cir_update_mode == "pilot_sparse":
+            state.cir = pilot_sparse_cir_update(
+                frame,
+                state.cir,
+                state.receiver_state.soft_tail,
+                max_paths=24,
+                alpha=float(state.cir_update_alpha),
+                cfo_hint=float(state.acquisition_cfo),
+            ).to(state.cir.device)
         result = run_traditional_equalizer(
             method,
             frame.receiver_view(),
@@ -696,6 +731,15 @@ def _run_new_or_single_method(
         if not isinstance(state, RLModulatedMethodState):
             raise TypeError("RL-Modulated 方法需要 RLModulatedMethodState。")
         frame_device = _frame_to_device(frame, next(state.online_state.model.parameters()).device)
+        if state.online_state.cir_update_mode == "pilot_sparse":
+            state.online_state.cir = pilot_sparse_cir_update(
+                frame_device,
+                state.online_state.cir,
+                state.online_state.receiver_state.soft_tail,
+                max_paths=24,
+                alpha=float(state.online_state.cir_update_alpha),
+                cfo_hint=float(state.acquisition_cfo),
+            ).to(state.online_state.cir.device)
         phase_features = estimate_phase_residual_vector(
             frame.receiver_view(),
             state.online_state.cir,
@@ -731,6 +775,15 @@ def _run_new_or_single_method(
             raise TypeError("神经 proposed 消融需要 NeuralMethodState。")
         device = next(state.model.parameters()).device
         frame_device = _frame_to_device(frame, device)
+        if state.cir_update_mode == "pilot_sparse":
+            state.cir = pilot_sparse_cir_update(
+                frame_device,
+                state.cir,
+                state.receiver_state.soft_tail,
+                max_paths=24,
+                alpha=float(state.cir_update_alpha),
+                cfo_hint=float(state.acquisition_cfo),
+            ).to(device)
         rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
         region_ids = frame_device.model_region_ids.unsqueeze(0).long()
         phase_features = estimate_phase_residual_vector(
@@ -947,6 +1000,15 @@ def _run_pilot_online_method(
 
     device = next(state.model.parameters()).device
     frame_device = _frame_to_device(frame, device)
+    if state.cir_update_mode == "pilot_sparse":
+        state.cir = pilot_sparse_cir_update(
+            frame_device,
+            state.cir,
+            state.receiver_state.soft_tail,
+            max_paths=24,
+            alpha=float(state.cir_update_alpha),
+            cfo_hint=float(state.acquisition_cfo),
+        ).to(device)
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
     phase_features = estimate_phase_residual_vector(
         frame.receiver_view(),
@@ -970,26 +1032,65 @@ def _run_pilot_online_method(
             adapt_mask=adapt_mask,
         )
     before = before_logits.squeeze(0)
-    snapshot = state.model.peft.snapshot(state.adapter.groups)
-    adaptation = state.adapter.adapt(frame_device, condition, tail)
-    with torch.no_grad():
-        after_logits, _ = state.model(
-            rx_iq,
-            condition,
-            region_ids,
-            tail,
-            adapt_symbols=adapt_symbols,
-            adapt_mask=adapt_mask,
-        )
-    after = after_logits.squeeze(0)
     reward_before = _masked_bce(before, frame_device.bits, frame_device.reward_mask)
-    reward_after = _masked_bce(after, frame_device.bits, frame_device.reward_mask)
-    accepted = bool(adaptation.accepted and float(reward_after) <= float(reward_before))
-    if not accepted:
-        state.model.peft.restore(snapshot)
+    adapt_loss_before = _masked_bce(before, frame_device.bits, frame_device.adapt_mask)
+    candidates = state.candidate_specs or (
+        {
+            "name": "default",
+            "groups": tuple(sorted(state.adapter.groups)),
+            "learning_rate_scale": 1.0,
+            "steps": state.adapter.steps,
+            "max_delta_scale": 1.0,
+        },
+    )
+    candidate_groups = set().union(*(set(item["groups"]) for item in candidates))
+    base_snapshot = state.model.peft.snapshot(candidate_groups)
+    best_snapshot = None
+    best_result = None
+    best_reward = float(reward_before.detach().cpu())
+    best_name = "skip"
+    best_after = before
+    for candidate in candidates:
+        state.model.peft.restore(base_snapshot)
+        adaptation = state.adapter.adapt(
+            frame_device,
+            condition,
+            tail,
+            groups=set(candidate["groups"]),
+            learning_rate=state.adapter.learning_rate * float(candidate["learning_rate_scale"]),
+            steps=int(candidate["steps"]),
+            max_delta_norm=state.adapter.max_delta_norm * float(candidate["max_delta_scale"]),
+        )
+        with torch.no_grad():
+            after_logits, _ = state.model(
+                rx_iq,
+                condition,
+                region_ids,
+                tail,
+                adapt_symbols=adapt_symbols,
+                adapt_mask=adapt_mask,
+            )
+        after = after_logits.squeeze(0)
+        reward_after = _masked_bce(after, frame_device.bits, frame_device.reward_mask)
+        reward_value = float(reward_after.detach().cpu())
+        if adaptation.accepted and reward_value <= best_reward:
+            best_snapshot = state.model.peft.snapshot(candidate_groups)
+            best_result = adaptation
+            best_reward = reward_value
+            best_name = str(candidate["name"])
+            best_after = after
+    state.model.peft.restore(base_snapshot)
+    if best_snapshot is None:
+        adaptation = None
+        accepted = False
         final = before
+        reward_after = reward_before
     else:
-        final = after
+        state.model.peft.restore(best_snapshot)
+        adaptation = best_result
+        accepted = True
+        final = best_after
+        reward_after = torch.as_tensor(best_reward, device=reward_before.device)
     tail_len = state.receiver_state.soft_tail.numel()
     detected_tail = torch.complex(
         torch.tanh(final[-tail_len:] / 2.0),
@@ -1018,10 +1119,24 @@ def _run_pilot_online_method(
             "online_algorithm": "pilot_driven_constrained_peft",
             "online_update_source": "adapt_pilot_only",
             "reward_pilot_guard": True,
-            "adapt_pilot_count": int(adaptation.adapt_pilot_count),
-            "adapt_loss_before": float(adaptation.adapt_loss_before),
-            "adapt_loss_after": float(adaptation.adapt_loss_after),
+            "adapt_pilot_count": int(
+                adaptation.adapt_pilot_count
+                if adaptation is not None
+                else frame_device.adapt_mask.sum().item()
+            ),
+            "adapt_loss_before": float(
+                adaptation.adapt_loss_before
+                if adaptation is not None
+                else adapt_loss_before.detach().cpu()
+            ),
+            "adapt_loss_after": float(
+                adaptation.adapt_loss_after
+                if adaptation is not None
+                else adapt_loss_before.detach().cpu()
+            ),
             "adaptation_accepted": bool(accepted),
+            "online_update_candidate": best_name,
+            "online_update_candidate_count": len(candidates),
             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
             "parameter_delta_norm": float(adaptation.parameter_delta_norm if accepted else 0.0),
@@ -1033,6 +1148,42 @@ def _run_pilot_online_method(
             "frame_index": int(frame_index),
         },
     )
+
+
+def _online_candidate_specs(config: dict, default_groups: set[str]) -> tuple[dict, ...]:
+    """读取仅由 Adapt Pilot 更新、Reward Pilot 选择的离散候选。"""
+
+    payload = config.get("online_adaptation_candidates")
+    if not payload:
+        return (
+            {
+                "name": "default",
+                "groups": tuple(sorted(default_groups)),
+                "learning_rate_scale": 1.0,
+                "steps": int(config.get("online_adaptation_steps", 1)),
+                "max_delta_scale": 1.0,
+            },
+        )
+    candidates = []
+    for index, item in enumerate(payload):
+        if not isinstance(item, dict):
+            raise ValueError("online_adaptation_candidates 的每项必须为对象。")
+        groups = item.get("groups", sorted(default_groups))
+        if isinstance(groups, str):
+            groups = [groups]
+        selected = tuple(sorted(str(group) for group in groups))
+        if not selected:
+            raise ValueError("online_adaptation_candidates 的 groups 不能为空。")
+        candidates.append(
+            {
+                "name": str(item.get("name", f"candidate_{index}")),
+                "groups": selected,
+                "learning_rate_scale": float(item.get("learning_rate_scale", 1.0)),
+                "steps": max(1, int(item.get("steps", config.get("online_adaptation_steps", 1)))),
+                "max_delta_scale": float(item.get("max_delta_scale", 1.0)),
+            }
+        )
+    return tuple(candidates)
 
 
 def _load_model_config(config: dict, pretrained_path: Path | None) -> UnfoldedConfig:

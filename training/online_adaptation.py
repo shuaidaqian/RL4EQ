@@ -58,9 +58,20 @@ class PilotDrivenOnlineAdapter:
         frame,
         condition: CIRCondition,
         soft_tail: torch.Tensor,
+        *,
+        groups: set[str] | None = None,
+        learning_rate: float | None = None,
+        steps: int | None = None,
+        max_delta_norm: float | None = None,
     ) -> OnlineAdaptationResult:
         """使用当前帧 Adapt Pilot 做一次受限在线更新。"""
 
+        selected_groups = set(self.groups if groups is None else groups)
+        selected_learning_rate = self.learning_rate if learning_rate is None else float(learning_rate)
+        selected_steps = self.steps if steps is None else max(1, int(steps))
+        selected_max_delta_norm = self.max_delta_norm if max_delta_norm is None else float(max_delta_norm)
+        if selected_learning_rate <= 0.0 or selected_max_delta_norm <= 0.0:
+            raise ValueError("在线动作覆盖的学习率和更新范数上限必须为正数。")
         mask = frame.adapt_mask.to(torch.bool)
         pilot_count = int(mask.sum().item())
         if pilot_count == 0:
@@ -91,17 +102,17 @@ class PilotDrivenOnlineAdapter:
             tail = tail.unsqueeze(0)
         condition = _condition_to_device(condition, device)
 
-        snapshot = _snapshot_groups(self.model, self.groups)
+        snapshot = _snapshot_groups(self.model, selected_groups)
         was_training = self.model.training
         self.model.train()
-        self.model.set_trainable_groups(self.groups)
+        self.model.set_trainable_groups(selected_groups)
         trainable = self.model.trainable_parameters()
         if not trainable:
             self.model.set_trainable_groups(set())
             self.model.train(was_training)
             return OnlineAdaptationResult(False, pilot_count, 0.0, 0.0, 0.0, False)
 
-        optimizer = torch.optim.SGD(trainable, lr=self.learning_rate)
+        optimizer = torch.optim.SGD(trainable, lr=selected_learning_rate)
         try:
             with torch.no_grad():
                 before_logits, _ = self.model(
@@ -115,7 +126,7 @@ class PilotDrivenOnlineAdapter:
                 loss_before = F.binary_cross_entropy_with_logits(
                     before_logits[0, mask], target[mask]
                 )
-            for _ in range(self.steps):
+            for _ in range(selected_steps):
                 logits, _ = self.model(
                     rx_iq,
                     condition,
@@ -142,7 +153,7 @@ class PilotDrivenOnlineAdapter:
                     after_logits[0, mask], target[mask]
                 )
             delta_norm = _delta_norm(self.model, snapshot)
-            accepted = bool(torch.isfinite(loss_after).item()) and delta_norm <= self.max_delta_norm
+            accepted = bool(torch.isfinite(loss_after).item()) and delta_norm <= selected_max_delta_norm
             if not accepted:
                 _restore_groups(self.model, snapshot)
                 delta_norm = 0.0
@@ -172,12 +183,16 @@ def run_pilot_driven_online(
     pretrained: str | Path | None = None,
     cir_update_mode: str = "fixed",
     cir_update_alpha: float = 0.2,
+    state_split: str | None = None,
+    scheduler: str = "fixed",
     device: str = "cpu",
 ) -> dict:
     """运行正式的 Pilot 驱动在线适配入口。"""
 
-    if cir_update_mode not in {"fixed", "decision_directed"}:
+    if cir_update_mode not in {"fixed", "pilot_sparse", "decision_directed"}:
         raise ValueError(f"未知 CIR 更新模式：{cir_update_mode}")
+    if scheduler not in {"fixed", "bandit"}:
+        raise ValueError(f"未知在线调度器：{scheduler}")
     config = json.loads(Path(config_path).read_text(encoding="utf-8"))
     selected_delays = delays or [int(value) for value in config.get("main_delays", [20, 30, 40])]
     selected_snrs = snrs or [float(value) for value in config.get("main_snrs", [0, 5, 10, 15])]
@@ -188,22 +203,36 @@ def run_pilot_driven_online(
     rows: list[dict] = []
     effective_channel = None
     from baseline.traditional_equalizers import estimate_phase_residual_vector
+    from agent.cir_estimator import pilot_sparse_cir_update
     from env.comm_env import CommunicationEnvironment, ReceiverState
     from env.experiment_config import build_comm_env_config, effective_channel_metadata
     from training.meta_training import estimate_acquisition_cir_for_profile
     from training.windowed_discrete_ppo import _masked_bce
+    from agent.safe_contextual_bandit import SafeContextualBandit, SafeUpdateAction
 
     for delay in selected_delays:
         for snr_db in selected_snrs:
             for seed in range(int(num_seeds)):
                 model = _build_model(model_config, pretrained_path, device)
+                online_groups = {
+                    str(group)
+                    for group in config.get(
+                        "online_adaptation_groups",
+                        ["head", "conditioner_film"],
+                    )
+                }
                 adapter = PilotDrivenOnlineAdapter(
                     model,
-                    groups={"head", "conditioner_film"},
+                    groups=online_groups,
                     learning_rate=float(config.get("online_adaptation_learning_rate", 1e-4)),
                     steps=int(config.get("online_adaptation_steps", 1)),
                     max_delta_norm=float(config.get("online_adaptation_max_delta_norm", 0.5)),
                 )
+                bandit = SafeContextualBandit(seed=90_000 + int(seed)) if scheduler == "bandit" else None
+                active_action = None
+                hold_remaining = 0
+                previous_reward_gain = 0.0
+                rollback_count = 0
                 env_config = build_comm_env_config(
                     config,
                     level="B",
@@ -212,6 +241,7 @@ def run_pilot_driven_online(
                     max_delay=int(delay),
                     total_pilot=int(pilot_total),
                     pilot_layout=str(pilot_layout),
+                    state_split=state_split,
                 )
                 effective_channel = effective_channel or effective_channel_metadata(env_config)
                 env = CommunicationEnvironment(env_config)
@@ -235,6 +265,15 @@ def run_pilot_driven_online(
                 receiver_state = ReceiverState(start.initial_soft_tail.to(device).to(torch.complex64))
                 for frame_index in range(1, int(frames) + 1):
                     frame = _frame_to_device(env.next_frame(), device)
+                    if cir_update_mode == "pilot_sparse":
+                        cir = pilot_sparse_cir_update(
+                            frame,
+                            cir,
+                            receiver_state.soft_tail,
+                            max_paths=24,
+                            alpha=float(cir_update_alpha),
+                            cfo_hint=float(acquisition_cfo),
+                        ).to(device)
                     phase_features = estimate_phase_residual_vector(
                         frame.receiver_view(),
                         cir,
@@ -254,8 +293,44 @@ def run_pilot_driven_online(
                             adapt_symbols=adapt_symbols, adapt_mask=adapt_mask,
                         )
                     before = before_logits.squeeze(0)
-                    snapshot = model.peft.snapshot(adapter.groups)
-                    adaptation = adapter.adapt(frame, condition, tail)
+                    adapt_loss_before = _masked_bce(before, frame.bits, frame.adapt_mask)
+                    context = {
+                        "adapt_loss": float(adapt_loss_before.detach().cpu()),
+                        "pilot_confidence": float(condition.confidence.mean().detach().cpu()),
+                        "reward_trend": float(previous_reward_gain),
+                        "rollback_rate": float(rollback_count / max(1, frame_index - 1)),
+                    }
+                    if bandit is None:
+                        action = SafeUpdateAction(
+                            "fixed",
+                            frozenset(adapter.groups),
+                            1.0,
+                            1.0,
+                            1,
+                            0.0,
+                        )
+                    elif hold_remaining <= 0 or active_action is None:
+                        action = bandit.select(context)
+                        active_action = action
+                        hold_remaining = int(action.hold_frames)
+                    else:
+                        action = active_action
+                    hold_remaining = max(0, hold_remaining - 1)
+                    update_applied = action.name != "skip" and bool(action.groups)
+                    snapshot = model.peft.snapshot(set(action.groups)) if update_applied else {}
+                    adaptation = (
+                        adapter.adapt(
+                            frame,
+                            condition,
+                            tail,
+                            groups=set(action.groups),
+                            learning_rate=adapter.learning_rate * float(action.learning_rate_scale),
+                            steps=adapter.steps,
+                            max_delta_norm=adapter.max_delta_norm * max(0.01, float(action.max_delta_scale)),
+                        )
+                        if update_applied
+                        else None
+                    )
                     with torch.no_grad():
                         after_logits, _ = model(
                             rx_iq, condition, region_ids, tail,
@@ -264,12 +339,20 @@ def run_pilot_driven_online(
                     after = after_logits.squeeze(0)
                     reward_before = _masked_bce(before, frame.bits, frame.reward_mask)
                     reward_after = _masked_bce(after, frame.bits, frame.reward_mask)
-                    accepted = bool(adaptation.accepted and float(reward_after) <= float(reward_before))
+                    reward_gain = float(reward_before.detach().cpu() - reward_after.detach().cpu())
+                    accepted = bool(
+                        not update_applied
+                        or (adaptation is not None and adaptation.accepted and reward_gain >= 0.0)
+                    )
                     if not accepted:
                         model.peft.restore(snapshot)
                         final = before
+                        rollback_count += 1
                     else:
                         final = after
+                    if bandit is not None:
+                        bandit.update(action.name, context, reward_gain, accepted)
+                    previous_reward_gain = reward_gain if accepted else -abs(reward_gain)
                     tail_len = receiver_state.soft_tail.numel()
                     detected_tail = torch.complex(
                         torch.tanh(final[-tail_len:] / 2.0),
@@ -304,18 +387,40 @@ def run_pilot_driven_online(
                             "ber_adapt_pilot": _ber(final[frame.adapt_mask], frame.bits[frame.adapt_mask]),
                             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
                             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
-                            "adapt_pilot_count": int(adaptation.adapt_pilot_count),
-                            "adapt_loss_before": float(adaptation.adapt_loss_before),
-                            "adapt_loss_after": float(adaptation.adapt_loss_after),
+                            "adapt_pilot_count": int(
+                                adaptation.adapt_pilot_count
+                                if adaptation is not None
+                                else frame.adapt_mask.sum().item()
+                            ),
+                            "adapt_loss_before": float(
+                                adaptation.adapt_loss_before
+                                if adaptation is not None
+                                else adapt_loss_before.detach().cpu()
+                            ),
+                            "adapt_loss_after": float(
+                                adaptation.adapt_loss_after
+                                if adaptation is not None
+                                else adapt_loss_before.detach().cpu()
+                            ),
                             "online_update_source": "adapt_pilot_only",
                             "adaptation_accepted": bool(accepted),
+                            "update_applied": bool(update_applied),
+                            "scheduler": scheduler,
+                            "action": action.name,
+                            "action_hold_frames": int(action.hold_frames),
                             "tail_update_alpha": tail_alpha,
                             "cir_update_mode": str(cir_update_mode),
                             "cir_update_alpha": float(cir_update_alpha),
-                            "parameter_delta_norm": float(adaptation.parameter_delta_norm if accepted else 0.0),
+                            "state_split": state_split,
+                            "state_instance": env.state_metadata(),
+                            "parameter_delta_norm": float(
+                                adaptation.parameter_delta_norm
+                                if adaptation is not None and accepted
+                                else 0.0
+                            ),
                             "data_labels_used_online": False,
                             "uses_neural_network": True,
-                            "uses_rl": False,
+                            "uses_rl": scheduler == "bandit",
                             "pretrained_loaded": pretrained_path is not None,
                         }
                     )
@@ -323,6 +428,8 @@ def run_pilot_driven_online(
         "schema_version": "pilot-driven-online-adaptation-v1",
         "pretrained_loaded": pretrained_path is not None,
         "effective_channel": effective_channel,
+        "state_split": state_split,
+        "scheduler": scheduler,
         "rows": rows,
         "mean_ber_data": float(sum(row["ber_data"] for row in rows) / max(1, len(rows))),
     }

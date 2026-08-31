@@ -142,6 +142,99 @@ def decision_directed_cir_update(
     return blended / torch.sqrt(torch.sum(torch.abs(blended) ** 2).clamp_min(1e-12))
 
 
+def pilot_sparse_cir_update(
+    frame,
+    previous_cir: torch.Tensor,
+    soft_tail: torch.Tensor,
+    *,
+    max_paths: int = 24,
+    alpha: float = 0.5,
+    cfo_hint: float = 0.0,
+) -> torch.Tensor:
+    """只用当前 Adapt Pilot 更新 acquisition CIR 的主径增益。
+
+    长时延 prefix Pilot 通常不足以估计完整 CIR，因此固定 acquisition 得到的
+    稀疏 support，只对能量最大的若干 tap 做复增益最小二乘更新。未知 Data 和
+    Reward Pilot 不参与行选择或目标构造；soft_tail 只作为跨帧已知历史输入。
+    """
+
+    previous = previous_cir.reshape(-1).to(torch.complex64)
+    if previous.numel() == 0:
+        raise ValueError("previous_cir 不能为空。")
+    if int(max_paths) <= 0:
+        raise ValueError("max_paths 必须为正数。")
+    if not 0.0 <= float(alpha) <= 1.0:
+        raise ValueError("alpha 必须位于 [0, 1]。")
+    view = frame.receiver_view()
+    rx = view.rx_symbols.reshape(-1).to(torch.complex64)
+    adapt_symbols = view.adapt_symbols.reshape(-1).to(torch.complex64)
+    adapt_mask = view.adapt_mask.reshape(-1).to(torch.bool)
+    max_delay = previous.numel() - 1
+    tail = soft_tail.reshape(-1).to(torch.complex64)
+    if tail.numel() < max_delay:
+        tail = torch.cat(
+            (
+                torch.zeros(
+                    max_delay - tail.numel(),
+                    dtype=torch.complex64,
+                    device=tail.device,
+                ),
+                tail,
+            )
+        )
+    tail = tail[-max_delay:] if max_delay > 0 else tail[:0]
+    if rx.numel() != adapt_symbols.numel() or rx.numel() != adapt_mask.numel():
+        raise ValueError("frame 的接收信号、Adapt Pilot 和 mask 长度必须一致。")
+    support_count = min(int(max_paths), previous.numel())
+    support = torch.topk(torch.abs(previous), support_count).indices.sort().values
+    padded_symbols = torch.cat((tail.to(adapt_symbols.device), adapt_symbols))
+    padded_known = torch.cat(
+        (
+            torch.ones(max_delay, dtype=torch.bool, device=adapt_symbols.device),
+            adapt_mask,
+        )
+    )
+    # 先用 acquisition CFO 先验和当前 Pilot 的公共相位估计去除慢旋转，
+    # 否则长前缀上的相位斜率会被错误吸收到 tap 增益中。
+    all_delays = torch.arange(max_delay + 1, device=adapt_symbols.device)
+    phase_positions = torch.nonzero(adapt_mask, as_tuple=False).flatten()
+    reference_values = []
+    for position in phase_positions.tolist():
+        source_indices = max_delay + int(position) - all_delays
+        reference_values.append(torch.sum(padded_symbols[source_indices] * previous.to(padded_symbols.device)))
+    reference = torch.stack(reference_values) if reference_values else torch.empty(0, dtype=torch.complex64)
+    if reference.numel() > 0:
+        positions = phase_positions.to(torch.float32)
+        cfo_phase = 2.0 * torch.pi * float(cfo_hint) * positions
+        phase_samples = torch.angle(
+            rx[phase_positions] * torch.conj(reference)
+            * torch.exp(-1j * cfo_phase).to(torch.complex64)
+        )
+        phase0 = torch.median(phase_samples)
+    else:
+        phase0 = torch.zeros((), dtype=torch.float32, device=adapt_symbols.device)
+    positions_all = torch.arange(rx.numel(), device=rx.device, dtype=torch.float32)
+    correction = torch.exp(
+        -1j * (phase0.to(positions_all.device) + 2.0 * torch.pi * float(cfo_hint) * positions_all)
+    ).to(torch.complex64)
+    corrected_rx = rx * correction
+
+    rows = []
+    targets = []
+    for position in torch.nonzero(adapt_mask, as_tuple=False).flatten().tolist():
+        source_indices = max_delay + int(position) - support
+        if not bool(torch.all(padded_known[source_indices]).item()):
+            continue
+        rows.append(padded_symbols[source_indices])
+        targets.append(corrected_rx[position])
+    if len(rows) < support_count:
+        return previous / torch.sqrt(torch.sum(torch.abs(previous) ** 2).clamp_min(1e-12))
+    estimate = torch.linalg.lstsq(torch.stack(rows), torch.stack(targets)).solution.to(torch.complex64)
+    updated = previous.clone()
+    updated[support] = (1.0 - float(alpha)) * previous[support] + float(alpha) * estimate
+    return updated / torch.sqrt(torch.sum(torch.abs(updated) ** 2).clamp_min(1e-12))
+
+
 def _decision_directed_fit_mask(
     adapt_mask: torch.Tensor,
     logits: torch.Tensor,

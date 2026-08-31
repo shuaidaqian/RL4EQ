@@ -308,6 +308,7 @@ class OnlineMetaTrainer:
         inner_steps = max(1, int(self.config.get("meta_inner_steps", 1)))
         inner_lr = float(self.config.get("meta_inner_learning_rate", 1e-4))
         max_delta = float(self.config.get("online_adaptation_max_delta_norm", 0.5))
+        state_split = self.config.get("online_meta_state_split", "offline_train")
         total_steps = max(1, int(steps))
         history: list[dict] = []
         for step in range(total_steps):
@@ -324,6 +325,7 @@ class OnlineMetaTrainer:
                 max_delay=delay,
                 total_pilot=pilot_total,
                 pilot_layout=layout,
+                state_split=state_split,
             )
             env = CommunicationEnvironment(env_config)
             start = env.reset_episode()
@@ -369,6 +371,7 @@ class OnlineMetaTrainer:
                         "data_labels_used_online": False,
                         "condition_source": "acquisition_pilot",
                         "outer_target": result.outer_target,
+                        "state_split": state_split,
                     }
                 )
         mean_pre = sum(row["pre_adapt_reward_loss"] for row in history) / max(1, len(history))
@@ -383,6 +386,7 @@ class OnlineMetaTrainer:
             "mean_reward_improvement": mean_pre - mean_post,
             "resume_loaded": bool(resume_loaded),
             "data_labels_used_online": False,
+            "state_split": state_split,
         }
 
     def save(self, save_dir: str, metrics: dict) -> None:

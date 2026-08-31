@@ -42,6 +42,9 @@ class ExtremeDelayChannelConfig:
     strong_path_count: tuple[int, int] | None = None
     diffuse_energy_ratio: tuple[float, float] | None = None
     include_anomalous_scatterer: bool = False
+    acquisition_to_data_gap_seconds: float = 0.0
+    state_split: str | None = None
+    state_ranges: Mapping[str, Any] | None = None
     _eme_profile_config: EMEChannelProfileConfig | None = field(
         init=False, repr=False, compare=False, default=None
     )
@@ -96,6 +99,15 @@ class ExtremeDelayChannelConfig:
             raise ValueError("coherence_time_seconds 必须为正且有限。") from exc
         if not math.isfinite(coherence) or coherence <= 0.0:
             raise ValueError("coherence_time_seconds 必须为正且有限。")
+        gap = self.acquisition_to_data_gap_seconds
+        if isinstance(gap, (bool, np.bool_)):
+            raise ValueError("acquisition_to_data_gap_seconds 必须为有限非负数。")
+        try:
+            gap = float(gap)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("acquisition_to_data_gap_seconds 必须为有限非负数。") from exc
+        if not math.isfinite(gap) or gap < 0.0:
+            raise ValueError("acquisition_to_data_gap_seconds 必须为有限非负数。")
 
         eme_config = EMEChannelProfileConfig(
             level=self.level,
@@ -113,6 +125,7 @@ class ExtremeDelayChannelConfig:
         object.__setattr__(self, "frame_len", eme_config.frame_len)
         object.__setattr__(self, "max_delay_seconds", eme_config.max_delay_seconds)
         object.__setattr__(self, "coherence_time_seconds", coherence)
+        object.__setattr__(self, "acquisition_to_data_gap_seconds", gap)
         object.__setattr__(self, "strong_path_count", eme_config.strong_path_count)
         object.__setattr__(self, "diffuse_energy_ratio", eme_config.diffuse_energy_ratio)
         object.__setattr__(self, "max_delay", eme_config.max_delay_samples)
@@ -157,6 +170,7 @@ class ExtremeDelayChannel:
         self._global_symbol_index = 0
         self._phase_state = 0.0
         self._impairment = PhaseImpairmentSettings()
+        self._state_metadata: dict[str, Any] = {}
 
     @property
     def delays(self) -> tuple[int, ...]:
@@ -208,12 +222,52 @@ class ExtremeDelayChannel:
         self._phase_rng = torch.Generator(device="cpu").manual_seed(self.config.seed + 30_000)
         self._global_symbol_index = 0
         self._phase_state = 0.0
-        self._impairment = settings_from_profile(
-            self.config.impairment_profile,
-            self._rng,
-            cfo_cycles_per_symbol=self.config.cfo_cycles_per_symbol,
-            phase_noise_std=self.config.phase_noise_std,
+        self._impairment = self._sample_impairment()
+        base_power = torch.abs(self._base_cir).pow(2)
+        diffuse_ratio = float(
+            base_power[self._diffuse_mask].sum()
+            / base_power.sum().clamp_min(1e-12)
         )
+        self._state_metadata = {
+            "state_split": self.config.state_split,
+            "profile_name": self.config.profile_name,
+            "strong_path_count": int(len(self._delays)),
+            "diffuse_energy_ratio": diffuse_ratio,
+            "cfo_cycles_per_symbol": float(self._impairment.cfo_cycles_per_symbol),
+            "phase_noise_std": float(self._impairment.phase_noise_std),
+            "coherence_time_seconds": float(self.config.coherence_time_seconds or 0.0),
+            "acquisition_to_data_gap_seconds": float(
+                self.config.acquisition_to_data_gap_seconds
+            ),
+        }
+
+    def state_metadata(self) -> dict[str, Any]:
+        """返回 episode 状态记录的副本，不改变接收机可见字段。"""
+
+        return dict(self._state_metadata)
+
+    def advance_after_acquisition(self) -> None:
+        """在 acquisition 结束后推进到首个数据帧对应的隐状态。"""
+
+        self._acquisition_to_data_transition()
+
+    def _sample_impairment(self) -> PhaseImpairmentSettings:
+        """按 split 或冻结 impairment profile 采样 episode 级同步残差。"""
+
+        if self.config.cfo_cycles_per_symbol != 0.0 or self.config.phase_noise_std != 0.0:
+            return PhaseImpairmentSettings(
+                self.config.cfo_cycles_per_symbol,
+                self.config.phase_noise_std,
+            )
+        ranges = self.config.state_ranges
+        if isinstance(ranges, Mapping):
+            cfo_low, cfo_high = ranges["cfo_abs_range"]
+            phase_low, phase_high = ranges["phase_noise_std_range"]
+            cfo_abs = float(self._rng.uniform(float(cfo_low), float(cfo_high)))
+            cfo = -cfo_abs if float(self._rng.uniform()) < 0.5 else cfo_abs
+            phase_std = float(self._rng.uniform(float(phase_low), float(phase_high)))
+            return PhaseImpairmentSettings(cfo, phase_std)
+        return settings_from_profile(self.config.impairment_profile, self._rng)
 
     def transmit(self, symbols: torch.Tensor, add_noise: bool = True) -> torch.Tensor:
         """施加线性卷积、跨帧历史、固定 Es/N0 噪声，并在帧末更新 tap。"""
@@ -286,10 +340,14 @@ class ExtremeDelayChannel:
         next_cir[support] = updated
         self._current_cir = self._normalize_cir(next_cir)
 
-    def _evolve_eme_taps(self) -> None:
+    def _evolve_eme_taps(self, *, elapsed_seconds: float | None = None) -> None:
         """按物理复增益递推；瞬时总功率允许波动，长期期望由基准 tap 功率约束。"""
 
-        rho = self.config.rho_frame
+        if elapsed_seconds is None:
+            elapsed_seconds = float(self.config.frame_duration_seconds or 0.0)
+        if elapsed_seconds <= 0.0:
+            return
+        rho = math.exp(-float(elapsed_seconds) / float(self.config.coherence_time_seconds))
         if rho >= 1.0:
             return
         support = torch.nonzero(self._base_cir != 0, as_tuple=False).flatten()
@@ -302,6 +360,17 @@ class ExtremeDelayChannel:
         next_cir = torch.zeros_like(self._current_cir)
         next_cir[support] = updated
         self._current_cir = next_cir
+
+    def _acquisition_to_data_transition(self) -> None:
+        """模拟 acquisition 完成到数据开始之间的信道老化。"""
+
+        gap = float(self.config.acquisition_to_data_gap_seconds)
+        if gap <= 0.0 or self.config.profile_name not in {
+            "eme_measurement_v1",
+            "eme_long_memory_v2",
+        }:
+            return
+        self._evolve_eme_taps(elapsed_seconds=gap)
 
     @staticmethod
     def _normalize_cir(cir: torch.Tensor) -> torch.Tensor:

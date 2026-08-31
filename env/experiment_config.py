@@ -9,6 +9,7 @@ from typing import Any
 
 from env.comm_env import CommEnvConfig
 from env.eme_reference import physical_delay_samples
+from env.online_state import load_online_state_split
 
 
 _EME_PROFILE = "eme_measurement_v1"
@@ -76,6 +77,7 @@ def _build_eme_config(
     total_pilot: int | None,
     pilot_layout: str | None,
     impairment_profile: str | None,
+    state_split: str | None,
 ) -> CommEnvConfig:
     for field in _EME_REQUIRED_FIELDS:
         _required(experiment, field)
@@ -133,6 +135,9 @@ def _build_eme_config(
 
     frame_len = int(experiment["frame_len"])
     coherence_time_seconds = float(experiment["coherence_time_seconds"])
+    acquisition_to_data_gap_seconds = float(
+        experiment.get("acquisition_to_data_gap_seconds", 0.0)
+    )
     expected_rho = math.exp(-(frame_len / sample_rate_hz) / coherence_time_seconds)
     configured_rho = float(_required(experiment, "rho_frame"))
     alias_rho = float(_required(experiment, "rho"))
@@ -143,8 +148,19 @@ def _build_eme_config(
     if not math.isclose(alias_rho, configured_rho, rel_tol=0.0, abs_tol=1e-15):
         raise ValueError("rho 必须与 rho_frame 完全一致。")
 
-    strong_path_count = _pair(experiment["strong_path_count"], "strong_path_count", int)
-    diffuse_energy_ratio = _pair(experiment["diffuse_energy_ratio"], "diffuse_energy_ratio", float)
+    selected_split = None
+    state_ranges = None
+    if state_split is not None:
+        selected_split = load_online_state_split(experiment, state_split)
+        strong_path_count = selected_split.strong_path_count
+        diffuse_energy_ratio = selected_split.diffuse_energy_ratio
+        state_ranges = {
+            "cfo_abs_range": selected_split.cfo_abs_range,
+            "phase_noise_std_range": selected_split.phase_noise_std_range,
+        }
+    else:
+        strong_path_count = _pair(experiment["strong_path_count"], "strong_path_count", int)
+        diffuse_energy_ratio = _pair(experiment["diffuse_energy_ratio"], "diffuse_energy_ratio", float)
     anomalous = experiment["include_anomalous_scatterer"]
     if not isinstance(anomalous, bool):
         raise ValueError("include_anomalous_scatterer 必须是布尔值。")
@@ -164,9 +180,12 @@ def _build_eme_config(
         frame_len=frame_len,
         max_delay_seconds=max_delay_seconds,
         coherence_time_seconds=coherence_time_seconds,
+        acquisition_to_data_gap_seconds=acquisition_to_data_gap_seconds,
         strong_path_count=strong_path_count,
         diffuse_energy_ratio=diffuse_energy_ratio,
         include_anomalous_scatterer=anomalous,
+        state_split=None if selected_split is None else selected_split.name,
+        state_ranges=state_ranges,
     )
 
 
@@ -180,6 +199,7 @@ def build_comm_env_config(
     total_pilot: int | None = None,
     pilot_layout: str | None = None,
     impairment_profile: str | None = None,
+    state_split: str | None = None,
 ) -> CommEnvConfig:
     """构造实际环境配置；EME 配置不允许静默回落 legacy。"""
 
@@ -200,6 +220,7 @@ def build_comm_env_config(
             total_pilot=total_pilot,
             pilot_layout=pilot_layout,
             impairment_profile=impairment_profile,
+            state_split=state_split,
         )
     if profile != "legacy_sparse_v1":
         raise ValueError(f"信道 profile={profile} 不支持。")
@@ -217,6 +238,7 @@ def build_comm_env_config(
             else experiment.get("impairment_profile", "clean")
         ),
         frame_len=int(experiment.get("frame_len", experiment.get("model", {}).get("frame_len", 512))),
+        state_split=state_split,
     )
 
 
@@ -234,6 +256,7 @@ def effective_channel_metadata(config: CommEnvConfig) -> dict[str, Any]:
         "coherence_time_seconds": (
             None if config.coherence_time_seconds is None else float(config.coherence_time_seconds)
         ),
+        "acquisition_to_data_gap_seconds": float(config.acquisition_to_data_gap_seconds),
         "rho_frame": float(config.rho),
         "strong_path_count": (
             None if config.strong_path_count is None else list(config.strong_path_count)
@@ -245,6 +268,7 @@ def effective_channel_metadata(config: CommEnvConfig) -> dict[str, Any]:
         "impairment_profile": str(config.impairment_profile),
         "pilot_layout": str(config.layout),
         "pilot_total": int(config.total_pilot),
+        "state_split": config.state_split,
     }
 
 

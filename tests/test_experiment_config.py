@@ -211,6 +211,7 @@ def test_effective_metadata_is_derived_from_built_config():
         "frame_len": 512,
         "max_delay_seconds": 0.0116,
         "coherence_time_seconds": 120.0,
+        "acquisition_to_data_gap_seconds": 0.0,
         "rho_frame": pytest.approx(0.997868940604912),
         "strong_path_count": [3, 7],
         "diffuse_energy_ratio": pytest.approx([0.05, 0.15]),
@@ -218,6 +219,7 @@ def test_effective_metadata_is_derived_from_built_config():
         "impairment_profile": "cfo_phase_tiny",
         "pilot_layout": "prefix",
         "pilot_total": 128,
+        "state_split": None,
     }
 
 

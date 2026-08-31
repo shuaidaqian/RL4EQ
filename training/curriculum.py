@@ -278,6 +278,7 @@ class CurriculumTrainer:
             max_delay=int(self.config.get("main_delays", [self.model.config.max_delay])[0]),
             total_pilot=int(self.config.get("pilot_total", 128)),
             pilot_layout=str(self.config.get("pilot_layout", "prefix")),
+            state_split=self.config.get("offline_state_split"),
         )
         return {
             "history": self.history,
@@ -376,6 +377,7 @@ class CurriculumTrainer:
                     total_pilot=int(phase.total_pilot),
                     pilot_layout=str(phase.layout),
                     impairment_profile=str(self.config.get("impairment_profile", "clean")),
+                    state_split=self.config.get("offline_state_split"),
                 )
             )
             start = env.reset_episode()
@@ -650,6 +652,7 @@ class CurriculumTrainer:
                             total_pilot=int(self.config.get("pilot_total", 128)),
                             pilot_layout=str(self.config.get("pilot_layout", "prefix")),
                             impairment_profile=str(self.config.get("impairment_profile", "clean")),
+                            state_split=self.config.get("offline_state_split"),
                         )
                     )
                     start = env.reset_episode()
@@ -745,6 +748,7 @@ class CurriculumTrainer:
                             total_pilot=int(item["pilot_total"]),
                             pilot_layout=str(item["pilot_layout"]),
                             impairment_profile=str(item.get("impairment_profile", self.config.get("impairment_profile", "clean"))),
+                            state_split=item.get("state_split", self.config.get("offline_state_split")),
                         )
                     )
                     start = env.reset_episode()

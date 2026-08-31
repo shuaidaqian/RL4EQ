@@ -34,6 +34,7 @@
   "strong_path_count": [12, 24],
   "diffuse_energy_ratio": [0.2, 0.35],
   "coherence_time_seconds": 120.0,
+  "acquisition_to_data_gap_seconds": 30.0,
   "rho_frame": 0.9991470306520146,
   "rho": 0.9991470306520146,
   "include_anomalous_scatterer": false,
@@ -56,14 +57,46 @@
   "model_validation_sequence_state": true,
   "training_tail_mode": "online_soft",
   "tail_update_alpha": 0.5,
-  "online_adaptation_learning_rate": 0.0001,
-  "online_adaptation_steps": 1,
-  "online_adaptation_max_delta_norm": 0.5,
+  "online_adaptation_groups": ["adapter_lora", "conditioner_film"],
+  "online_adaptation_learning_rate": 0.001,
+  "online_adaptation_steps": 3,
+  "online_adaptation_max_delta_norm": 2.0,
+  "online_adaptation_candidates": [
+    {
+      "name": "lora_conservative",
+      "groups": ["adapter_lora", "conditioner_film"],
+      "learning_rate_scale": 0.5,
+      "steps": 1,
+      "max_delta_scale": 0.5
+    }
+  ],
   "online_meta_training": true,
   "meta_sequence_frames": 4,
-  "meta_inner_steps": 1,
-  "meta_inner_learning_rate": 0.0001,
-  "meta_peft_groups": ["head", "conditioner_film"],
+  "meta_inner_steps": 3,
+  "meta_inner_learning_rate": 0.001,
+  "meta_peft_groups": ["adapter_lora", "conditioner_film"],
+  "offline_state_split": "offline_train",
+  "online_meta_state_split": "offline_train",
+  "online_state_splits": {
+    "offline_train": {
+      "strong_path_count": [12, 18],
+      "diffuse_energy_ratio": [0.20, 0.28],
+      "cfo_abs_range": [0.0002, 0.0006],
+      "phase_noise_std_range": [0.0002, 0.0006]
+    },
+    "heldout_edge": {
+      "strong_path_count": [19, 24],
+      "diffuse_energy_ratio": [0.29, 0.35],
+      "cfo_abs_range": [0.0006, 0.0008],
+      "phase_noise_std_range": [0.0006, 0.0008]
+    },
+    "drift": {
+      "strong_path_count": [12, 24],
+      "diffuse_energy_ratio": [0.20, 0.35],
+      "cfo_abs_range": [0.0002, 0.0008],
+      "phase_noise_std_range": [0.0002, 0.0008]
+    }
+  },
   "model": {
     "frame_len": 1024,
     "max_delay": 116,
