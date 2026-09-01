@@ -61,6 +61,7 @@
   "online_adaptation_learning_rate": 0.001,
   "online_adaptation_steps": 3,
   "online_adaptation_max_delta_norm": 2.0,
+  "online_adaptation_freeze_below_snr_db": 5.0,
   "online_adaptation_candidates": [
     {
       "name": "lora_conservative",

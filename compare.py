@@ -486,6 +486,8 @@ class NeuralMethodState:
     acquisition_cfo: float = 0.0
     cir_update_mode: str = "fixed"
     cir_update_alpha: float = 0.2
+    # Offline NN only 必须冻结 acquisition 条件，在线条件恢复属于单独消融。
+    condition_update_mode: str = "fixed"
 
 
 @dataclass
@@ -508,6 +510,7 @@ class PilotOnlineMethodState:
     cir_update_alpha: float = 0.2
     tail_update_alpha: float = 0.5
     candidate_specs: tuple[dict, ...] = ()
+    freeze_online_below_snr_db: float | None = None
 
 
 def _select_methods(methods: list[str] | None) -> tuple[str, ...]:
@@ -572,6 +575,11 @@ def _build_method_states(
                 cir_update_alpha=float(cir_alpha),
                 tail_update_alpha=float(config.get("tail_update_alpha", 0.5)),
                 candidate_specs=candidate_specs,
+                freeze_online_below_snr_db=(
+                    float(config["online_adaptation_freeze_below_snr_db"])
+                    if config.get("online_adaptation_freeze_below_snr_db") is not None
+                    else None
+                ),
             )
         elif method == "RL-Modulated Neural Block Equalizer":
             torch.manual_seed(_method_seed("rl_modulated", seed, delay, snr_db))
@@ -626,6 +634,7 @@ def _build_method_states(
                 acquisition_cfo=float(acquisition_cfo),
                 cir_update_mode=str(cir_update_mode),
                 cir_update_alpha=float(cir_alpha),
+                condition_update_mode=("fixed" if method == "Offline NN only" else str(cir_update_mode)),
             )
         elif method == "Continual PPO":
             torch.manual_seed(90_000 + int(seed) + int(delay) * 17 + int(float(snr_db)) * 31)
@@ -775,7 +784,7 @@ def _run_new_or_single_method(
             raise TypeError("神经 proposed 消融需要 NeuralMethodState。")
         device = next(state.model.parameters()).device
         frame_device = _frame_to_device(frame, device)
-        if state.cir_update_mode == "pilot_sparse":
+        if state.condition_update_mode == "pilot_sparse":
             state.cir = pilot_sparse_cir_update(
                 frame_device,
                 state.cir,
@@ -824,6 +833,7 @@ def _run_new_or_single_method(
                 "uses_rl": False,
                 "pretrained_loaded": state.pretrained_loaded,
                 "cir_update_mode": str(state.cir_update_mode),
+                "condition_update_mode": str(state.condition_update_mode),
                 "cir_update_alpha": float(state.cir_update_alpha),
                 "cir_update_uses_data_labels": False,
             },
@@ -1000,7 +1010,8 @@ def _run_pilot_online_method(
 
     device = next(state.model.parameters()).device
     frame_device = _frame_to_device(frame, device)
-    if state.cir_update_mode == "pilot_sparse":
+    updates_frozen = _online_updates_are_frozen(snr_db, state.freeze_online_below_snr_db)
+    if state.cir_update_mode == "pilot_sparse" and not updates_frozen:
         state.cir = pilot_sparse_cir_update(
             frame_device,
             state.cir,
@@ -1043,7 +1054,9 @@ def _run_pilot_online_method(
             "max_delta_scale": 1.0,
         },
     )
-    candidate_groups = set().union(*(set(item["groups"]) for item in candidates))
+    freeze_below_db = state.freeze_online_below_snr_db
+    candidates = _online_candidates_for_snr(candidates, snr_db, freeze_below_db)
+    candidate_groups = set().union(*(set(item["groups"]) for item in candidates)) if candidates else set()
     base_snapshot = state.model.peft.snapshot(candidate_groups)
     best_snapshot = None
     best_result = None
@@ -1137,6 +1150,9 @@ def _run_pilot_online_method(
             "adaptation_accepted": bool(accepted),
             "online_update_candidate": best_name,
             "online_update_candidate_count": len(candidates),
+            "online_snr_layer": "fully_frozen" if updates_frozen else ("peft_frozen" if not candidates else "peft_enabled"),
+            "online_condition_update_applied": not updates_frozen,
+            "online_adaptation_freeze_below_snr_db": freeze_below_db,
             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
             "parameter_delta_norm": float(adaptation.parameter_delta_norm if accepted else 0.0),
@@ -1184,6 +1200,24 @@ def _online_candidate_specs(config: dict, default_groups: set[str]) -> tuple[dic
             }
         )
     return tuple(candidates)
+
+
+def _online_candidates_for_snr(
+    candidates: tuple[dict, ...],
+    snr_db: float,
+    freeze_below_db: float | None,
+) -> tuple[dict, ...]:
+    """按 SNR 可靠性分层决定是否允许 Pilot 驱动的 PEFT 更新。"""
+
+    if freeze_below_db is not None and float(snr_db) < float(freeze_below_db):
+        return ()
+    return candidates
+
+
+def _online_updates_are_frozen(snr_db: float, freeze_below_db: float | None) -> bool:
+    """判断当前 SNR 是否低到不应相信 Pilot 驱动的状态更新。"""
+
+    return freeze_below_db is not None and float(snr_db) < float(freeze_below_db)
 
 
 def _load_model_config(config: dict, pretrained_path: Path | None) -> UnfoldedConfig:

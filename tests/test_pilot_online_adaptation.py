@@ -2,6 +2,22 @@ from types import SimpleNamespace
 
 import torch
 
+
+def test_online_snr_layer_can_freeze_unreliable_peft_updates():
+    import compare
+
+    candidates = ({"name": "nominal", "groups": ("head",)},)
+    assert compare._online_candidates_for_snr(candidates, snr_db=0.0, freeze_below_db=5.0) == ()
+    assert compare._online_candidates_for_snr(candidates, snr_db=5.0, freeze_below_db=5.0) == candidates
+
+
+def test_online_snr_layer_can_freeze_the_whole_update_chain():
+    import compare
+
+    assert compare._online_updates_are_frozen(0.0, 5.0) is True
+    assert compare._online_updates_are_frozen(5.0, 5.0) is False
+    assert compare._online_updates_are_frozen(10.0, None) is False
+
 from agent.cir_estimator import condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from training.online_adaptation import PilotDrivenOnlineAdapter, run_pilot_driven_online

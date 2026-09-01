@@ -31,11 +31,11 @@ acquisition CIR
 
 `pilot_sparse_cir_update()` 只使用当前帧接收信号、Adapt Pilot 符号和上一帧 soft tail。它不读取 Data 标签、Reward Pilot 标签、真实 CIR 或真实 CFO。实现先使用 acquisition CFO 先验和当前 Adapt Pilot 的公共相位估计去除慢旋转，再在 acquisition 主径 support 上估计复 tap 增益。Reward Pilot 只承担候选选择和回滚，不参与梯度更新。
 
-神经 PEFT 更新默认使用 `adapter_lora + conditioner_film`。当前正式比较通过 `compare.py --cir-update pilot_sparse` 启用共享的 pilot-only CIR 更新；传统 DFE-RLS 同样使用该模式，保证状态估计信息边界一致。
+神经 PEFT 更新默认使用 `adapter_lora + conditioner_film`。历史正式比较曾通过 `compare.py --cir-update pilot_sparse` 为所有方法启用共享的 Pilot-only CIR 更新；当前正式协议已将 Frozen Offline NN 的条件更新固定为 acquisition CIR，在线方法和传统 DFE-RLS 才使用当前帧 Pilot 做状态更新。
 
 ## 证据一：连续漂移恢复
 
-实验目录：
+实验目录（历史结果，Frozen 定义已在后文修正）：
 
 ```text
 logs/eme_aged_pilotsparse_30f_2s/
@@ -53,7 +53,7 @@ logs/eme_aged_pilotsparse_30f_2s/
 
 ## 证据二：主 SNR 切片
 
-实验目录：
+实验目录（历史结果，Frozen 定义已在后文修正）：
 
 ```text
 logs/eme_main_aged_15f_1s/
@@ -68,7 +68,7 @@ logs/eme_main_aged_15f_1s/
 | 10 dB | 0.02679 | 0.02865 | 0.22098 |
 | 15 dB | 0.01488 | 0.01577 | 0.17582 |
 
-该切片用于说明 SNR 依赖性，不作为最终显著性结论。低 SNR 下 32 符号 Reward Pilot 的方差较大，Pilot 梯度更新容易被拒绝或选错；中高 SNR 下应重点报告随帧数变化的恢复曲线。
+该切片用于说明 SNR 依赖性，不作为最终显著性结论。低 SNR 下 32 符号 Reward Pilot 的方差较大，Pilot 梯度更新容易被拒绝或选错；中高 SNR 下应重点报告随帧数变化的恢复曲线。由于该切片生成时 Frozen 仍错误地执行了 Pilot CIR 更新，正式结论以文末 2026-09-01 主矩阵为准。
 
 ## 当前结论与未完成项
 
@@ -77,7 +77,7 @@ logs/eme_main_aged_15f_1s/
 1. acquisition 与数据状态之间具有明确、可审计的信道老化来源；
 2. 老化仍由 120 秒相干时间推导，没有引入快速时变；
 3. Pilot-only 稀疏 CIR 更新解决了 residual CFO/慢相位对 tap LS 的污染；
-4. 在线方法在连续 20/30 帧上超过 Frozen Offline NN，并明显超过传统 DFE-RLS；
+4. 修正前的历史实验曾显示在线方法在连续 20/30 帧上超过当时的 Frozen 名义结果；严格基线结论以文末主矩阵为准；
 5. 在线更新的 Data 标签隔离和 Reward Pilot 回滚边界已经写入逐帧日志。
 
 仍需在论文正式结果前完成：
@@ -89,4 +89,56 @@ logs/eme_main_aged_15f_1s/
 - 检验 Reward Pilot 分块一致性门控是否能降低低 SNR 误更新；
 - RL/Contextual Bandit 只作为动作调度消融，不能替代上述在线恢复主线。
 
-因此当前阶段不能声称所有 SNR、所有首帧都超过 Frozen；可以严谨声称：在校准老化后的 Level B 长回波连续帧场景中，Pilot-driven online recovery 已显示出随时间累积的优势，且已超过公平传统非神经基线。
+这部分是修正前的阶段性结论，不能作为正式论文结论。严格冻结基线和 SNR 分层冻结后的正式结果见下文。
+
+## 2026-09-01 基线边界修正与正式主矩阵
+
+### 修正原因
+
+此前使用 `--cir-update pilot_sparse` 时，`Offline NN only` 也会在每帧调用 Pilot-only CIR 更新。该方法虽然没有更新网络参数，但已经不再是严格的 Frozen Offline NN，因此此前的 Frozen 数值不能作为冻结基线证据。
+
+现已在 `compare.py` 中把条件状态更新与参数更新分开：
+
+- `Offline NN only`：模型参数冻结，CIR 固定为 acquisition CIR，唯一保留的是接收尾的正常递推；日志中的 `condition_update_mode=fixed`；
+- `Pilot-Driven Online Adaptation`：使用当前帧前缀 Adapt Pilot 做稀疏 CIR 恢复，再用 Adapt Pilot 做受约束 PEFT 候选更新，Reward Pilot 只做接受或回滚；
+- `CFO+DD-Phase DFE-RLS`：使用相同 acquisition/Pilot 信息边界，保持传统非神经、非 RL；
+- 低于 `5 dB`：由于 Pilot 梯度和稀疏 CIR 估计的可靠性不足，在线链路整体冻结，避免把噪声当作状态变化；5 dB 及以上才开放 Pilot CIR 和 PEFT 更新。该层级由配置项 `online_adaptation_freeze_below_snr_db=5.0` 控制，日志分别记录 `fully_frozen` 与 `peft_enabled`。
+
+### 正式实验协议
+
+正式矩阵目录为：
+
+```text
+logs/eme_snr_freeze_main_60f_3s/
+```
+
+实验使用 `pretrained/eme_meta_from_offline_32/model_best.pt`，固定 `eme_long_memory_v2` Level B profile，`max_delay=116`，prefix Pilot 共 128 符号，`Adapt=96`、`Reward=32`，residual CFO 与慢相位扰动为 `cfo_phase_tiny`，acquisition 到数据开始的老化间隔为 30 秒。每个 SNR 使用 3 个 seed、连续 60 帧，比较 Frozen Offline NN、Pilot-driven online 和 CFO+DD-Phase DFE-RLS，共 2160 条逐帧记录。
+
+### 主结果：累计 Data BER
+
+下表的“前 N 帧”是在所有 seed 上合并计算的连续帧累计平均；这不是只取最后一帧，因此能够同时观察初始化和长期递推。
+
+| SNR | 方法 | 前 1 帧 | 前 5 帧 | 前 10 帧 | 前 20 帧 | 前 30 帧 | 前 60 帧 | 后 5 帧 |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| 0 dB | Frozen Offline NN | 0.228795 | 0.333557 | 0.329613 | 0.327028 | 0.351352 | 0.361713 | 0.374405 |
+| 0 dB | Pilot-driven online | 0.228795 | 0.316741 | 0.322545 | 0.334375 | 0.348624 | **0.357149** | 0.391071 |
+| 0 dB | CFO+DD-Phase DFE-RLS | 0.441592 | 0.441295 | 0.457366 | 0.450856 | 0.449281 | 0.457930 | 0.472545 |
+| 5 dB | Frozen Offline NN | 0.168899 | 0.193155 | 0.193043 | 0.232403 | 0.239323 | 0.261000 | 0.319568 |
+| 5 dB | Pilot-driven online | 0.101935 | 0.108333 | 0.121652 | 0.143452 | 0.169891 | **0.227269** | **0.306250** |
+| 5 dB | CFO+DD-Phase DFE-RLS | 0.445685 | 0.347173 | 0.337277 | 0.404799 | 0.441791 | 0.433811 | 0.359003 |
+| 10 dB | Frozen Offline NN | 0.134673 | 0.169420 | 0.161161 | 0.175744 | 0.174975 | 0.200955 | 0.226488 |
+| 10 dB | Pilot-driven online | 0.049851 | 0.055432 | 0.061979 | 0.116592 | 0.145015 | **0.184015** | **0.204167** |
+| 10 dB | CFO+DD-Phase DFE-RLS | 0.421503 | 0.340625 | 0.328088 | 0.320368 | 0.335503 | 0.361533 | 0.401414 |
+| 15 dB | Frozen Offline NN | 0.120536 | 0.204688 | 0.173698 | 0.164732 | 0.171726 | 0.198921 | 0.238690 |
+| 15 dB | Pilot-driven online | 0.045387 | **0.043378** | **0.050298** | **0.051711** | **0.058346** | **0.123134** | 0.259747 |
+| 15 dB | CFO+DD-Phase DFE-RLS | 0.422619 | 0.236086 | 0.259338 | 0.232031 | 0.237872 | 0.284542 | 0.307366 |
+
+Frozen 与 Online 的逐帧配对差值定义为 `BER_Frozen - BER_Online`。在 60 帧全矩阵上，四档 SNR 的均值分别为 `0.004563`、`0.033730`、`0.016939`、`0.075787`，Online 优于 Frozen 的逐帧比例分别为 `46.11%`、`74.44%`、`74.44%`、`83.89%`。0 dB 的均值略为正，但后 5 帧出现退化，说明“低 SNR 全冻结”只能保证长期平均不劣，不能宣称低 SNR 仍有在线跟踪增益。
+
+相对于传统 DFE-RLS，Online 在前 60 帧的 BER 降幅约为 `22.0%`、`47.6%`、`49.1%`、`56.7%`（对应 0/5/10/15 dB）。因此当前可以写入论文的核心结论是：在同一冻结的 Level B 极端稀疏长回波 profile、跨帧校准老化和 residual CFO/慢相位扰动下，Pilot-driven online receiver 在 4 个主 SNR 配置均明显优于公平传统非神经 baseline；在 5/10/15 dB 的长期累计 BER 上进一步优于严格 Frozen Offline NN。0 dB 应报告为可靠性边界，而不是在线增益配置。
+
+### 当前研究结论边界
+
+这组结果已经足以支撑“在线均衡有独立研究价值”：离线模型提供基础均衡能力，在线阶段利用每帧前缀 Pilot 恢复因 acquisition 老化而失配的稀疏长记忆条件，并在可靠 SNR 层对 PEFT 参数做安全微调。它尚不能支撑“任何 SNR、任何帧段都单调优于 Frozen”，尤其 15 dB 后 5 帧和 0 dB 后 5 帧仍有漂移或噪声导致的局部退化。
+
+后续论文消融应使用严格定义：`Frozen + acquisition CIR`、`Frozen + Pilot CIR`、`Online PEFT + acquisition CIR`、`Online PEFT + Pilot CIR`，并将 RL/Contextual Bandit 保持为离散动作调度消融，而不是把 PPO 作为在线均衡本体。旧的 `logs/eme_aged_pilotsparse_30f_2s/` 和 `logs/eme_main_aged_15f_1s/` 只保留作历史诊断，不再作为正式主结果。

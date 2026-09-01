@@ -3,6 +3,48 @@ import json
 import torch
 
 
+def test_offline_nn_only_keeps_acquisition_condition_frozen():
+    import compare
+
+    state = compare.NeuralMethodState(
+        cir=torch.tensor([1.0 + 0.0j]),
+        receiver_state=object(),
+        model=object(),
+        modulation=object(),
+        pretrained_loaded=True,
+        cir_update_mode="pilot_sparse",
+        condition_update_mode="fixed",
+    )
+    assert state.condition_update_mode == "fixed"
+
+
+def test_neural_condition_update_mode_is_explicit_per_method(tmp_path):
+    import compare
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+
+    model = UnfoldedEqualizer(UnfoldedConfig(frame_len=32, max_delay=4, iterations=1, d_model=8, num_heads=2))
+    pretrained_dir = tmp_path / "pretrained"
+    pretrained_dir.mkdir()
+    (pretrained_dir / "model_config.json").write_text(
+        json.dumps(model.config.to_dict(), ensure_ascii=False), encoding="utf-8"
+    )
+    torch.save({"state_dict": model.state_dict()}, pretrained_dir / "model_best.pt")
+    states = compare._build_method_states(
+        ("Offline NN only", "NN + Fixed Modulation"),
+        torch.zeros(4, dtype=torch.complex64),
+        torch.ones(5, dtype=torch.complex64),
+        {"model": model.config.to_dict()},
+        delay=4,
+        snr_db=10.0,
+        seed=0,
+        pretrained_path=pretrained_dir / "model_best.pt",
+        device="cpu",
+        cir_update_mode="pilot_sparse",
+    )
+    assert states["Offline NN only"].condition_update_mode == "fixed"
+    assert states["NN + Fixed Modulation"].condition_update_mode == "pilot_sparse"
+
+
 def test_discrete_safe_action_catalog_is_bounded_and_has_identity():
     from agent.discrete_safe_policy import safe_modulation_actions
 
