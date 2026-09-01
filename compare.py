@@ -13,9 +13,11 @@ import torch
 from agent.continual_policy import ContinualPolicy, ObservationEncoder
 from agent.cir_estimator import (
     CIRCondition,
+    PilotPhysicalState,
     condition_from_cir,
     decision_directed_cir_update,
     pilot_sparse_cir_update,
+    track_pilot_physical_state,
 )
 from agent.discrete_safe_policy import DiscreteSafePolicy, initialize_safe_discrete_policy_prior, safe_modulation_actions
 from agent.modulation import ModulationConfig, ModulationState
@@ -459,6 +461,7 @@ class BaselineMethodState:
     cir_update_mode: str = "fixed"
     cir_update_alpha: float = 0.2
     acquisition_cfo: float = 0.0
+    pilot_physical_state: PilotPhysicalState | None = None
 
 
 @dataclass
@@ -488,6 +491,10 @@ class NeuralMethodState:
     cir_update_alpha: float = 0.2
     # Offline NN only 必须冻结 acquisition 条件，在线条件恢复属于单独消融。
     condition_update_mode: str = "fixed"
+    physical_state: PilotPhysicalState | None = None
+    phase_tracking_smoothing: float = 0.5
+    phase_tracking_min_confidence: float = 0.15
+    phase_tracking_cfo_limit: float = 0.0012
 
 
 @dataclass
@@ -511,6 +518,10 @@ class PilotOnlineMethodState:
     tail_update_alpha: float = 0.5
     candidate_specs: tuple[dict, ...] = ()
     freeze_online_below_snr_db: float | None = None
+    physical_state: PilotPhysicalState | None = None
+    phase_tracking_smoothing: float = 0.5
+    phase_tracking_min_confidence: float = 0.15
+    phase_tracking_cfo_limit: float = 0.0012
 
 
 def _select_methods(methods: list[str] | None) -> tuple[str, ...]:
@@ -580,6 +591,10 @@ def _build_method_states(
                     if config.get("online_adaptation_freeze_below_snr_db") is not None
                     else None
                 ),
+                physical_state=PilotPhysicalState(cfo_cycles_per_symbol=float(acquisition_cfo)),
+                phase_tracking_smoothing=float(config.get("online_phase_tracking_smoothing", 0.5)),
+                phase_tracking_min_confidence=float(config.get("online_phase_tracking_min_confidence", 0.15)),
+                phase_tracking_cfo_limit=float(config.get("online_phase_tracking_cfo_limit", residual_cfo_limit)),
             )
         elif method == "RL-Modulated Neural Block Equalizer":
             torch.manual_seed(_method_seed("rl_modulated", seed, delay, snr_db))
@@ -635,6 +650,10 @@ def _build_method_states(
                 cir_update_mode=str(cir_update_mode),
                 cir_update_alpha=float(cir_alpha),
                 condition_update_mode=("fixed" if method == "Offline NN only" else str(cir_update_mode)),
+                physical_state=PilotPhysicalState(cfo_cycles_per_symbol=float(acquisition_cfo)),
+                phase_tracking_smoothing=float(config.get("online_phase_tracking_smoothing", 0.5)),
+                phase_tracking_min_confidence=float(config.get("online_phase_tracking_min_confidence", 0.15)),
+                phase_tracking_cfo_limit=float(config.get("online_phase_tracking_cfo_limit", residual_cfo_limit)),
             )
         elif method == "Continual PPO":
             torch.manual_seed(90_000 + int(seed) + int(delay) * 17 + int(float(snr_db)) * 31)
@@ -662,6 +681,7 @@ def _build_method_states(
                 cir_update_mode=str(cir_update_mode),
                 cir_update_alpha=float(cir_alpha),
                 acquisition_cfo=float(acquisition_cfo),
+                pilot_physical_state=PilotPhysicalState(cfo_cycles_per_symbol=float(acquisition_cfo)),
             )
     return states
 
@@ -717,14 +737,25 @@ def _run_new_or_single_method(
         if not isinstance(state, BaselineMethodState):
             raise TypeError("传统 baseline 需要 BaselineMethodState。")
         if state.cir_update_mode == "pilot_sparse":
+            state.pilot_physical_state = track_pilot_physical_state(
+                frame,
+                state.cir,
+                state.receiver_state.soft_tail,
+                previous=state.pilot_physical_state,
+                cfo_limit=float(state.residual_cfo_limit),
+            )
             state.cir = pilot_sparse_cir_update(
                 frame,
                 state.cir,
                 state.receiver_state.soft_tail,
                 max_paths=24,
                 alpha=float(state.cir_update_alpha),
-                cfo_hint=float(state.acquisition_cfo),
-            ).to(state.cir.device)
+                cfo_hint=float(
+                    state.pilot_physical_state.cfo_cycles_per_symbol
+                    if state.pilot_physical_state is not None
+                    else state.acquisition_cfo
+                ),
+            ).to(state.cir.device) if _pilot_state_reliable(state.pilot_physical_state, 0.15) else state.cir
         result = run_traditional_equalizer(
             method,
             frame.receiver_view(),
@@ -785,14 +816,30 @@ def _run_new_or_single_method(
         device = next(state.model.parameters()).device
         frame_device = _frame_to_device(frame, device)
         if state.condition_update_mode == "pilot_sparse":
+            state.physical_state = track_pilot_physical_state(
+                frame_device,
+                state.cir,
+                state.receiver_state.soft_tail,
+                previous=state.physical_state,
+                cfo_limit=float(state.phase_tracking_cfo_limit),
+                smoothing=float(state.phase_tracking_smoothing),
+                min_confidence=float(state.phase_tracking_min_confidence),
+            )
             state.cir = pilot_sparse_cir_update(
                 frame_device,
                 state.cir,
                 state.receiver_state.soft_tail,
                 max_paths=24,
                 alpha=float(state.cir_update_alpha),
-                cfo_hint=float(state.acquisition_cfo),
-            ).to(device)
+                cfo_hint=float(
+                    state.physical_state.cfo_cycles_per_symbol
+                    if state.physical_state is not None
+                    else state.acquisition_cfo
+                ),
+            ).to(device) if _pilot_state_reliable(
+                state.physical_state,
+                state.phase_tracking_min_confidence,
+            ) else state.cir
         rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
         region_ids = frame_device.model_region_ids.unsqueeze(0).long()
         phase_features = estimate_phase_residual_vector(
@@ -800,7 +847,11 @@ def _run_new_or_single_method(
             state.cir,
             state.receiver_state.soft_tail,
             blocks=4,
-            cfo_hint=state.acquisition_cfo,
+            cfo_hint=float(
+                state.physical_state.cfo_cycles_per_symbol
+                if state.physical_state is not None and state.condition_update_mode == "pilot_sparse"
+                else state.acquisition_cfo
+            ),
         )
         condition = condition_from_cir(state.cir, snr_db, phase_features=phase_features)
         logits, _ = state.model(
@@ -1012,21 +1063,41 @@ def _run_pilot_online_method(
     frame_device = _frame_to_device(frame, device)
     updates_frozen = _online_updates_are_frozen(snr_db, state.freeze_online_below_snr_db)
     if state.cir_update_mode == "pilot_sparse" and not updates_frozen:
+        state.physical_state = track_pilot_physical_state(
+            frame_device,
+            state.cir,
+            state.receiver_state.soft_tail,
+            previous=state.physical_state,
+            cfo_limit=float(state.phase_tracking_cfo_limit),
+            smoothing=float(state.phase_tracking_smoothing),
+            min_confidence=float(state.phase_tracking_min_confidence),
+        )
         state.cir = pilot_sparse_cir_update(
             frame_device,
             state.cir,
             state.receiver_state.soft_tail,
             max_paths=24,
             alpha=float(state.cir_update_alpha),
-            cfo_hint=float(state.acquisition_cfo),
-        ).to(device)
+            cfo_hint=float(
+                state.physical_state.cfo_cycles_per_symbol
+                if state.physical_state is not None
+                else state.acquisition_cfo
+            ),
+        ).to(device) if _pilot_state_reliable(
+            state.physical_state,
+            state.phase_tracking_min_confidence,
+        ) else state.cir
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
     phase_features = estimate_phase_residual_vector(
         frame.receiver_view(),
         state.cir,
         state.receiver_state.soft_tail,
         blocks=4,
-        cfo_hint=state.acquisition_cfo,
+        cfo_hint=float(
+            state.physical_state.cfo_cycles_per_symbol
+            if state.physical_state is not None and not updates_frozen
+            else state.acquisition_cfo
+        ),
     )
     condition = condition_from_cir(state.cir, snr_db, phase_features=phase_features)
     rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
@@ -1162,6 +1233,14 @@ def _run_pilot_online_method(
             "data_labels_used_online": False,
             "pretrained_loaded": bool(state.pretrained_loaded),
             "frame_index": int(frame_index),
+            "pilot_phase_tracking": bool(state.cir_update_mode == "pilot_sparse" and not updates_frozen),
+            "tracked_phase0": float(state.physical_state.phase0 if state.physical_state is not None else 0.0),
+            "tracked_cfo_cycles_per_symbol": float(
+                state.physical_state.cfo_cycles_per_symbol
+                if state.physical_state is not None
+                else state.acquisition_cfo
+            ),
+            "pilot_phase_confidence": float(state.physical_state.confidence if state.physical_state is not None else 0.0),
         },
     )
 
@@ -1218,6 +1297,12 @@ def _online_updates_are_frozen(snr_db: float, freeze_below_db: float | None) -> 
     """判断当前 SNR 是否低到不应相信 Pilot 驱动的状态更新。"""
 
     return freeze_below_db is not None and float(snr_db) < float(freeze_below_db)
+
+
+def _pilot_state_reliable(state: PilotPhysicalState | None, threshold: float) -> bool:
+    """只有当前 Adapt Pilot 物理状态足够可靠时才更新稀疏 CIR。"""
+
+    return state is not None and float(state.confidence) >= float(threshold)
 
 
 def _load_model_config(config: dict, pretrained_path: Path | None) -> UnfoldedConfig:

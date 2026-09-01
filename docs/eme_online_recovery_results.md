@@ -142,3 +142,11 @@ Frozen 与 Online 的逐帧配对差值定义为 `BER_Frozen - BER_Online`。在
 这组结果已经足以支撑“在线均衡有独立研究价值”：离线模型提供基础均衡能力，在线阶段利用每帧前缀 Pilot 恢复因 acquisition 老化而失配的稀疏长记忆条件，并在可靠 SNR 层对 PEFT 参数做安全微调。它尚不能支撑“任何 SNR、任何帧段都单调优于 Frozen”，尤其 15 dB 后 5 帧和 0 dB 后 5 帧仍有漂移或噪声导致的局部退化。
 
 后续论文消融应使用严格定义：`Frozen + acquisition CIR`、`Frozen + Pilot CIR`、`Online PEFT + acquisition CIR`、`Online PEFT + Pilot CIR`，并将 RL/Contextual Bandit 保持为离散动作调度消融，而不是把 PPO 作为在线均衡本体。旧的 `logs/eme_aged_pilotsparse_30f_2s/` 和 `logs/eme_main_aged_15f_1s/` 只保留作历史诊断，不再作为正式主结果。
+
+## 2026-09-02 长期诊断与资源消融补充
+
+后续实验没有继续引入 Turbo、LDPC、信源编码或高阶调制。200 帧正交诊断显示，15 dB 下 `soft tail` 与 `oracle tail` 几乎重合，而 `oracle CIR` 在慢漂移 rho 下明显改善 BER，因此当前主要矛盾是跨帧 CIR 状态恢复，不是单纯 tail 表达能力。详细数据见 `docs/eme_long_episode_diagnostic_200f.md`。
+
+已加入 Adapt Pilot 驱动的 `PilotPhysicalState`，用联合 CFO 网格 LS、phase0 拟合和置信度门控约束稀疏 tap 更新。60 帧、3 seed 的复核中，Pilot online 为 13.83%，传统 CFO+DD-Phase DFE-RLS 为 18.79%，严格 Frozen 为 14.03%；因此在线主线仍明显优于传统，但联合状态跟踪相对 Frozen 的额外优势尚不稳定，详细边界见 `docs/eme_joint_state_tracking_findings.md`。
+
+Pilot 资源消融显示，prefix Pilot 从 128 增加到 160 后，单 seed 30 帧切片的在线 BER 从 6.95% 降至 4.53%；64/96 符号则发生严重后期退化。160 只作为待多 seed 验证的增强候选，正式主配置仍保持 128，详见 `docs/eme_pilot_resource_ablation.md`。

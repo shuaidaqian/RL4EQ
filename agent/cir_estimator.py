@@ -18,6 +18,28 @@ class CIRCondition:
     latent_residual: torch.Tensor
 
 
+@dataclass
+class PilotPhysicalState:
+    """由当前 Adapt Pilot 恢复的低维物理相位状态。"""
+
+    phase0: float = 0.0
+    cfo_cycles_per_symbol: float = 0.0
+    confidence: float = 0.0
+
+    @property
+    def data_labels_used_online(self) -> bool:
+        """物理状态估计不允许读取 Data 标签。"""
+
+        return False
+
+    def clone(self) -> "PilotPhysicalState":
+        return PilotPhysicalState(
+            phase0=float(self.phase0),
+            cfo_cycles_per_symbol=float(self.cfo_cycles_per_symbol),
+            confidence=float(self.confidence),
+        )
+
+
 class HybridCIREstimator(nn.Module):
     """Adapt Pilot/acquisition 驱动的显式稀疏 CIR 与隐式残差估计器。"""
 
@@ -233,6 +255,151 @@ def pilot_sparse_cir_update(
     updated = previous.clone()
     updated[support] = (1.0 - float(alpha)) * previous[support] + float(alpha) * estimate
     return updated / torch.sqrt(torch.sum(torch.abs(updated) ** 2).clamp_min(1e-12))
+
+
+def track_pilot_physical_state(
+    frame,
+    previous_cir: torch.Tensor,
+    soft_tail: torch.Tensor,
+    *,
+    previous: PilotPhysicalState | None = None,
+    cfo_limit: float = 0.0012,
+    smoothing: float = 0.5,
+    min_confidence: float = 0.15,
+) -> PilotPhysicalState:
+    """用当前 Adapt Pilot 拟合 residual phase/CFO，并做可靠性门控。
+
+    参考波形只由 acquisition/当前复用 CIR、上一帧 soft tail 和已知 Adapt
+    Pilot 构造。该状态用于下一步稀疏 tap 更新和神经 phase conditioner，不读取
+    Reward Pilot 或 Data 标签。
+    """
+
+    if not 0.0 <= float(smoothing) <= 1.0:
+        raise ValueError("smoothing 必须位于 [0, 1]。")
+    if float(cfo_limit) <= 0.0:
+        raise ValueError("cfo_limit 必须为正数。")
+    if not 0.0 <= float(min_confidence) <= 1.0:
+        raise ValueError("min_confidence 必须位于 [0, 1]。")
+    prior = previous.clone() if previous is not None else PilotPhysicalState()
+    view = frame.receiver_view()
+    rx = view.rx_symbols.flatten().to(torch.complex64)
+    adapt = view.adapt_symbols.flatten().to(torch.complex64)
+    adapt_mask = view.adapt_mask.flatten().bool()
+    cir = previous_cir.flatten().to(torch.complex64)
+    max_delay = max(0, cir.numel() - 1)
+    tail = soft_tail.flatten().to(torch.complex64)
+    if tail.numel() < max_delay:
+        tail = torch.cat(
+            (
+                torch.zeros(max_delay - tail.numel(), dtype=torch.complex64, device=tail.device),
+                tail,
+            )
+        )
+    tail = tail[-max_delay:] if max_delay > 0 else tail[:0]
+    padded_symbols = torch.cat((tail.to(adapt.device), adapt)) if max_delay > 0 else adapt
+    padded_known = torch.cat(
+        (
+            torch.ones(max_delay, dtype=torch.bool, device=adapt.device),
+            adapt_mask,
+        )
+    ) if max_delay > 0 else adapt_mask
+    indices = torch.arange(rx.numel(), device=rx.device)
+    reference = torch.zeros_like(rx)
+    known = torch.ones(rx.numel(), dtype=torch.bool, device=rx.device)
+    for delay, tap in enumerate(cir):
+        if float(torch.abs(tap).detach().cpu()) <= 1e-8:
+            continue
+        source = max_delay + indices - int(delay)
+        valid = (source >= 0) & (source < padded_symbols.numel())
+        safe_source = source.clamp(0, max(0, padded_symbols.numel() - 1))
+        reference = reference + tap.to(rx.device) * padded_symbols[safe_source].to(rx.device) * valid.to(torch.complex64)
+        known = known & valid
+        known = known & (~valid | padded_known[safe_source].to(rx.device))
+    mask = adapt_mask & known & (reference.abs() > 1e-6)
+    count = int(mask.sum().item())
+    if count < 4:
+        return PilotPhysicalState(prior.phase0, prior.cfo_cycles_per_symbol, 0.0)
+    amplitudes = reference.abs()
+    threshold = torch.quantile(amplitudes[mask], 0.5)
+    mask = mask & (amplitudes >= threshold)
+    if int(mask.sum().item()) < 4:
+        return PilotPhysicalState(prior.phase0, prior.cfo_cycles_per_symbol, 0.0)
+    positions = torch.nonzero(mask, as_tuple=False).flatten()
+    support_count = min(24, cir.numel())
+    support = torch.topk(cir.abs(), support_count).indices.sort().values
+    rows = []
+    for position in positions.tolist():
+        source = max_delay + int(position) - support
+        rows.append(padded_symbols[source].to(rx.device))
+    design = torch.stack(rows, dim=0)
+    targets = rx[positions]
+    candidate_cfo = torch.linspace(
+        -float(cfo_limit),
+        float(cfo_limit),
+        81,
+        dtype=torch.float32,
+        device=rx.device,
+    )
+    best_error = None
+    best_cfo = float(prior.cfo_cycles_per_symbol)
+    for candidate in candidate_cfo:
+        correction = torch.exp(
+            -1j * (2.0 * torch.pi * candidate * positions.to(torch.float32))
+        ).to(torch.complex64)
+        estimate = torch.linalg.lstsq(design, targets * correction).solution.to(torch.complex64)
+        residual = design @ estimate - targets * correction
+        error = torch.mean(torch.abs(residual) ** 2).real
+        if best_error is None or bool(error < best_error):
+            best_error = error
+            best_cfo = float(candidate.item())
+    raw_cfo = torch.tensor(best_cfo, dtype=torch.float32, device=rx.device)
+    corrected_targets = targets * torch.exp(
+        -1j * (2.0 * torch.pi * raw_cfo * positions.to(torch.float32))
+    ).to(torch.complex64)
+    phase_samples = torch.angle(corrected_targets * torch.conj(reference[positions]))
+    raw_phase0 = float(torch.median(_unwrap_phase(phase_samples)).detach().cpu())
+    fitted = raw_phase0 + 2.0 * torch.pi * raw_cfo * positions.to(torch.float32)
+    phase_residual = _unwrap_phase(torch.angle(rx[positions] * torch.conj(reference[positions]))) - fitted
+    residual_variance = float(torch.var(phase_residual, unbiased=False).detach().cpu())
+    fit_error = float(best_error.detach().cpu()) if best_error is not None else float("inf")
+    rx_power = float(torch.mean(torch.abs(targets) ** 2).real.detach().cpu())
+    confidence = float(
+        min(1.0, int(mask.sum().item()) / 32.0)
+        * torch.exp(torch.tensor(-residual_variance / 0.25 - 4.0 * fit_error / max(rx_power, 1e-8))).item()
+    )
+    if confidence < float(min_confidence):
+        return PilotPhysicalState(prior.phase0, prior.cfo_cycles_per_symbol, confidence)
+    phase_delta = _wrap_phase(float(raw_phase0) - float(prior.phase0))
+    return PilotPhysicalState(
+        phase0=float(prior.phase0) + float(smoothing) * phase_delta,
+        cfo_cycles_per_symbol=(
+            1.0 - float(smoothing)
+        ) * float(prior.cfo_cycles_per_symbol) + float(smoothing) * float(raw_cfo.item()),
+        confidence=confidence,
+    )
+
+
+def _unwrap_phase(phase: torch.Tensor) -> torch.Tensor:
+    """对按时间排序的 Pilot 相位做连续展开。"""
+
+    flat = phase.flatten().to(torch.float32)
+    if flat.numel() <= 1:
+        return flat
+    delta = flat[1:] - flat[:-1]
+    two_pi = 2.0 * torch.pi
+    correction = torch.where(
+        delta > torch.pi,
+        -two_pi,
+        torch.where(delta < -torch.pi, two_pi, torch.zeros_like(delta)),
+    )
+    offsets = torch.cat((torch.zeros(1, device=flat.device), torch.cumsum(correction, dim=0)))
+    return flat + offsets
+
+
+def _wrap_phase(value: float) -> float:
+    """把相位差约束到 [-pi, pi]，避免帧间相位跳变。"""
+
+    return float(torch.atan2(torch.sin(torch.tensor(value)), torch.cos(torch.tensor(value))).item())
 
 
 def _decision_directed_fit_mask(
