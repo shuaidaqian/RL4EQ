@@ -49,3 +49,9 @@
 ## 当前结论
 
 本阶段完成的是实验因果边界修正，不是重新训练模型。后续统一主实验应至少包含严格 Frozen、Pilot-conditioned frozen、Pilot CIR only 和完整 Pilot-driven online 四个神经条件，并同时报告 0/5/10/15 dB 的逐配置 BER、后 5 帧 BER、Reward Pilot 指标和在线审计字段。
+
+## 2026-09-03 安全门控复核
+
+上述四个神经条件与两种传统 baseline 已在 Level B、`delay=116`、prefix Pilot=128、0/5/10/15 dB、3 seed、60 帧协议下完成统一矩阵。完整结果存于 `logs/eme_guarded_unified_main_60f_3s/`，解释与主表存于 `docs/eme_guarded_online_state_recovery_results.md`。
+
+复核的核心事实是：严格 `Offline NN only` 因 acquisition 相位老化接近 50% BER；允许当前 Adapt Pilot 相位但不更新参数的 `Pilot-conditioned frozen NN` 已降至 31.89% / 23.20% / 16.55% / 14.03%。因此当前帧 Pilot 相位条件是神经恢复的主要贡献。完整安全 Online 仍在所有主 SNR 超过传统 baseline，但对 Pilot-conditioned frozen 的 PEFT 附加收益不稳定；这一定义了下一步应验证的在线 reward 代表性问题。

@@ -62,8 +62,9 @@
   "online_adaptation_steps": 3,
   "online_adaptation_max_delta_norm": 2.0,
   "online_adaptation_freeze_below_snr_db": 5.0,
+  "online_adaptation_min_reward_improvement": 0.001,
   "online_phase_tracking_smoothing": 0.5,
-  "online_phase_tracking_min_confidence": 0.35,
+  "online_phase_tracking_min_confidence": 0.5,
   "online_phase_tracking_cfo_limit": 0.0012,
   "online_adaptation_candidates": [
     {

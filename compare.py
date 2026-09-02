@@ -544,6 +544,7 @@ class PilotOnlineMethodState:
     phase_tracking_smoothing: float = 0.5
     phase_tracking_min_confidence: float = 0.15
     phase_tracking_cfo_limit: float = 0.0012
+    min_reward_improvement: float = 0.001
 
 
 def _select_methods(methods: list[str] | None) -> tuple[str, ...]:
@@ -618,6 +619,7 @@ def _build_method_states(
                 phase_tracking_smoothing=float(config.get("online_phase_tracking_smoothing", 0.5)),
                 phase_tracking_min_confidence=float(config.get("online_phase_tracking_min_confidence", 0.15)),
                 phase_tracking_cfo_limit=float(config.get("online_phase_tracking_cfo_limit", residual_cfo_limit)),
+                min_reward_improvement=float(config.get("online_adaptation_min_reward_improvement", 0.001)),
             )
         elif method == "RL-Modulated Neural Block Equalizer":
             torch.manual_seed(_method_seed("rl_modulated", seed, delay, snr_db))
@@ -889,10 +891,9 @@ def _run_new_or_single_method(
             cir=state.cir,
             soft_tail=state.receiver_state.soft_tail,
             acquisition_cfo=float(state.acquisition_cfo),
-            tracked_cfo=(
-                float(state.physical_state.cfo_cycles_per_symbol)
-                if state.physical_state is not None
-                else None
+            tracked_cfo=_tracked_cfo_or_none(
+                state.physical_state,
+                state.phase_tracking_min_confidence,
             ),
             acquisition_phase_features=state.acquisition_phase_features,
         )
@@ -1132,8 +1133,16 @@ def _run_pilot_online_method(
     device = next(state.model.parameters()).device
     frame_device = _frame_to_device(frame, device)
     updates_frozen = _online_updates_are_frozen(snr_db, state.freeze_online_below_snr_db)
+    rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
+    region_ids = frame_device.model_region_ids.unsqueeze(0).long()
+    adapt_symbols = frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64)
+    adapt_mask = frame_device.adapt_mask.unsqueeze(0).bool()
+    cir_update_accepted = False
+    cir_reward_loss_before = None
+    cir_reward_loss_after = None
     if state.cir_update_mode == "pilot_sparse" and not updates_frozen:
-        state.physical_state = track_pilot_physical_state(
+        previous_cir = state.cir.clone()
+        tracked_state = track_pilot_physical_state(
             frame_device,
             state.cir,
             state.receiver_state.soft_tail,
@@ -1142,21 +1151,69 @@ def _run_pilot_online_method(
             smoothing=float(state.phase_tracking_smoothing),
             min_confidence=float(state.phase_tracking_min_confidence),
         )
-        state.cir = pilot_sparse_cir_update(
+        candidate_cir = pilot_sparse_cir_update(
             frame_device,
             state.cir,
             state.receiver_state.soft_tail,
             max_paths=24,
             alpha=float(state.cir_update_alpha),
             cfo_hint=float(
-                state.physical_state.cfo_cycles_per_symbol
-                if state.physical_state is not None
+                tracked_state.cfo_cycles_per_symbol
+                if tracked_state is not None
                 else state.acquisition_cfo
             ),
         ).to(device) if _pilot_state_reliable(
-            state.physical_state,
+            tracked_state,
             state.phase_tracking_min_confidence,
         ) else state.cir
+        state.physical_state = tracked_state
+        if _pilot_state_reliable(tracked_state, state.phase_tracking_min_confidence):
+            tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
+
+            def _condition_for(cir_value: torch.Tensor) -> CIRCondition:
+                phase_value = _neural_phase_features(
+                    condition_source="pilot_cir_phase",
+                    receiver_view=frame.receiver_view(),
+                    cir=cir_value,
+                    soft_tail=state.receiver_state.soft_tail,
+                    acquisition_cfo=float(state.acquisition_cfo),
+                    tracked_cfo=float(tracked_state.cfo_cycles_per_symbol),
+                )
+                return condition_from_cir(
+                    cir_value,
+                    snr_db,
+                    cfo_residual=float(state.acquisition_cfo),
+                    phase_features=phase_value,
+                )
+
+            with torch.no_grad():
+                previous_logits, _ = state.model(
+                    rx_iq,
+                    _condition_for(previous_cir),
+                    region_ids,
+                    tail,
+                    adapt_symbols=adapt_symbols,
+                    adapt_mask=adapt_mask,
+                )
+                candidate_logits, _ = state.model(
+                    rx_iq,
+                    _condition_for(candidate_cir),
+                    region_ids,
+                    tail,
+                    adapt_symbols=adapt_symbols,
+                    adapt_mask=adapt_mask,
+                )
+            cir_reward_loss_before = float(
+                _masked_bce(previous_logits.squeeze(0), frame_device.bits, frame_device.reward_mask).detach().cpu()
+            )
+            cir_reward_loss_after = float(
+                _masked_bce(candidate_logits.squeeze(0), frame_device.bits, frame_device.reward_mask).detach().cpu()
+            )
+            cir_update_accepted = _accept_pilot_cir_update(
+                cir_reward_loss_before,
+                cir_reward_loss_after,
+            )
+            state.cir = candidate_cir if cir_update_accepted else previous_cir
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
     phase_features = _neural_phase_features(
         condition_source="pilot_cir_phase",
@@ -1165,8 +1222,11 @@ def _run_pilot_online_method(
         soft_tail=state.receiver_state.soft_tail,
         acquisition_cfo=float(state.acquisition_cfo),
         tracked_cfo=(
-            float(state.physical_state.cfo_cycles_per_symbol)
-            if state.physical_state is not None and not updates_frozen
+            _tracked_cfo_or_none(
+                state.physical_state,
+                state.phase_tracking_min_confidence,
+            )
+            if not updates_frozen
             else None
         ),
     )
@@ -1176,10 +1236,6 @@ def _run_pilot_online_method(
         cfo_residual=float(state.acquisition_cfo),
         phase_features=phase_features,
     )
-    rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
-    region_ids = frame_device.model_region_ids.unsqueeze(0).long()
-    adapt_symbols = frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64)
-    adapt_mask = frame_device.adapt_mask.unsqueeze(0).bool()
     with torch.no_grad():
         before_logits, _ = state.model(
             rx_iq,
@@ -1233,7 +1289,11 @@ def _run_pilot_online_method(
         after = after_logits.squeeze(0)
         reward_after = _masked_bce(after, frame_device.bits, frame_device.reward_mask)
         reward_value = float(reward_after.detach().cpu())
-        if adaptation.accepted and reward_value <= best_reward:
+        if adaptation.accepted and _accept_online_peft_update(
+            best_reward,
+            reward_value,
+            state.min_reward_improvement,
+        ):
             best_snapshot = state.model.peft.snapshot(candidate_groups)
             best_result = adaptation
             best_reward = reward_value
@@ -1302,13 +1362,18 @@ def _run_pilot_online_method(
             "online_adaptation_freeze_below_snr_db": freeze_below_db,
             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
+            "online_min_reward_improvement": float(state.min_reward_improvement),
+            "peft_update_guarded": True,
             "parameter_delta_norm": float(adaptation.parameter_delta_norm if accepted else 0.0),
             "tail_update_alpha": float(state.tail_update_alpha),
             "cir_update_mode": str(state.cir_update_mode),
             "cir_update_alpha": float(state.cir_update_alpha),
             "condition_source": "pilot_cir_phase",
             "pilot_phase_used": True,
-            "cir_update_applied": bool(state.cir_update_mode == "pilot_sparse" and not updates_frozen),
+            "cir_update_applied": bool(cir_update_accepted),
+            "cir_update_guarded": bool(state.cir_update_mode == "pilot_sparse" and not updates_frozen),
+            "cir_reward_pilot_loss_before": cir_reward_loss_before,
+            "cir_reward_pilot_loss_after": cir_reward_loss_after,
             "peft_update_applied": bool(accepted),
             "data_labels_used_online": False,
             "pretrained_loaded": bool(state.pretrained_loaded),
@@ -1383,6 +1448,30 @@ def _pilot_state_reliable(state: PilotPhysicalState | None, threshold: float) ->
     """只有当前 Adapt Pilot 物理状态足够可靠时才更新稀疏 CIR。"""
 
     return state is not None and float(state.confidence) >= float(threshold)
+
+
+def _tracked_cfo_or_none(state: PilotPhysicalState | None, threshold: float) -> float | None:
+    """仅在 Pilot 物理状态可靠时才把跟踪 CFO 注入神经条件。"""
+
+    if not _pilot_state_reliable(state, threshold):
+        return None
+    return float(state.cfo_cycles_per_symbol)
+
+
+def _accept_pilot_cir_update(reward_loss_before: float, reward_loss_after: float, tolerance: float = 1e-6) -> bool:
+    """只接受不恶化留出 Reward Pilot 损失的 Pilot CIR 更新。"""
+
+    return float(reward_loss_after) <= float(reward_loss_before) + float(tolerance)
+
+
+def _accept_online_peft_update(
+    reward_loss_before: float,
+    reward_loss_after: float,
+    min_improvement: float,
+) -> bool:
+    """要求 PEFT 在 Reward Pilot 上取得超过噪声阈值的真实改善。"""
+
+    return float(reward_loss_before) - float(reward_loss_after) >= float(min_improvement)
 
 
 def _neural_method_contract(method: str) -> dict[str, object]:

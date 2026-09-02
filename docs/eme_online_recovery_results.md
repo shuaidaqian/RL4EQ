@@ -150,3 +150,9 @@ Frozen 与 Online 的逐帧配对差值定义为 `BER_Frozen - BER_Online`。在
 已加入 Adapt Pilot 驱动的 `PilotPhysicalState`，用联合 CFO 网格 LS、phase0 拟合和置信度门控约束稀疏 tap 更新。60 帧、3 seed 的复核中，Pilot online 为 13.83%，传统 CFO+DD-Phase DFE-RLS 为 18.79%，严格 Frozen 为 14.03%；因此在线主线仍明显优于传统，但联合状态跟踪相对 Frozen 的额外优势尚不稳定，详细边界见 `docs/eme_joint_state_tracking_findings.md`。
 
 Pilot 资源消融显示，prefix Pilot 从 128 增加到 160 后，单 seed 30 帧切片的在线 BER 从 6.95% 降至 4.53%；64/96 符号则发生严重后期退化。160 只作为待多 seed 验证的增强候选，正式主配置仍保持 128，详见 `docs/eme_pilot_resource_ablation.md`。
+
+## 2026-09-03 安全门控统一矩阵
+
+本文件此前的 2026-09-01/02 结果用于记录路线演进，不能覆盖随后完成的神经条件边界修正。最新、唯一可作为该轮主结果引用的矩阵位于 `logs/eme_guarded_unified_main_60f_3s/`，包含 6 种方法、4 个主 SNR、3 个 seed、60 连续帧，共 4320 条记录。完整协议、逐 SNR BER、CIR/PEFT 接受审计以及可写和不可写的论文结论见 `docs/eme_guarded_online_state_recovery_results.md`。
+
+该矩阵确认 Proposed 在 0/5/10/15 dB 全部优于最优传统非神经基线，60 帧 BER 相对降幅为 28.52% / 42.82% / 29.37% / 23.21%。同时它否定了一个不应掩盖的结论：当前 32 符号 Reward Pilot 的 PEFT 候选选择不能稳定外推到数据段，故该版本不能将 PEFT 写成相对于 `Pilot-conditioned frozen NN` 的普适增益。下一阶段应首先验证更具代表性的 Pilot-only 窗口 reward 和离散更新调度，而不是扩大梯度更新强度。
