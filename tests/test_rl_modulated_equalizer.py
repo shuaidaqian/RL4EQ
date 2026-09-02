@@ -179,7 +179,7 @@ def test_compare_proposed_group_uses_pretrained_and_resume_without_duplicates(tm
     ]
     keys = [(row["method"], row["delay"], row["snr_db"], row["seed"], row["frame"], row["pilot_total"], row["pilot_layout"]) for row in rows]
 
-    assert len(rows) == 6
+    assert len(rows) == 8
     assert len(keys) == len(set(keys))
     assert all(row["pretrained_loaded"] is True for row in rows)
     assert any(row["method"] == "RL-Modulated Neural Block Equalizer" for row in rows)

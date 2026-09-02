@@ -24,10 +24,12 @@ from agent.modulation import ModulationConfig, ModulationState
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.legacy_equalizers import legacy_dfe, legacy_lmmse_fir
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
+from baseline.synchronization_compensation import apply_phase_correction
 from baseline.traditional_equalizers import (
     TRADITIONAL_BASELINES,
     TraditionalPhaseState,
     estimate_acquisition_cir_with_cfo,
+    estimate_phase_residual_features,
     estimate_phase_residual_vector,
     run_traditional_equalizer,
 )
@@ -87,6 +89,8 @@ TRADITIONAL_METHODS = (
 
 PROPOSED_METHODS = (
     "Offline NN only",
+    "Pilot-conditioned frozen NN",
+    "Pilot CIR only",
     "Pilot-Driven Online Adaptation",
     "NN + Fixed Modulation",
     "NN + Rule Modulation",
@@ -96,6 +100,7 @@ PROPOSED_METHODS = (
 
 DIAGNOSTIC_METHODS = (
     "Perfect-CSI Block",
+    "Perfect-CSI + Pilot Phase",
     "Fixed CG-BPSK-DD Block Detector",
 )
 
@@ -281,7 +286,13 @@ def main() -> None:
     pretrained_path = Path(args.pretrained) if args.pretrained else None
     if pretrained_path is not None and not pretrained_path.exists():
         pretrained_path = None
-    neural_methods = {"Offline NN only", "Pilot-Driven Online Adaptation", "RL-Modulated Neural Block Equalizer"}
+    neural_methods = {
+        "Offline NN only",
+        "Pilot-conditioned frozen NN",
+        "Pilot CIR only",
+        "Pilot-Driven Online Adaptation",
+        "RL-Modulated Neural Block Equalizer",
+    }
     if config.get("channel_profile") in {"eme_measurement_v1", "eme_long_memory_v2"} and any(
         method in neural_methods for method in selected_methods
     ):
@@ -313,11 +324,19 @@ def main() -> None:
                     if impairment_profile == "clean":
                         acquisition_cir = _estimate_cir_from_known_frame(start.acquisition, int(env_config.max_delay))
                         acquisition_cfo = 0.0
+                        acquisition_phase_features = torch.zeros(16, dtype=torch.float32)
                     else:
                         acquisition_cir, acquisition_cfo = estimate_acquisition_cir_with_cfo(
                             start.acquisition,
                             int(env_config.max_delay),
                             cfo_limit=acquisition_cfo_limit,
+                        )
+                        acquisition_phase_features = estimate_phase_residual_vector(
+                            start.acquisition.receiver_view(),
+                            acquisition_cir,
+                            start.initial_soft_tail,
+                            blocks=4,
+                            cfo_hint=float(acquisition_cfo),
                         )
                     method_states = _build_method_states(
                         selected_methods,
@@ -335,6 +354,7 @@ def main() -> None:
                         cir_alpha=float(args.cir_alpha),
                         residual_cfo_limit=residual_cfo_limit,
                         acquisition_cfo=float(acquisition_cfo),
+                        acquisition_phase_features=acquisition_phase_features,
                     )
                     for frame_index in range(1, args.frames + 1):
                         frame = env.next_frame()
@@ -491,6 +511,8 @@ class NeuralMethodState:
     cir_update_alpha: float = 0.2
     # Offline NN only 必须冻结 acquisition 条件，在线条件恢复属于单独消融。
     condition_update_mode: str = "fixed"
+    condition_source: str = "acquisition"
+    acquisition_phase_features: torch.Tensor | None = None
     physical_state: PilotPhysicalState | None = None
     phase_tracking_smoothing: float = 0.5
     phase_tracking_min_confidence: float = 0.15
@@ -554,6 +576,7 @@ def _build_method_states(
     cir_alpha: float = 0.2,
     residual_cfo_limit: float = 0.001,
     acquisition_cfo: float = 0.0,
+    acquisition_phase_features: torch.Tensor | None = None,
 ) -> dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState]:
     states: dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState] = {}
     model_config = _load_model_config(config, pretrained_path)
@@ -640,6 +663,18 @@ def _build_method_states(
         elif method in PROPOSED_METHODS:
             model = _build_equalizer(model_config, pretrained_path, device)
             modulation_config = ModulationConfig(num_adapter_gates=len(model.blocks), num_lora_scales=len(model.blocks))
+            if method == "Offline NN only":
+                condition_update_mode = "fixed"
+                condition_source = "acquisition"
+            elif method == "Pilot-conditioned frozen NN":
+                condition_update_mode = "fixed"
+                condition_source = "pilot_phase"
+            elif method == "Pilot CIR only":
+                condition_update_mode = "pilot_sparse"
+                condition_source = "pilot_cir_phase"
+            else:
+                condition_update_mode = str(cir_update_mode)
+                condition_source = "pilot_cir_phase" if condition_update_mode == "pilot_sparse" else "acquisition"
             states[method] = NeuralMethodState(
                 cir=acquisition_cir.clone().to(device),
                 receiver_state=ReceiverState(initial_soft_tail.clone().to(device)),
@@ -649,7 +684,13 @@ def _build_method_states(
                 acquisition_cfo=float(acquisition_cfo),
                 cir_update_mode=str(cir_update_mode),
                 cir_update_alpha=float(cir_alpha),
-                condition_update_mode=("fixed" if method == "Offline NN only" else str(cir_update_mode)),
+                condition_update_mode=condition_update_mode,
+                condition_source=condition_source,
+                acquisition_phase_features=(
+                    acquisition_phase_features.clone().to(device)
+                    if acquisition_phase_features is not None
+                    else None
+                ),
                 physical_state=PilotPhysicalState(cfo_cycles_per_symbol=float(acquisition_cfo)),
                 phase_tracking_smoothing=float(config.get("online_phase_tracking_smoothing", 0.5)),
                 phase_tracking_min_confidence=float(config.get("online_phase_tracking_min_confidence", 0.15)),
@@ -842,18 +883,25 @@ def _run_new_or_single_method(
             ) else state.cir
         rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
         region_ids = frame_device.model_region_ids.unsqueeze(0).long()
-        phase_features = estimate_phase_residual_vector(
-            frame.receiver_view(),
-            state.cir,
-            state.receiver_state.soft_tail,
-            blocks=4,
-            cfo_hint=float(
-                state.physical_state.cfo_cycles_per_symbol
-                if state.physical_state is not None and state.condition_update_mode == "pilot_sparse"
-                else state.acquisition_cfo
+        phase_features = _neural_phase_features(
+            condition_source=state.condition_source,
+            receiver_view=frame.receiver_view(),
+            cir=state.cir,
+            soft_tail=state.receiver_state.soft_tail,
+            acquisition_cfo=float(state.acquisition_cfo),
+            tracked_cfo=(
+                float(state.physical_state.cfo_cycles_per_symbol)
+                if state.physical_state is not None
+                else None
             ),
+            acquisition_phase_features=state.acquisition_phase_features,
         )
-        condition = condition_from_cir(state.cir, snr_db, phase_features=phase_features)
+        condition = condition_from_cir(
+            state.cir,
+            snr_db,
+            cfo_residual=float(state.acquisition_cfo),
+            phase_features=phase_features,
+        )
         logits, _ = state.model(
             rx_iq,
             condition,
@@ -885,16 +933,38 @@ def _run_new_or_single_method(
                 "pretrained_loaded": state.pretrained_loaded,
                 "cir_update_mode": str(state.cir_update_mode),
                 "condition_update_mode": str(state.condition_update_mode),
+                "condition_source": str(state.condition_source),
+                "pilot_phase_used": bool(state.condition_source != "acquisition"),
+                "cir_update_applied": bool(state.condition_update_mode == "pilot_sparse"),
+                "peft_update_applied": False,
                 "cir_update_alpha": float(state.cir_update_alpha),
                 "cir_update_uses_data_labels": False,
+                "data_labels_used_online": False,
             },
         )
     if method in DIAGNOSTIC_METHODS:
         if not isinstance(state, BaselineMethodState):
             raise TypeError("诊断方法需要 BaselineMethodState。")
-        cir = frame.true_cir if method == "Perfect-CSI Block" else state.cir
+        cir = frame.true_cir if method in {"Perfect-CSI Block", "Perfect-CSI + Pilot Phase"} else state.cir
+        rx = frame.rx_symbols
+        diagnostic_extra = {"diagnostic": True, "phase_compensation": False}
+        if method == "Perfect-CSI + Pilot Phase":
+            phase0, cfo = estimate_phase_residual_features(
+                frame.receiver_view(),
+                frame.true_cir,
+                state.receiver_state.soft_tail,
+            )
+            rx = apply_phase_correction(frame.rx_symbols, phase0, cfo)
+            diagnostic_extra.update(
+                {
+                    "phase_compensation": True,
+                    "pilot_phase_used": True,
+                    "diagnostic_phase0": float(phase0),
+                    "diagnostic_cfo_cycles_per_symbol": float(cfo),
+                }
+            )
         result = perfect_csi_bpsk_refine_detect(
-            frame.rx_symbols,
+            rx,
             cir,
             state.receiver_state.soft_tail,
             torch.tensor(10.0 ** (-float(snr_db) / 10.0)),
@@ -902,7 +972,7 @@ def _run_new_or_single_method(
             refine_iterations=2,
         )
         state.receiver_state.update_tail(result.soft_tail)
-        return _result_from_logits(method, result.logits, frame, result.iterations, {"diagnostic": True})
+        return _result_from_logits(method, result.logits, frame, result.iterations, diagnostic_extra)
     return _run_real_method(method, frame, snr_db, state, delay, frame_index, update_interval)
 
 
@@ -1088,18 +1158,24 @@ def _run_pilot_online_method(
             state.phase_tracking_min_confidence,
         ) else state.cir
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
-    phase_features = estimate_phase_residual_vector(
-        frame.receiver_view(),
-        state.cir,
-        state.receiver_state.soft_tail,
-        blocks=4,
-        cfo_hint=float(
-            state.physical_state.cfo_cycles_per_symbol
+    phase_features = _neural_phase_features(
+        condition_source="pilot_cir_phase",
+        receiver_view=frame.receiver_view(),
+        cir=state.cir,
+        soft_tail=state.receiver_state.soft_tail,
+        acquisition_cfo=float(state.acquisition_cfo),
+        tracked_cfo=(
+            float(state.physical_state.cfo_cycles_per_symbol)
             if state.physical_state is not None and not updates_frozen
-            else state.acquisition_cfo
+            else None
         ),
     )
-    condition = condition_from_cir(state.cir, snr_db, phase_features=phase_features)
+    condition = condition_from_cir(
+        state.cir,
+        snr_db,
+        cfo_residual=float(state.acquisition_cfo),
+        phase_features=phase_features,
+    )
     rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
     region_ids = frame_device.model_region_ids.unsqueeze(0).long()
     adapt_symbols = frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64)
@@ -1230,6 +1306,10 @@ def _run_pilot_online_method(
             "tail_update_alpha": float(state.tail_update_alpha),
             "cir_update_mode": str(state.cir_update_mode),
             "cir_update_alpha": float(state.cir_update_alpha),
+            "condition_source": "pilot_cir_phase",
+            "pilot_phase_used": True,
+            "cir_update_applied": bool(state.cir_update_mode == "pilot_sparse" and not updates_frozen),
+            "peft_update_applied": bool(accepted),
             "data_labels_used_online": False,
             "pretrained_loaded": bool(state.pretrained_loaded),
             "frame_index": int(frame_index),
@@ -1303,6 +1383,72 @@ def _pilot_state_reliable(state: PilotPhysicalState | None, threshold: float) ->
     """只有当前 Adapt Pilot 物理状态足够可靠时才更新稀疏 CIR。"""
 
     return state is not None and float(state.confidence) >= float(threshold)
+
+
+def _neural_method_contract(method: str) -> dict[str, object]:
+    """返回神经方法的 Pilot、CIR 和 PEFT 信息边界。"""
+
+    contracts = {
+        "Offline NN only": {
+            "condition_source": "acquisition",
+            "pilot_phase_used": False,
+            "cir_update_applied": False,
+            "peft_update_applied": False,
+        },
+        "Pilot-conditioned frozen NN": {
+            "condition_source": "pilot_phase",
+            "pilot_phase_used": True,
+            "cir_update_applied": False,
+            "peft_update_applied": False,
+        },
+        "Pilot CIR only": {
+            "condition_source": "pilot_cir_phase",
+            "pilot_phase_used": True,
+            "cir_update_applied": True,
+            "peft_update_applied": False,
+        },
+        "Pilot-Driven Online Adaptation": {
+            "condition_source": "pilot_cir_phase",
+            "pilot_phase_used": True,
+            "cir_update_applied": True,
+            "peft_update_applied": True,
+        },
+    }
+    if method in contracts:
+        return dict(contracts[method])
+    if method in PROPOSED_METHODS:
+        return {
+            "condition_source": "pilot_cir_phase",
+            "pilot_phase_used": True,
+            "cir_update_applied": False,
+            "peft_update_applied": False,
+        }
+    raise ValueError(f"未知神经方法：{method}")
+
+
+def _neural_phase_features(
+    *,
+    condition_source: str,
+    receiver_view,
+    cir: torch.Tensor,
+    soft_tail: torch.Tensor,
+    acquisition_cfo: float,
+    tracked_cfo: float | None = None,
+    acquisition_phase_features: torch.Tensor | None = None,
+) -> torch.Tensor | None:
+    """按显式条件来源生成相位特征；acquisition 模式绝不读取当前帧 Pilot。"""
+
+    if condition_source == "acquisition":
+        return acquisition_phase_features
+    if condition_source not in {"pilot_phase", "pilot_cir_phase"}:
+        raise ValueError(f"未知神经 condition_source：{condition_source}")
+    return estimate_phase_residual_vector(
+        receiver_view,
+        cir,
+        soft_tail,
+        blocks=4,
+        cfo_hint=float(acquisition_cfo if tracked_cfo is None else tracked_cfo),
+    )
 
 
 def _load_model_config(config: dict, pretrained_path: Path | None) -> UnfoldedConfig:
