@@ -26,11 +26,11 @@ class SafeUpdateAction:
 def _default_actions() -> tuple[SafeUpdateAction, ...]:
     return (
         SafeUpdateAction("skip", frozenset(), 0.0, 0.0, 1, 0.0),
-        SafeUpdateAction("phase_weak", frozenset({"conditioner_film"}), 0.25, 0.35, 1, 0.05),
+        SafeUpdateAction("phase_weak", frozenset({"phase"}), 0.25, 0.35, 1, 0.05),
         SafeUpdateAction("head_weak", frozenset({"head"}), 0.25, 0.5, 2, 0.25),
         SafeUpdateAction("head_nominal", frozenset({"head"}), 1.0, 1.0, 2, 0.40),
         SafeUpdateAction("film_nominal", frozenset({"conditioner_film"}), 1.0, 0.75, 2, 0.40),
-        SafeUpdateAction("joint_nominal", frozenset({"head", "conditioner_film"}), 0.75, 0.75, 4, 0.60),
+        SafeUpdateAction("joint_nominal", frozenset({"head", "conditioner_film", "phase"}), 0.75, 0.75, 4, 0.60),
     )
 
 

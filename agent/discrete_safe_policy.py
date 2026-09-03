@@ -56,7 +56,7 @@ def safe_modulation_actions(num_blocks: int, device: torch.device | str = "cpu")
         ("peft_head_fast", identity, {"head"}, 5e-4, 1, None, None),
         ("peft_adapter_lora_conservative", identity, {"adapter", "attention_lora", "ffn_lora"}, 5e-5, 1, None, None),
         ("peft_adapter_lora_light", identity, {"adapter", "attention_lora", "ffn_lora"}, 1e-4, 1, None, None),
-        ("peft_adapter_lora_head_light", identity, {"adapter_lora"}, 1e-4, 1, None, None),
+        ("peft_adapter_lora_head_light", identity, {"adapter_lora_head"}, 1e-4, 1, None, None),
         ("rollback_identity", identity, None, 0.0, 0, None, None),
     ]
     actions = []

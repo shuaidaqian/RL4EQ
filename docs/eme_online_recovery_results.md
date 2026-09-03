@@ -31,7 +31,7 @@ acquisition CIR
 
 `pilot_sparse_cir_update()` 只使用当前帧接收信号、Adapt Pilot 符号和上一帧 soft tail。它不读取 Data 标签、Reward Pilot 标签、真实 CIR 或真实 CFO。实现先使用 acquisition CFO 先验和当前 Adapt Pilot 的公共相位估计去除慢旋转，再在 acquisition 主径 support 上估计复 tap 增益。Reward Pilot 只承担候选选择和回滚，不参与梯度更新。
 
-神经 PEFT 更新默认使用 `adapter_lora + conditioner_film`。历史正式比较曾通过 `compare.py --cir-update pilot_sparse` 为所有方法启用共享的 Pilot-only CIR 更新；当前正式协议已将 Frozen Offline NN 的条件更新固定为 acquisition CIR，在线方法和传统 DFE-RLS 才使用当前帧 Pilot 做状态更新。
+神经 PEFT 更新的历史默认方案是 `adapter_lora + conditioner_film`。当前 Level B 正式方案固定为独立的 `phase` 组；历史正式比较曾通过 `compare.py --cir-update pilot_sparse` 为所有方法启用共享的 Pilot-only CIR 更新，当前正式协议已将 Frozen Offline NN 的条件更新固定为 acquisition CIR，在线方法和传统 DFE-RLS 才使用当前帧 Pilot 做状态更新。
 
 ## 证据一：连续漂移恢复
 

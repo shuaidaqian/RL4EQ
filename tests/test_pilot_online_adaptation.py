@@ -50,6 +50,29 @@ def test_online_update_schedule_rejects_non_positive_interval():
     with pytest.raises(ValueError, match="update_interval"):
         compare._online_update_is_scheduled(1, 0)
 
+
+def test_online_groups_cli_override_replaces_configured_candidate_groups():
+    import compare
+
+    config = {
+        "online_adaptation_groups": ["adapter_lora", "conditioner_film"],
+        "online_adaptation_candidates": [
+            {"name": "configured", "groups": ["adapter_lora"]}
+        ],
+    }
+
+    groups, candidate_config = compare._online_groups_from_config(config, ["head"])
+
+    assert groups == {"head"}
+    assert candidate_config["online_adaptation_candidates"] is None
+
+
+def test_online_groups_rejects_empty_cli_override():
+    import compare
+
+    with pytest.raises(ValueError, match="online_groups"):
+        compare._online_groups_from_config({}, [])
+
 from agent.cir_estimator import condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from training.online_adaptation import PilotDrivenOnlineAdapter, run_pilot_driven_online

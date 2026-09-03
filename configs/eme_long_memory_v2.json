@@ -58,19 +58,20 @@
   "model_validation_sequence_state": true,
   "training_tail_mode": "online_soft",
   "tail_update_alpha": 0.5,
-  "online_adaptation_groups": ["adapter_lora", "conditioner_film"],
+  "online_adaptation_groups": ["phase"],
   "online_adaptation_learning_rate": 0.001,
   "online_adaptation_steps": 3,
   "online_adaptation_max_delta_norm": 2.0,
   "online_adaptation_freeze_below_snr_db": 5.0,
-  "online_adaptation_min_reward_improvement": 0.001,
+  "online_adaptation_min_reward_improvement": 0.00001,
+  "online_cross_frame_rollback_tolerance": 0.00001,
   "online_phase_tracking_smoothing": 0.5,
   "online_phase_tracking_min_confidence": 0.5,
   "online_phase_tracking_cfo_limit": 0.0012,
   "online_adaptation_candidates": [
     {
       "name": "lora_conservative",
-      "groups": ["adapter_lora", "conditioner_film"],
+      "groups": ["phase"],
       "learning_rate_scale": 0.5,
       "steps": 1,
       "max_delta_scale": 0.5
@@ -80,7 +81,7 @@
   "meta_sequence_frames": 4,
   "meta_inner_steps": 3,
   "meta_inner_learning_rate": 0.001,
-  "meta_peft_groups": ["adapter_lora", "conditioner_film"],
+  "meta_peft_groups": ["phase"],
   "offline_state_split": "offline_train",
   "online_meta_state_split": "offline_train",
   "online_state_splits": {

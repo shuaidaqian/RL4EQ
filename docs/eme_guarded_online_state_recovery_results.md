@@ -36,7 +36,7 @@ logs/eme_guarded_unified_main_60f_3s/
 | 重复 | 每个 SNR 3 个独立 seed，每个方法 180 帧 |
 | checkpoint | `pretrained/eme_meta_from_offline_32/model_best.pt` |
 | 在线 CIR | acquisition support 上的 `pilot_sparse` 候选，`alpha=0.2` |
-| 在线 PEFT | `adapter_lora + conditioner_film`，只由 Adapt Pilot 求梯度 |
+| 在线 PEFT | 当前正式配置为 `phase` 组，只由 Adapt Pilot 求梯度；`adapter_lora + conditioner_film` 仅保留为历史兼容方案 |
 | CIR 接受规则 | 候选 CIR 不得恶化 Reward Pilot BCE |
 | PEFT 接受规则 | Reward Pilot BCE 至少降低 `0.001` |
 | 物理 CFO 注入 | 仅 Pilot physical-state confidence `>=0.5` |

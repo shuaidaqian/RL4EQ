@@ -240,6 +240,7 @@ def main() -> None:
     parser.add_argument("--update-interval", type=int, default=32)
     parser.add_argument("--cir-update", choices=["fixed", "pilot_sparse", "decision_directed"], default="fixed")
     parser.add_argument("--cir-alpha", type=float, default=0.2)
+    parser.add_argument("--online-groups", nargs="*", default=None)
     parser.add_argument("--output-dir", default="logs/compare")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--resume", action="store_true")
@@ -362,6 +363,7 @@ def main() -> None:
                         residual_cfo_limit=residual_cfo_limit,
                         acquisition_cfo=float(acquisition_cfo),
                         acquisition_phase_features=acquisition_phase_features,
+                        online_groups_override=args.online_groups,
                     )
                     for frame_index in range(1, args.frames + 1):
                         frame = env.next_frame()
@@ -554,6 +556,9 @@ class PilotOnlineMethodState:
     phase_tracking_min_confidence: float = 0.15
     phase_tracking_cfo_limit: float = 0.0012
     min_reward_improvement: float = 0.001
+    cross_frame_rollback_tolerance: float = 0.00001
+    last_pre_update_snapshot: object | None = None
+    last_pre_update_groups: frozenset[str] = frozenset()
 
 
 def _select_methods(methods: list[str] | None) -> tuple[str, ...]:
@@ -587,19 +592,14 @@ def _build_method_states(
     residual_cfo_limit: float = 0.001,
     acquisition_cfo: float = 0.0,
     acquisition_phase_features: torch.Tensor | None = None,
+    online_groups_override: list[str] | None = None,
 ) -> dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState]:
     states: dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState] = {}
     model_config = _load_model_config(config, pretrained_path)
     for method in methods:
         if method == "Pilot-Driven Online Adaptation":
             model = _build_equalizer(model_config, pretrained_path, device)
-            online_groups = {
-                str(group)
-                for group in config.get(
-                    "online_adaptation_groups",
-                    ["head", "conditioner_film"],
-                )
-            }
+            online_groups, candidate_config = _online_groups_from_config(config, online_groups_override)
             adapter = PilotDrivenOnlineAdapter(
                 model,
                 groups=online_groups,
@@ -607,7 +607,7 @@ def _build_method_states(
                 steps=int(config.get("online_adaptation_steps", 1)),
                 max_delta_norm=float(config.get("online_adaptation_max_delta_norm", 0.5)),
             )
-            candidate_specs = _online_candidate_specs(config, online_groups)
+            candidate_specs = _online_candidate_specs(candidate_config, online_groups)
             states[method] = PilotOnlineMethodState(
                 model=model,
                 adapter=adapter,
@@ -629,6 +629,9 @@ def _build_method_states(
                 phase_tracking_min_confidence=float(config.get("online_phase_tracking_min_confidence", 0.15)),
                 phase_tracking_cfo_limit=float(config.get("online_phase_tracking_cfo_limit", residual_cfo_limit)),
                 min_reward_improvement=float(config.get("online_adaptation_min_reward_improvement", 0.001)),
+                cross_frame_rollback_tolerance=float(
+                    config.get("online_cross_frame_rollback_tolerance", 0.00001)
+                ),
             )
         elif method == "RL-Modulated Neural Block Equalizer":
             torch.manual_seed(_method_seed("rl_modulated", seed, delay, snr_db))
@@ -1256,6 +1259,41 @@ def _run_pilot_online_method(
     before = before_logits.squeeze(0)
     reward_before = _masked_bce(before, frame_device.bits, frame_device.reward_mask)
     adapt_loss_before = _masked_bce(before, frame_device.bits, frame_device.adapt_mask)
+    cross_frame_rollback = False
+    previous_good_reward_loss = None
+    if state.last_pre_update_snapshot is not None:
+        current_snapshot = state.model.peft.snapshot(state.last_pre_update_groups)
+        state.model.peft.restore(state.last_pre_update_snapshot)
+        with torch.no_grad():
+            previous_good_logits, _ = state.model(
+                rx_iq,
+                condition,
+                region_ids,
+                tail,
+                adapt_symbols=adapt_symbols,
+                adapt_mask=adapt_mask,
+            )
+        previous_good = previous_good_logits.squeeze(0)
+        previous_good_reward_loss = float(
+            _masked_bce(
+                previous_good,
+                frame_device.bits,
+                frame_device.reward_mask,
+            ).detach().cpu()
+        )
+        state.model.peft.restore(current_snapshot)
+        if _previous_update_is_harmful(
+            float(reward_before.detach().cpu()),
+            previous_good_reward_loss,
+            state.cross_frame_rollback_tolerance,
+        ):
+            state.model.peft.restore(state.last_pre_update_snapshot)
+            before = previous_good
+            reward_before = _masked_bce(before, frame_device.bits, frame_device.reward_mask)
+            adapt_loss_before = _masked_bce(before, frame_device.bits, frame_device.adapt_mask)
+            cross_frame_rollback = True
+            state.last_pre_update_snapshot = None
+            state.last_pre_update_groups = frozenset()
     candidates = state.candidate_specs or (
         {
             "name": "default",
@@ -1323,6 +1361,9 @@ def _run_pilot_online_method(
         accepted = True
         final = best_after
         reward_after = torch.as_tensor(best_reward, device=reward_before.device)
+    if accepted:
+        state.last_pre_update_groups = frozenset(candidate_groups)
+        state.last_pre_update_snapshot = base_snapshot
     tail_len = state.receiver_state.soft_tail.numel()
     detected_tail = torch.complex(
         torch.tanh(final[-tail_len:] / 2.0),
@@ -1351,6 +1392,9 @@ def _run_pilot_online_method(
             "online_algorithm": "pilot_driven_constrained_peft",
             "online_update_source": "adapt_pilot_only",
             "reward_pilot_guard": True,
+            "cross_frame_reward_guard": True,
+            "previous_good_reward_loss": previous_good_reward_loss,
+            "rollback": bool(cross_frame_rollback),
             "adapt_pilot_count": int(
                 adaptation.adapt_pilot_count
                 if adaptation is not None
@@ -1443,6 +1487,31 @@ def _online_candidate_specs(config: dict, default_groups: set[str]) -> tuple[dic
     return tuple(candidates)
 
 
+def _online_groups_from_config(
+    config: dict,
+    override: list[str] | None,
+) -> tuple[set[str], dict]:
+    """解析在线更新对象；命令行覆盖时同时清除配置文件候选，避免混用。"""
+
+    if override is not None:
+        groups = {str(group) for group in override if str(group)}
+        if not groups:
+            raise ValueError("online_groups 覆盖不能为空。")
+        candidate_config = dict(config)
+        candidate_config["online_adaptation_candidates"] = None
+        return groups, candidate_config
+    groups = {
+        str(group)
+        for group in config.get(
+            "online_adaptation_groups",
+            ["head", "conditioner_film"],
+        )
+    }
+    if not groups:
+        raise ValueError("online_adaptation_groups 不能为空。")
+    return groups, config
+
+
 def _online_candidates_for_snr(
     candidates: tuple[dict, ...],
     snr_db: float,
@@ -1499,6 +1568,16 @@ def _accept_online_peft_update(
     """要求 PEFT 在 Reward Pilot 上取得超过噪声阈值的真实改善。"""
 
     return float(reward_loss_before) - float(reward_loss_after) >= float(min_improvement)
+
+
+def _previous_update_is_harmful(
+    current_reward_loss: float,
+    previous_good_reward_loss: float,
+    tolerance: float,
+) -> bool:
+    """判断上一轮已接受更新在当前 Reward Pilot 上是否已经恶化。"""
+
+    return float(current_reward_loss) > float(previous_good_reward_loss) + float(tolerance)
 
 
 def _neural_method_contract(method: str) -> dict[str, object]:

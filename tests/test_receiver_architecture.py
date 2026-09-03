@@ -392,8 +392,55 @@ def test_unfolded_equalizer_phase_correction_scale_zero_keeps_identity():
 
     assert torch.allclose(corrected, rx_iq, atol=1e-6)
     assert not model.phase_correction_scale.requires_grad
-    model.set_trainable_groups({"conditioner_film"})
+    model.set_trainable_groups({"phase"})
     assert model.phase_correction_scale.requires_grad
+    assert not any(
+        parameter.requires_grad
+        for name, parameter in model.named_parameters()
+        if name.startswith("conditioner.")
+    )
+
+
+def test_unfolded_equalizer_online_groups_are_disjoint():
+    """head、phase、conditioner 和 adapter 消融必须互斥。"""
+
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            enable_phase_correction_branch=True,
+            phase_correction_segments=4,
+        )
+    )
+
+    model.set_trainable_groups({"adapter_lora"})
+    assert all(
+        getattr(parameter, "_peft_group", None)
+        in {"adapter", "attention_lora", "ffn_lora"}
+        for parameter in model.trainable_parameters()
+    )
+    assert not any(
+        parameter.requires_grad
+        for name, parameter in model.named_parameters()
+        if name.startswith("head.")
+    )
+
+    model.set_trainable_groups({"conditioner_film"})
+    assert all(
+        name.startswith("conditioner.")
+        for name, parameter in model.named_parameters()
+        if parameter.requires_grad
+    )
+
+    model.set_trainable_groups({"phase"})
+    assert all(
+        name.startswith("phase_correction")
+        for name, parameter in model.named_parameters()
+        if parameter.requires_grad
+    )
 
 
 def test_unfolded_equalizer_phase_correction_rejects_single_bad_pilot_block():

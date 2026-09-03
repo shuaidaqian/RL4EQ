@@ -19,18 +19,31 @@ class PEFTRegistry:
     """统一管理线上可更新参数组。"""
 
     GROUP_ALIASES = {
+        "phase": {"phase"},
         "conditioner_film": {"conditioner_film"},
         "adapter": {"adapter"},
         "attention_lora": {"attention_lora"},
         "ffn_lora": {"ffn_lora"},
         "head": {"head"},
-        "adapter_lora": {"adapter", "attention_lora", "ffn_lora", "head"},
-        "conditioner_peft": {"conditioner_film", "adapter", "attention_lora", "ffn_lora", "head"},
+        "adapter_lora": {"adapter", "attention_lora", "ffn_lora"},
+        "adapter_lora_head": {"adapter", "attention_lora", "ffn_lora", "head"},
+        "conditioner_peft": {
+            "phase",
+            "conditioner_film",
+            "adapter",
+            "attention_lora",
+            "ffn_lora",
+            "head",
+        },
     }
 
     def __init__(self, module: nn.Module):
         self.module = module
-        self._groups: dict[str, list[str]] = {name: [] for name in self.GROUP_ALIASES if name not in {"adapter_lora", "conditioner_peft"}}
+        self._groups: dict[str, list[str]] = {
+            name: []
+            for name in self.GROUP_ALIASES
+            if name not in {"adapter_lora", "adapter_lora_head", "conditioner_peft"}
+        }
 
     def register(self, group: str, module: nn.Module) -> None:
         if group not in self._groups:

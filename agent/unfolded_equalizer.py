@@ -126,8 +126,8 @@ class UnfoldedEqualizer(nn.Module):
             self.phase_correction_scale = nn.Parameter(
                 torch.tensor(float(self.config.phase_correction_initial_scale), dtype=torch.float32)
             )
-            mark_peft_group(self.phase_correction, "conditioner_film")
-            setattr(self.phase_correction_scale, "_peft_group", "conditioner_film")
+            mark_peft_group(self.phase_correction, "phase")
+            setattr(self.phase_correction_scale, "_peft_group", "phase")
         else:
             self.register_parameter("phase_correction_scale", None)
         conditioner_input_dim = 96
