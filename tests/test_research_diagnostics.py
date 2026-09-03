@@ -1,5 +1,6 @@
 import copy
 
+import pytest
 import torch
 
 from agent.cir_estimator import CIRCondition
@@ -51,6 +52,7 @@ def test_reward_data_correlation_report_uses_paired_improvements():
         summarize_reward_surrogates,
     )
 
+
     rows = [
         {"action_name": "a", "seed": 0, "frame": 1, "reward_loss_improvement": 0.3, "reward_ber_improvement": 0.2, "reward_margin_improvement": 0.1, "data_ber_improvement": 0.03},
         {"action_name": "b", "seed": 0, "frame": 1, "reward_loss_improvement": 0.2, "reward_ber_improvement": 0.1, "reward_margin_improvement": 0.2, "data_ber_improvement": 0.02},
@@ -73,6 +75,77 @@ def test_reward_data_correlation_report_uses_paired_improvements():
     assert selected["selection_uses_data_labels"] is False
     assert selected["diagnostic_uses_data_labels"] is True
     assert selected["selected_frames"] == 2
+
+
+def test_pilot_replay_events_attribute_future_data_to_scheduled_update():
+    from evaluation.research_diagnostics import build_pilot_replay_events
+
+    rows = []
+    for frame in range(1, 5):
+        rows.extend(
+            [
+                {
+                    "method": "Pilot-conditioned frozen NN",
+                    "delay": 116,
+                    "snr_db": 10.0,
+                    "pilot_total": 128,
+                    "pilot_layout": "prefix",
+                    "seed": 0,
+                    "frame": frame,
+                    "ber_data": 0.20,
+                },
+                {
+                    "method": "Pilot-Driven Online Adaptation",
+                    "delay": 116,
+                    "snr_db": 10.0,
+                    "pilot_total": 128,
+                    "pilot_layout": "prefix",
+                    "seed": 0,
+                    "frame": frame,
+                    "ber_data": 0.15 if frame in {1, 2} else 0.25,
+                    "online_update_scheduled": frame in {1, 3},
+                    "online_update_candidate": "head_light" if frame == 1 else "skip",
+                    "peft_update_applied": frame == 1,
+                    "reward_pilot_loss_before": 0.40 if frame == 1 else 0.30,
+                    "reward_pilot_loss_after": 0.35 if frame == 1 else 0.30,
+                },
+            ]
+        )
+
+    events = build_pilot_replay_events(rows, hold_frames=2)
+
+    assert len(events) == 2
+    assert events[0]["frames"] == [1, 2]
+    assert events[0]["reward_loss_improvement"] == pytest.approx(0.05)
+    assert events[0]["data_ber_improvement"] == pytest.approx(0.05)
+    assert events[0]["future_data_ber_improvement"] == pytest.approx(0.05)
+    assert events[1]["frames"] == [3, 4]
+    assert events[1]["data_ber_improvement"] == pytest.approx(-0.05)
+    assert events[1]["future_data_ber_improvement"] == pytest.approx(-0.05)
+    assert events[0]["diagnostic_uses_data_labels"] is True
+    assert events[0]["online_policy_uses_data_labels"] is False
+
+
+def test_pilot_replay_events_requires_online_and_frozen_pairs():
+    from evaluation.research_diagnostics import build_pilot_replay_events
+
+    with pytest.raises(ValueError, match="配对"):
+        build_pilot_replay_events(
+            [
+                {
+                    "method": "Pilot-Driven Online Adaptation",
+                    "delay": 116,
+                    "snr_db": 10.0,
+                    "pilot_total": 128,
+                    "pilot_layout": "prefix",
+                    "seed": 0,
+                    "frame": 1,
+                    "ber_data": 0.1,
+                    "online_update_scheduled": True,
+                }
+            ],
+            hold_frames=2,
+        )
 
 
 def test_reward_data_correlation_report_accepts_reward_ber_surrogate():

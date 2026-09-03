@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import copy
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Iterable
@@ -25,6 +26,80 @@ from baseline.traditional_equalizers import TRADITIONAL_BASELINES, TraditionalPh
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
 from evaluation.metrics import spearman_reward_data
 from training.meta_training import _estimate_cir_from_known_frame
+
+
+def build_pilot_replay_events(
+    rows: Iterable[dict],
+    *,
+    hold_frames: int = 4,
+    frozen_method: str = "Pilot-conditioned frozen NN",
+    online_method: str = "Pilot-Driven Online Adaptation",
+) -> list[dict]:
+    """按真实调度帧构造离线 Pilot-only replay 事件。"""
+
+    size = int(hold_frames)
+    if size <= 0:
+        raise ValueError("hold_frames 必须为正数。")
+    normalized = list(rows)
+    key_fields = (
+        "delay",
+        "snr_db",
+        "pilot_total",
+        "reward_pilot_total",
+        "pilot_layout",
+        "seed",
+        "frame",
+    )
+    paired: dict[tuple, dict[str, dict]] = defaultdict(dict)
+    for row in normalized:
+        method = str(row.get("method", ""))
+        if method not in {frozen_method, online_method}:
+            continue
+        key = tuple(row.get(field) for field in key_fields)
+        paired[key][method] = row
+    missing = [key for key, values in paired.items() if frozen_method not in values or online_method not in values]
+    if missing:
+        raise ValueError("Pilot replay 需要 Frozen/Online 逐帧配对。")
+
+    trajectories: dict[tuple, list[tuple[dict, dict]]] = defaultdict(list)
+    for key, values in paired.items():
+        trajectory_key = key[:-1]
+        trajectories[trajectory_key].append((values[frozen_method], values[online_method]))
+    events = []
+    for trajectory_key, trajectory in sorted(trajectories.items(), key=lambda item: repr(item[0])):
+        trajectory.sort(key=lambda pair: int(pair[1].get("frame", 0)))
+        for index, (frozen, online) in enumerate(trajectory):
+            if not bool(online.get("online_update_scheduled", False)):
+                continue
+            window = trajectory[index : index + size]
+            improvements = [
+                float(item[0]["ber_data"]) - float(item[1]["ber_data"])
+                for item in window
+            ]
+            future_improvements = improvements[1:]
+            before = float(online.get("reward_pilot_loss_before", 0.0))
+            after = float(online.get("reward_pilot_loss_after", before))
+            reward_improvement = before - after if math.isfinite(before) and math.isfinite(after) else 0.0
+            events.append(
+                {
+                    "trajectory": trajectory_key,
+                    "event_frame": int(online.get("frame", 0)),
+                    "frames": [int(item[1].get("frame", 0)) for item in window],
+                    "action_name": str(online.get("online_update_candidate", "skip")),
+                    "peft_update_applied": bool(online.get("peft_update_applied", False)),
+                    "reward_loss_improvement": float(reward_improvement),
+                    "data_ber_improvement": float(sum(improvements) / len(improvements)),
+                    "future_data_ber_improvement": (
+                        float(sum(future_improvements) / len(future_improvements))
+                        if future_improvements
+                        else float("nan")
+                    ),
+                    "hold_frames": int(size),
+                    "diagnostic_uses_data_labels": True,
+                    "online_policy_uses_data_labels": False,
+                }
+            )
+    return events
 
 
 def summarize_reward_data_correlation(
