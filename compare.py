@@ -219,6 +219,7 @@ def main() -> None:
     parser.add_argument("--num-seeds", type=int, default=1)
     parser.add_argument("--frames", type=int, default=2)
     parser.add_argument("--pilot-total", type=int, default=None)
+    parser.add_argument("--reward-pilot-total", type=int, default=None)
     parser.add_argument("--pilot-layout", default=None)
     parser.add_argument("--state-split", choices=["offline_train", "heldout_edge", "drift"], default=None)
     parser.add_argument(
@@ -256,6 +257,11 @@ def main() -> None:
             raise FileNotFoundError(f"显式指定的 policy checkpoint 不存在：{policy_path}")
         policy_path = None
     pilot_total = int(args.pilot_total if args.pilot_total is not None else config.get("pilot_total", 128))
+    reward_pilot_total = int(
+        args.reward_pilot_total
+        if args.reward_pilot_total is not None
+        else config.get("reward_pilot_total", pilot_total // 4)
+    )
     pilot_layout = str(args.pilot_layout if args.pilot_layout is not None else config.get("pilot_layout", "prefix"))
     impairment_profile = str(
         args.impairment_profile if args.impairment_profile is not None else config.get("impairment_profile", "clean")
@@ -269,6 +275,7 @@ def main() -> None:
             seed=50_000 + int(seed),
             max_delay=int(delay),
             total_pilot=pilot_total,
+            reward_pilot_total=reward_pilot_total,
             pilot_layout=pilot_layout,
             impairment_profile=impairment_profile,
             state_split=args.state_split,
@@ -393,6 +400,8 @@ def main() -> None:
                             payload["impairment_profile"] = impairment_profile
                             payload["profile_residual_cfo_limit"] = residual_cfo_limit
                             payload["profile_acquisition_cfo_limit"] = acquisition_cfo_limit
+                            payload["reward_pilot_total"] = int(frame.reward_mask.sum().item())
+                            payload["adapt_pilot_total"] = int(frame.adapt_mask.sum().item())
                             payload["state_split"] = args.state_split
                             payload["state_instance"] = env.state_metadata()
                             payload["input_hash"] = result.input_hash
@@ -852,6 +861,7 @@ def _run_new_or_single_method(
             state,
             delay,
             frame_index,
+            update_interval,
         )
     if method in PROPOSED_METHODS:
         if not isinstance(state, NeuralMethodState):
@@ -1127,12 +1137,14 @@ def _run_pilot_online_method(
     state: PilotOnlineMethodState,
     delay: int,
     frame_index: int,
+    update_interval: int,
 ) -> RealMethodResult:
     """运行一帧不依赖 PPO 的 Pilot 驱动在线适配。"""
 
     device = next(state.model.parameters()).device
     frame_device = _frame_to_device(frame, device)
     updates_frozen = _online_updates_are_frozen(snr_db, state.freeze_online_below_snr_db)
+    update_scheduled = _online_update_is_scheduled(frame_index, update_interval)
     rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
     region_ids = frame_device.model_region_ids.unsqueeze(0).long()
     adapt_symbols = frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64)
@@ -1140,6 +1152,7 @@ def _run_pilot_online_method(
     cir_update_accepted = False
     cir_reward_loss_before = None
     cir_reward_loss_after = None
+    tracked_state = None
     if state.cir_update_mode == "pilot_sparse" and not updates_frozen:
         previous_cir = state.cir.clone()
         tracked_state = track_pilot_physical_state(
@@ -1151,23 +1164,21 @@ def _run_pilot_online_method(
             smoothing=float(state.phase_tracking_smoothing),
             min_confidence=float(state.phase_tracking_min_confidence),
         )
-        candidate_cir = pilot_sparse_cir_update(
-            frame_device,
-            state.cir,
-            state.receiver_state.soft_tail,
-            max_paths=24,
-            alpha=float(state.cir_update_alpha),
-            cfo_hint=float(
-                tracked_state.cfo_cycles_per_symbol
-                if tracked_state is not None
-                else state.acquisition_cfo
-            ),
-        ).to(device) if _pilot_state_reliable(
+        state.physical_state = tracked_state
+        candidate_cir = state.cir
+        if update_scheduled and _pilot_state_reliable(
             tracked_state,
             state.phase_tracking_min_confidence,
-        ) else state.cir
-        state.physical_state = tracked_state
-        if _pilot_state_reliable(tracked_state, state.phase_tracking_min_confidence):
+        ):
+            candidate_cir = pilot_sparse_cir_update(
+                frame_device,
+                state.cir,
+                state.receiver_state.soft_tail,
+                max_paths=24,
+                alpha=float(state.cir_update_alpha),
+                cfo_hint=float(tracked_state.cfo_cycles_per_symbol),
+            ).to(device)
+        if update_scheduled and _pilot_state_reliable(tracked_state, state.phase_tracking_min_confidence):
             tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
 
             def _condition_for(cir_value: torch.Tensor) -> CIRCondition:
@@ -1209,10 +1220,7 @@ def _run_pilot_online_method(
             cir_reward_loss_after = float(
                 _masked_bce(candidate_logits.squeeze(0), frame_device.bits, frame_device.reward_mask).detach().cpu()
             )
-            cir_update_accepted = _accept_pilot_cir_update(
-                cir_reward_loss_before,
-                cir_reward_loss_after,
-            )
+            cir_update_accepted = _accept_pilot_cir_update(cir_reward_loss_before, cir_reward_loss_after)
             state.cir = candidate_cir if cir_update_accepted else previous_cir
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
     phase_features = _neural_phase_features(
@@ -1258,7 +1266,11 @@ def _run_pilot_online_method(
         },
     )
     freeze_below_db = state.freeze_online_below_snr_db
-    candidates = _online_candidates_for_snr(candidates, snr_db, freeze_below_db)
+    candidates = (
+        _online_candidates_for_snr(candidates, snr_db, freeze_below_db)
+        if update_scheduled
+        else ()
+    )
     candidate_groups = set().union(*(set(item["groups"]) for item in candidates)) if candidates else set()
     base_snapshot = state.model.peft.snapshot(candidate_groups)
     best_snapshot = None
@@ -1358,6 +1370,9 @@ def _run_pilot_online_method(
             "online_update_candidate": best_name,
             "online_update_candidate_count": len(candidates),
             "online_snr_layer": "fully_frozen" if updates_frozen else ("peft_frozen" if not candidates else "peft_enabled"),
+            "online_update_scheduled": bool(update_scheduled),
+            "online_update_interval": int(update_interval),
+            "online_update_skipped": bool(not update_scheduled),
             "online_condition_update_applied": not updates_frozen,
             "online_adaptation_freeze_below_snr_db": freeze_below_db,
             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
@@ -1371,7 +1386,9 @@ def _run_pilot_online_method(
             "condition_source": "pilot_cir_phase",
             "pilot_phase_used": True,
             "cir_update_applied": bool(cir_update_accepted),
-            "cir_update_guarded": bool(state.cir_update_mode == "pilot_sparse" and not updates_frozen),
+            "cir_update_guarded": bool(
+                state.cir_update_mode == "pilot_sparse" and not updates_frozen and update_scheduled
+            ),
             "cir_reward_pilot_loss_before": cir_reward_loss_before,
             "cir_reward_pilot_loss_after": cir_reward_loss_after,
             "peft_update_applied": bool(accepted),
@@ -1442,6 +1459,16 @@ def _online_updates_are_frozen(snr_db: float, freeze_below_db: float | None) -> 
     """判断当前 SNR 是否低到不应相信 Pilot 驱动的状态更新。"""
 
     return freeze_below_db is not None and float(snr_db) < float(freeze_below_db)
+
+
+def _online_update_is_scheduled(frame_index: int, update_interval: int) -> bool:
+    """按帧调度在线状态更新，首帧建立初始状态，之后每隔指定帧更新一次。"""
+
+    if int(frame_index) < 1:
+        raise ValueError("frame_index 必须为正数。")
+    if int(update_interval) <= 0:
+        raise ValueError("update_interval 必须为正数。")
+    return int(frame_index) == 1 or (int(frame_index) - 1) % int(update_interval) == 0
 
 
 def _pilot_state_reliable(state: PilotPhysicalState | None, threshold: float) -> bool:
@@ -1683,7 +1710,7 @@ def _load_existing_rows(jsonl: Path) -> list[dict]:
     return [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def _row_key(row: dict) -> tuple[str, int, float, int, int, int, str, str]:
+def _row_key(row: dict) -> tuple[str, int, float, int, int, int, int, str, str]:
     return (
         str(row["method"]),
         int(row["delay"]),
@@ -1691,6 +1718,7 @@ def _row_key(row: dict) -> tuple[str, int, float, int, int, int, str, str]:
         int(row["seed"]),
         int(row["frame"]),
         int(row.get("pilot_total", 0)),
+        int(row.get("reward_pilot_total", int(row.get("pilot_total", 0)) // 4)),
         str(row.get("pilot_layout", "")),
         str(row.get("impairment_profile", "clean")),
     )

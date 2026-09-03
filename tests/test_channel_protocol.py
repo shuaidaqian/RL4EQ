@@ -351,6 +351,42 @@ def test_frame_masks_and_unknown_regions(total, layout):
     assert max(frame.adapt_block_lengths) >= 48
 
 
+def test_prefix_frame_supports_explicit_reward_pilot_total():
+    frame = FrameGenerator(
+        FrameConfig(
+            total_pilot=128,
+            reward_pilot_total=64,
+            layout="prefix",
+            max_delay=40,
+        ),
+        seed=10,
+    ).generate(2)
+
+    assert int(frame.adapt_mask.sum()) == 64
+    assert int(frame.reward_mask.sum()) == 64
+    assert torch.all(frame.adapt_mask[:64])
+    assert torch.all(frame.reward_mask[64:128])
+
+
+@pytest.mark.parametrize("reward_pilot_total", [0, 128, 129])
+def test_reward_pilot_total_must_leave_nonempty_adapt_pilot(reward_pilot_total):
+    with pytest.raises(ValueError, match="reward_pilot_total"):
+        FrameConfig(
+            total_pilot=128,
+            reward_pilot_total=reward_pilot_total,
+            layout="prefix",
+        )
+
+
+def test_custom_reward_pilot_total_is_prefix_only():
+    with pytest.raises(ValueError, match="prefix"):
+        FrameConfig(
+            total_pilot=128,
+            reward_pilot_total=64,
+            layout="two_block",
+        )
+
+
 def test_receiver_view_hides_reward_data_labels_positions_and_true_cir():
     frame = FrameGenerator(FrameConfig(total_pilot=128, layout="multi_block", max_delay=40), seed=11).generate(3)
     view_a = frame.receiver_view()

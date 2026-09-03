@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 
@@ -17,6 +18,37 @@ def test_online_snr_layer_can_freeze_the_whole_update_chain():
     assert compare._online_updates_are_frozen(0.0, 5.0) is True
     assert compare._online_updates_are_frozen(5.0, 5.0) is False
     assert compare._online_updates_are_frozen(10.0, None) is False
+
+
+def test_online_update_schedule_updates_first_frame_then_at_configured_interval():
+    import compare
+
+    assert [compare._online_update_is_scheduled(frame, 8) for frame in range(1, 18)] == [
+        True,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        True,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        True,
+    ]
+
+
+def test_online_update_schedule_rejects_non_positive_interval():
+    import compare
+
+    with pytest.raises(ValueError, match="update_interval"):
+        compare._online_update_is_scheduled(1, 0)
 
 from agent.cir_estimator import condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer

@@ -37,6 +37,7 @@ class CommEnvConfig:
     acquisition_to_data_gap_seconds: float = 0.0
     state_split: str | None = None
     state_ranges: Mapping[str, Any] | None = None
+    reward_pilot_total: int | None = None
 
     def __post_init__(self) -> None:
         if self.profile_name in {"eme_measurement_v1", "eme_long_memory_v2"} and self.layout != "prefix":
@@ -96,6 +97,7 @@ class CommunicationEnvironment:
                 total_pilot=config.total_pilot,
                 layout=config.layout,
                 max_delay=self.channel.max_delay,
+                reward_pilot_total=config.reward_pilot_total,
             ),
             seed=config.seed + 1_000,
         )

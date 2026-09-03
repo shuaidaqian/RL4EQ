@@ -19,6 +19,7 @@ class FrameConfig:
     total_pilot: int = 128
     layout: str = "prefix"
     max_delay: int = 40
+    reward_pilot_total: int | None = None
 
     def __post_init__(self) -> None:
         if self.total_pilot not in {64, 96, 128, 160}:
@@ -27,8 +28,13 @@ class FrameConfig:
             raise ValueError("layout 必须是 prefix/two_block/multi_block。")
         if self.frame_len <= self.total_pilot:
             raise ValueError("frame_len 必须大于 total_pilot。")
-        if self.total_pilot % 4 != 0:
+        if self.reward_pilot_total is None and self.total_pilot % 4 != 0:
             raise ValueError("total_pilot 必须能按 3:1 切分。")
+        if self.reward_pilot_total is not None:
+            if not 0 < int(self.reward_pilot_total) < self.total_pilot:
+                raise ValueError("reward_pilot_total 必须大于 0 且小于 total_pilot。")
+            if self.layout != "prefix" and int(self.reward_pilot_total) != self.total_pilot // 4:
+                raise ValueError("自定义 reward_pilot_total 仅允许用于 prefix Pilot layout。")
 
 
 @dataclass(frozen=True)
@@ -138,8 +144,12 @@ class FrameGenerator:
         )
 
     def _build_masks(self) -> tuple[torch.Tensor, torch.Tensor, list[int]]:
-        adapt_total = 3 * self.config.total_pilot // 4
-        reward_total = self.config.total_pilot // 4
+        reward_total = int(
+            self.config.reward_pilot_total
+            if self.config.reward_pilot_total is not None
+            else self.config.total_pilot // 4
+        )
+        adapt_total = self.config.total_pilot - reward_total
         adapt_mask = torch.zeros(self.config.frame_len, dtype=torch.bool)
         reward_mask = torch.zeros(self.config.frame_len, dtype=torch.bool)
         adapt_blocks, reward_blocks = self._layout_blocks(adapt_total, reward_total)

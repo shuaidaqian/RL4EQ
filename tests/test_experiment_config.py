@@ -59,6 +59,38 @@ def test_eme_experiment_transmits_all_frozen_physical_fields():
     assert config.strong_path_count == (3, 7)
     assert config.diffuse_energy_ratio == pytest.approx((0.05, 0.15))
     assert config.include_anomalous_scatterer is False
+
+
+def test_eme_config_forwards_explicit_reward_pilot_total():
+    experiment = _eme_experiment()
+    experiment["reward_pilot_total"] = 48
+
+    config = build_comm_env_config(
+        experiment,
+        level="B",
+        snr_db=10.0,
+        seed=7,
+    )
+    metadata = effective_channel_metadata(config)
+
+    assert config.reward_pilot_total == 48
+    assert metadata["reward_pilot_total"] == 48
+    assert metadata["adapt_pilot_total"] == 80
+
+
+def test_eme_config_reward_pilot_override_takes_precedence():
+    experiment = _eme_experiment()
+    experiment["reward_pilot_total"] = 32
+
+    config = build_comm_env_config(
+        experiment,
+        level="B",
+        snr_db=10.0,
+        seed=7,
+        reward_pilot_total=64,
+    )
+
+    assert config.reward_pilot_total == 64
     assert config.layout == "prefix"
     assert config.total_pilot == 128
     assert config.impairment_profile == "cfo_phase_tiny"
@@ -217,10 +249,12 @@ def test_effective_metadata_is_derived_from_built_config():
         "diffuse_energy_ratio": pytest.approx([0.05, 0.15]),
         "include_anomalous_scatterer": False,
         "impairment_profile": "cfo_phase_tiny",
-        "pilot_layout": "prefix",
-        "pilot_total": 128,
-        "state_split": None,
-    }
+            "pilot_layout": "prefix",
+            "pilot_total": 128,
+            "reward_pilot_total": 32,
+            "adapt_pilot_total": 96,
+            "state_split": None,
+        }
 
 
 def test_legacy_experiment_keeps_existing_defaults_and_overrides():
@@ -496,6 +530,38 @@ def test_compare_records_effective_eme_channel_from_built_environment(tmp_path):
     assert summary["effective_channel"]["max_delay"] == 24
     assert summary["profile_prior"]["residual_cfo_limit"] == pytest.approx(0.0012)
     assert {row["profile_name"] for row in rows} == {"eme_measurement_v1"}
+
+
+def test_compare_records_reward_pilot_override(tmp_path):
+    output_dir = tmp_path / "compare_reward_split"
+    command = _compare_command(_write_eme_experiment(tmp_path), output_dir)
+    command.extend(["--reward-pilot-total", "48"])
+
+    subprocess.run(command, check=True, text=True, capture_output=True)
+
+    summary = json.loads((output_dir / "summary.json").read_text(encoding="utf-8"))
+    assert summary["effective_channel"]["reward_pilot_total"] == 48
+    assert summary["effective_channel"]["adapt_pilot_total"] == 80
+
+
+def test_compare_resume_key_distinguishes_reward_pilot_split():
+    import compare
+
+    base = {
+        "method": "Pilot-Driven Online Adaptation",
+        "delay": 116,
+        "snr_db": 10.0,
+        "seed": 0,
+        "frame": 1,
+        "pilot_total": 128,
+        "pilot_layout": "prefix",
+        "impairment_profile": "cfo_phase_tiny",
+    }
+
+    split_32 = {**base, "reward_pilot_total": 32}
+    split_64 = {**base, "reward_pilot_total": 64}
+
+    assert compare._row_key(split_32) != compare._row_key(split_64)
 
 
 def test_compare_rejects_conflicting_checkpoint_model_before_loading_weights(tmp_path):

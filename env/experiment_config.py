@@ -75,6 +75,7 @@ def _build_eme_config(
     seed: int,
     max_delay: int | None,
     total_pilot: int | None,
+    reward_pilot_total: int | None,
     pilot_layout: str | None,
     impairment_profile: str | None,
     state_split: str | None,
@@ -186,6 +187,15 @@ def _build_eme_config(
         include_anomalous_scatterer=anomalous,
         state_split=None if selected_split is None else selected_split.name,
         state_ranges=state_ranges,
+        reward_pilot_total=(
+            int(reward_pilot_total)
+            if reward_pilot_total is not None
+            else (
+                None
+                if experiment.get("reward_pilot_total") is None
+                else int(experiment["reward_pilot_total"])
+            )
+        ),
     )
 
 
@@ -197,6 +207,7 @@ def build_comm_env_config(
     seed: int,
     max_delay: int | None = None,
     total_pilot: int | None = None,
+    reward_pilot_total: int | None = None,
     pilot_layout: str | None = None,
     impairment_profile: str | None = None,
     state_split: str | None = None,
@@ -218,6 +229,7 @@ def build_comm_env_config(
             seed=seed,
             max_delay=max_delay,
             total_pilot=total_pilot,
+            reward_pilot_total=reward_pilot_total,
             pilot_layout=pilot_layout,
             impairment_profile=impairment_profile,
             state_split=state_split,
@@ -239,6 +251,15 @@ def build_comm_env_config(
         ),
         frame_len=int(experiment.get("frame_len", experiment.get("model", {}).get("frame_len", 512))),
         state_split=state_split,
+        reward_pilot_total=(
+            int(reward_pilot_total)
+            if reward_pilot_total is not None
+            else (
+                None
+                if experiment.get("reward_pilot_total") is None
+                else int(experiment["reward_pilot_total"])
+            )
+        ),
     )
 
 
@@ -268,6 +289,19 @@ def effective_channel_metadata(config: CommEnvConfig) -> dict[str, Any]:
         "impairment_profile": str(config.impairment_profile),
         "pilot_layout": str(config.layout),
         "pilot_total": int(config.total_pilot),
+        "reward_pilot_total": int(
+            config.reward_pilot_total
+            if config.reward_pilot_total is not None
+            else config.total_pilot // 4
+        ),
+        "adapt_pilot_total": int(
+            config.total_pilot
+            - (
+                config.reward_pilot_total
+                if config.reward_pilot_total is not None
+                else config.total_pilot // 4
+            )
+        ),
         "state_split": config.state_split,
     }
 
