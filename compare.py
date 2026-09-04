@@ -146,6 +146,15 @@ def _profile_prior_from_config(config: dict, impairment_profile: str) -> dict:
     return prior
 
 
+def _apply_online_cli_overrides(config: dict, overrides: dict[str, object]) -> dict:
+    """把在线适配实验参数写入本次运行的有效配置。"""
+
+    for key, value in overrides.items():
+        if value is not None:
+            config[key] = value
+    return config
+
+
 @dataclass(frozen=True)
 class LabelFreeFrame:
     seed: int
@@ -241,6 +250,14 @@ def main() -> None:
     parser.add_argument("--cir-update", choices=["fixed", "pilot_sparse", "decision_directed"], default="fixed")
     parser.add_argument("--cir-alpha", type=float, default=0.2)
     parser.add_argument("--online-groups", nargs="*", default=None)
+    parser.add_argument("--online-learning-rate", type=float, default=None)
+    parser.add_argument("--online-steps", type=int, default=None)
+    parser.add_argument("--online-max-delta-norm", type=float, default=None)
+    parser.add_argument("--online-proximal-weight", type=float, default=None)
+    parser.add_argument("--online-min-reward-improvement", type=float, default=None)
+    parser.add_argument("--online-cross-frame-tolerance", type=float, default=None)
+    parser.add_argument("--online-phase-smoothing", type=float, default=None)
+    parser.add_argument("--online-phase-min-confidence", type=float, default=None)
     parser.add_argument("--output-dir", default="logs/compare")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--resume", action="store_true")
@@ -250,6 +267,19 @@ def main() -> None:
         return
     selected_methods = method_group(args.method_group) if args.method_group else _select_methods(args.methods)
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    _apply_online_cli_overrides(
+        config,
+        {
+            "online_adaptation_learning_rate": args.online_learning_rate,
+            "online_adaptation_steps": args.online_steps,
+            "online_adaptation_max_delta_norm": args.online_max_delta_norm,
+            "online_adaptation_proximal_weight": args.online_proximal_weight,
+            "online_adaptation_min_reward_improvement": args.online_min_reward_improvement,
+            "online_cross_frame_rollback_tolerance": args.online_cross_frame_tolerance,
+            "online_phase_tracking_smoothing": args.online_phase_smoothing,
+            "online_phase_tracking_min_confidence": args.online_phase_min_confidence,
+        },
+    )
     policy_explicit = any(argument == "--policy" or argument.startswith("--policy=") for argument in sys.argv[1:])
     policy_required = policy_explicit and "RL-Modulated Neural Block Equalizer" in selected_methods
     policy_path = Path(args.policy) if policy_explicit and args.policy else None
@@ -606,6 +636,7 @@ def _build_method_states(
                 learning_rate=float(config.get("online_adaptation_learning_rate", 1e-4)),
                 steps=int(config.get("online_adaptation_steps", 1)),
                 max_delta_norm=float(config.get("online_adaptation_max_delta_norm", 0.5)),
+                proximal_weight=float(config.get("online_adaptation_proximal_weight", 0.0)),
             )
             candidate_specs = _online_candidate_specs(candidate_config, online_groups)
             states[method] = PilotOnlineMethodState(
@@ -1422,6 +1453,7 @@ def _run_pilot_online_method(
             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
             "online_min_reward_improvement": float(state.min_reward_improvement),
+            "online_proximal_weight": float(state.adapter.proximal_weight),
             "peft_update_guarded": True,
             "parameter_delta_norm": float(adaptation.parameter_delta_norm if accepted else 0.0),
             "tail_update_alpha": float(state.tail_update_alpha),

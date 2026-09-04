@@ -75,7 +75,30 @@ def test_online_groups_rejects_empty_cli_override():
 
 from agent.cir_estimator import condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
-from training.online_adaptation import PilotDrivenOnlineAdapter, run_pilot_driven_online
+from training.online_adaptation import (
+    PilotDrivenOnlineAdapter,
+    _normalized_proximal_penalty,
+    run_pilot_driven_online,
+)
+
+
+def test_normalized_proximal_penalty_is_zero_at_snapshot_and_positive_after_move():
+    snapshot = {
+        "layer.weight": torch.tensor([1.0, -2.0]),
+        "layer.bias": torch.tensor([0.5]),
+    }
+    parameters = [
+        ("layer.weight", torch.tensor([1.0, -2.0])),
+        ("layer.bias", torch.tensor([0.5])),
+    ]
+
+    assert _normalized_proximal_penalty(parameters, snapshot) == pytest.approx(0.0)
+
+    moved = [
+        ("layer.weight", torch.tensor([2.0, -2.0])),
+        ("layer.bias", torch.tensor([0.5])),
+    ]
+    assert _normalized_proximal_penalty(moved, snapshot) > 0.0
 
 
 def _identity_condition(batch: int = 1):

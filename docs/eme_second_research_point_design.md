@@ -78,3 +78,14 @@
 - `logs/eme_formal_main_60f_phase/`
 - `logs/eme_long_formal_200f_phase/`
 - `logs/eme_long_formal_200f_phase_replay/`
+
+## 10. 稳定性校准后的补充结论
+
+在加入 phase PEFT proximal trust-region 后，最终配置固定为：`learning_rate=4e-4`、`steps=1`、`max_delta_norm=1.0`、`proximal_weight=0.1`、`min_reward_improvement=5e-4`，phase 状态置信度门限保持 `0.5`。门限校准显示，放宽到 `0.15/0.30/0.40` 会把不可靠的稀疏 CIR 更新写回接收机，导致明显退化，因此不能把“更多物理状态更新”直接等同于“更好的在线均衡”。
+
+修正版 60 帧矩阵和 200 帧长期诊断分别记录在：
+
+- `logs/eme_formal_main_60f_phase_stable/`
+- `logs/eme_long_formal_200f_phase_stable/`
+
+修正版 200 帧中，Online phase 的前 16 帧 BER 为 `0.122652`，后 16 帧 BER 为 `0.193522`，均优于 Frozen NN 的 `0.126511` 和 `0.208380`；但全程平均 BER 为 `0.169470`，仍高于 Frozen NN 的 `0.163631`。因此第二研究点应把贡献表述为“Pilot 驱动的保守在线适配改善部分工作区间并抑制长期退化”，不能表述为“在线微调在所有 SNR 和全程平均上都超过冻结网络”。

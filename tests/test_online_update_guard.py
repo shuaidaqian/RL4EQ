@@ -14,3 +14,19 @@ def test_previous_online_update_guard_detects_cross_frame_reward_regression():
 
     assert compare._previous_update_is_harmful(0.51, 0.50, 1e-5) is True
     assert compare._previous_update_is_harmful(0.500005, 0.50, 1e-5) is False
+
+
+def test_online_cli_overrides_include_physical_state_confidence_gate():
+    import compare
+
+    config = {"online_phase_tracking_min_confidence": 0.5}
+    compare._apply_online_cli_overrides(
+        config,
+        {
+            "online_phase_tracking_min_confidence": 0.15,
+            "online_phase_tracking_smoothing": 0.4,
+        },
+    )
+
+    assert config["online_phase_tracking_min_confidence"] == 0.15
+    assert config["online_phase_tracking_smoothing"] == 0.4

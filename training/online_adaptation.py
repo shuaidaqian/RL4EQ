@@ -42,16 +42,20 @@ class PilotDrivenOnlineAdapter:
         learning_rate: float = 1e-4,
         steps: int = 1,
         max_delta_norm: float = 0.5,
+        proximal_weight: float = 0.0,
     ) -> None:
         self.model = model
         self.groups = set(groups or {"head"})
         self.learning_rate = float(learning_rate)
         self.steps = max(1, int(steps))
         self.max_delta_norm = float(max_delta_norm)
+        self.proximal_weight = float(proximal_weight)
         if self.learning_rate <= 0.0:
             raise ValueError("learning_rate 必须为正数。")
         if self.max_delta_norm <= 0.0:
             raise ValueError("max_delta_norm 必须为正数。")
+        if self.proximal_weight < 0.0:
+            raise ValueError("proximal_weight 不能为负数。")
 
     def adapt(
         self,
@@ -63,6 +67,7 @@ class PilotDrivenOnlineAdapter:
         learning_rate: float | None = None,
         steps: int | None = None,
         max_delta_norm: float | None = None,
+        proximal_weight: float | None = None,
     ) -> OnlineAdaptationResult:
         """使用当前帧 Adapt Pilot 做一次受限在线更新。"""
 
@@ -70,8 +75,11 @@ class PilotDrivenOnlineAdapter:
         selected_learning_rate = self.learning_rate if learning_rate is None else float(learning_rate)
         selected_steps = self.steps if steps is None else max(1, int(steps))
         selected_max_delta_norm = self.max_delta_norm if max_delta_norm is None else float(max_delta_norm)
+        selected_proximal_weight = self.proximal_weight if proximal_weight is None else float(proximal_weight)
         if selected_learning_rate <= 0.0 or selected_max_delta_norm <= 0.0:
             raise ValueError("在线动作覆盖的学习率和更新范数上限必须为正数。")
+        if selected_proximal_weight < 0.0:
+            raise ValueError("在线动作覆盖的 proximal_weight 不能为负数。")
         mask = frame.adapt_mask.to(torch.bool)
         pilot_count = int(mask.sum().item())
         if pilot_count == 0:
@@ -113,6 +121,7 @@ class PilotDrivenOnlineAdapter:
             return OnlineAdaptationResult(False, pilot_count, 0.0, 0.0, 0.0, False)
 
         optimizer = torch.optim.SGD(trainable, lr=selected_learning_rate)
+        trainable_items = [(name, parameter) for name, parameter in self.model.named_parameters() if name in snapshot]
         try:
             with torch.no_grad():
                 before_logits, _ = self.model(
@@ -136,6 +145,11 @@ class PilotDrivenOnlineAdapter:
                     adapt_mask=mask.unsqueeze(0),
                 )
                 loss = F.binary_cross_entropy_with_logits(logits[0, mask], target[mask])
+                if selected_proximal_weight > 0.0:
+                    loss = loss + selected_proximal_weight * _normalized_proximal_penalty(
+                        trainable_items,
+                        snapshot,
+                    )
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(trainable, 1.0)
@@ -169,6 +183,27 @@ class PilotDrivenOnlineAdapter:
             self.model.eval()
             self.model.set_trainable_groups(set())
             self.model.train(was_training)
+
+
+def _normalized_proximal_penalty(
+    parameter_items: list[tuple[str, torch.Tensor]],
+    snapshot: dict[str, torch.Tensor],
+) -> torch.Tensor:
+    """计算相对本次更新起点的归一化参数距离。"""
+
+    total = None
+    element_count = 0
+    for name, parameter in parameter_items:
+        reference = snapshot.get(name)
+        if reference is None:
+            continue
+        delta = parameter - reference.to(device=parameter.device, dtype=parameter.dtype)
+        contribution = torch.sum(delta * delta)
+        total = contribution if total is None else total + contribution
+        element_count += int(parameter.numel())
+    if total is None:
+        return torch.zeros((), dtype=torch.float32)
+    return total / max(1, element_count)
 
 
 def run_pilot_driven_online(
@@ -227,6 +262,7 @@ def run_pilot_driven_online(
                     learning_rate=float(config.get("online_adaptation_learning_rate", 1e-4)),
                     steps=int(config.get("online_adaptation_steps", 1)),
                     max_delta_norm=float(config.get("online_adaptation_max_delta_norm", 0.5)),
+                    proximal_weight=float(config.get("online_adaptation_proximal_weight", 0.0)),
                 )
                 bandit = SafeContextualBandit(seed=90_000 + int(seed)) if scheduler == "bandit" else None
                 active_action = None
