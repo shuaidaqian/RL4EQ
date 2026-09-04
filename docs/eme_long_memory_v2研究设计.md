@@ -60,7 +60,7 @@
 1. 信道可达性：报告 PDP、有效记忆、跨帧 tail 能量、帧间 CIR 相关和相位漂移统计。
 2. Traditional-only：冻结 profile 后运行 CFO+DD-Phase LMMSE-FIR、CFO+DD-Phase DFE-RLS、SC-FDE-MMSE，并按 `0/5/10/15 dB` 分层报告。
 3. Offline：验证 Pilot-conditioned 神经块均衡器能否从长记忆波形中学习；不能把这一步的失败隐藏在在线更新中。
-4. Online：比较 `Offline NN only`、固定规则 Pilot 更新和可选 PPO 调度，画出前 5 帧、后 5 帧、全程均值以及 Reward Pilot 与 Data BER 的配对关系。
+4. Online：比较 `Frozen Offline NN` 与 `Pilot-Driven Online Adaptation`，同时保留传统均衡器作为唯一外部对照，画出前 5 帧、后 5 帧、全程均值以及 Reward Pilot 与 Data BER 的配对关系。
 5. 统计：至少 5 个独立 channel seed；主结论按每个 SNR 和配置给出 paired block bootstrap 置信区间，不只报告总体平均。
 
 ## 6. 成功与失败判据
@@ -69,7 +69,7 @@
 
 - 新 profile 的传统-only 困难来自可解释结构并可复现；
 - Offline 模型至少在固定实验配置上进入可用区间；
-- 在线适配相对 Offline NN only 的收益随着帧数增加而持续或稳定；
+- 在线适配相对 Frozen Offline NN 的收益随着帧数增加而持续或稳定；
 - 与最强传统 baseline 的比较逐 SNR 报告，并说明哪些配置没有超过；
 - Reward Pilot 的改善和 Data BER 改善具有稳定统计关系。
 

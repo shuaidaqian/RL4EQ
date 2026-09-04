@@ -3,19 +3,12 @@ import json
 import torch
 
 
-def test_offline_nn_only_keeps_acquisition_condition_frozen():
+def test_removed_legacy_frozen_name_is_not_a_current_method():
     import compare
 
-    state = compare.NeuralMethodState(
-        cir=torch.tensor([1.0 + 0.0j]),
-        receiver_state=object(),
-        model=object(),
-        modulation=object(),
-        pretrained_loaded=True,
-        cir_update_mode="pilot_sparse",
-        condition_update_mode="fixed",
-    )
-    assert state.condition_update_mode == "fixed"
+    assert "Offline NN only" not in compare.PROPOSED_METHODS
+    assert "Strict Offline NN only" not in compare.PROPOSED_METHODS
+    assert "Offline NN only" not in compare.method_group("main")
 
 
 def test_neural_condition_update_mode_is_explicit_per_method(tmp_path):
@@ -30,7 +23,7 @@ def test_neural_condition_update_mode_is_explicit_per_method(tmp_path):
     )
     torch.save({"state_dict": model.state_dict()}, pretrained_dir / "model_best.pt")
     states = compare._build_method_states(
-        ("Offline NN only", "NN + Fixed Modulation"),
+        ("Frozen Offline NN", "NN + Fixed Modulation"),
         torch.zeros(4, dtype=torch.complex64),
         torch.ones(5, dtype=torch.complex64),
         {"model": model.config.to_dict()},
@@ -41,7 +34,7 @@ def test_neural_condition_update_mode_is_explicit_per_method(tmp_path):
         device="cpu",
         cir_update_mode="pilot_sparse",
     )
-    assert states["Offline NN only"].condition_update_mode == "fixed"
+    assert states["Frozen Offline NN"].condition_update_mode == "fixed"
     assert states["NN + Fixed Modulation"].condition_update_mode == "pilot_sparse"
 
 
@@ -494,7 +487,7 @@ def test_compare_can_enable_decision_directed_cir_update_for_proposed(tmp_path):
             "--config",
             "configs/continual_ppo.json",
             "--methods",
-            "Offline NN only",
+            "Frozen Offline NN",
             "RL-Modulated Neural Block Equalizer",
             "--pretrained",
             str(pretrained_dir / "model_best.pt"),
@@ -526,7 +519,7 @@ def test_compare_can_enable_decision_directed_cir_update_for_proposed(tmp_path):
         for line in (tmp_path / "compare_cir_update" / "frame_metrics.jsonl").read_text(encoding="utf-8").splitlines()
     ]
 
-    assert {row["method"] for row in rows} == {"Offline NN only", "RL-Modulated Neural Block Equalizer"}
+    assert {row["method"] for row in rows} == {"Frozen Offline NN", "RL-Modulated Neural Block Equalizer"}
     assert all(row["cir_update_mode"] == "decision_directed" for row in rows)
     assert all(row["cir_update_alpha"] == 0.6 for row in rows)
     assert all(row["cir_update_uses_data_labels"] is False for row in rows)

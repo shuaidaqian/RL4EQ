@@ -32,7 +32,7 @@ def build_pilot_replay_events(
     rows: Iterable[dict],
     *,
     hold_frames: int = 4,
-    frozen_method: str = "Pilot-conditioned frozen NN",
+    frozen_method: str = "Frozen Offline NN",
     online_method: str = "Pilot-Driven Online Adaptation",
 ) -> list[dict]:
     """按真实调度帧构造离线 Pilot-only replay 事件。"""

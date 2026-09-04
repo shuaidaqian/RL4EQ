@@ -2,7 +2,7 @@
 
 ## 目的
 
-此前 `Offline NN only` 虽然将 `condition_update_mode` 设为 `fixed`，但公共推理路径仍会用当前帧 `Adapt Pilot` 计算相位特征。这样得到的结果无法回答在线收益来自哪里：当前 Pilot 的物理状态恢复、稀疏 CIR 更新，还是神经参数微调。
+早期版本把“严格冻结 acquisition 条件”单独注册为方法，导致方法数量膨胀，也不能代表第二研究点的主问题。该方法现已从代码和主实验协议中删除。
 
 本阶段将神经接收机的条件来源显式拆分，并在每帧记录信息边界。
 
@@ -10,18 +10,17 @@
 
 | 方法 | CIR 条件 | 相位条件 | 参数更新 | 用途 |
 |---|---|---|---|---|
-| `Offline NN only` | acquisition CIR | acquisition 阶段冻结的相位条件 | 否 | 严格离线冻结基线 |
-| `Pilot-conditioned frozen NN` | acquisition CIR | 当前帧 Adapt Pilot | 否 | 识别当前 Pilot 相位条件的贡献 |
+| `Frozen Offline NN` | 与 Online 相同 | 当前帧 Adapt Pilot 物理条件 | 否 | 离线 checkpoint 冻结对照 |
 | `Pilot CIR only` | 当前帧 Pilot 稀疏 CIR | 当前帧 Adapt Pilot | 否 | 识别物理状态恢复的贡献 |
 | `Pilot-Driven Online Adaptation` | 当前帧 Pilot 稀疏 CIR | 当前帧 Adapt Pilot | 是，受 Reward Pilot 保护 | 在线均衡主线 |
 
-严格 Frozen 并不是把相位条件强行置零，而是保存 acquisition 阶段估计的相位条件；它只禁止读取后续帧的 Pilot、更新 CIR 和更新网络参数。所有在线方法仍不得读取 Data 标签。
+`Frozen Offline NN` 的网络权重来自整帧监督离线训练，但在比较时允许使用与 Online 完全相同的 Pilot 物理条件；它只禁止 PEFT 参数更新。这样 Online 与 Frozen 的差异只来自在线微调，所有在线方法仍不得读取 Data 标签。
 
 ## 审计字段
 
 每帧结果现在包含：
 
-- `condition_source`：`acquisition`、`pilot_phase` 或 `pilot_cir_phase`；
+- `condition_source`：`pilot_phase` 或 `pilot_cir_phase`；
 - `pilot_phase_used`：是否读取当前帧 Pilot 相位统计；
 - `cir_update_applied`：当前帧是否允许 Pilot 驱动的 CIR 更新；
 - `peft_update_applied`：当前帧是否接受 PEFT 参数更新；
@@ -39,19 +38,18 @@
 
 | 方法 | 2 帧平均 BER | 当前帧 Pilot 相位 | CIR 更新 | PEFT 更新 |
 |---|---:|---:|---:|---:|
-| `Offline NN only` | 72.71% | 否 | 否 | 否 |
-| `Pilot-conditioned frozen NN` | 6.75% | 是 | 否 | 否 |
+| `Frozen Offline NN` | 6.75% | 是 | 否 | 否 |
 | `Pilot CIR only` | 6.75% | 是 | 是 | 否 |
 | `Pilot-Driven Online Adaptation` | 6.53% | 是 | 是 | 第 2 帧接受 |
 
-该切片说明当前 checkpoint 对相位条件高度敏感，当前 Pilot 相位恢复是在线链路的主要可见收益来源；两帧不足以证明 CIR 更新或 PEFT 的稳定增益。正式论文结论必须使用统一的 60/200 帧、多 seed 主矩阵，不能引用此 smoke 代替统计结果。
+该切片说明当前 checkpoint 对相位条件高度敏感；两帧不足以证明 CIR 更新或 PEFT 的稳定增益。正式论文结论必须使用统一的 60/200 帧、多 seed 主矩阵，不能引用此 smoke 代替统计结果。
 
 ## 当前结论
 
-本阶段完成的是实验因果边界修正，不是重新训练模型。后续统一主实验应至少包含严格 Frozen、Pilot-conditioned frozen、Pilot CIR only 和完整 Pilot-driven online 四个神经条件，并同时报告 0/5/10/15 dB 的逐配置 BER、后 5 帧 BER、Reward Pilot 指标和在线审计字段。
+本阶段完成的是实验因果边界修正，不是重新训练模型。当前主实验只包含传统均衡器、`Frozen Offline NN` 和完整 `Pilot-Driven Online Adaptation`；`Pilot CIR only` 仅在需要拆分物理状态贡献时作为专项消融，并同时报告 0/5/10/15 dB 的逐配置 BER、后 5 帧 BER、Reward Pilot 指标和在线审计字段。
 
 ## 2026-09-03 安全门控复核
 
 上述四个神经条件与两种传统 baseline 已在 Level B、`delay=116`、prefix Pilot=128、0/5/10/15 dB、3 seed、60 帧协议下完成统一矩阵。完整结果存于 `logs/eme_guarded_unified_main_60f_3s/`，解释与主表存于 `docs/eme_guarded_online_state_recovery_results.md`。
 
-复核的核心事实是：严格 `Offline NN only` 因 acquisition 相位老化接近 50% BER；允许当前 Adapt Pilot 相位但不更新参数的 `Pilot-conditioned frozen NN` 已降至 31.89% / 23.20% / 16.55% / 14.03%。因此当前帧 Pilot 相位条件是神经恢复的主要贡献。完整安全 Online 仍在所有主 SNR 超过传统 baseline，但对 Pilot-conditioned frozen 的 PEFT 附加收益不稳定；这一定义了下一步应验证的在线 reward 代表性问题。
+复核的核心事实是：当前帧 Pilot 物理条件对神经恢复很重要，不能把这部分收益误报成 PEFT 增益。完整安全 Online 必须与 `Frozen Offline NN` 使用同一条件输入，再单独检验 PEFT 是否带来额外收益。

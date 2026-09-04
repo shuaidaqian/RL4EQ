@@ -87,9 +87,8 @@ TRADITIONAL_METHODS = (
     "CFO+DD-Phase DFE-RLS",
 )
 
-PROPOSED_METHODS = (
-    "Offline NN only",
-    "Pilot-conditioned frozen NN",
+NEURAL_IMPLEMENTATION_METHODS = (
+    "Frozen Offline NN",
     "Pilot CIR only",
     "Pilot-Driven Online Adaptation",
     "NN + Fixed Modulation",
@@ -97,6 +96,14 @@ PROPOSED_METHODS = (
     "NN + Discrete PEFT Scheduler",
     "RL-Modulated Neural Block Equalizer",
 )
+
+# 当前论文主矩阵只比较冻结离线模型和在线微调模型；其余实现保留为
+# 历史兼容或专项消融，不能通过主方法组混入主平均。
+PRIMARY_PROPOSED_METHODS = (
+    "Frozen Offline NN",
+    "Pilot-Driven Online Adaptation",
+)
+PROPOSED_METHODS = PRIMARY_PROPOSED_METHODS
 
 DIAGNOSTIC_METHODS = (
     "Perfect-CSI Block",
@@ -123,10 +130,10 @@ def method_group(name: str) -> tuple[str, ...]:
 
     groups = {
         "traditional": TRADITIONAL_METHODS,
-        "proposed": PROPOSED_METHODS,
+        "proposed": PRIMARY_PROPOSED_METHODS,
         "diagnostic": DIAGNOSTIC_METHODS,
-        "main": TRADITIONAL_METHODS + PROPOSED_METHODS,
-        "all": TRADITIONAL_METHODS + PROPOSED_METHODS + DIAGNOSTIC_METHODS,
+        "main": TRADITIONAL_METHODS + PRIMARY_PROPOSED_METHODS,
+        "all": TRADITIONAL_METHODS + PRIMARY_PROPOSED_METHODS + DIAGNOSTIC_METHODS,
     }
     if name not in groups:
         raise ValueError(f"未知方法组：{name}")
@@ -350,8 +357,7 @@ def main() -> None:
     if pretrained_path is not None and not pretrained_path.exists():
         pretrained_path = None
     neural_methods = {
-        "Offline NN only",
-        "Pilot-conditioned frozen NN",
+        "Frozen Offline NN",
         "Pilot CIR only",
         "Pilot-Driven Online Adaptation",
         "RL-Modulated Neural Block Equalizer",
@@ -518,7 +524,7 @@ def _primary_summary_method(methods: tuple[str, ...]) -> str:
     priority = (
         "Pilot-Driven Online Adaptation",
         "RL-Modulated Neural Block Equalizer",
-        "Offline NN only",
+        "Frozen Offline NN",
     )
     for method in priority:
         if method in methods:
@@ -577,7 +583,6 @@ class NeuralMethodState:
     acquisition_cfo: float = 0.0
     cir_update_mode: str = "fixed"
     cir_update_alpha: float = 0.2
-    # Offline NN only 必须冻结 acquisition 条件，在线条件恢复属于单独消融。
     condition_update_mode: str = "fixed"
     condition_source: str = "acquisition"
     acquisition_phase_features: torch.Tensor | None = None
@@ -625,7 +630,7 @@ class PilotOnlineMethodState:
 def _select_methods(methods: list[str] | None) -> tuple[str, ...]:
     if not methods:
         return FORMAL_METHODS
-    allowed = set(FORMAL_METHODS) | set(method_group("all"))
+    allowed = set(FORMAL_METHODS) | set(method_group("all")) | set(NEURAL_IMPLEMENTATION_METHODS)
     unknown = [method for method in methods if method not in allowed]
     if unknown:
         raise ValueError(f"未知比较方法：{unknown}")
@@ -746,15 +751,14 @@ def _build_method_states(
                 policy_loaded=policy_loaded,
                 acquisition_cfo=float(acquisition_cfo),
             )
-        elif method in PROPOSED_METHODS:
+        elif method in NEURAL_IMPLEMENTATION_METHODS:
             model = _build_equalizer(model_config, pretrained_path, device)
             modulation_config = ModulationConfig(num_adapter_gates=len(model.blocks), num_lora_scales=len(model.blocks))
-            if method == "Offline NN only":
+            if method == "Frozen Offline NN":
+                # 冻结的是离线 checkpoint 参数；Pilot 仍可生成物理条件，保证与
+                # Online 的比较只差在线 PEFT 更新，而不是差一个输入状态估计器。
                 condition_update_mode = "fixed"
-                condition_source = "acquisition"
-            elif method == "Pilot-conditioned frozen NN":
-                condition_update_mode = "fixed"
-                condition_source = "pilot_phase"
+                condition_source = "pilot_cir_phase"
             elif method == "Pilot CIR only":
                 condition_update_mode = "pilot_sparse"
                 condition_source = "pilot_cir_phase"
@@ -839,7 +843,7 @@ def _run_methods_for_frame(
     legacy_batch = [
         method
         for method in methods
-        if method in FORMAL_METHODS and method != "Continual PPO" and method not in PROPOSED_METHODS and method not in TRADITIONAL_BASELINES
+        if method in FORMAL_METHODS and method != "Continual PPO" and method not in NEURAL_IMPLEMENTATION_METHODS and method not in TRADITIONAL_BASELINES
     ]
     if legacy_batch:
         results.update(_run_baseline_method_batch(legacy_batch, frame, snr_db, states, delay=delay))
@@ -939,7 +943,7 @@ def _run_new_or_single_method(
             frame_index,
             update_interval,
         )
-    if method in PROPOSED_METHODS:
+    if method in NEURAL_IMPLEMENTATION_METHODS:
         if not isinstance(state, NeuralMethodState):
             raise TypeError("神经 proposed 消融需要 NeuralMethodState。")
         device = next(state.model.parameters()).device
@@ -1686,14 +1690,8 @@ def _neural_method_contract(method: str) -> dict[str, object]:
     """返回神经方法的 Pilot、CIR 和 PEFT 信息边界。"""
 
     contracts = {
-        "Offline NN only": {
-            "condition_source": "acquisition",
-            "pilot_phase_used": False,
-            "cir_update_applied": False,
-            "peft_update_applied": False,
-        },
-        "Pilot-conditioned frozen NN": {
-            "condition_source": "pilot_phase",
+        "Frozen Offline NN": {
+            "condition_source": "pilot_cir_phase",
             "pilot_phase_used": True,
             "cir_update_applied": False,
             "peft_update_applied": False,
@@ -1713,7 +1711,7 @@ def _neural_method_contract(method: str) -> dict[str, object]:
     }
     if method in contracts:
         return dict(contracts[method])
-    if method in PROPOSED_METHODS:
+    if method in NEURAL_IMPLEMENTATION_METHODS:
         return {
             "condition_source": "pilot_cir_phase",
             "pilot_phase_used": True,

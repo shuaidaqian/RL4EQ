@@ -12,7 +12,7 @@
 2. **在线物理状态更新**：根据 Adapt Pilot 更新 CIR 或慢相位状态；
 3. **在线参数微调**：根据 Adapt Pilot 的自监督损失更新 phase、FiLM、Adapter、LoRA 或 head 等受限 PEFT 参数，Reward Pilot 只负责验收和回滚。
 
-`Pilot-conditioned frozen NN` 是在线增量的强对照。它与 `Pilot-Driven Online Adaptation` 必须使用相同的 CIR、soft-tail、Pilot 切分和条件来源，唯一差别是是否更新 PEFT 参数。
+`Frozen Offline NN` 是在线增量的唯一神经对照。它与 `Pilot-Driven Online Adaptation` 必须使用相同的 CIR、soft-tail、Pilot 切分和条件来源，唯一差别是是否更新 PEFT 参数。
 
 ## 2. 新增的严格参数微调消融
 
@@ -32,6 +32,14 @@
 
 在线路径不因该选项读取 Data 标签。Data 标签仅用于最终仿真 BER 统计；Adapt Pilot 用于更新，Reward Pilot 用于更新后的 reward、验收和回滚。
 
+## 3. 通俗解释
+
+离线训练先用完整帧和 Data 标签，把网络训练成“知道这类长回波信道通常怎么均衡”的基础接收机。实际运行时，每一帧前缀里的 Adapt Pilot 是接收端已知答案的一小段信号，因此可以用它计算当前网络的错误，并只调整 `phase` 这类很少的 PEFT 参数。
+
+一次在线更新的过程是：先保存旧参数；用 Adapt Pilot 做一小步梯度更新；再用独立的 Reward Pilot 检查更新后是否真的更好。Reward Pilot 的损失没有达到最小改善，或者下一帧发现上一次更新已经造成恶化，就恢复旧参数。Data 区域没有标签，不参与在线训练、选动作或回滚，只在实验结束后统计 BER。
+
+所以 Frozen Offline NN 是“离线学会基础能力但参数不动”，Online 是“从同一个离线起点出发，根据每帧 Pilot 小幅修正”。论文需要证明的不是 Online 只比一个很弱的网络好，而是同一信道、同一 checkpoint、同一 Pilot 和同一状态轨迹下，在线微调本身能为 Frozen 带来稳定的额外收益。
+
 ## 3. 已发现的比较错误及修正
 
 早期比较中，Frozen 神经方法使用 `soft-tail` 直接替换，online 方法使用配置的平滑系数 `tail_update_alpha`。在没有任何 PEFT 更新被接受时，两者仍可能产生不同 BER，这会把跨帧状态递推差异误报为在线微调收益。
@@ -50,8 +58,8 @@
 
 ## 5. 最终实验顺序
 
-1. 先用统一 tail 规则重新跑当前主配置的 Frozen、Pilot-conditioned Frozen、Pilot CIR only 和完整 Online；
-2. 在相同 seed/信道轨迹上比较 `update_interval=1/4/8`，并报告 accepted、rollback、Reward Pilot loss 和 Data BER 的配对变化；
+1. 在相同 seed/信道轨迹上比较 `Frozen Offline NN` 与完整 Online，并报告 accepted、rollback、Reward Pilot loss 和 Data BER 的配对变化；
+2. 在相同 seed/信道轨迹上比较逐帧和窗口更新策略，并报告 Online 相对 Frozen 的增量；
 3. 固定一个表现稳定的更新对象后，再比较 `phase`、`conditioner_film`、`adapter_lora` 和 `head`，不把多个对象同时改变；
 4. 只有当 Reward Pilot 的窗口统计能稳定排序在线动作，才考虑 Contextual Bandit；在此之前不把 Bandit 作为主贡献；
 5. 论文中将“在线微调”表述为 Pilot-only、自监督、受限参数更新和安全回滚机制，并同时报告其适用边界，不能把当前 Pilot 条件化收益全部归因于 PEFT。

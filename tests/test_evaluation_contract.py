@@ -48,7 +48,8 @@ def test_main_method_group_excludes_strong_model_based_diagnostics():
         "CFO+DD-Phase LMMSE-FIR",
         "CFO+DD-Phase DFE-RLS",
     }
-    assert "RL-Modulated Neural Block Equalizer" in proposed
+    assert proposed == ("Frozen Offline NN", "Pilot-Driven Online Adaptation")
+    assert method_group("main") == traditional + proposed
     assert "Fixed CG-BPSK-DD Block Detector" in diagnostic
     assert "Perfect-CSI Block" in diagnostic
 

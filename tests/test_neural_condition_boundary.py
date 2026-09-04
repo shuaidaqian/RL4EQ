@@ -1,13 +1,13 @@
-"""验证神经方法的在线信息边界，避免 Frozen 基线偷偷读取当前帧 Pilot。"""
+"""验证神经方法的信息边界和当前方法命名契约。"""
 
 import torch
 
 
-def test_acquisition_condition_does_not_read_current_pilot(monkeypatch):
+def test_acquisition_condition_remains_available_for_online_causal_ablation(monkeypatch):
     import compare
 
     def fail_if_called(*args, **kwargs):
-        raise AssertionError("严格 Frozen 条件不应读取当前帧 Pilot 相位特征")
+        raise AssertionError("acquisition 条件不应读取当前帧 Pilot 相位特征")
 
     monkeypatch.setattr(compare, "estimate_phase_residual_vector", fail_if_called)
     features = compare._neural_phase_features(
@@ -40,14 +40,8 @@ def test_pilot_condition_reads_pilot_and_reports_source(monkeypatch):
 def test_neural_method_audit_fields_distinguish_frozen_and_online():
     import compare
 
-    assert compare._neural_method_contract("Offline NN only") == {
-        "condition_source": "acquisition",
-        "pilot_phase_used": False,
-        "cir_update_applied": False,
-        "peft_update_applied": False,
-    }
-    assert compare._neural_method_contract("Pilot-conditioned frozen NN") == {
-        "condition_source": "pilot_phase",
+    assert compare._neural_method_contract("Frozen Offline NN") == {
+        "condition_source": "pilot_cir_phase",
         "pilot_phase_used": True,
         "cir_update_applied": False,
         "peft_update_applied": False,

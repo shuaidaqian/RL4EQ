@@ -18,7 +18,7 @@ Level A/B/C 可控信道族
 -> 与传统非神经、非 RL baseline 公平比较
 ```
 
-研究目标不是超过所有可能的强模型驱动序列检测器，也不是只找到一个传统方法很弱的工作区。当前第一性目标是在 Level B 主论文场景中逐级增加 residual CFO 与慢相位扰动复杂度，让 `RL-Modulated Neural Block Equalizer` 在所有主 SNR 条件下明显超过传统非神经、非 RL 均衡器；同时要求这种优势随在线帧数增加而变得更明显。`BER_data < 0.01` 保留为辅助系统指标，不再作为第一成功门槛。
+研究目标不是超过所有可能的强模型驱动序列检测器，也不是只找到一个传统方法很弱的工作区。当前第一性目标是在 Level B 主论文场景中，让同一离线 checkpoint 初始化的 `Pilot-Driven Online Adaptation` 相对 `Frozen Offline NN` 产生可重复的额外收益，并同时明显超过传统非神经、非 RL 均衡器。`BER_data < 0.01` 保留为辅助系统指标，不再作为第一成功门槛。
 
 ## 研究契约
 
@@ -26,7 +26,7 @@ Level A/B/C 可控信道族
 - Pilot 只放在帧前缀；`two_block` 和 `multi_block` 不再作为主论文 Pilot 布局。
 - Level A 用于课程学习和可达性校准；Level C 只作为压力测试，不混入 Level B 主平均。
 - 接收机是整帧缓冲、非因果块神经均衡器；“在线”指信道运行期间按帧持续适配，不是逐符号即时输出。
-- Proposed 方法是唯一使用神经网络和 RL 的方法。
+- 当前主比较只保留传统均衡器、`Frozen Offline NN` 和 `Pilot-Driven Online Adaptation`；早期 PPO/调制策略仅作为代码兼容或专项消融，不作为第二研究点的主对照。
 - 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须包含基于 Pilot 的合理补偿，不能人为打残 baseline。
 - Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真 `BER_data` 评估。
 - 在线 observation、reward、动作选择和调制更新不使用数据标签上界。
@@ -56,12 +56,11 @@ traditional:
   CFO+DD-Phase DFE-RLS
 
 proposed:
-  Offline NN only
-  NN + Fixed Modulation
-  NN + Rule Modulation
-  NN + Discrete PEFT Scheduler
-  RL-Modulated Neural Block Equalizer
+  Frozen Offline NN
+  Pilot-Driven Online Adaptation
 ```
+
+`Frozen Offline NN` 与在线方法加载完全相同的离线 checkpoint，并共享当前帧的 Pilot 物理条件、CIR、soft-tail 和帧轨迹；它只冻结网络参数。在线方法在此基础上使用 Adapt Pilot 更新受限 PEFT 参数，再由 Reward Pilot 验收或回滚。因此论文中真正要解释的是“离线基础能力”与“在线微调增益”的差别，而不是把不同网络或不同信道拿来比较。
 
 诊断参考单独报告，不进入主成功门槛：
 

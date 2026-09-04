@@ -85,7 +85,7 @@ def test_pilot_replay_events_attribute_future_data_to_scheduled_update():
         rows.extend(
             [
                 {
-                    "method": "Pilot-conditioned frozen NN",
+                    "method": "Frozen Offline NN",
                     "delay": 116,
                     "snr_db": 10.0,
                     "pilot_total": 128,

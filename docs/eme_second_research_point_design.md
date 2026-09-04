@@ -2,7 +2,7 @@
 
 ## 1. 核心问题
 
-第一研究点建立 EME 信道建模基础。第二研究点承接“长延迟和稀疏回波导致接收机存在跨帧记忆”这一物理问题，但不假设第一研究点中的离散信道参数完全准确，而采用独立的公开资料约束 Level B 信道。第二研究点研究的问题是：在 acquisition 之后 CIR、residual CFO 和慢相位仍随帧演化时，离线训练得到的整帧神经均衡器能否通过 Pilot 驱动的在线更新保持或恢复性能。
+第一研究点建立 EME 信道建模基础。第二研究点承接“长延迟和稀疏回波导致接收机存在跨帧记忆”这一物理问题，但不假设第一研究点中的离散信道参数完全准确，而采用独立的公开资料约束 Level B 信道。第二研究点研究的问题是：在 acquisition 之后 CIR、residual CFO 和慢相位仍随帧演化时，离线训练得到的整帧神经均衡器能否通过 Pilot 驱动的在线更新继续改善性能。
 
 ## 2. 接收机和信息边界
 
@@ -12,7 +12,7 @@
 
 正式方法固定为：
 
-`Pilot 物理状态恢复 + phase 低维 PEFT 更新 + 每 8 帧调度 + Reward Pilot 跨帧回滚`
+`Pilot 物理状态恢复 + phase 低维 PEFT 更新 + Reward Pilot 跨帧回滚`
 
 其中：
 
@@ -23,23 +23,32 @@
 - 下一帧若当前更新后的参数在同一 Reward Pilot 上劣于更新前快照，则恢复更新前快照；
 - SNR 低于 5 dB 时冻结 PEFT 更新，但仍允许物理状态观测和神经推理。
 
-## 4. 更新对象消融
+## 4. 离线与在线的唯一主对照
+
+主结果只使用三类方法：公平的传统均衡器、`Frozen Offline NN` 和
+`Pilot-Driven Online Adaptation`。Frozen 与 Online 使用同一个离线 checkpoint、
+同一条 Level B 信道轨迹、同一份 Pilot 划分、同一个物理状态条件和同一个跨帧
+soft-tail 更新规则。Frozen 不做 PEFT 更新，Online 才从 Adapt Pilot 计算梯度并由
+Reward Pilot 决定接受或回滚。这样 Online 相对 Frozen 的差异可以直接归因于在线微调，
+而不是归因于网络结构、信道或状态轨迹差异。
+
+## 5. 更新对象消融
 
 在相同 Level B、相同 checkpoint、相同 seed 和相同 Pilot 协议下比较 `head`、`phase`、`conditioner_film` 和 `adapter_lora`。消融的第一轮固定 CIR/phase 条件，只改变可训练组，避免把物理状态恢复效果误归因于参数对象；第二轮再把候选对象放回完整的 Pilot 状态跟踪链。
 
 最终对象按跨 SNR、多 seed、接受率、回滚率和后期帧稳定性共同选择，不按单一 SNR 的最低 BER 选择。
 
-## 5. 论文论证链
+## 6. 论文论证链
 
 1. 公开资料约束的 Level B 信道具有多符号长记忆、稀疏长回波、跨帧 ISI 和同步残差。
 2. 200 帧诊断显示固定 CIR 在慢 tap 漂移下会随时间退化，而 Oracle CIR 可显著降低 BER，说明在线状态恢复有明确物理空间。
-3. 离线神经均衡器在固定 acquisition 条件下建立强初始化，解决“离线网络能否工作”的问题。
+3. 离线神经均衡器在完整帧监督下建立强初始化，解决“离线网络能否工作”的问题。
 4. 在线阶段只用 Pilot 做物理状态恢复和受限参数更新，解决“信道状态老化后如何适配”的问题。
 5. 与 CFO/慢相位补偿的传统均衡器比较，验证在线神经方法是否在每个主 SNR 层都保持优势。
 6. 通过 60 帧正式矩阵和 200 帧长期诊断分别回答平均性能和长期稳定性问题。
 7. Contextual Bandit 只有在固定对象和安全回滚已经证明有效、且 Reward Pilot 能稳定排序动作收益时才引入；否则不把 Bandit 作为第二研究点的必要组成。
 
-## 6. 当前论文中必须诚实报告的风险
+## 7. 当前论文中必须诚实报告的风险
 
 在线方法相对于冻结网络的增益不要求在每个 SNR 都为正，但必须报告方向翻转、回滚触发和低置信度状态比例。主成功门槛是相对于传统非神经、非 RL baseline 的逐配置优势；“在线更新一定优于冻结网络”不能在证据不足时写成结论。
 
@@ -47,7 +56,7 @@
 
 当前正式 60 帧主矩阵使用 `pretrained/eme_meta_from_offline_32/model_best.pt`，包含 4 个 SNR、3 个 seed、60 帧、前缀 Pilot 128，以及每 8 帧一次在线调度。结果如下：
 
-| SNR | CFO+DD-Phase LMMSE-FIR | CFO+DD-Phase DFE-RLS | Pilot-conditioned frozen NN | Pilot phase online |
+| SNR | CFO+DD-Phase LMMSE-FIR | CFO+DD-Phase DFE-RLS | Frozen Offline NN | Pilot phase online |
 |---:|---:|---:|---:|---:|
 | 0 dB | 0.459536 | 0.458761 | 0.318862 | 0.327933 |
 | 5 dB | 0.407676 | 0.400372 | 0.231988 | 0.228993 |
@@ -62,7 +71,7 @@
 
 | 方法 | 1-16 帧 | 185-200 帧 | 1-200 帧 |
 |---|---:|---:|---:|
-| Pilot-conditioned frozen NN | 0.126511 | 0.208380 | 0.163631 |
+| Frozen Offline NN | 0.126511 | 0.208380 | 0.163631 |
 | Pilot phase online | 0.122559 | 0.193243 | 0.164128 |
 | CFO+DD-Phase LMMSE-FIR | 0.156715 | 0.226539 | 0.209753 |
 | CFO+DD-Phase DFE-RLS | 0.183501 | 0.220703 | 0.208890 |
@@ -96,7 +105,7 @@
 `tail_update_alpha`。修正后的 Level B 主矩阵（`max_delay=116`、prefix Pilot=128、3 seed、
 60 帧、`cfo_phase_tiny`）为：
 
-| SNR | CFO+DD LMMSE-FIR | CFO+DD DFE-RLS | Pilot-conditioned frozen NN | Pilot-Driven Online |
+| SNR | CFO+DD LMMSE-FIR | CFO+DD DFE-RLS | Frozen Offline NN | Pilot-Driven Online |
 |---:|---:|---:|---:|---:|
 | 0 dB | 45.477% | 44.115% | 20.152% | 20.152% |
 | 5 dB | 34.663% | 31.466% | 6.040% | 6.040% |
@@ -113,7 +122,7 @@ edge 信道、Reward Pilot=64 的小样本中，严格 acquisition 条件下只�
 
 因此第二研究点的最终实验逻辑固定为：
 
-1. `Pilot-conditioned frozen NN` 作为相同状态输入下的强对照；
+1. `Frozen Offline NN` 作为相同状态输入下的强对照；
 2. `Pilot-Driven Online Adaptation` 作为 Adapt Pilot 自监督、Reward Pilot 验收/回滚的主在线方法；
 3. `acquisition + phase` 仅用于证明在线参数更新的因果作用及其边界；
 4. 更新对象和更新间隔必须通过逐配置、逐帧配对结果确定，不能仅凭 Reward Pilot 接受率或单帧 BER 宣称在线优势。

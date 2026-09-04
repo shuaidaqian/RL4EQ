@@ -620,7 +620,7 @@ def test_compare_rejects_conflicting_checkpoint_model_before_loading_weights(tmp
         _write_eme_experiment(tmp_path),
         tmp_path / "compare_checkpoint_conflict",
     )
-    command[command.index("LMMSE-FIR")] = "Offline NN only"
+    command[command.index("LMMSE-FIR")] = "Frozen Offline NN"
     command.extend(["--pretrained", str(checkpoint)])
 
     result = subprocess.run(command, check=False, text=True, capture_output=True)
