@@ -73,6 +73,55 @@ def test_online_groups_rejects_empty_cli_override():
     with pytest.raises(ValueError, match="online_groups"):
         compare._online_groups_from_config({}, [])
 
+
+def test_online_condition_source_can_be_frozen_to_acquisition_for_parameter_only_ablation():
+    import compare
+
+    assert compare._online_condition_source_from_config({}, "acquisition") == "acquisition"
+    assert compare._online_condition_source_from_config({}, "pilot_phase") == "pilot_phase"
+    assert compare._online_condition_source_from_config(
+        {"online_condition_source": "pilot_cir_phase"}, None
+    ) == "pilot_cir_phase"
+
+
+def test_online_condition_source_rejects_unknown_boundary():
+    import compare
+
+    with pytest.raises(ValueError, match="online_condition_source"):
+        compare._online_condition_source_from_config({}, "data")
+
+
+def test_shared_tail_update_helper_applies_the_same_cross_frame_smoothing_rule():
+    import compare
+
+    previous = torch.tensor([1.0 + 0.0j, -1.0 + 0.0j])
+    detected = torch.tensor([-1.0 + 0.0j, 1.0 + 0.0j])
+
+    updated = compare._update_receiver_tail(previous, detected, alpha=0.25)
+
+    assert torch.allclose(updated, torch.tensor([0.5 - 0.0j, -0.5 + 0.0j]))
+
+
+def test_compare_resume_key_distinguishes_online_condition_source():
+    import compare
+
+    base = {
+        "method": "Pilot-Driven Online Adaptation",
+        "delay": 116,
+        "snr_db": 10.0,
+        "seed": 0,
+        "frame": 1,
+        "pilot_total": 128,
+        "reward_pilot_total": 32,
+        "pilot_layout": "prefix",
+        "impairment_profile": "cfo_phase_tiny",
+    }
+
+    acquisition = {**base, "condition_source": "acquisition"}
+    pilot = {**base, "condition_source": "pilot_cir_phase"}
+
+    assert compare._row_key(acquisition) != compare._row_key(pilot)
+
 from agent.cir_estimator import condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from training.online_adaptation import (

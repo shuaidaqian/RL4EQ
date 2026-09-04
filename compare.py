@@ -155,6 +155,25 @@ def _apply_online_cli_overrides(config: dict, overrides: dict[str, object]) -> d
     return config
 
 
+def _online_condition_source_from_config(
+    config: dict,
+    override: str | None,
+) -> str:
+    """解析在线方法的条件来源，支持严格的参数微调消融。"""
+
+    source = str(
+        override
+        if override is not None
+        else config.get("online_condition_source", "pilot_cir_phase")
+    )
+    allowed = {"acquisition", "pilot_phase", "pilot_cir_phase"}
+    if source not in allowed:
+        raise ValueError(
+            "online_condition_source 必须是 acquisition、pilot_phase 或 pilot_cir_phase。"
+        )
+    return source
+
+
 @dataclass(frozen=True)
 class LabelFreeFrame:
     seed: int
@@ -258,6 +277,11 @@ def main() -> None:
     parser.add_argument("--online-cross-frame-tolerance", type=float, default=None)
     parser.add_argument("--online-phase-smoothing", type=float, default=None)
     parser.add_argument("--online-phase-min-confidence", type=float, default=None)
+    parser.add_argument(
+        "--online-condition-source",
+        choices=["acquisition", "pilot_phase", "pilot_cir_phase"],
+        default=None,
+    )
     parser.add_argument("--output-dir", default="logs/compare")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--resume", action="store_true")
@@ -278,6 +302,7 @@ def main() -> None:
             "online_cross_frame_rollback_tolerance": args.online_cross_frame_tolerance,
             "online_phase_tracking_smoothing": args.online_phase_smoothing,
             "online_phase_tracking_min_confidence": args.online_phase_min_confidence,
+            "online_condition_source": args.online_condition_source,
         },
     )
     policy_explicit = any(argument == "--policy" or argument.startswith("--policy=") for argument in sys.argv[1:])
@@ -394,6 +419,7 @@ def main() -> None:
                         acquisition_cfo=float(acquisition_cfo),
                         acquisition_phase_features=acquisition_phase_features,
                         online_groups_override=args.online_groups,
+                        online_condition_source_override=args.online_condition_source,
                     )
                     for frame_index in range(1, args.frames + 1):
                         frame = env.next_frame()
@@ -478,6 +504,7 @@ def main() -> None:
         "effective_channel": effective_channel,
         "impairment_profile": impairment_profile,
         "state_split": args.state_split,
+        "online_condition_source": config.get("online_condition_source", "pilot_cir_phase"),
         "profile_prior": profile_prior,
         "forbidden": {"data_label_upper_bound_method_present": any("数据标签上界" in method for method in selected_methods)},
     }
@@ -558,6 +585,7 @@ class NeuralMethodState:
     phase_tracking_smoothing: float = 0.5
     phase_tracking_min_confidence: float = 0.15
     phase_tracking_cfo_limit: float = 0.0012
+    tail_update_alpha: float = 1.0
 
 
 @dataclass
@@ -576,6 +604,7 @@ class PilotOnlineMethodState:
     receiver_state: ReceiverState
     pretrained_loaded: bool
     acquisition_cfo: float = 0.0
+    acquisition_phase_features: torch.Tensor | None = None
     cir_update_mode: str = "fixed"
     cir_update_alpha: float = 0.2
     tail_update_alpha: float = 0.5
@@ -587,6 +616,8 @@ class PilotOnlineMethodState:
     phase_tracking_cfo_limit: float = 0.0012
     min_reward_improvement: float = 0.001
     cross_frame_rollback_tolerance: float = 0.00001
+    # 在线参数微调可固定 acquisition 条件，以单独度量 PEFT 的增量价值。
+    condition_source: str = "pilot_cir_phase"
     last_pre_update_snapshot: object | None = None
     last_pre_update_groups: frozenset[str] = frozenset()
 
@@ -623,6 +654,7 @@ def _build_method_states(
     acquisition_cfo: float = 0.0,
     acquisition_phase_features: torch.Tensor | None = None,
     online_groups_override: list[str] | None = None,
+    online_condition_source_override: str | None = None,
 ) -> dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState]:
     states: dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState] = {}
     model_config = _load_model_config(config, pretrained_path)
@@ -646,6 +678,11 @@ def _build_method_states(
                 receiver_state=ReceiverState(initial_soft_tail.clone().to(device)),
                 pretrained_loaded=pretrained_path is not None,
                 acquisition_cfo=float(acquisition_cfo),
+                acquisition_phase_features=(
+                    acquisition_phase_features.clone().to(device)
+                    if acquisition_phase_features is not None
+                    else None
+                ),
                 cir_update_mode=str(cir_update_mode),
                 cir_update_alpha=float(cir_alpha),
                 tail_update_alpha=float(config.get("tail_update_alpha", 0.5)),
@@ -662,6 +699,10 @@ def _build_method_states(
                 min_reward_improvement=float(config.get("online_adaptation_min_reward_improvement", 0.001)),
                 cross_frame_rollback_tolerance=float(
                     config.get("online_cross_frame_rollback_tolerance", 0.00001)
+                ),
+                condition_source=_online_condition_source_from_config(
+                    config,
+                    online_condition_source_override,
                 ),
             )
         elif method == "RL-Modulated Neural Block Equalizer":
@@ -740,6 +781,7 @@ def _build_method_states(
                 phase_tracking_smoothing=float(config.get("online_phase_tracking_smoothing", 0.5)),
                 phase_tracking_min_confidence=float(config.get("online_phase_tracking_min_confidence", 0.15)),
                 phase_tracking_cfo_limit=float(config.get("online_phase_tracking_cfo_limit", residual_cfo_limit)),
+                tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
             )
         elif method == "Continual PPO":
             torch.manual_seed(90_000 + int(seed) + int(delay) * 17 + int(float(snr_db)) * 31)
@@ -958,7 +1000,17 @@ def _run_new_or_single_method(
         )
         logits = logits.squeeze(0)
         tail_len = state.receiver_state.soft_tail.numel()
-        state.receiver_state.update_tail(torch.complex(torch.tanh(logits[-tail_len:] / 2.0), torch.zeros_like(logits[-tail_len:])))
+        detected_tail = torch.complex(
+            torch.tanh(logits[-tail_len:] / 2.0),
+            torch.zeros_like(logits[-tail_len:]),
+        )
+        state.receiver_state.update_tail(
+            _update_receiver_tail(
+                state.receiver_state.soft_tail,
+                detected_tail,
+                state.tail_update_alpha,
+            )
+        )
         if state.cir_update_mode == "decision_directed":
             state.cir = decision_directed_cir_update(
                 frame_device,
@@ -1217,12 +1269,13 @@ def _run_pilot_online_method(
 
             def _condition_for(cir_value: torch.Tensor) -> CIRCondition:
                 phase_value = _neural_phase_features(
-                    condition_source="pilot_cir_phase",
+                    condition_source=state.condition_source,
                     receiver_view=frame.receiver_view(),
                     cir=cir_value,
                     soft_tail=state.receiver_state.soft_tail,
                     acquisition_cfo=float(state.acquisition_cfo),
                     tracked_cfo=float(tracked_state.cfo_cycles_per_symbol),
+                    acquisition_phase_features=state.acquisition_phase_features,
                 )
                 return condition_from_cir(
                     cir_value,
@@ -1258,7 +1311,7 @@ def _run_pilot_online_method(
             state.cir = candidate_cir if cir_update_accepted else previous_cir
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
     phase_features = _neural_phase_features(
-        condition_source="pilot_cir_phase",
+        condition_source=state.condition_source,
         receiver_view=frame.receiver_view(),
         cir=state.cir,
         soft_tail=state.receiver_state.soft_tail,
@@ -1271,6 +1324,7 @@ def _run_pilot_online_method(
             if not updates_frozen
             else None
         ),
+        acquisition_phase_features=state.acquisition_phase_features,
     )
     condition = condition_from_cir(
         state.cir,
@@ -1401,8 +1455,11 @@ def _run_pilot_online_method(
         torch.zeros_like(final[-tail_len:]),
     )
     state.receiver_state.update_tail(
-        (1.0 - state.tail_update_alpha) * state.receiver_state.soft_tail
-        + state.tail_update_alpha * detected_tail
+        _update_receiver_tail(
+            state.receiver_state.soft_tail,
+            detected_tail,
+            state.tail_update_alpha,
+        )
     )
     if state.cir_update_mode == "decision_directed":
         state.cir = decision_directed_cir_update(
@@ -1459,8 +1516,8 @@ def _run_pilot_online_method(
             "tail_update_alpha": float(state.tail_update_alpha),
             "cir_update_mode": str(state.cir_update_mode),
             "cir_update_alpha": float(state.cir_update_alpha),
-            "condition_source": "pilot_cir_phase",
-            "pilot_phase_used": True,
+            "condition_source": str(state.condition_source),
+            "pilot_phase_used": bool(state.condition_source != "acquisition"),
             "cir_update_applied": bool(cir_update_accepted),
             "cir_update_guarded": bool(
                 state.cir_update_mode == "pilot_sparse" and not updates_frozen and update_scheduled
@@ -1570,6 +1627,19 @@ def _online_update_is_scheduled(frame_index: int, update_interval: int) -> bool:
     if int(update_interval) <= 0:
         raise ValueError("update_interval 必须为正数。")
     return int(frame_index) == 1 or (int(frame_index) - 1) % int(update_interval) == 0
+
+
+def _update_receiver_tail(
+    previous: torch.Tensor,
+    detected: torch.Tensor,
+    alpha: float,
+) -> torch.Tensor:
+    """统一所有神经方法的跨帧 soft-tail 平滑规则。"""
+
+    selected_alpha = float(alpha)
+    if not 0.0 <= selected_alpha <= 1.0:
+        raise ValueError("tail_update_alpha 必须位于 [0, 1]。")
+    return (1.0 - selected_alpha) * previous + selected_alpha * detected
 
 
 def _pilot_state_reliable(state: PilotPhysicalState | None, threshold: float) -> bool:
@@ -1836,7 +1906,7 @@ def _load_existing_rows(jsonl: Path) -> list[dict]:
     return [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def _row_key(row: dict) -> tuple[str, int, float, int, int, int, int, str, str]:
+def _row_key(row: dict) -> tuple[str, int, float, int, int, int, int, str, str, str]:
     return (
         str(row["method"]),
         int(row["delay"]),
@@ -1847,6 +1917,7 @@ def _row_key(row: dict) -> tuple[str, int, float, int, int, int, int, str, str]:
         int(row.get("reward_pilot_total", int(row.get("pilot_total", 0)) // 4)),
         str(row.get("pilot_layout", "")),
         str(row.get("impairment_profile", "clean")),
+        str(row.get("condition_source", "")),
     )
 
 

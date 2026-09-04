@@ -89,3 +89,31 @@
 - `logs/eme_long_formal_200f_phase_stable/`
 
 修正版 200 帧中，Online phase 的前 16 帧 BER 为 `0.122652`，后 16 帧 BER 为 `0.193522`，均优于 Frozen NN 的 `0.126511` 和 `0.208380`；但全程平均 BER 为 `0.169470`，仍高于 Frozen NN 的 `0.163631`。因此第二研究点应把贡献表述为“Pilot 驱动的保守在线适配改善部分工作区间并抑制长期退化”，不能表述为“在线微调在所有 SNR 和全程平均上都超过冻结网络”。
+
+## 2026-09-04：在线微调因果边界修正
+
+为避免把接收机状态递推差异误算为在线参数增益，Frozen 和 Online 现在共享同一个
+`tail_update_alpha`。修正后的 Level B 主矩阵（`max_delay=116`、prefix Pilot=128、3 seed、
+60 帧、`cfo_phase_tiny`）为：
+
+| SNR | CFO+DD LMMSE-FIR | CFO+DD DFE-RLS | Pilot-conditioned frozen NN | Pilot-Driven Online |
+|---:|---:|---:|---:|---:|
+| 0 dB | 45.477% | 44.115% | 20.152% | 20.152% |
+| 5 dB | 34.663% | 31.466% | 6.040% | 6.040% |
+| 10 dB | 22.319% | 17.772% | 1.079% | 1.079% |
+| 15 dB | 11.856% | 12.418% | 0.213% | 0.213% |
+
+这组结果证明主线在所有主 SNR 上超过传统 baseline，但不支持把当前 PEFT 写成稳定的
+独立增益：0 dB 完全冻结，5 dB 仅 1 次短暂接受并随后回滚，10/15 dB 没有接受更新。
+
+另外增加了 `--online-condition-source acquisition` 的参数微调因果消融。在同一 held-out
+edge 信道、Reward Pilot=64 的小样本中，严格 acquisition 条件下只更新 phase 参数，4 帧、1 seed
+的 BER 从严格离线约 `72.545%` 降至 `53.097%`；但帧间出现明显振荡，说明 phase-only 更新能够
+修正一部分当前 Pilot 可见的状态失配，却不能单独恢复稀疏长回波结构，也不能作为最终主配置。
+
+因此第二研究点的最终实验逻辑固定为：
+
+1. `Pilot-conditioned frozen NN` 作为相同状态输入下的强对照；
+2. `Pilot-Driven Online Adaptation` 作为 Adapt Pilot 自监督、Reward Pilot 验收/回滚的主在线方法；
+3. `acquisition + phase` 仅用于证明在线参数更新的因果作用及其边界；
+4. 更新对象和更新间隔必须通过逐配置、逐帧配对结果确定，不能仅凭 Reward Pilot 接受率或单帧 BER 宣称在线优势。

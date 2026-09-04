@@ -63,7 +63,17 @@ phase_correction_initial_scale
 
 维度、层数和可学习结构仍严格服从 checkpoint，避免静默加载不兼容模型。
 
-## 4. 在线边界
+## 4.1 跨帧状态递推比较修正
+
+后续复核发现，Frozen 神经方法曾直接替换 soft-tail，而 Pilot online 方法按配置使用
+`tail_update_alpha=0.5` 平滑更新。即使没有任何 PEFT 更新被接受，两者也会因跨帧接收机状态
+不同而出现 BER 差异。现在 Frozen、Pilot-conditioned Frozen 和 Pilot online 统一调用
+`compare._update_receiver_tail()`，并从同一 `tail_update_alpha` 配置读取递推系数。
+
+因此本节之前的 `0.216%` vs `0.213%` 差异不再作为在线微调增益引用。修正后的 15 dB、3 seed、
+60 帧结果为 Frozen `0.213%`、Online `0.213%`；Online 该切片没有接受 PEFT 更新。
+
+## 5. 在线边界
 
 在线主方法固定为 Adapt Pilot 驱动的 phase/PEFT 更新。CIR 更新不和主在线结果混合，
 使用 `--cir-update fixed`；`pilot_sparse` 只作为状态恢复消融。所有方法使用相同
@@ -93,7 +103,7 @@ Level B profile、相同 prefix Pilot（总 128，Adapt 96，Reward 32）和相�
 增益。在线研究价值仍需在独立的慢状态老化/held-out 场景中用更大的 Reward Pilot
 或更长窗口证明；主结果不能用 Data 标签选择动作。
 
-## 5. 论文表述边界
+## 6. 论文表述边界
 
 当前可以写入论文的方法与阶段性结果是：
 

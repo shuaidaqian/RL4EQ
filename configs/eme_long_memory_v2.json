@@ -59,6 +59,7 @@
   "training_tail_mode": "online_soft",
   "tail_update_alpha": 0.5,
   "online_adaptation_groups": ["phase"],
+  "online_condition_source": "pilot_cir_phase",
   "online_adaptation_learning_rate": 0.0004,
   "online_adaptation_steps": 1,
   "online_adaptation_max_delta_norm": 1.0,

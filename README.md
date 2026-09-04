@@ -2,7 +2,7 @@
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。
-> 15 dB、3 seed、60 帧上，Frozen NN Data BER 为 `0.216%`，Pilot 在线为 `0.213%`，
+> 15 dB、3 seed、60 帧上，统一跨帧 tail 规则后的 Frozen NN 和 Pilot 在线均为 `0.213%`，
 > 传统 CFO+DD LMMSE/DFE 分别为 `11.86%/12.42%`。这满足高 SNR 离线/在线 BER 门槛，但在线与 Frozen 基本
 > 持平；30 s acquisition 老化和 120 s 相干时间只作为独立压力测试，不计入 Level B 主平均。
 
@@ -32,6 +32,8 @@ Level A/B/C 可控信道族
 - 在线 observation、reward、动作选择和调制更新不使用数据标签上界。
 - 当前 RL 路线采用离散安全动作和窗口级 reward；逐帧连续 modulation 不再作为主实施路线。
 - 当前在线均衡主线是 Adapt Pilot 驱动的两时间尺度约束元适配；RL 只调度安全动作，不直接生成高维参数增量，PPO 仅作调度器消融。
+- 为隔离在线微调本身的增量，可用 `compare.py --online-condition-source acquisition` 固定 acquisition 条件；该消融仍只用 Adapt Pilot 更新 PEFT、只用 Reward Pilot 验收/回滚。默认主线为 `pilot_cir_phase`。
+- 所有神经方法共享同一 `tail_update_alpha` 跨帧 soft-tail 递推；Frozen 与 Online 的差异不能再来自不一致的尾状态更新。
 - Data Oracle 不恢复。
 - clean Level B 作为 sanity check，用来证明传统均衡器在干净线性 BPSK 下确实很强；主攻场景逐级加入 residual CFO 与慢相位扰动。
 - 非线性、信道编码和高阶调制只作为后续按需扩展，不进入当前主实验。
