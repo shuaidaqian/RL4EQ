@@ -34,10 +34,10 @@
   "pilot_sweep_totals": [64, 96, 128, 160],
   "strong_path_count": [12, 24],
   "diffuse_energy_ratio": [0.2, 0.35],
-  "coherence_time_seconds": 120.0,
-  "acquisition_to_data_gap_seconds": 30.0,
-  "rho_frame": 0.9991470306520146,
-  "rho": 0.9991470306520146,
+  "coherence_time_seconds": 1200.0,
+  "acquisition_to_data_gap_seconds": 0.0,
+  "rho_frame": 0.999914670307452,
+  "rho": 0.999914670307452,
   "include_anomalous_scatterer": false,
   "eme_physical_fields_passthrough": "implemented",
   "impairment_profile": "cfo_phase_tiny",
@@ -119,7 +119,7 @@
     "phase_correction_segments": 4,
     "phase_correction_initial_scale": 1.0,
     "analytic_logit_skip_scale": 0.0,
-    "physics_warm_start_iterations": 2,
+    "physics_warm_start_iterations": 8,
     "physics_warm_start_scale": 1.0,
     "neural_residual_scale": 0.1
   }

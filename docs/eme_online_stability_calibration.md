@@ -89,3 +89,42 @@ Online phase 的前段和末段均优于 Frozen NN，表明保守在线更新可
 本轮校准后，第二研究点的可信结论应限定为：在 EME 类极端长记忆、稀疏长回波和慢状态漂移信道下，离线神经均衡器在主配置上显著优于传统均衡器；Pilot 驱动的 phase 在线适配在部分 SNR 和长期末段能够改善或抑制退化，但其相对于 Frozen NN 的全程平均增益尚未稳定成立。
 
 因此当前不引入 Contextual Bandit。后续只有在 Reward Pilot 对跨帧 Data 性能的排序关系稳定通过 replay 门槛后，才有理由把动作调度器作为新的研究变量。
+
+## 8. BER 根因修正后的复核
+
+前述 60/200 帧结果使用了 `acquisition_to_data_gap_seconds=30`，但当前配置的相干时间为
+`120 s`。这相当于在首个数据帧前主动推进一次约 `exp(-30/120)=0.7788` 的复 tap
+状态相关过程，产生的状态失配明显强于“EME 时变不严重”的主研究假设。该设置会把
+acquisition-CIR 老化、在线状态恢复和神经参数适配混在一起，不能直接作为主论文结果。
+
+同一 checkpoint、同一 seed 和同一 `cfo_phase_tiny` 轨迹的诊断如下：
+
+| acquisition 空档 | 15 dB、4 帧 Frozen NN BER（3 个 seed） |
+|---:|---:|
+| 0 s | 4.88% / 2.93% / 3.24% |
+| 30 s | 6.70% / 9.93% / 20.37% |
+
+另一个确定性问题是长记忆 CG warm-start 只运行了 2 次。保持权重不变，只把物理初值
+求解迭代改为 4/8/16 次后，0 s 空档、15 dB 的三 seed 平均 BER 分别为 `0.91%`、
+`0.24%`、`0.16%`。因此当前主配置固定为：
+
+```text
+acquisition_to_data_gap_seconds = 0.0
+physics_warm_start_iterations = 8
+```
+
+旧 checkpoint 的网络结构和权重仍可复用，`compare.py` 只覆盖这类非结构性推理参数，
+避免把求解器精度改善误写成重新训练收益。新 checkpoint 为
+`pretrained/eme_offline_physics8_gap0/model_best.pt`。
+
+使用该 checkpoint 的 15 dB、3 seed、8 帧公平复核结果为：
+
+| 方法 | 平均 Data BER |
+|---|---:|
+| Pilot-conditioned frozen NN | 0.265% |
+| Pilot-Driven Online Adaptation（只做 phase/PEFT，CIR fixed） | 0.256% |
+
+这组结果已经满足“高 SNR 离线低于 10%、在线低于 1%”的阶段性目标。在线主实验必须
+使用 `--cir-update fixed`，因为 `pilot_sparse` CIR 更新属于独立消融；它在 Reward Pilot
+小窗口上变好时仍可能伤害 Data，不能与 phase PEFT 一起默认启用。其余 `0/5/10/15 dB`
+和 60/200 帧结果应在该修正配置下重新生成后再写入论文主表。

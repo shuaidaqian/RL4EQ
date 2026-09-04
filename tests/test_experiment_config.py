@@ -61,6 +61,49 @@ def test_eme_experiment_transmits_all_frozen_physical_fields():
     assert config.include_anomalous_scatterer is False
 
 
+def test_checkpoint_keeps_dimensions_but_accepts_runtime_physics_override(tmp_path):
+    """旧权重可复用新的 CG 推理迭代，不应被 checkpoint 的旧运行参数锁死。"""
+
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+    from compare import _load_model_config
+
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=16,
+            num_heads=4,
+            adapter_rank=4,
+            lora_rank=4,
+            physics_warm_start_iterations=2,
+        )
+    )
+    checkpoint_dir = tmp_path / "checkpoint"
+    checkpoint_dir.mkdir()
+    (checkpoint_dir / "model_config.json").write_text(
+        json.dumps(model.config.to_dict(), ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    config = {
+        "model": {
+            "frame_len": 32,
+            "max_delay": 4,
+            "physics_warm_start_iterations": 8,
+            "physics_warm_start_scale": 1.0,
+            "analytic_logit_skip_scale": 0.0,
+            "neural_residual_scale": 0.1,
+        }
+    }
+
+    loaded = _load_model_config(config, checkpoint_dir / "model_best.pt")
+
+    assert loaded.frame_len == 32
+    assert loaded.max_delay == 4
+    assert loaded.physics_warm_start_iterations == 8
+
+
 def test_eme_config_forwards_explicit_reward_pilot_total():
     experiment = _eme_experiment()
     experiment["reward_pilot_total"] = 48

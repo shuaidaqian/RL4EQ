@@ -1,5 +1,19 @@
 # EME 在线均衡阶段性结果
 
+> **当前修正结果（2026-09-04）**
+>
+> 本文早期章节记录了 `acquisition_to_data_gap_seconds=30` 的历史实验。该设置与
+> 当前“EME 时变不严重”的主假设不一致，且会把 acquisition-CIR 老化错误地混入
+> 主结果。当前主配置已固定为空档 `0 s`，仍保留帧间 `rho_frame=0.99991467` 的慢 tap
+> 漂移和跨帧 ISI；随后根据 200 帧约 20.5 s 的时间跨度将主场景相干时间调整为
+> `1200 s`、`rho_frame=0.99991467`；长记忆 CG warm-start 从 2 次固定为 8 次。
+>
+> 使用 `pretrained/eme_offline_physics8_gap0/model_best.pt`，Level B、15 dB、3 seed、
+> 60 帧、prefix Pilot=128、`--cir-update fixed` 的复核结果为：Frozen NN `0.216%`，
+> Pilot-Driven Online Adaptation `0.213%`，CFO+DD-Phase LMMSE-FIR `11.86%`，
+> CFO+DD-Phase DFE-RLS `13.12%`。这组结果是当前主证据；后文 30 s 空档结果只作
+> 历史诊断，不能与当前主平均混合。
+
 ## 研究问题
 
 本阶段验证的问题不是“离线神经网络能否在某个固定信道上降低 BER”，而是：在同一 Level B 极端稀疏长回波 profile 内，acquisition 得到的信道状态逐渐老化后，在线接收机能否只利用当前帧前缀 Adapt Pilot 恢复状态，并在连续帧上优于 Frozen Offline NN。

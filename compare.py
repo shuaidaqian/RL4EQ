@@ -1684,6 +1684,21 @@ def _load_model_config(config: dict, pretrained_path: Path | None) -> UnfoldedCo
     config_path = pretrained_path.parent / "model_config.json"
     payload = json.loads(config_path.read_text(encoding="utf-8"))
     model_payload = payload.get("model", payload)
+    # 维度和可学习结构必须服从 checkpoint；物理求解精度等非结构性推理参数
+    # 允许由当前冻结实验配置覆盖，使旧权重可以复用已验证的长记忆求解器设置。
+    runtime_fields = (
+        "physics_warm_start_iterations",
+        "physics_warm_start_scale",
+        "analytic_logit_skip_scale",
+        "neural_residual_scale",
+        "phase_correction_initial_scale",
+    )
+    configured_model = config.get("model", {})
+    if isinstance(configured_model, dict):
+        model_payload = dict(model_payload)
+        for field in runtime_fields:
+            if field in configured_model:
+                model_payload[field] = configured_model[field]
     return UnfoldedConfig.from_dict(model_payload)
 
 

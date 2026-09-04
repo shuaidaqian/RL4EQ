@@ -1,5 +1,11 @@
 # RL4EQ：Level B 极端长回波下的 RL-Modulated Neural Block Equalizer
 
+> 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
+> acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。
+> 15 dB、3 seed、60 帧上，Frozen NN Data BER 为 `0.216%`，Pilot 在线为 `0.213%`，
+> 传统 CFO+DD LMMSE/DFE 分别为 `11.86%/12.42%`。这满足高 SNR 离线/在线 BER 门槛，但在线与 Frozen 基本
+> 持平；30 s acquisition 老化和 120 s 相干时间只作为独立压力测试，不计入 Level B 主平均。
+
 本项目研究 EME 启发但不等同于完整物理 EME 的极端稀疏长时延扩展信道。当前主线使用独立的 `eme_long_memory_v2` 长记忆 profile；`eme_measurement_v1` 保留作历史兼容和对照，不把二者混合平均。主线是：
 
 ```text

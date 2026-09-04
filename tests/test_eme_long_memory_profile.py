@@ -66,3 +66,19 @@ def test_eme_model_phase_conditioner_matches_four_block_features():
     invalid_model["phase_correction_segments"] = 8
     with pytest.raises(ValueError, match="4 个 block"):
         validate_model_dimensions(invalid_model, env_config)
+
+
+def test_eme_main_configuration_matches_slow_variation_assumption():
+    """主场景不能用远大于相干时间的 acquisition 空档制造强失配。"""
+
+    config = _load_config()
+    assert config["acquisition_to_data_gap_seconds"] == 0.0
+    assert config["acquisition_to_data_gap_seconds"] < config["frame_duration_seconds"]
+    assert config["coherence_time_seconds"] >= 600.0
+
+
+def test_eme_main_configuration_uses_converged_physics_warm_start():
+    """长记忆主场景应给展开式检测器足够的 CG 初值求解迭代。"""
+
+    config = _load_config()
+    assert config["model"]["physics_warm_start_iterations"] >= 8
