@@ -54,6 +54,23 @@ logs/eme_online_meta_smoke_compare/
 
 如果在充分训练和有限状态失配主实验中，在线元适配仍不能稳定超过 Frozen Offline NN，则论文应报告“安全在线适配保持性能”，不能把 PPO 或更新接受率包装成在线均衡增益。
 
+## 三层路线复核（2026-09-05）
+
+当前实现已经把三层研究对象分开：
+
+1. 离线训练默认使用整帧等权 `BCE_all`，模型输入仍通过 `receiver_view()` 隐藏
+   Reward Pilot 和 Data 的发送符号；
+2. 元学习保留为必要性实验，并新增 `build_meta_necessity_report`，要求与普通
+   Pilot-SGD 在同一 checkpoint、轨迹、预算下配对比较后期帧和 `heldout_edge`；
+3. 在线调度使用安全 Contextual Bandit，动作只选择当前模型存在的 PEFT 组，
+   Reward Pilot loss 改善扣除更新成本和回滚惩罚，Data 标签不进入 Bandit。
+
+新增长处延迟诊断脚本 `scripts/diagnose_action_delay.py` 汇总 horizon
+`0/1/2/4/8`。在 `logs/eme_online_bandit_smoke_20260905` 的 116 符号记忆、
+10 dB、8 帧 EME smoke 中，`delayed_effect_detected=false`，当前证据支持继续
+使用 Contextual Bandit；8 帧单 seed 不是升级 Recurrent Double DQN 或声称性能
+增益的充分证据。
+
 ## 32 步初始化加元训练的正式 Level B 矩阵
 
 训练流程为：先使用 `stage all --steps 32` 得到离线初始化，再使用 `stage online_meta --steps 32`、每个 episode 连续 4 帧进行序列元训练。使用的 checkpoint 和完整矩阵为：
