@@ -21,6 +21,7 @@ from agent.cir_estimator import (
 )
 from agent.discrete_safe_policy import DiscreteSafePolicy, initialize_safe_discrete_policy_prior, safe_modulation_actions
 from agent.modulation import ModulationConfig, ModulationState
+from agent.safe_contextual_bandit import SafeContextualBandit, SafeUpdateAction
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.legacy_equalizers import legacy_dfe, legacy_lmmse_fir
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
@@ -273,6 +274,7 @@ def main() -> None:
         ],
     )
     parser.add_argument("--update-interval", type=int, default=32)
+    parser.add_argument("--scheduler", choices=["fixed", "bandit"], default="bandit")
     parser.add_argument("--cir-update", choices=["fixed", "pilot_sparse", "decision_directed"], default="fixed")
     parser.add_argument("--cir-alpha", type=float, default=0.2)
     parser.add_argument("--online-groups", nargs="*", default=None)
@@ -312,6 +314,7 @@ def main() -> None:
             "online_phase_tracking_smoothing": args.online_phase_smoothing,
             "online_phase_tracking_min_confidence": args.online_phase_min_confidence,
             "online_condition_source": args.online_condition_source,
+            "online_scheduler": args.scheduler,
         },
     )
     policy_explicit = any(argument == "--policy" or argument.startswith("--policy=") for argument in sys.argv[1:])
@@ -428,6 +431,7 @@ def main() -> None:
                         acquisition_phase_features=acquisition_phase_features,
                         online_groups_override=args.online_groups,
                         online_condition_source_override=args.online_condition_source,
+                        scheduler=args.scheduler,
                     )
                     for frame_index in range(1, args.frames + 1):
                         frame = env.next_frame()
@@ -513,6 +517,7 @@ def main() -> None:
         "impairment_profile": impairment_profile,
         "state_split": args.state_split,
         "online_condition_source": config.get("online_condition_source", "pilot_cir_phase"),
+        "online_scheduler": args.scheduler,
         "profile_prior": profile_prior,
         "forbidden": {"data_label_upper_bound_method_present": any("数据标签上界" in method for method in selected_methods)},
     }
@@ -628,6 +633,15 @@ class PilotOnlineMethodState:
     condition_source: str = "pilot_cir_phase"
     last_pre_update_snapshot: object | None = None
     last_pre_update_groups: frozenset[str] = frozenset()
+    scheduler: str = "fixed"
+    bandit: SafeContextualBandit | None = None
+    active_action: SafeUpdateAction | None = None
+    hold_remaining: int = 0
+    previous_bandit_reward: float = 0.0
+    rollback_count: int = 0
+    consecutive_rejections: int = 0
+    previous_parameter_delta_norm: float = 0.0
+    bandit_action_cost: float = 0.000001
 
 
 def _select_methods(methods: list[str] | None) -> tuple[str, ...]:
@@ -663,7 +677,10 @@ def _build_method_states(
     acquisition_phase_features: torch.Tensor | None = None,
     online_groups_override: list[str] | None = None,
     online_condition_source_override: str | None = None,
+    scheduler: str = "fixed",
 ) -> dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState]:
+    if scheduler not in {"fixed", "bandit"}:
+        raise ValueError(f"未知在线调度器：{scheduler}")
     states: dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState] = {}
     model_config = _load_model_config(config, pretrained_path)
     for method in methods:
@@ -713,6 +730,13 @@ def _build_method_states(
                     config,
                     online_condition_source_override,
                 ),
+                scheduler=str(scheduler),
+                bandit=(
+                    SafeContextualBandit(seed=90_000 + int(seed))
+                    if scheduler == "bandit"
+                    else None
+                ),
+                bandit_action_cost=float(config.get("online_bandit_action_cost", 0.000001)),
             )
         elif method == "RL-Modulated Neural Block Equalizer":
             torch.manual_seed(_method_seed("rl_modulated", seed, delay, snr_db))
@@ -1238,6 +1262,7 @@ def _run_pilot_online_method(
 
     device = next(state.model.parameters()).device
     frame_device = _frame_to_device(frame, device)
+    cir_before_frame = state.cir.detach().clone()
     updates_frozen = _online_updates_are_frozen(snr_db, state.freeze_online_below_snr_db)
     update_scheduled = _online_update_is_scheduled(frame_index, update_interval)
     rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
@@ -1353,6 +1378,31 @@ def _run_pilot_online_method(
     before = before_logits.squeeze(0)
     reward_before = _masked_bce(before, frame_device.bits, frame_device.reward_mask)
     adapt_loss_before = _masked_bce(before, frame_device.bits, frame_device.adapt_mask)
+    phase_slope = float(
+        torch.diff(phase_features.reshape(-1)).abs().mean().detach().cpu()
+        if phase_features is not None and phase_features.numel() > 1
+        else torch.zeros((), device=device)
+    )
+    cir_drift = float(
+        torch.linalg.vector_norm(state.cir - cir_before_frame).detach().cpu()
+        / torch.linalg.vector_norm(cir_before_frame).clamp_min(1e-8).detach().cpu()
+    )
+    bandit_context = {
+        "adapt_loss": float(adapt_loss_before.detach().cpu()),
+        "pilot_confidence": float(condition.confidence.mean().detach().cpu()),
+        "residual_cfo": float(
+            state.physical_state.cfo_cycles_per_symbol
+            if state.physical_state is not None
+            else state.acquisition_cfo
+        ),
+        "phase_slope": phase_slope,
+        "cir_drift": cir_drift,
+        "snr_db": float(snr_db),
+        "reward_trend": float(state.previous_bandit_reward),
+        "rollback_rate": float(state.rollback_count / max(1, frame_index - 1)),
+        "consecutive_rejections": float(state.consecutive_rejections),
+        "parameter_delta_norm": float(state.previous_parameter_delta_norm),
+    }
     cross_frame_rollback = False
     previous_good_reward_loss = None
     if state.last_pre_update_snapshot is not None:
@@ -1403,6 +1453,33 @@ def _run_pilot_online_method(
         if update_scheduled
         else ()
     )
+    selected_action = SafeUpdateAction(
+        "fixed",
+        frozenset(state.adapter.groups),
+        1.0,
+        1.0,
+        1,
+        0.0,
+    )
+    if state.scheduler == "bandit" and state.bandit is not None and update_scheduled:
+        allowed_names = {"skip"}
+        for action in state.bandit.actions:
+            if action.groups.issubset(state.adapter.groups) and _bandit_candidate_for_action(
+                action,
+                candidates,
+            ):
+                allowed_names.add(action.name)
+        if state.hold_remaining <= 0 or state.active_action is None:
+            selected_action = state.bandit.select(bandit_context, allowed_names=allowed_names)
+            state.active_action = selected_action
+            state.hold_remaining = int(selected_action.hold_frames)
+        else:
+            selected_action = state.active_action
+        state.hold_remaining = max(0, state.hold_remaining - 1)
+        candidates = _bandit_candidate_for_action(selected_action, candidates)
+    elif state.scheduler == "bandit":
+        selected_action = SafeUpdateAction("skip", frozenset(), 0.0, 0.0, 1, 0.0)
+        candidates = ()
     candidate_groups = set().union(*(set(item["groups"]) for item in candidates)) if candidates else set()
     base_snapshot = state.model.peft.snapshot(candidate_groups)
     best_snapshot = None
@@ -1452,9 +1529,10 @@ def _run_pilot_online_method(
             best_name = str(candidate["name"])
             best_after = after
     state.model.peft.restore(base_snapshot)
+    update_applied = bool(candidates) and selected_action.name != "skip"
     if best_snapshot is None:
         adaptation = None
-        accepted = False
+        accepted = not update_applied
         final = before
         reward_after = reward_before
     else:
@@ -1466,6 +1544,30 @@ def _run_pilot_online_method(
     if accepted:
         state.last_pre_update_groups = frozenset(candidate_groups)
         state.last_pre_update_snapshot = base_snapshot
+    raw_reward_gain = float(
+        reward_before.detach().cpu() - reward_after.detach().cpu()
+    )
+    bandit_update_cost = 0.0
+    bandit_action_cost = 0.0
+    bandit_rollback_penalty = 0.0
+    bandit_reward = None
+    if state.scheduler == "bandit" and state.bandit is not None:
+        bandit_update_cost = float(
+            0.001
+            * (adaptation.parameter_delta_norm if adaptation is not None and accepted else 0.0)
+        )
+        bandit_action_cost = state.bandit_action_cost if update_applied else 0.0
+        bandit_rollback_penalty = 0.01 if update_applied and not accepted else 0.0
+        bandit_reward = raw_reward_gain - bandit_update_cost - bandit_action_cost - bandit_rollback_penalty
+        state.bandit.update(selected_action.name, bandit_context, bandit_reward, accepted)
+        state.previous_bandit_reward = bandit_reward if accepted else -abs(bandit_reward)
+        state.consecutive_rejections = (
+            state.consecutive_rejections + 1 if not accepted else 0
+        )
+        state.rollback_count += int(update_applied and not accepted)
+        state.previous_parameter_delta_norm = float(
+            adaptation.parameter_delta_norm if adaptation is not None and accepted else 0.0
+        )
     tail_len = state.receiver_state.soft_tail.numel()
     detected_tail = torch.complex(
         torch.tanh(final[-tail_len:] / 2.0),
@@ -1493,7 +1595,8 @@ def _run_pilot_online_method(
         0,
         {
             "uses_neural_network": True,
-            "uses_rl": False,
+            "uses_rl": bool(state.scheduler == "bandit"),
+            "scheduler": str(state.scheduler),
             "online_algorithm": "pilot_driven_constrained_peft",
             "online_update_source": "adapt_pilot_only",
             "reward_pilot_guard": True,
@@ -1516,6 +1619,9 @@ def _run_pilot_online_method(
                 else adapt_loss_before.detach().cpu()
             ),
             "adaptation_accepted": bool(accepted),
+            "update_applied": bool(update_applied),
+            "action": str(selected_action.name),
+            "action_hold_frames": int(selected_action.hold_frames),
             "online_update_candidate": best_name,
             "online_update_candidate_count": len(candidates),
             "online_snr_layer": "fully_frozen" if updates_frozen else ("peft_frozen" if not candidates else "peft_enabled"),
@@ -1531,7 +1637,11 @@ def _run_pilot_online_method(
             "online_min_reward_improvement": float(state.min_reward_improvement),
             "online_proximal_weight": float(state.adapter.proximal_weight),
             "peft_update_guarded": True,
-            "parameter_delta_norm": float(adaptation.parameter_delta_norm if accepted else 0.0),
+            "parameter_delta_norm": float(
+                adaptation.parameter_delta_norm
+                if adaptation is not None and accepted
+                else 0.0
+            ),
             "tail_update_alpha": float(state.tail_update_alpha),
             "cir_update_mode": str(state.cir_update_mode),
             "cir_update_alpha": float(state.cir_update_alpha),
@@ -1543,7 +1653,12 @@ def _run_pilot_online_method(
             ),
             "cir_reward_pilot_loss_before": cir_reward_loss_before,
             "cir_reward_pilot_loss_after": cir_reward_loss_after,
-            "peft_update_applied": bool(accepted),
+            "peft_update_applied": bool(update_applied and accepted),
+            "bandit_reward": bandit_reward,
+            "bandit_update_cost": float(bandit_update_cost),
+            "bandit_action_cost": float(bandit_action_cost),
+            "bandit_rollback_penalty": float(bandit_rollback_penalty),
+            "bandit_context": dict(bandit_context),
             "data_labels_used_online": False,
             "pretrained_loaded": bool(state.pretrained_loaded),
             "frame_index": int(frame_index),
@@ -1593,6 +1708,30 @@ def _online_candidate_specs(config: dict, default_groups: set[str]) -> tuple[dic
             }
         )
     return tuple(candidates)
+
+
+def _bandit_candidate_for_action(
+    action: SafeUpdateAction,
+    candidates: tuple[dict, ...],
+) -> tuple[dict, ...]:
+    """把安全动作映射为一个候选更新；找不到匹配候选时安全退化为 skip。"""
+
+    if action.name == "skip" or not action.groups:
+        return ()
+    for candidate in candidates:
+        candidate_groups = frozenset(str(group) for group in candidate["groups"])
+        if candidate_groups != action.groups:
+            continue
+        selected = dict(candidate)
+        selected["learning_rate_scale"] = float(
+            selected.get("learning_rate_scale", 1.0)
+        ) * float(action.learning_rate_scale)
+        selected["max_delta_scale"] = float(
+            selected.get("max_delta_scale", 1.0)
+        ) * float(action.max_delta_scale)
+        selected["name"] = str(action.name)
+        return (selected,)
+    return ()
 
 
 def _online_groups_from_config(

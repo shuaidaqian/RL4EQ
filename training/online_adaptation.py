@@ -413,7 +413,7 @@ def run_pilot_driven_online(
                         else 0.0
                     )
                     update_cost = float(config.get("online_bandit_update_cost", 0.001)) * parameter_delta_norm
-                    action_cost = float(config.get("online_bandit_action_cost", 0.0001)) if update_applied else 0.0
+                    action_cost = float(config.get("online_bandit_action_cost", 0.000001)) if update_applied else 0.0
                     rollback_penalty = (
                         float(config.get("online_bandit_rollback_penalty", 0.01))
                         if update_applied and not accepted

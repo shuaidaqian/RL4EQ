@@ -37,5 +37,6 @@
   "main_delays": [20, 30, 40],
   "main_snrs": [0, 5, 10, 15],
   "rho": 0.99,
-  "offline_loss": "bce_all"
+  "offline_loss": "bce_all",
+  "online_bandit_action_cost": 0.000001
 }

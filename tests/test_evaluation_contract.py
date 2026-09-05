@@ -7,6 +7,7 @@ import sys
 import pytest
 import torch
 
+from agent.unfolded_equalizer import UnfoldedConfig
 from compare import FORMAL_METHODS, _build_method_states, _run_baseline_method_batch, paired_frame, run_method
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect, _coordinate_refine_single
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
@@ -52,6 +53,30 @@ def test_main_method_group_excludes_strong_model_based_diagnostics():
     assert method_group("main") == traditional + proposed
     assert "Fixed CG-BPSK-DD Block Detector" in diagnostic
     assert "Perfect-CSI Block" in diagnostic
+
+
+def test_compare_online_state_uses_bandit_scheduler_when_requested():
+    """主比较入口请求 bandit 时，在线状态必须真正携带安全调度器。"""
+
+    from compare import PilotOnlineMethodState
+
+    config = json.loads(Path("configs/continual_ppo.json").read_text(encoding="utf-8"))
+    model_config = UnfoldedConfig.from_dict(config["model"])
+    state = _build_method_states(
+        ("Pilot-Driven Online Adaptation",),
+        torch.zeros(model_config.frame_len, dtype=torch.complex64),
+        torch.zeros(model_config.max_delay + 1, dtype=torch.complex64),
+        config,
+        delay=4,
+        snr_db=10.0,
+        seed=0,
+        device="cpu",
+        scheduler="bandit",
+    )["Pilot-Driven Online Adaptation"]
+
+    assert isinstance(state, PilotOnlineMethodState)
+    assert state.scheduler == "bandit"
+    assert state.bandit is not None
 
 
 def test_config_exposes_new_snr_and_pilot_sweep_contract():

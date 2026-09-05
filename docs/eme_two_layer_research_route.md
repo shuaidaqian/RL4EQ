@@ -69,6 +69,7 @@ Pilot-Driven Online Adaptation（由安全 Contextual Bandit 调度）
 Frozen 和 Online 使用相同离线 checkpoint、相同 Level B 信道轨迹、相同前缀 Pilot
 和相同跨帧 soft-tail。Frozen 冻结网络参数；Online 只利用 Adapt Pilot 产生受限
 候选更新，并由 Reward Pilot 验收或回滚。
+`compare.py` 默认使用 `bandit`；`--scheduler fixed` 仅用于固定候选选择器消融，不能替代主结果中的安全 Contextual Bandit。
 
 ## 当前证据边界
 
