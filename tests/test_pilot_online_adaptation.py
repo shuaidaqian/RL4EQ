@@ -332,6 +332,7 @@ def test_pilot_online_runner_records_bandit_action_and_reward_boundary(tmp_path)
     assert result["scheduler"] == "bandit"
     assert row["scheduler"] == "bandit"
     assert row["action"] in {"skip", "phase_weak", "head_weak", "head_nominal", "film_nominal", "joint_nominal"}
+    assert row["action"] != "phase_weak"
     assert row["uses_rl"] is True
     assert row["data_labels_used_online"] is False
     assert row["reward_pilot_loss_before"] >= 0.0

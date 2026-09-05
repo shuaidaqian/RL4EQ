@@ -265,6 +265,15 @@ def run_pilot_driven_online(
                     proximal_weight=float(config.get("online_adaptation_proximal_weight", 0.0)),
                 )
                 bandit = SafeContextualBandit(seed=90_000 + int(seed)) if scheduler == "bandit" else None
+                allowed_bandit_actions = (
+                    {
+                        action.name
+                        for action in bandit.actions
+                        if action.groups.issubset(adapter.groups)
+                    }
+                    if bandit is not None
+                    else set()
+                )
                 active_action = None
                 hold_remaining = 0
                 previous_reward_gain = 0.0
@@ -364,7 +373,7 @@ def run_pilot_driven_online(
                             0.0,
                         )
                     elif hold_remaining <= 0 or active_action is None:
-                        action = bandit.select(context)
+                        action = bandit.select(context, allowed_names=allowed_bandit_actions)
                         active_action = action
                         hold_remaining = int(action.hold_frames)
                     else:
