@@ -37,6 +37,10 @@ Meta-Pilot：经过跨信道状态任务训练的快速初始化/内循环
 
 当前状态：必要性评估接口和测试已完成，但还没有用新的 `BCE_all` checkpoint 生成正式 Meta-Pilot 配对矩阵。因此当前不能声称元学习已经必要，也不能以 Reward Pilot loss 的下降替代 Data BER 证据。
 
+用新的 32 步 `BCE_all` EME checkpoint 做的 8 帧、10 dB 短对照中，固定 Pilot-SGD
+和 Bandit 的 Data BER 均为 `0.00683594`。这说明当前 Bandit 尚未显示独立 BER
+增益，后续正式实验必须扩大帧数、seed 和状态失配范围后再判断调度收益。
+
 ## 第三层：安全 Contextual Bandit
 
 Bandit 的职责是调度，不是生成网络参数。安全动作集合为 `skip`、弱/正常 head 更新、弱 phase 更新、FiLM 更新和联合更新；动作必须属于当前模型真实存在的 PEFT 组，并在短窗口内保持不变。上下文包含 Adapt Pilot loss/confidence、residual CFO、phase slope、CIR drift、SNR、Reward 趋势、回滚率、连续拒绝数和上次参数变化范数。
