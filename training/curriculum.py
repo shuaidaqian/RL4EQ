@@ -153,6 +153,15 @@ def _estimate_cir_from_tx_symbols(rx_symbols: torch.Tensor, tx_symbols: torch.Te
     return _normalize_cir(estimate)
 
 
+def full_frame_bce_loss(logits: torch.Tensor, bits: torch.Tensor) -> torch.Tensor:
+    """对整帧所有符号等权计算离线监督 BCE。"""
+
+    return F.binary_cross_entropy_with_logits(
+        logits.reshape(-1).float(),
+        bits.reshape(-1).float(),
+    )
+
+
 def supervised_equalization_loss(
     logits: torch.Tensor,
     bits: torch.Tensor,
@@ -163,7 +172,7 @@ def supervised_equalization_loss(
     data_margin_loss_weight: float = 0.0,
     data_margin: float = 1.0,
 ) -> torch.Tensor:
-    """离线监督均衡损失。
+    """兼容旧实验的分区离线监督均衡损失。
 
     基础项保持原研究契约：Data BCE 为主，Adapt/Reward Pilot BCE 各 0.25。
     可选 Data margin 项只使用离线 Data 标签，目的是强化接近判决边界的
@@ -281,6 +290,7 @@ class CurriculumTrainer:
             state_split=self.config.get("offline_state_split"),
         )
         return {
+            "offline_loss": str(self.config.get("offline_loss", "bce_all")),
             "history": self.history,
             "condition_cir_sources": dict(self.condition_cir_source_counts),
             "validation": validation,
@@ -423,6 +433,7 @@ class CurriculumTrainer:
             )
             self.condition_cir_source_counts[selection.source] = self.condition_cir_source_counts.get(selection.source, 0) + 1
             cir = selection.cir
+            receiver_view = frame.receiver_view()
             snr_items.append(float(snr_db))
             rx_iq_items.append(torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1))
             bit_items.append(frame.bits.float())
@@ -454,7 +465,7 @@ class CurriculumTrainer:
                     cfo_hint=float(acquisition_cfo),
                 )
             )
-            adapt_symbol_items.append(frame.tx_symbols)
+            adapt_symbol_items.append(receiver_view.adapt_symbols)
             adapt_masks.append(frame.adapt_mask)
             reward_masks.append(frame.reward_mask)
             data_masks.append(frame.data_mask)
@@ -487,15 +498,26 @@ class CurriculumTrainer:
         adapt_mask = torch.stack(adapt_masks).to(self.device)
         reward_mask = torch.stack(reward_masks).to(self.device)
         data_mask = torch.stack(data_masks).to(self.device)
-        return supervised_equalization_loss(
-            logits,
-            bits,
-            adapt_mask,
-            reward_mask,
-            data_mask,
-            data_margin_loss_weight=float(self.config.get("data_margin_loss_weight", 0.0)),
-            data_margin=float(self.config.get("data_margin", 1.0)),
-        )
+        margin_weight = float(self.config.get("data_margin_loss_weight", 0.0))
+        margin = float(self.config.get("data_margin", 1.0))
+        if str(self.config.get("offline_loss", "bce_all")) == "bce_all":
+            loss = full_frame_bce_loss(logits, bits)
+            if margin_weight > 0.0:
+                labels = bits[data_mask].float() * 2.0 - 1.0
+                signed_margin = labels * logits[data_mask].float()
+                loss = loss + margin_weight * torch.relu(margin - signed_margin).mean()
+            return loss
+        if str(self.config.get("offline_loss")) == "partitioned":
+            return supervised_equalization_loss(
+                logits,
+                bits,
+                adapt_mask,
+                reward_mask,
+                data_mask,
+                data_margin_loss_weight=margin_weight,
+                data_margin=margin,
+            )
+        raise ValueError("offline_loss 必须为 bce_all 或 partitioned。")
 
     def _advance_training_receiver_state(
         self,

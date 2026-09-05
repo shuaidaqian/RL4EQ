@@ -9,7 +9,7 @@ from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.block_equalizers import DetectionResult
 from env.frame_structure import FrameConfig, FrameGenerator
 from training.curriculum import build_curriculum, load_config
-from training.curriculum import CurriculumTrainer, supervised_equalization_loss
+from training.curriculum import CurriculumTrainer, full_frame_bce_loss, supervised_equalization_loss
 import training.meta_training as meta_training
 from training.meta_training import (
     FixedGate,
@@ -610,3 +610,17 @@ def test_supervised_equalization_loss_can_add_data_margin_penalty():
     )
 
     assert with_margin > base
+
+
+def test_full_frame_bce_loss_weights_all_symbols_equally():
+    """离线 BCE_all 必须对完整输出逐符号等权，而不是按 Pilot 分区加权。"""
+
+    logits = torch.tensor([[0.1, 4.0, -4.0, -0.1]])
+    bits = torch.tensor([[True, True, False, False]])
+    expected = torch.nn.functional.binary_cross_entropy_with_logits(
+        logits.reshape(-1), bits.reshape(-1).float()
+    )
+
+    actual = full_frame_bce_loss(logits, bits)
+
+    assert torch.allclose(actual, expected)

@@ -87,6 +87,7 @@
   "meta_peft_groups": ["phase"],
   "offline_state_split": "offline_train",
   "online_meta_state_split": "offline_train",
+  "offline_loss": "bce_all",
   "online_state_splits": {
     "offline_train": {
       "strong_path_count": [12, 18],
