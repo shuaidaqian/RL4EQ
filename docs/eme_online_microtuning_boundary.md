@@ -12,7 +12,7 @@
 2. **在线物理状态更新**：根据 Adapt Pilot 更新 CIR 或慢相位状态；
 3. **在线参数微调**：根据 Adapt Pilot 的自监督损失更新 phase、FiLM、Adapter、LoRA 或 head 等受限 PEFT 参数，Reward Pilot 只负责验收和回滚。
 
-`Frozen Offline NN` 是在线增量的唯一神经对照。它与 `Pilot-Driven Online Adaptation` 必须使用相同的 CIR、soft-tail、Pilot 切分和条件来源，唯一差别是是否更新 PEFT 参数。
+`Frozen Offline NN` 是在线增量的唯一离线接收机对照。它与 `Pilot-Driven Online Adaptation` 使用相同的 checkpoint、信道轨迹、Pilot 切分和 soft-tail 递推；Frozen 固定 acquisition 条件，Online 才读取当前帧 Pilot 并更新物理状态和 PEFT 参数。
 
 ## 2. 新增的严格参数微调消融
 
@@ -36,9 +36,9 @@
 
 离线训练先用完整帧和 Data 标签，把网络训练成“知道这类长回波信道通常怎么均衡”的基础接收机。实际运行时，每一帧前缀里的 Adapt Pilot 是接收端已知答案的一小段信号，因此可以用它计算当前网络的错误，并只调整 `phase` 这类很少的 PEFT 参数。
 
-一次在线更新的过程是：先保存旧参数；用 Adapt Pilot 做一小步梯度更新；再用独立的 Reward Pilot 检查更新后是否真的更好。Reward Pilot 的损失没有达到最小改善，或者下一帧发现上一次更新已经造成恶化，就恢复旧参数。Data 区域没有标签，不参与在线训练、选动作或回滚，只在实验结束后统计 BER。
+一次在线更新的过程是：先保存旧参数；用 Adapt Pilot 做一小步梯度更新；再把独立的 Reward Pilot 分成两个时间子窗口，检查更新后是否在两个子窗口都变好。只要有一个子窗口变差，或者总体没有达到最小改善，就恢复旧参数；下一帧发现上一次更新造成恶化时也会恢复。Data 区域没有标签，不参与在线训练、选动作或回滚，只在实验结束后统计 BER。
 
-所以 Frozen Offline NN 是“离线学会基础能力但参数不动”，Online 是“从同一个离线起点出发，根据每帧 Pilot 小幅修正”。论文需要证明的不是 Online 只比一个很弱的网络好，而是同一信道、同一 checkpoint、同一 Pilot 和同一状态轨迹下，在线微调本身能为 Frozen 带来稳定的额外收益。
+所以 Frozen Offline NN 是“离线学会基础能力、运行时状态也冻结”，Online 是“从同一个离线起点出发，根据每帧 Pilot 恢复当前状态并小幅修正参数”。论文需要证明的是同一信道、同一 checkpoint、同一 Pilot 和同一帧轨迹下，在线恢复与微调能为 Frozen 带来稳定的额外收益。
 
 ## 3. 已发现的比较错误及修正
 

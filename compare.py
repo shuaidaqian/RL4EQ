@@ -281,6 +281,7 @@ def main() -> None:
     parser.add_argument("--online-max-delta-norm", type=float, default=None)
     parser.add_argument("--online-proximal-weight", type=float, default=None)
     parser.add_argument("--online-min-reward-improvement", type=float, default=None)
+    parser.add_argument("--online-reward-windows", type=int, default=None)
     parser.add_argument("--online-cross-frame-tolerance", type=float, default=None)
     parser.add_argument("--online-phase-smoothing", type=float, default=None)
     parser.add_argument("--online-phase-min-confidence", type=float, default=None)
@@ -306,6 +307,7 @@ def main() -> None:
             "online_adaptation_max_delta_norm": args.online_max_delta_norm,
             "online_adaptation_proximal_weight": args.online_proximal_weight,
             "online_adaptation_min_reward_improvement": args.online_min_reward_improvement,
+            "online_reward_windows": args.online_reward_windows,
             "online_cross_frame_rollback_tolerance": args.online_cross_frame_tolerance,
             "online_phase_tracking_smoothing": args.online_phase_smoothing,
             "online_phase_tracking_min_confidence": args.online_phase_min_confidence,
@@ -620,6 +622,7 @@ class PilotOnlineMethodState:
     phase_tracking_min_confidence: float = 0.15
     phase_tracking_cfo_limit: float = 0.0012
     min_reward_improvement: float = 0.001
+    reward_pilot_windows: int = 2
     cross_frame_rollback_tolerance: float = 0.00001
     # 在线参数微调可固定 acquisition 条件，以单独度量 PEFT 的增量价值。
     condition_source: str = "pilot_cir_phase"
@@ -702,6 +705,7 @@ def _build_method_states(
                 phase_tracking_min_confidence=float(config.get("online_phase_tracking_min_confidence", 0.15)),
                 phase_tracking_cfo_limit=float(config.get("online_phase_tracking_cfo_limit", residual_cfo_limit)),
                 min_reward_improvement=float(config.get("online_adaptation_min_reward_improvement", 0.001)),
+                reward_pilot_windows=max(1, int(config.get("online_reward_windows", 2))),
                 cross_frame_rollback_tolerance=float(
                     config.get("online_cross_frame_rollback_tolerance", 0.00001)
                 ),
@@ -755,10 +759,10 @@ def _build_method_states(
             model = _build_equalizer(model_config, pretrained_path, device)
             modulation_config = ModulationConfig(num_adapter_gates=len(model.blocks), num_lora_scales=len(model.blocks))
             if method == "Frozen Offline NN":
-                # 冻结的是离线 checkpoint 参数；Pilot 仍可生成物理条件，保证与
-                # Online 的比较只差在线 PEFT 更新，而不是差一个输入状态估计器。
+                # Frozen 只复现离线接收机：网络参数和 acquisition 条件均冻结。
+                # 当前帧 Pilot 状态恢复属于 Online 的核心能力，不能提前给 Frozen。
                 condition_update_mode = "fixed"
-                condition_source = "pilot_cir_phase"
+                condition_source = "acquisition"
             elif method == "Pilot CIR only":
                 condition_update_mode = "pilot_sparse"
                 condition_source = "pilot_cir_phase"
@@ -1403,6 +1407,8 @@ def _run_pilot_online_method(
     best_snapshot = None
     best_result = None
     best_reward = float(reward_before.detach().cpu())
+    best_reward_logits = before
+    best_reward_window_gains: list[float] = []
     best_name = "skip"
     best_after = before
     for candidate in candidates:
@@ -1428,14 +1434,20 @@ def _run_pilot_online_method(
         after = after_logits.squeeze(0)
         reward_after = _masked_bce(after, frame_device.bits, frame_device.reward_mask)
         reward_value = float(reward_after.detach().cpu())
-        if adaptation.accepted and _accept_online_peft_update(
-            best_reward,
-            reward_value,
+        window_accept, window_gains = _accept_windowed_reward_update(
+            best_reward_logits,
+            after,
+            frame_device.bits,
+            frame_device.reward_mask,
             state.min_reward_improvement,
-        ):
+            windows=state.reward_pilot_windows,
+        )
+        if adaptation.accepted and window_accept:
             best_snapshot = state.model.peft.snapshot(candidate_groups)
             best_result = adaptation
             best_reward = reward_value
+            best_reward_logits = after
+            best_reward_window_gains = window_gains
             best_name = str(candidate["name"])
             best_after = after
     state.model.peft.restore(base_snapshot)
@@ -1513,6 +1525,8 @@ def _run_pilot_online_method(
             "online_adaptation_freeze_below_snr_db": freeze_below_db,
             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
+            "reward_pilot_windows": int(state.reward_pilot_windows),
+            "reward_pilot_window_gains": best_reward_window_gains,
             "online_min_reward_improvement": float(state.min_reward_improvement),
             "online_proximal_weight": float(state.adapter.proximal_weight),
             "peft_update_guarded": True,
@@ -1676,6 +1690,38 @@ def _accept_online_peft_update(
     return float(reward_loss_before) - float(reward_loss_after) >= float(min_improvement)
 
 
+def _accept_windowed_reward_update(
+    logits_before: torch.Tensor,
+    logits_after: torch.Tensor,
+    labels: torch.Tensor,
+    reward_mask: torch.Tensor,
+    min_improvement: float,
+    windows: int = 2,
+) -> tuple[bool, list[float]]:
+    """要求 Reward Pilot 的每个时间子窗口都支持同一个在线更新。"""
+
+    before = logits_before.reshape(-1)
+    after = logits_after.reshape(-1)
+    target = labels.reshape(-1).to(device=before.device, dtype=before.dtype)
+    positions = torch.nonzero(reward_mask.reshape(-1).to(device=before.device), as_tuple=False).flatten()
+    if positions.numel() == 0:
+        return False, []
+    window_count = max(1, min(int(windows), int(positions.numel())))
+    gains: list[float] = []
+    for chunk in torch.tensor_split(positions, window_count):
+        if chunk.numel() == 0:
+            continue
+        loss_before = torch.nn.functional.binary_cross_entropy_with_logits(
+            before[chunk], target[chunk]
+        )
+        loss_after = torch.nn.functional.binary_cross_entropy_with_logits(
+            after[chunk], target[chunk]
+        )
+        gains.append(float((loss_before - loss_after).detach().cpu()))
+    accepted = bool(gains) and min(gains) >= float(min_improvement)
+    return accepted, gains
+
+
 def _previous_update_is_harmful(
     current_reward_loss: float,
     previous_good_reward_loss: float,
@@ -1691,8 +1737,8 @@ def _neural_method_contract(method: str) -> dict[str, object]:
 
     contracts = {
         "Frozen Offline NN": {
-            "condition_source": "pilot_cir_phase",
-            "pilot_phase_used": True,
+            "condition_source": "acquisition",
+            "pilot_phase_used": False,
             "cir_update_applied": False,
             "peft_update_applied": False,
         },

@@ -27,10 +27,11 @@
 
 主结果只使用三类方法：公平的传统均衡器、`Frozen Offline NN` 和
 `Pilot-Driven Online Adaptation`。Frozen 与 Online 使用同一个离线 checkpoint、
-同一条 Level B 信道轨迹、同一份 Pilot 划分、同一个物理状态条件和同一个跨帧
-soft-tail 更新规则。Frozen 不做 PEFT 更新，Online 才从 Adapt Pilot 计算梯度并由
-Reward Pilot 决定接受或回滚。这样 Online 相对 Frozen 的差异可以直接归因于在线微调，
-而不是归因于网络结构、信道或状态轨迹差异。
+同一条 Level B 信道轨迹、同一份 Pilot 划分和同一个跨帧 soft-tail 更新规则；Frozen
+固定使用 acquisition 条件，Online 才使用当前帧 Pilot 恢复物理状态并更新受限 PEFT
+参数，再由 Reward Pilot 决定接受或回滚。这样比较直接回答“离线模型状态老化后，在线
+Pilot 能否恢复并继续改善”的主问题。需要单独测量 PEFT 本身时，另行使用
+`--online-condition-source acquisition`，不改变主实验定义。
 
 ## 5. 更新对象消融
 
@@ -102,8 +103,9 @@ Reward Pilot 决定接受或回滚。这样 Online 相对 Frozen 的差异可以
 ## 2026-09-04：在线微调因果边界修正
 
 为避免把接收机状态递推差异误算为在线参数增益，Frozen 和 Online 现在共享同一个
-`tail_update_alpha`。修正后的 Level B 主矩阵（`max_delay=116`、prefix Pilot=128、3 seed、
-60 帧、`cfo_phase_tiny`）为：
+`tail_update_alpha`。主矩阵允许 Frozen 保持 acquisition 条件，这是离线冻结接收机与
+Online 的核心实验差异。修正后的 Level B 主矩阵（`max_delay=116`、prefix Pilot=128、
+3 seed、60 帧、`cfo_phase_tiny`）为：
 
 | SNR | CFO+DD LMMSE-FIR | CFO+DD DFE-RLS | Frozen Offline NN | Pilot-Driven Online |
 |---:|---:|---:|---:|---:|
@@ -122,7 +124,27 @@ edge 信道、Reward Pilot=64 的小样本中，严格 acquisition 条件下只�
 
 因此第二研究点的最终实验逻辑固定为：
 
-1. `Frozen Offline NN` 作为相同状态输入下的强对照；
+1. `Frozen Offline NN` 作为离线固定 acquisition 条件下的强对照；
 2. `Pilot-Driven Online Adaptation` 作为 Adapt Pilot 自监督、Reward Pilot 验收/回滚的主在线方法；
 3. `acquisition + phase` 仅用于证明在线参数更新的因果作用及其边界；
 4. 更新对象和更新间隔必须通过逐配置、逐帧配对结果确定，不能仅凭 Reward Pilot 接受率或单帧 BER 宣称在线优势。
+
+## 2026-09-05：主对照改为离线固定条件后的复核
+
+为避免 Frozen 提前使用当前帧 Pilot 的物理状态，本轮将 `Frozen Offline NN` 固定为
+acquisition CIR/phase 条件；`Pilot-Driven Online Adaptation` 才读取当前帧前缀 Pilot，
+并继续使用 Reward Pilot 做 PEFT 验收和回滚。两种方法仍共享同一个 checkpoint、信道
+轨迹、帧结构和 soft-tail 递推。
+
+在 `eme_long_memory_v2`、`cfo_phase_tiny`、`max_delay=116`、prefix Pilot=128、3 seed、
+60 帧的神经两组正式复核中，Frozen 的 Data BER 为 `50.09%/50.43%/50.55%/50.70%`，
+Online 为 `20.18%/6.06%/1.08%/0.21%`（对应 0/5/10/15 dB）。Online 在四个 SNR
+层均明显优于 Frozen，也明显优于同轨迹上的传统 CFO+DD-Phase DFE-RLS；但 10 dB
+仍略高于 1%，且 phase PEFT 在该配置下没有稳定被接受，因此这组结果证明的是
+“Pilot 驱动在线恢复/微调链路”的价值，不能把全部增益归因于网络参数更新。
+
+进一步的 acquisition 条件参数微调探针显示，当前 `phase` PEFT 会出现 Reward Pilot
+损失微小改善但 Data 段不改善的情况，说明短 Reward Pilot 容易接受不具备跨区域泛化性的
+更新。本轮已加入两个子窗口一致性门控，后续必须用长帧、多 seed 重新验证其拒绝错误更新
+的能力，再决定是否更换 PEFT
+对象；不能通过放大步长强行制造在线增益。

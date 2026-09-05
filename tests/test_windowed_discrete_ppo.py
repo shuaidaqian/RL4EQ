@@ -35,6 +35,7 @@ def test_neural_condition_update_mode_is_explicit_per_method(tmp_path):
         cir_update_mode="pilot_sparse",
     )
     assert states["Frozen Offline NN"].condition_update_mode == "fixed"
+    assert states["Frozen Offline NN"].condition_source == "acquisition"
     assert states["NN + Fixed Modulation"].condition_update_mode == "pilot_sparse"
 
 
