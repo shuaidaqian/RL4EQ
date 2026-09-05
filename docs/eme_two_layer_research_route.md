@@ -79,9 +79,10 @@ Frozen 和 Online 使用相同离线 checkpoint、相同 Level B 信道轨迹、
 新的 `BCE_all` EME 32 步 smoke 仅用于检查训练/加载链路，不能代替正式结果。
 256 Pilot 的 Level B、0/5/10/15 dB、3 seed、60 帧主矩阵已完整覆盖 8640 条记录；
 Online 相对 Frozen 在 10/15 dB 分别改善 `0.027/0.054` 个百分点，在 0/5 dB 持平。
-200 帧、3 seed 长期诊断中，10/15 dB 分别改善 `0.092/0.117` 个百分点，且修正版
-动作延迟诊断为 `delayed_effect_detected=false`，因此控制器仍固定为 Contextual
-Bandit，不升级 Recurrent Double DQN。
+使用此前的 256-Pilot checkpoint 做 200 帧、3 seed 长期诊断时，10/15 dB 分别改善
+`0.092/0.117` 个百分点；该结果是长期稳定性诊断，不与下面的新 checkpoint 60 帧
+主矩阵混合。两轮实验的修正版动作延迟诊断均为 `delayed_effect_detected=false`，
+因此控制器仍固定为 Contextual Bandit，不升级 Recurrent Double DQN。
 
 当前必须诚实区分两种在线收益：主矩阵中 720 个 Online 帧仅有 10 次 CIR 更新被
 Reward Pilot 接受，PEFT 参数更新没有有效接受；因此目前已证实的是“Pilot 驱动的

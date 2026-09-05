@@ -188,8 +188,11 @@ Adapt Pilot=224、Reward Pilot=32；离线 checkpoint 也按该主协议重新�
 | 10 dB | 6.909% | 1.060% | 1.039% | 0.020 个百分点 |
 | 15 dB | 4.374% | 0.216% | 0.163% | 0.053 个百分点 |
 
-在 200 帧、3 个 seed 的长期诊断中，Online 与 Frozen 在 10 dB 的全程 BER 为
-`1.148%/1.240%`，在 15 dB 为 `0.171%/0.289%`；0/5 dB 持平。修正版动作延迟
+使用此前的 `pretrained/eme_bce_all_32_20260905/model_best.pt` 做 200 帧、3 个
+seed 的长期诊断中，Online 与 Frozen 在 10 dB 的全程 BER 为 `1.148%/1.240%`，
+在 15 dB 为 `0.171%/0.289%`；0/5 dB 持平。该结果用于长期稳定性诊断；最终 60
+帧主矩阵改用按 Pilot=256 重训的 `pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`。
+修正版动作延迟
 诊断没有发现动作收益跨帧延迟效应，因此当前调度算法固定为安全 Contextual Bandit，
 不升级 Recurrent Double DQN。
 
