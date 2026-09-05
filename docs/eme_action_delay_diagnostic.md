@@ -30,6 +30,8 @@ split 对齐帧，从每个动作发生帧开始，统计 horizon `0/1/2/4/8` �
 - 若 horizon 1/2/4/8 的收益在多个 seed、多个 SNR 和 heldout edge 上稳定高于
   即时收益，标记为需要进一步验证的 delayed effect；
 - 单个 seed 或单个动作出现延迟峰值，不足以支持引入 Recurrent Double DQN；
+- 当前实现要求至少覆盖 2 个 seed 和 2 个 SNR 才会把延迟峰值标记为
+  `delayed_effect_detected=true`，输出中同时记录 `support` 计数；
 - 即使进入后续 DRQN 研究，动作仍只能来自安全离散集合，不能直接输出高维参数
   增量，也不能使用 Data 标签训练控制器。
 

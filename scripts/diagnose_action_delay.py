@@ -49,8 +49,10 @@ def summarize_action_delay(
         indexed[key][int(row["frame"])] = row
 
     accumulators: dict[str, dict[int, list[float]]] = defaultdict(lambda: defaultdict(list))
+    support: dict[str, dict[str, set[object]]] = defaultdict(
+        lambda: {"seeds": set(), "snrs": set()}
+    )
     for key, frames in indexed.items():
-        del key
         for frame, anchor in frames.items():
             action = str(anchor["action"])
             for horizon in selected_horizons:
@@ -59,6 +61,8 @@ def summarize_action_delay(
                     continue
                 value = target.get("bandit_reward", target.get("reward_gain"))
                 accumulators[action][horizon].append(float(value))
+                support[action]["seeds"].add(key[0])
+                support[action]["snrs"].add(key[2])
 
     by_action: dict[str, dict[str, dict[str, float]]] = {}
     for action, horizon_values in sorted(accumulators.items()):
@@ -82,13 +86,28 @@ def summarize_action_delay(
             for horizon, summary in summaries.items()
             if horizon != "0" and summary["count"] > 0.0
         ]
-        if delayed_values and max(delayed_values) > immediate["mean_reward"] + float(delayed_margin):
+        enough_support = (
+            len(support[action]["seeds"]) >= 2
+            and len(support[action]["snrs"]) >= 2
+        )
+        if (
+            enough_support
+            and delayed_values
+            and max(delayed_values) > immediate["mean_reward"] + float(delayed_margin)
+        ):
             delayed_effect_detected = True
             break
 
     return {
         "horizons": list(selected_horizons),
         "by_action": by_action,
+        "support": {
+            action: {
+                "seed_count": len(values["seeds"]),
+                "snr_count": len(values["snrs"]),
+            }
+            for action, values in support.items()
+        },
         "delayed_effect_detected": delayed_effect_detected,
         "recommended_controller": (
             "investigate_safe_recurrent_double_dqn"
