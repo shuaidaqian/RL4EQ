@@ -53,3 +53,35 @@ def test_bandit_rejects_unknown_or_nonfinite_feedback():
         bandit.update("unknown", context, reward=0.1, accepted=True)
     with pytest.raises(ValueError):
         bandit.update("head_weak", context, reward=float("nan"), accepted=True)
+
+
+def test_bandit_default_context_covers_channel_and_update_state():
+    """Bandit 上下文必须能区分相位、CIR 漂移和历史拒绝状态。"""
+
+    bandit = SafeContextualBandit(seed=19)
+
+    assert set(bandit.feature_names) >= {
+        "adapt_loss",
+        "pilot_confidence",
+        "residual_cfo",
+        "phase_slope",
+        "cir_drift",
+        "snr_db",
+        "consecutive_rejections",
+        "parameter_delta_norm",
+    }
+
+
+def test_bandit_rejects_data_label_feedback_argument():
+    """Bandit 更新接口不能接受 Data 标签作为动作反馈。"""
+
+    bandit = SafeContextualBandit(seed=23)
+
+    with pytest.raises(TypeError):
+        bandit.update(
+            "skip",
+            {"pilot_confidence": 1.0},
+            reward=0.0,
+            accepted=True,
+            data_ber=0.0,
+        )

@@ -336,3 +336,12 @@ def test_pilot_online_runner_records_bandit_action_and_reward_boundary(tmp_path)
     assert row["data_labels_used_online"] is False
     assert row["reward_pilot_loss_before"] >= 0.0
     assert row["reward_pilot_loss_after"] >= 0.0
+    assert set(row["bandit_context"]) >= {
+        "residual_cfo",
+        "phase_slope",
+        "cir_drift",
+        "snr_db",
+        "consecutive_rejections",
+        "parameter_delta_norm",
+    }
+    assert row["reward_data_labels_used_online"] is False

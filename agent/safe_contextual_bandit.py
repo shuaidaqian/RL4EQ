@@ -40,8 +40,14 @@ class SafeContextualBandit:
     DEFAULT_FEATURES = (
         "adapt_loss",
         "pilot_confidence",
+        "residual_cfo",
+        "phase_slope",
+        "cir_drift",
+        "snr_db",
         "reward_trend",
         "rollback_rate",
+        "consecutive_rejections",
+        "parameter_delta_norm",
     )
 
     def __init__(
@@ -167,8 +173,27 @@ class SafeContextualBandit:
             value = float(context.get(name, 0.0))
             if not math.isfinite(value):
                 raise ValueError(f"Bandit context[{name}] 必须为有限数。")
-            values.append(value)
+            values.append(self._normalize_feature(name, value))
         return np.asarray(values, dtype=np.float64)
+
+    @staticmethod
+    def _normalize_feature(name: str, value: float) -> float:
+        """把不同物理量压到相近数值范围，避免线性模型被 SNR 主导。"""
+
+        scales = {
+            "adapt_loss": 1.0,
+            "pilot_confidence": 1.0,
+            "residual_cfo": 0.001,
+            "phase_slope": 0.1,
+            "cir_drift": 0.1,
+            "snr_db": 20.0,
+            "reward_trend": 1.0,
+            "rollback_rate": 1.0,
+            "consecutive_rejections": 4.0,
+            "parameter_delta_norm": 1.0,
+        }
+        normalized = value / scales.get(name, 1.0)
+        return float(max(-5.0, min(5.0, normalized)))
 
     @staticmethod
     def _prior(action: SafeUpdateAction) -> float:

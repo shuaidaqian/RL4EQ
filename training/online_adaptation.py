@@ -299,8 +299,11 @@ def run_pilot_driven_online(
                     )
                     cir = cir.to(device).to(torch.complex64)
                 receiver_state = ReceiverState(start.initial_soft_tail.to(device).to(torch.complex64))
+                previous_parameter_delta_norm = 0.0
+                consecutive_rejections = 0
                 for frame_index in range(1, int(frames) + 1):
                     frame = _frame_to_device(env.next_frame(), device)
+                    cir_before_update = cir.detach().clone()
                     if cir_update_mode == "pilot_sparse":
                         cir = pilot_sparse_cir_update(
                             frame,
@@ -316,6 +319,15 @@ def run_pilot_driven_online(
                         receiver_state.soft_tail,
                         blocks=4,
                         cfo_hint=acquisition_cfo,
+                    )
+                    cir_drift = float(
+                        torch.linalg.vector_norm(cir - cir_before_update).detach().cpu()
+                        / torch.linalg.vector_norm(cir_before_update).clamp_min(1e-8).detach().cpu()
+                    )
+                    phase_slope = float(
+                        torch.diff(phase_features.reshape(-1)).abs().mean().detach().cpu()
+                        if phase_features.numel() > 1
+                        else torch.zeros((), device=device)
                     )
                     condition = condition_from_cir(cir, float(snr_db), phase_features=phase_features)
                     tail = receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
@@ -333,8 +345,14 @@ def run_pilot_driven_online(
                     context = {
                         "adapt_loss": float(adapt_loss_before.detach().cpu()),
                         "pilot_confidence": float(condition.confidence.mean().detach().cpu()),
+                        "residual_cfo": float(acquisition_cfo),
+                        "phase_slope": phase_slope,
+                        "cir_drift": cir_drift,
+                        "snr_db": float(snr_db),
                         "reward_trend": float(previous_reward_gain),
                         "rollback_rate": float(rollback_count / max(1, frame_index - 1)),
+                        "consecutive_rejections": float(consecutive_rejections),
+                        "parameter_delta_norm": float(previous_parameter_delta_norm),
                     }
                     if bandit is None:
                         action = SafeUpdateAction(
@@ -375,11 +393,24 @@ def run_pilot_driven_online(
                     after = after_logits.squeeze(0)
                     reward_before = _masked_bce(before, frame.bits, frame.reward_mask)
                     reward_after = _masked_bce(after, frame.bits, frame.reward_mask)
-                    reward_gain = float(reward_before.detach().cpu() - reward_after.detach().cpu())
+                    raw_reward_gain = float(reward_before.detach().cpu() - reward_after.detach().cpu())
                     accepted = bool(
                         not update_applied
-                        or (adaptation is not None and adaptation.accepted and reward_gain >= 0.0)
+                        or (adaptation is not None and adaptation.accepted and raw_reward_gain >= 0.0)
                     )
+                    parameter_delta_norm = float(
+                        adaptation.parameter_delta_norm
+                        if adaptation is not None and accepted
+                        else 0.0
+                    )
+                    update_cost = float(config.get("online_bandit_update_cost", 0.001)) * parameter_delta_norm
+                    action_cost = float(config.get("online_bandit_action_cost", 0.0001)) if update_applied else 0.0
+                    rollback_penalty = (
+                        float(config.get("online_bandit_rollback_penalty", 0.01))
+                        if update_applied and not accepted
+                        else 0.0
+                    )
+                    reward_gain = raw_reward_gain - update_cost - action_cost - rollback_penalty
                     if not accepted:
                         model.peft.restore(snapshot)
                         final = before
@@ -389,6 +420,8 @@ def run_pilot_driven_online(
                     if bandit is not None:
                         bandit.update(action.name, context, reward_gain, accepted)
                     previous_reward_gain = reward_gain if accepted else -abs(reward_gain)
+                    consecutive_rejections = consecutive_rejections + 1 if not accepted else 0
+                    previous_parameter_delta_norm = parameter_delta_norm
                     tail_len = receiver_state.soft_tail.numel()
                     detected_tail = torch.complex(
                         torch.tanh(final[-tail_len:] / 2.0),
@@ -423,6 +456,11 @@ def run_pilot_driven_online(
                             "ber_adapt_pilot": _ber(final[frame.adapt_mask], frame.bits[frame.adapt_mask]),
                             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
                             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
+                            "reward_gain_raw": float(raw_reward_gain),
+                            "bandit_reward": float(reward_gain),
+                            "bandit_update_cost": float(update_cost),
+                            "bandit_action_cost": float(action_cost),
+                            "bandit_rollback_penalty": float(rollback_penalty),
                             "adapt_pilot_count": int(
                                 adaptation.adapt_pilot_count
                                 if adaptation is not None
@@ -449,11 +487,9 @@ def run_pilot_driven_online(
                             "cir_update_alpha": float(cir_update_alpha),
                             "state_split": state_split,
                             "state_instance": env.state_metadata(),
-                            "parameter_delta_norm": float(
-                                adaptation.parameter_delta_norm
-                                if adaptation is not None and accepted
-                                else 0.0
-                            ),
+                            "parameter_delta_norm": parameter_delta_norm,
+                            "bandit_context": dict(context),
+                            "reward_data_labels_used_online": False,
                             "data_labels_used_online": False,
                             "uses_neural_network": True,
                             "uses_rl": scheduler == "bandit",
