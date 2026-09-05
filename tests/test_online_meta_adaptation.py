@@ -10,6 +10,7 @@ from env.frame_structure import FrameConfig, FrameGenerator
 from training.online_meta_adaptation import (
     OnlineMetaTrainer,
     PilotMetaStepResult,
+    build_meta_necessity_report,
     pilot_meta_train_step,
     run_meta_sequence_step,
 )
@@ -222,3 +223,39 @@ def test_pretrain_cli_supports_online_meta_stage(tmp_path):
     metrics = json.loads((save_dir / "pretrain_metrics.json").read_text(encoding="utf-8"))
     assert metrics["stage"] == "online_meta"
     assert (save_dir / "model_best.pt").exists()
+
+
+def test_meta_necessity_report_has_paired_frame_bins():
+    """元学习只有在后期和 heldout edge 的配对 Data BER 都改善时才推荐。"""
+
+    rows = []
+    for frame in range(1, 21):
+        for method, ber in (
+            ("Frozen Offline NN", 0.20 - 0.001 * frame),
+            ("Pilot-SGD", 0.19 - 0.002 * frame),
+            ("Meta-Pilot", 0.18 - 0.003 * frame),
+        ):
+            rows.append(
+                {
+                    "method": method,
+                    "delay": 116,
+                    "snr_db": 10.0,
+                    "pilot_total": 128,
+                    "pilot_layout": "prefix",
+                    "seed": 0,
+                    "frame": frame,
+                    "state_split": "heldout_edge" if frame > 10 else "offline_train",
+                    "ber_data": ber,
+                    "data_labels_used_online": False,
+                }
+            )
+
+    report = build_meta_necessity_report(rows)
+
+    assert set(report["methods"]) == {"Frozen Offline NN", "Pilot-SGD", "Meta-Pilot"}
+    assert set(report["bins"]) == {"early", "middle", "late"}
+    assert report["bins"]["late"]["Meta-Pilot"]["count"] == 7
+    assert report["heldout_edge"]["Meta-Pilot"]["count"] == 10
+    assert report["paired"]["Meta-Pilot_vs_Pilot-SGD"]["late"]["mean_ber_delta"] < 0.0
+    assert report["recommended"] is True
+    assert report["data_labels_used_online"] is False

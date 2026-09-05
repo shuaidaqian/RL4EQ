@@ -9,7 +9,7 @@ Data 区域从不参与在线更新。
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Mapping
 
 import torch
 import torch.nn.functional as F
@@ -33,6 +33,120 @@ class PilotMetaStepResult:
     outer_target: str
     data_labels_used_online: bool
     updated_tail: torch.Tensor | None = None
+
+
+def build_meta_necessity_report(rows: Iterable[Mapping[str, object]]) -> dict:
+    """生成普通 Pilot-SGD 与元适配器的配对必要性报告。
+
+    ``rows`` 必须来自同一套信道配置下的配对运行；``ber_data`` 只作为仿真
+    评估列，不能被在线步骤用于更新、动作选择或回滚。报告中的负差值表示
+    左侧方法的 Data BER 更低。
+    """
+
+    records = [dict(row) for row in rows]
+    if not records:
+        raise ValueError("元学习必要性报告至少需要一条实验记录。")
+    if any(bool(row.get("data_labels_used_online", False)) for row in records):
+        raise ValueError("必要性报告拒绝包含在线使用 Data 标签的记录。")
+    methods = sorted({str(row.get("method", "")) for row in records if row.get("method")})
+    required = {"Frozen Offline NN", "Pilot-SGD", "Meta-Pilot"}
+    missing = required - set(methods)
+    if missing:
+        raise ValueError(f"元学习必要性报告缺少方法：{sorted(missing)}")
+
+    frame_values = sorted({int(row["frame"]) for row in records if "frame" in row})
+    if not frame_values:
+        raise ValueError("元学习必要性报告需要 frame 字段。")
+    count = len(frame_values)
+    first_count = max(1, min(16, (count + 2) // 3))
+    last_count = max(1, min(16, (count + 2) // 3))
+    early_frames = set(frame_values[:first_count])
+    late_frames = set(frame_values[-last_count:])
+
+    def bin_name(row: Mapping[str, object]) -> str:
+        frame = int(row["frame"])
+        if frame in early_frames:
+            return "early"
+        if frame in late_frames:
+            return "late"
+        return "middle"
+
+    def finite_ber(row: Mapping[str, object]) -> float:
+        value = float(row["ber_data"])
+        if not torch.isfinite(torch.tensor(value)) or not 0.0 <= value <= 1.0:
+            raise ValueError("元学习必要性报告的 ber_data 必须是 [0, 1] 内的有限数。")
+        return value
+
+    bins: dict[str, dict[str, dict[str, float]]] = {
+        name: {
+            method: {"count": 0.0, "mean_ber_data": 0.0}
+            for method in methods
+        }
+        for name in ("early", "middle", "late")
+    }
+    heldout: dict[str, dict[str, float]] = {
+        method: {"count": 0.0, "mean_ber_data": 0.0} for method in methods
+    }
+    key_fields = ("delay", "snr_db", "pilot_total", "pilot_layout", "seed", "frame", "state_split")
+    paired_rows: dict[tuple[str, tuple[object, ...]], float] = {}
+    for row in records:
+        method = str(row["method"])
+        value = finite_ber(row)
+        current_bin = bins[bin_name(row)][method]
+        current_bin["count"] += 1.0
+        current_bin["mean_ber_data"] += value
+        if str(row.get("state_split", "")) == "heldout_edge":
+            heldout[method]["count"] += 1.0
+            heldout[method]["mean_ber_data"] += value
+        key = tuple(row.get(field) for field in key_fields)
+        paired_rows[(method, key)] = value
+    for group in bins.values():
+        for summary in group.values():
+            summary["mean_ber_data"] /= max(1.0, summary["count"])
+    for summary in heldout.values():
+        summary["mean_ber_data"] /= max(1.0, summary["count"])
+
+    pair_specs = (("Meta-Pilot", "Pilot-SGD"), ("Meta-Pilot", "Frozen Offline NN"))
+    paired: dict[str, dict[str, dict[str, float]]] = {}
+    for left, right in pair_specs:
+        label = f"{left}_vs_{right}"
+        paired[label] = {}
+        for name in ("early", "middle", "late", "heldout_edge"):
+            deltas = []
+            for (method, key), left_value in paired_rows.items():
+                if method != left:
+                    continue
+                if name == "heldout_edge" and key[-1] != "heldout_edge":
+                    continue
+                if name != "heldout_edge":
+                    frame = int(key[5])
+                    if bin_name({"frame": frame}) != name:
+                        continue
+                right_value = paired_rows.get((right, key))
+                if right_value is not None:
+                    deltas.append(left_value - right_value)
+            paired[label][name] = {
+                "count": float(len(deltas)),
+                "mean_ber_delta": float(sum(deltas) / max(1, len(deltas))),
+            }
+
+    late_delta = paired["Meta-Pilot_vs_Pilot-SGD"]["late"]
+    edge_delta = paired["Meta-Pilot_vs_Pilot-SGD"]["heldout_edge"]
+    recommended = bool(
+        late_delta["count"] > 0
+        and edge_delta["count"] > 0
+        and late_delta["mean_ber_delta"] < 0.0
+        and edge_delta["mean_ber_delta"] < 0.0
+    )
+    return {
+        "methods": methods,
+        "bins": bins,
+        "heldout_edge": heldout,
+        "paired": paired,
+        "recommended": recommended,
+        "recommendation_basis": "late_and_heldout_edge_paired_data_ber",
+        "data_labels_used_online": False,
+    }
 
 
 def pilot_meta_train_step(
