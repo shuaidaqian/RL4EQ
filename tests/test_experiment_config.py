@@ -422,6 +422,34 @@ def test_pretrain_meta_stage_fails_fast_for_frozen_eme_until_physically_connecte
     assert "eme_measurement_v1" in result.stderr
 
 
+def test_pretrain_online_meta_stage_is_removed_from_main_route(tmp_path):
+    """主研究路线不再保留独立的 online_meta 第二层入口。"""
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "pretrain.py",
+            "--config",
+            "configs/continual_ppo.json",
+            "--stage",
+            "online_meta",
+            "--steps",
+            "1",
+            "--batch-size",
+            "1",
+            "--save-dir",
+            str(tmp_path / "removed_online_meta"),
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode != 0
+    assert "online_meta" in result.stderr
+    assert "已移除" in result.stderr
+
+
 def test_compare_profile_prior_uses_frozen_top_level_residual_cfo_limit():
     from compare import _profile_prior_from_config
 

@@ -35,15 +35,8 @@ def main() -> None:
         resume_loaded = trainer.load_resume(args.resume)
         metrics = trainer.train(steps=args.steps, batch_size=args.batch_size, smoke=args.steps <= 2, resume_loaded=resume_loaded)
     elif args.stage == "online_meta":
-        from training.online_meta_adaptation import OnlineMetaTrainer
-
-        trainer = OnlineMetaTrainer(config, device=device, save_dir=args.save_dir)
-        resume_loaded = trainer.load_resume(args.resume)
-        metrics = trainer.train(
-            steps=args.steps,
-            batch_size=args.batch_size,
-            smoke=args.steps <= 2,
-            resume_loaded=resume_loaded,
+        raise ValueError(
+            "online_meta 已移除；当前路线为离线整帧 BCE_all + 安全 Contextual Bandit 在线调度。"
         )
     else:
         trainer = CurriculumTrainer(config, device=device)
