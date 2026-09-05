@@ -49,3 +49,38 @@ def test_action_delay_summary_does_not_upgrade_from_one_seed_and_snr():
 
     assert report["delayed_effect_detected"] is False
     assert report["recommended_controller"] == "contextual_bandit"
+
+
+def test_action_delay_summary_ignores_non_online_comparison_rows():
+    """主矩阵混有传统方法行时，诊断只应读取在线 Bandit 行。"""
+
+    rows = [
+        {
+            "method": "CFO+DD-Phase DFE-RLS",
+            "seed": 0,
+            "delay": 116,
+            "snr_db": 10.0,
+            "frame": 1,
+            "data_labels_used_online": False,
+        },
+        {
+            "method": "Pilot-Driven Online Adaptation",
+            "action": "phase_weak",
+            "seed": 0,
+            "delay": 116,
+            "snr_db": 10.0,
+            "pilot_total": 128,
+            "pilot_layout": "prefix",
+            "state_split": None,
+            "frame": 1,
+            "bandit_reward": 0.1,
+            "update_applied": True,
+            "adaptation_accepted": True,
+            "data_labels_used_online": False,
+        },
+    ]
+
+    report = summarize_action_delay(rows)
+
+    assert report["by_action"]["phase_weak"]["0"]["count"] == 1
+    assert report["diagnostic_uses_data_labels"] is False

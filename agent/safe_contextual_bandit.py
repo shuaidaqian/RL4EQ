@@ -30,6 +30,8 @@ def _default_actions() -> tuple[SafeUpdateAction, ...]:
         SafeUpdateAction("head_weak", frozenset({"head"}), 0.25, 0.5, 2, 0.25),
         SafeUpdateAction("head_nominal", frozenset({"head"}), 1.0, 1.0, 2, 0.40),
         SafeUpdateAction("film_nominal", frozenset({"conditioner_film"}), 1.0, 0.75, 2, 0.40),
+        SafeUpdateAction("adapter_weak", frozenset({"adapter_lora"}), 0.25, 0.5, 2, 0.25),
+        SafeUpdateAction("adapter_nominal", frozenset({"adapter_lora"}), 1.0, 0.75, 2, 0.40),
         SafeUpdateAction("joint_nominal", frozenset({"head", "conditioner_film", "phase"}), 0.75, 0.75, 4, 0.60),
     )
 
@@ -203,6 +205,8 @@ class SafeContextualBandit:
             "head_weak": 0.01,
             "head_nominal": 0.005,
             "film_nominal": 0.004,
+            "adapter_weak": 0.008,
+            "adapter_nominal": 0.003,
             "joint_nominal": -0.01,
         }
         return priors.get(action.name, 0.0)

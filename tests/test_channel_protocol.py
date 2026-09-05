@@ -336,7 +336,7 @@ def test_settings_from_profile_validates_explicit_override_values(overrides):
         settings_from_profile("clean", np.random.default_rng(9003), **overrides)
 
 
-@pytest.mark.parametrize("total", [64, 96, 128, 160])
+@pytest.mark.parametrize("total", [64, 96, 128, 160, 256])
 @pytest.mark.parametrize("layout", ["prefix", "two_block", "multi_block"])
 def test_frame_masks_and_unknown_regions(total, layout):
     frame = FrameGenerator(FrameConfig(total_pilot=total, layout=layout, max_delay=40), seed=9).generate(2)

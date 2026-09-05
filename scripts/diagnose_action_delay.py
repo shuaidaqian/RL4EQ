@@ -32,6 +32,12 @@ def summarize_action_delay(
         raise ValueError("delayed_margin 必须是非负有限数。")
 
     records = [dict(row) for row in rows]
+    records = [
+        row
+        for row in records
+        if "action" in row
+        and (row.get("bandit_reward") is not None or row.get("reward_gain") is not None)
+    ]
     if not records:
         raise ValueError("动作延迟诊断至少需要一条记录。")
     if any(bool(row.get("data_labels_used_online", False)) for row in records):
@@ -40,8 +46,8 @@ def summarize_action_delay(
     key_fields = ("seed", "delay", "snr_db", "pilot_total", "pilot_layout", "state_split")
     indexed: dict[tuple[object, ...], dict[int, dict]] = defaultdict(dict)
     for row in records:
-        if "frame" not in row or "action" not in row:
-            raise ValueError("动作延迟诊断需要 frame 和 action 字段。")
+        if "frame" not in row:
+            raise ValueError("动作延迟诊断需要在线记录包含 frame 字段。")
         reward_value = row.get("bandit_reward", row.get("reward_gain"))
         if reward_value is None or not math.isfinite(float(reward_value)):
             raise ValueError("动作延迟诊断需要有限的 bandit_reward 或 reward_gain。")
@@ -55,6 +61,12 @@ def summarize_action_delay(
     for key, frames in indexed.items():
         for frame, anchor in frames.items():
             action = str(anchor["action"])
+            if action == "skip":
+                continue
+            if anchor.get("update_applied") is False:
+                continue
+            if anchor.get("adaptation_accepted") is False:
+                continue
             for horizon in selected_horizons:
                 target = frames.get(frame + horizon)
                 if target is None:

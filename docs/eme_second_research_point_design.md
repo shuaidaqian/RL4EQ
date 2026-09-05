@@ -170,3 +170,32 @@ acquisition 失配差异写成在线微调收益。
 更新。本轮已加入两个子窗口一致性门控，后续必须用长帧、多 seed 重新验证其拒绝错误更新
 的能力，再决定是否更换 PEFT
 对象；不能通过放大步长强行制造在线增益。
+
+## 2026-09-05：当前主线最终状态
+
+上面的历史记录保留旧 Pilot=128 和旧 checkpoint 的过程信息，不再作为当前主结果。
+根据 `max_delay=116` 的可辨识性检查，当前主协议固定为前缀 Pilot=256，其中
+Adapt Pilot=224、Reward Pilot=32；离线 checkpoint 也按该主协议重新进行整帧
+`BCE_all` 训练。当前正式主矩阵使用同一 checkpoint、同一 Level B `cfo_phase_tiny`
+信道、3 个 seed、60 帧和传统非神经 baseline，共 8640 条逐帧记录，目录为：
+
+`logs/eme_pilot256_bandit_pilotsparse_main_60f_3s_final/`
+
+| SNR | 最优传统 DFE/相位 | Frozen Offline NN | Pilot-Driven Online | Online 相对 Frozen |
+|---:|---:|---:|---:|---:|
+| 0 dB | 44.052% | 22.195% | 22.195% | 0.000 个百分点 |
+| 5 dB | 18.299% | 5.960% | 5.960% | 0.000 个百分点 |
+| 10 dB | 6.909% | 1.060% | 1.039% | 0.020 个百分点 |
+| 15 dB | 4.374% | 0.216% | 0.163% | 0.053 个百分点 |
+
+在 200 帧、3 个 seed 的长期诊断中，Online 与 Frozen 在 10 dB 的全程 BER 为
+`1.148%/1.240%`，在 15 dB 为 `0.171%/0.289%`；0/5 dB 持平。修正版动作延迟
+诊断没有发现动作收益跨帧延迟效应，因此当前调度算法固定为安全 Contextual Bandit，
+不升级 Recurrent Double DQN。
+
+必须明确贡献边界：主结果已经证明“离线整帧神经均衡器 + Pilot 驱动在线长记忆状态
+恢复 + 安全 Bandit”可以在该 Level B 工作区超过传统基线，且高 SNR 长期保持优势；
+尚未证明 PEFT 参数微调本身有独立 BER 增益。主矩阵 720 个 Online 帧中，10 次
+CIR 更新被 Reward Pilot 接受，PEFT 更新为 0 次有效接受。后续论文不得把 CIR 状态
+恢复的收益改写成神经参数微调收益；若继续研究 PEFT，必须先构造物理合法且可观测的
+残差失配，再用 Reward Pilot 验证非零收益，不能使用 Data 标签或单纯放宽门控。

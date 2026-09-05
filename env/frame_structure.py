@@ -22,8 +22,8 @@ class FrameConfig:
     reward_pilot_total: int | None = None
 
     def __post_init__(self) -> None:
-        if self.total_pilot not in {64, 96, 128, 160}:
-            raise ValueError("total_pilot 必须是 64/96/128/160。")
+        if self.total_pilot not in {64, 96, 128, 160, 256}:
+            raise ValueError("total_pilot 必须是 64/96/128/160/256。")
         if self.layout not in {"prefix", "two_block", "multi_block"}:
             raise ValueError("layout 必须是 prefix/two_block/multi_block。")
         if self.frame_len <= self.total_pilot:

@@ -82,3 +82,12 @@ def test_eme_main_configuration_uses_converged_physics_warm_start():
 
     config = _load_config()
     assert config["model"]["physics_warm_start_iterations"] >= 8
+
+
+def test_eme_main_pilot_covers_long_memory_after_reward_split():
+    """主配置的 Adapt Pilot 必须覆盖 max_delay，才能辨识稀疏长回波。"""
+
+    config = _load_config()
+    reward_total = int(config["reward_pilot_total"])
+    adapt_total = int(config["pilot_total"]) - reward_total
+    assert adapt_total > int(config["max_delay"])

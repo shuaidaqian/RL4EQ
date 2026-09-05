@@ -15,6 +15,8 @@ def test_bandit_exposes_only_discrete_safe_update_actions():
         "head_weak",
         "head_nominal",
         "film_nominal",
+        "adapter_weak",
+        "adapter_nominal",
         "joint_nominal",
     }
     assert all(action.hold_frames >= 1 for action in bandit.actions)

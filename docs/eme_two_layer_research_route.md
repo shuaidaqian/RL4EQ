@@ -40,7 +40,7 @@ Adapt Pilot 估计当前状态
 ```
 
 Bandit 只调度，不直接生成高维网络参数。动作包括 `skip`、弱/正常 head 更新、
-弱 phase 更新、FiLM 更新和联合更新，但必须过滤掉当前模型不存在的 PEFT 组。动作
+弱 phase 更新、FiLM 更新、adapter-LoRA 更新和联合更新，但必须过滤掉当前模型不存在的 PEFT 组。动作
 在短窗口内保持一致。上下文包括 Adapt Pilot loss/confidence、residual CFO、
 phase slope、CIR drift、SNR、Reward 趋势、回滚率、连续拒绝数和参数变化范数。
 
@@ -70,10 +70,22 @@ Frozen 和 Online 使用相同离线 checkpoint、相同 Level B 信道轨迹、
 和相同跨帧 soft-tail。Frozen 冻结网络参数；Online 只利用 Adapt Pilot 产生受限
 候选更新，并由 Reward Pilot 验收或回滚。
 `compare.py` 默认使用 `bandit`；`--scheduler fixed` 仅用于固定候选选择器消融，不能替代主结果中的安全 Contextual Bandit。
+主配置固定为 `Pilot=256`、`Reward Pilot=32`、`Adapt Pilot=224`。原因是
+`max_delay=116` 时，Pilot=128 只能留下 96 个 Adapt Pilot，无法辨识完整长记忆；
+128/160 仅作为历史可辨识性诊断，不进入主平均。
 
 ## 当前证据边界
 
-新的 `BCE_all` EME 32 步 smoke 在 10 dB、8 帧上约为 `0.6836%` Data BER；固定
-Pilot-SGD 与 Bandit 在同一短实验中均为 `0.6836%`，因此目前只证明在线安全门控
-链路可运行，尚未证明 Bandit 已带来独立 BER 增益。正式结论必须来自 Level B、
-0/5/10/15 dB、多 seed、长帧矩阵，不能用 smoke 替代。
+新的 `BCE_all` EME 32 步 smoke 仅用于检查训练/加载链路，不能代替正式结果。
+256 Pilot 的 Level B、0/5/10/15 dB、3 seed、60 帧主矩阵已完整覆盖 8640 条记录；
+Online 相对 Frozen 在 10/15 dB 分别改善 `0.027/0.054` 个百分点，在 0/5 dB 持平。
+200 帧、3 seed 长期诊断中，10/15 dB 分别改善 `0.092/0.117` 个百分点，且修正版
+动作延迟诊断为 `delayed_effect_detected=false`，因此控制器仍固定为 Contextual
+Bandit，不升级 Recurrent Double DQN。
+
+当前必须诚实区分两种在线收益：主矩阵中 720 个 Online 帧仅有 10 次 CIR 更新被
+Reward Pilot 接受，PEFT 参数更新没有有效接受；因此目前已证实的是“Pilot 驱动的
+在线长记忆状态恢复 + 安全 Bandit 调度”，还不能声称 PEFT 独立带来 BER 增益。
+后续若要把神经参数微调作为独立贡献，必须先在保持 Level B 物理约束的前提下构造
+可观测的残差失配，并让 Reward Pilot 观察到稳定的非零收益；不能通过放宽门控或
+使用 Data 标签制造该结论。
