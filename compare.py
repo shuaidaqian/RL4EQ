@@ -759,10 +759,11 @@ def _build_method_states(
             model = _build_equalizer(model_config, pretrained_path, device)
             modulation_config = ModulationConfig(num_adapter_gates=len(model.blocks), num_lora_scales=len(model.blocks))
             if method == "Frozen Offline NN":
-                # Frozen 只复现离线接收机：网络参数和 acquisition 条件均冻结。
-                # 当前帧 Pilot 状态恢复属于 Online 的核心能力，不能提前给 Frozen。
+                # Frozen 只冻结离线网络参数，不冻结推理时已知的当前帧 Pilot 条件。
+                # 这样它代表“离线训练后的网络直接推理”，而不是过时 acquisition
+                # 状态下的失配诊断组；当前帧 CIR 和 PEFT 参数仍不会在线更新。
                 condition_update_mode = "fixed"
-                condition_source = "acquisition"
+                condition_source = "pilot_cir_phase"
             elif method == "Pilot CIR only":
                 condition_update_mode = "pilot_sparse"
                 condition_source = "pilot_cir_phase"
@@ -1737,8 +1738,8 @@ def _neural_method_contract(method: str) -> dict[str, object]:
 
     contracts = {
         "Frozen Offline NN": {
-            "condition_source": "acquisition",
-            "pilot_phase_used": False,
+            "condition_source": "pilot_cir_phase",
+            "pilot_phase_used": True,
             "cir_update_applied": False,
             "peft_update_applied": False,
         },

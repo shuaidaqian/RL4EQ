@@ -10,11 +10,11 @@
 
 | 方法 | CIR 条件 | 相位条件 | 参数更新 | 用途 |
 |---|---|---|---|---|
-| `Frozen Offline NN` | acquisition CIR | acquisition 阶段固定条件 | 否 | 离线 checkpoint 冻结对照 |
+| `Frozen Offline NN` | acquisition CIR，保持不更新 | 当前帧已知 Pilot 条件 | 否 | 离线 checkpoint 冻结对照 |
 | `Pilot CIR only` | 当前帧 Pilot 稀疏 CIR | 当前帧 Adapt Pilot | 否 | 识别物理状态恢复的贡献 |
 | `Pilot-Driven Online Adaptation` | 当前帧 Pilot 稀疏 CIR | 当前帧 Adapt Pilot | 是，受 Reward Pilot 保护 | 在线均衡主线 |
 
-`Frozen Offline NN` 的网络权重和 acquisition 条件都来自离线接收机；它不读取后续帧 Pilot，也不更新 CIR 或 PEFT 参数。Online 才使用当前帧 Pilot 做状态恢复和参数微调，所有在线方法仍不得读取 Data 标签。
+`Frozen Offline NN` 的网络权重和初始 CIR 来自离线接收机；网络参数和 CIR 均不更新，但由于模型是 Pilot-conditioned，它会读取当前帧已知 Pilot 生成推理所需的 phase/CFO 条件。Online 才在此基础上使用 Adapt Pilot 做状态恢复和参数微调，所有在线方法仍不得读取 Data 标签。
 
 ## 审计字段
 
@@ -38,11 +38,11 @@
 
 | 方法 | 2 帧平均 BER | 当前帧 Pilot 相位 | CIR 更新 | PEFT 更新 |
 |---|---:|---:|---:|---:|
-| `Frozen Offline NN` | 72.71% | 否 | 否 | 否 |
+| `Frozen Offline NN` | 已废弃 | 是 | 否 | 否 |
 | `Pilot CIR only` | 6.75% | 是 | 是 | 否 |
 | `Pilot-Driven Online Adaptation` | 6.53% | 是 | 是 | 第 2 帧接受 |
 
-该切片说明当前 checkpoint 对相位条件高度敏感；两帧不足以证明 CIR 更新或 PEFT 的稳定增益。正式论文结论必须使用统一的 60/200 帧、多 seed 主矩阵，不能引用此 smoke 代替统计结果。
+该 smoke 使用了错误的 acquisition phase 条件，不能代表 `Frozen Offline NN`，因此原始 72.71% 数值作废。修正后的 Frozen 应使用当前帧 Pilot phase 条件；两帧也不足以证明 CIR 更新或 PEFT 的稳定增益。正式论文结论必须使用统一的 60/200 帧、多 seed 主矩阵，不能引用此 smoke 代替统计结果。
 
 ## 当前结论
 

@@ -3,8 +3,8 @@
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。
 > 旧的 Frozen/Online 数值来自已废弃的条件边界，不能作为当前主结果。当前主实验要求重新
-> 在同一 Level B 轨迹上比较 Frozen 的 acquisition 固定条件与 Online 的 Pilot 驱动恢复/微调，
-> 并单独报告 Online 相对 Frozen 的配对增益；30 s acquisition 老化和 120 s 相干时间只作为独立压力测试。
+> 在同一 Level B 轨迹上比较参数冻结但使用当前帧 Pilot 条件的 Frozen 与 Pilot 驱动恢复/微调的
+> Online，并单独报告 Online 相对 Frozen 的配对增益；acquisition 老化只作为独立压力测试。
 
 本项目研究 EME 启发但不等同于完整物理 EME 的极端稀疏长时延扩展信道。当前主线使用独立的 `eme_long_memory_v2` 长记忆 profile；`eme_measurement_v1` 保留作历史兼容和对照，不把二者混合平均。主线是：
 
@@ -60,7 +60,7 @@ proposed:
   Pilot-Driven Online Adaptation
 ```
 
-`Frozen Offline NN` 与在线方法加载完全相同的离线 checkpoint，并共享同一条信道轨迹、帧结构和跨帧 soft-tail；Frozen 还固定使用 acquisition 条件，复现离线接收机。Online 才读取当前帧 Pilot 恢复物理状态并更新受限 PEFT 参数，再由 Reward Pilot 验收或回滚。因此论文中真正要解释的是“离线基础能力”与“在线恢复/微调增益”的差别，而不是把不同网络或不同信道拿来比较。
+`Frozen Offline NN` 与在线方法加载完全相同的离线 checkpoint，并共享同一条信道轨迹、帧结构和跨帧 soft-tail；Frozen 只冻结网络参数和 CIR 更新，但使用当前帧已知 Pilot 生成模型所需的 phase/CFO 条件。Online 在此基础上使用 Adapt Pilot 恢复物理状态并更新受限 PEFT 参数，再由 Reward Pilot 验收或回滚。因此论文中真正要解释的是“离线基础能力”与“在线状态恢复及参数微调增益”的差别，而不是把不同网络或不同信道拿来比较。
 
 诊断参考单独报告，不进入主成功门槛：
 

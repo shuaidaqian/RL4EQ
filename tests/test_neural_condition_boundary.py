@@ -41,8 +41,8 @@ def test_neural_method_audit_fields_distinguish_frozen_and_online():
     import compare
 
     assert compare._neural_method_contract("Frozen Offline NN") == {
-        "condition_source": "acquisition",
-        "pilot_phase_used": False,
+        "condition_source": "pilot_cir_phase",
+        "pilot_phase_used": True,
         "cir_update_applied": False,
         "peft_update_applied": False,
     }

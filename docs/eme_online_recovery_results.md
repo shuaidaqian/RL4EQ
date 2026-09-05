@@ -16,7 +16,7 @@
 
 ## 研究问题
 
-本阶段验证的问题不是“离线神经网络能否在某个固定信道上降低 BER”，而是：在同一 Level B 极端稀疏长回波 profile 内，acquisition 得到的信道状态逐渐老化后，在线接收机能否只利用当前帧前缀 Adapt Pilot 恢复状态，并在连续帧上优于 Frozen Offline NN。
+本阶段验证的问题不是“离线神经网络能否在某个固定信道上降低 BER”，而是：在同一 Level B 极端稀疏长回波 profile 内，离线 checkpoint 参数冻结后，在线接收机能否只利用当前帧前缀 Adapt Pilot 恢复状态，并在连续帧上优于同样使用当前帧 Pilot 推理条件的 Frozen Offline NN。
 
 主配置保持：
 
@@ -24,12 +24,12 @@
 - `level=B`；
 - `max_delay_seconds=0.0116`，符号率等效 `max_delay=116`；
 - `strong_path_count=12..24`，`diffuse_energy_ratio=0.20..0.35`；
-- `coherence_time_seconds=120`；
+- `coherence_time_seconds=1200`；
 - `pilot_layout=prefix`，`pilot_total=128`，其中 Adapt Pilot 为 96 符号、Reward Pilot 为 32 符号；
 - residual CFO 和慢相位扰动来自 `cfo_phase_tiny`；
-- acquisition 与数据开始之间增加 `acquisition_to_data_gap_seconds=30`，按相干时间计算一次复 tap OU 状态推进。
+- acquisition 与数据开始之间为 `acquisition_to_data_gap_seconds=0`；跨帧状态仍按慢 tap OU 过程推进。
 
-该 gap 不是快速 Doppler。它表示 acquisition 完成到正式数据开始之间的校准老化，使在线问题具有明确的因果来源：Frozen 方法仍使用 acquisition 条件，在线方法使用当前 Adapt Pilot 恢复状态。
+主配置不通过人为拉长 acquisition 空档制造失配。在线问题的因果来源是连续帧中的慢 tap 漂移、残余 CFO、慢相位扰动和跨帧 ISI；Frozen 使用当前帧 Pilot 生成推理条件但不更新网络参数或 CIR，Online 再进行 Pilot 驱动的状态恢复与受限 PEFT 微调。
 
 ## 当前在线方法
 
@@ -45,7 +45,7 @@ acquisition CIR
 
 `pilot_sparse_cir_update()` 只使用当前帧接收信号、Adapt Pilot 符号和上一帧 soft tail。它不读取 Data 标签、Reward Pilot 标签、真实 CIR 或真实 CFO。实现先使用 acquisition CFO 先验和当前 Adapt Pilot 的公共相位估计去除慢旋转，再在 acquisition 主径 support 上估计复 tap 增益。Reward Pilot 只承担候选选择和回滚，不参与梯度更新。
 
-神经 PEFT 更新的历史默认方案是 `adapter_lora + conditioner_film`。当前 Level B 正式方案固定为独立的 `phase` 组；历史正式比较曾通过 `compare.py --cir-update pilot_sparse` 为所有方法启用共享的 Pilot-only CIR 更新，当前正式协议已将 Frozen Offline NN 的条件更新固定为 acquisition CIR，在线方法和传统 DFE-RLS 才使用当前帧 Pilot 做状态更新。
+神经 PEFT 更新的历史默认方案是 `adapter_lora + conditioner_film`。当前 Level B 正式方案固定为独立的 `phase` 组；Frozen Offline NN 使用 acquisition CIR 作为冻结初值、使用当前帧 Pilot 生成 phase/CFO 推理条件，Online 才使用 Adapt Pilot 更新物理状态并尝试 PEFT 参数更新。
 
 ## 证据一：连续漂移恢复
 
