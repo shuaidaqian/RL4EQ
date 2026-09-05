@@ -54,9 +54,9 @@ Reward Pilot 决定接受或回滚。这样比较才能把“离线网络直接�
 
 在线方法相对于冻结网络的增益不要求在每个 SNR 都为正，但必须报告方向翻转、回滚触发和低置信度状态比例。主成功门槛是相对于传统非神经、非 RL baseline 的逐配置优势；“在线更新一定优于冻结网络”不能在证据不足时写成结论。
 
-## 7. 正式实验结果
+## 7. 历史实验结果
 
-当前正式 60 帧主矩阵使用 `pretrained/eme_meta_from_offline_32/model_best.pt`，包含 4 个 SNR、3 个 seed、60 帧、前缀 Pilot 128，以及每 8 帧一次在线调度。结果如下：
+以下结果来自旧的条件边界或旧的更新协议，只保留作过程记录，不能作为当前论文结果：
 
 | SNR | CFO+DD-Phase LMMSE-FIR | CFO+DD-Phase DFE-RLS | Frozen Offline NN | Pilot phase online |
 |---:|---:|---:|---:|---:|
@@ -65,7 +65,7 @@ Reward Pilot 决定接受或回滚。这样比较才能把“离线网络直接�
 | 10 dB | 0.237054 | 0.260534 | 0.165532 | 0.167832 |
 | 15 dB | 0.182515 | 0.187872 | 0.140309 | 0.137289 |
 
-因此在线方法在所有主 SNR 层均明显优于传统补偿器；相对于冻结网络，5 dB 和 15 dB 有小幅改善，0 dB 和 10 dB 有小幅退化。这个结果支持“在线状态适应具有工程和物理价值”，但不支持夸大为“在线 PEFT 在所有 SNR 都带来额外 BER 增益”。
+因此不能用这组历史数字判断当前 Frozen/Online 的相对性能。当前正式结果见后文“条件边界纠错后的 60 帧复核”。
 
 ## 8. 200 帧稳定性结果
 
@@ -144,6 +144,26 @@ PEFT；`Pilot-Driven Online Adaptation` 才进一步使用 Adapt Pilot 做状态
 Online 均为 `0.00865`，说明 BER 回到了离线网络的正常数量级；由于该切片中没有接受 PEFT
 更新，它只证明边界修正有效，不证明在线微调已经带来独立增益。后续必须在正确 Frozen
 定义下重新跑 60/200 帧、多 seed 矩阵，再测量状态恢复和 PEFT 的独立贡献。
+
+### 修正后的 60 帧、3 seed 主复核
+
+使用 `pretrained/eme_meta_from_offline_32/model_best.pt`、`eme_long_memory_v2` Level B、
+`max_delay=116`、`cfo_phase_tiny`、prefix Pilot=128、0/5/10/15 dB、3 seed、60 帧，
+两种神经方法共生成 1440 条帧记录。Frozen 和 Online 的 Data BER 完全一致：
+
+| SNR | Frozen Offline NN | Pilot-Driven Online Adaptation |
+|---:|---:|---:|
+| 0 dB | 20.178% | 20.178% |
+| 5 dB | 6.057% | 6.057% |
+| 10 dB | 1.084% | 1.084% |
+| 15 dB | 0.213% | 0.213% |
+
+Online 在 0/5/10/15 dB 的 PEFT 接受次数分别为 `0/1/0/0`，5 dB 的唯一一次接受随后
+回滚。这个结果首先修复了“离线 BER 接近 50%”的错误：正确的 Frozen 是离线 checkpoint
+参数冻结、使用当前帧 Pilot 推理条件，而不是固定过时 acquisition phase。其次，它诚实地
+表明当前 phase-only 在线微调在该主矩阵中尚未产生可重复的独立 BER 增益；后续研究重点应
+放在更合适的低维更新对象、Reward Pilot 的跨区域泛化和 200 帧稳定性，而不能把错误的
+acquisition 失配差异写成在线微调收益。
 
 进一步的 acquisition 条件参数微调探针显示，当前 `phase` PEFT 会出现 Reward Pilot
 损失微小改善但 Data 段不改善的情况，说明短 Reward Pilot 容易接受不具备跨区域泛化性的
