@@ -1,0 +1,1445 @@
+                                                                                                                                                                   1
+
+
+
+
+                                               AI-aided Online Adaptive OFDM Receiver:
+                                                             Design and Experimental Results
+                                                      Peiwen Jiang, Tianqi Wang, Bin Han, Xuanxuan Gao, Jing Zhang,
+                                                                     Chao-Kai Wen, Shi Jin, and Geoffrey Ye Li
+arXiv:1812.06638v3 [eess.SP] 24 Dec 2021
+
+
+
+
+                                                                                                   Abstract
+
+                                                     Orthogonal frequency division multiplexing (OFDM) has been widely applied in current commu-
+                                                 nication systems. The artificial intelligence (AI)-aided OFDM receivers are currently brought to the
+                                                 forefront to replace and improve the traditional OFDM receivers. In this study, we first compare two
+                                                 AI-aided OFDM receivers, namely, data-driven fully connected deep neural network and model-driven
+                                                 ComNet, through extensive simulation and real-time video transmission using a 5G rapid prototyping
+                                                 system for an over-the-air (OTA) test. We find a performance gap between the simulation and the OTA
+                                                 test caused by the discrepancy between the channel model for offline training and the real environment.
+                                                 We develop a novel online training system, which is called SwitchNet receiver, to address this issue.
+                                                 This receiver has a flexible and extendable architecture and can adapt to real channels by training only
+                                                 several parameters online. From the OTA test, the AI-aided OFDM receivers, especially the SwitchNet
+                                                 receiver, are robust to real environments and promising for future communication systems. We discuss
+                                                 potential challenges and future research inspired by our initial study in this paper.
+
+
+                                                                                                Index Terms
+
+                                                     Artificial intelligence, DNN, OFDM, SwitchNet, OTA.
+
+
+
+
+                                             P. Jiang, T. Wang, B. Han, X. Gao, J. Zhang and S. Jin are with the National Mobile Communications Research Laboratory,
+                                           Southeast University, Nanjing 210096, China (e-mail: PeiwenJiang@seu.edu.cn; wangtianqi@seu.edu.cn; seuhanbin@seu.edu.cn;
+                                           gaoxuanxuan@seu.edu.cn; jingzhang@seu.edu.cn; jinshi@seu.edu.cn).
+                                              C.-K. Wen is with the Institute of Communications Engineering, National Sun Yat-sen University, Kaohsiung 80424, Taiwan
+                                           (e-mail: chaokai.wen@mail.nsysu.edu.tw).
+                                             G. Y. Li is with the Department of Electrical and Electronic Engineering, Imperial Colledge London, London, UK (e-mail:
+                                           geoffrey.li@imperial.ac.uk).
+                                                                                                   2
+
+
+
+                                        I. I NTRODUCTION
+
+  Orthogonal frequency division multiplexing (OFDM) is an effective technique to deal with the
+delay spread of wireless channels [1], [2]. The conventional OFDM receivers can be classified
+into two categories: linear and iterative receivers. Linear receivers include least square (LS) [3],
+[4] and minimum mean-squared error (MMSE) [5] for channel estimation (CE) or signal detection
+(SD). Iterative receivers include approximate message passing [6] and expectation propagation-
+based algorithms [7]. These receivers are all designed on the basis of expert knowledge or
+specific models. However, complex channel scenarios and nonlinear interference challenge these
+conventional designs and limit the performance of OFDM receivers. OFDM can potentially
+address many challenging issues in traditional systems with the introduction of artificial intelli-
+gence (AI). [8]–[11] revealed the benefits of AI in physical layer of communications. Different
+modules in the conventional communication systems have been studied with the aid of AI,
+including signal classification [12], channel coding [13]–[15], CE [16], multiple-input multiple-
+output (MIMO) detection [17], [18], channel state information (CSI) feedback [19], [20], and
+novel autoencoder-based end-to-end communication systems [21], [22].
+  A novel data-driven AI-aided OFDM receiver is recently proposed in [23], and this receiver
+uses a fully connected deep neural network (FC-DNN) to detect data directly without estimating
+CSI explicitly after applying a fast Fourier transformation (FFT) module. The AI-aided OFDM
+receiver, which treats joint CE and SD as a black box, exploits no expert knowledge of wireless
+communications and trains all parameters with a large amount of wireless data by stochastic
+gradient descent-based algorithms. The data-driven AI-aided OFDM receiver in [23] is robust to
+the effect of pilot reduction, CP omission, and nonlinear clipping noise; however, it converges
+slowly and has high computational complexity. A deep complex convolutional network (DCCN),
+which is inspired by [23], is proposed in [24] for the receiver to convert OFDM waveform into
+detected symbols directly without using discrete Fourier transform (DFT). The Cascade-Net in
+[25] is robust to ill-condition channels. The deep learning (DL) networks in [26] can perform
+CE and data symbol detection for one-bit OFDM receivers. Many other data-driven methods,
+such as those in [27], [28], are also developed recently. In brief, the AI-aided OFDM receiver
+does not need to know prior information on the hand-craft and usually outperforms traditional
+OFDM receivers in terms of BER performance.
+                                                                                                  3
+
+
+
+  AI algorithms can exploit expert knowledge to develop model-driven AI approaches. One of
+the earliest model-driven AI approaches in [29] is proposed for magnetic resonance imaging.
+Model-driven AI approaches are currently extended to wireless physical layers through the
+design of network architectures based on wireless physical domain knowledge [10]; they are
+promising in addressing the CE and SD problems. In particular, a model-driven-based AI-
+aided OFDM receiver, which is called ComNet, is proposed in [30]. Instead of using a single
+DNN to detect signals with implicit CE as in the FC-DNN receiver [23], ComNet follows the
+conventional OFDM architecture but uses two DNNs for CE and SD, respectively, to improve the
+performance of the modules. Simulation results showed that ComNet has better performance than
+the traditional MMSE-based methods and converges faster given that only fewer parameters need
+to be trained than the FC-DNN OFDM receiver [23]. Furthermore, explicit CE helps in channel
+analysis and CSI feedback in downlink transmission, especially in massive MIMO systems.
+The abovementioned advantages render ComNet a competitive candidate for practical system
+implementation. Additional research in this topic can be found in [31], [32].
+  Although the abovementioned AI-aided methods work well based on simulation, the over-the-
+air (OTA) performance in practical environments remains unknown. State-of-the-art OTA studies
+usually train well-designed AI networks offline and deploy them on software-defined radios
+(SDRs), such as universal software radio peripheral (USRP), for online use [12], [21]. In this
+case, the trained parameters of the DNNs remain the same as they are deployed. Therefore, all
+possible effects of practical environments have to be considered during the architecture design and
+training phase, which is impractical in some cases. In [33], error-correcting codes (ECCs) are used
+to construct labeled datasets at the receiver side such that the trained AI communication systems
+can be fine-tuned by transfer learning at run time. This method only works for channels varying
+slower than updating parameters. Apart from transfer learning, the low-complex frameworks
+in [34] and the meta-learning frameworks in [35], [36] significantly reduce required training
+resources for online adaptation. To the best of our knowledge, report on using AI-aided OFDM
+receivers in real environments with a real-time video transmission is lacking. Many practical
+issues are challenging, such as the robustness to the varying channels, the choice of the training
+data, and the real-time data processing.
+  In this work, we compare the FC-DNN OFDM receiver [23] and the ComNet OFDM receiver
+                                                                                                 4
+
+
+
+[30] through an OTA test because many details may be ignored in simulation. We set up a real-
+time video transmission system based on the two AI receivers for the OTA test by using the 5G
+rapid prototyping (RaPro) system in [37], [38]. The OTA test in diverse environments demon-
+strates that the AI-aided OFDM receivers are feasible and extendable in practical applications.
+However, we find a performance gap between the simulation and the OTA test. We develop
+an online learning architecture, which is called SwitchNet receiver and can be trained with
+offline and real-time online data, to capture channel features ignored during offline training for
+addressing the abovementioned problem. Compared with current AI-aided OFDM receivers, the
+proposed SwitchNet has a novel architecture that can be trained online and can still recover the
+transmitted symbols even when the training channel data set and the practical channel conditions
+mismatch. In addition, the number of online trainable parameters is small, which can reduce the
+online training data and cost. Furthermore, the proposed SwitchNet is implemented and evaluated
+OTA, which proves the feasibility and the real-time transmission ability of the online training
+method in communication. The contributions of this study are summarized as follows:
+  1) We comprehensively compare the performance of the current AI-based receivers, including
+the FC-DNN, ComNet, and the conventional LMMSE receiver. We reveal the sensitivity of the
+AI-based receivers to the mismatch of channels between offline training and online deployment
+stages; this condition indicates the necessity of online training schemes.
+  2) We propose a novel online training method, which is called SwitchNet. This method
+investigates multiple channel models during offline training and leaves only a few trainable
+parameters to be tuned by online training. The network can be applied to a wide range of
+environments even without re-training. Furthermore, the network can converge very fast to adapt
+to real environments and avoid overfitting by online training.
+  3) We demonstrate the feasibility of online training SwitchNet in different scenarios through
+a real-time video transmission rapid prototyping (RaPro) system as the OTA test platform to
+deploy AI OFDM receivers. To the best of our knowledge, it is one of the few online training
+AI-aided OFDM communication systems.
+  The rest of this paper is organized as follows. Section II introduces the architectures of the
+FC-DNN receiver, ComNet receiver, and SwitchNet. Simulation results are shown and discussed
+in Section III. In Section IV, we analyze the OTA test results. We summarize the challenges for
+                                                                                                                                                           5
+
+
+
+
+                                                                                   Traditional OFDM receiver
+
+
+
+                                 Pilot symbol                                                Pilot symbol
+                                      xP                                                             xP
+                                                                             t
+                                                                         y              yP
+   Transmitted b     QAM                        Add             Remove
+                                                                             P
+                                                                                               Channel ĥ         Signal     x̂      QAM         b̂   Recovered
+                   modulation
+                                    IFFT
+                                                CP
+                                                      Channel     CP
+                                                                                 FFT
+                                                                                              estimation         detection        demodulation        bitstream
+    bitstream                                                                           yD
+                                                                         y Dt
+
+                           OFDM transmitter
+
+
+                                                                          y Pt
+                                                                Remove                                      b̂     Recovered
+                                                                                       AI receiver
+                                                                  CP                                               bitstream
+                                                                          y Dt
+
+
+
+                                                                         AI OFDM receiver
+
+
+
+
+Fig. 1. Block diagram of an OFDM system, where pilot symbols are inserted at the transmitter,
+and the receiver acquires CSI. Compared with the traditional OFDM receiver, the AI receiver
+performs CE, SD, and QAM demodulation altogether and directly maps the received signals into
+decided symbols.
+
+
+
+future work in Section V.
+
+
+                                II. A RCHITECTURES OF AI- AIDED OFDM RECEIVERS
+  In this section, the traditional and AI-aided OFDM systems are introduced. After the existing
+data-driven FC-DNN receiver [23] and the model-driven ComNet receiver [30] are analyzed, we
+develop SwitchNet to facilitate an OTA test and the practical application of the AI-aided OFDM
+receiver.
+
+
+A. Traditional and AI-aided OFDM systems
+  Fig. 1 shows the block diagram of an OFDM system, including transmitter, channel, and
+receiver. Two types of OFDM receivers are introduced: traditional and AI-aided OFDM receivers.
+  For the transmitter, the input binary data sequence, b, is modulated as the transmit symbol
+sequence, where M -QAM, such as 4-QAM and 16-QAM, is used. Then, an N -point IFFT is
+performed to generate an OFDM signal. Thereafter, a cyclic prefix (CP) is inserted to mitigate
+the inter-symbol interference (ISI) caused by the delay spread of wireless channels.
+  Wireless channels are assumed to be with delay spread and additive white Gaussian noise,
+w. The components of w are independent, with zero-mean and σw2 -variance. A sample-spaced
+multipath channel can be described by complex random variables. Without the CP, the delay
+spread of L − 1 samples will result in ISI and inter-carrier interference (ICI). If the delay spread
+                                                                                                     6
+
+
+
+is shorter than the length of the CP, P , that is, L − 1 ≤ P , then ISI and ICI will not occur. To
+estimate CSI, pilot symbols are inserted in the first OFDM block in a frame while the transmitted
+data are appended in the following OFDM blocks of the frame. The channel is assumed to be
+time-invariant during one frame.
+  At the traditional OFDM receiver in Fig. 1, the CP is removed first and then FFT is performed.
+We denote y(k) as the received signal at the k-th subcarrier. CE, SD, and QAM demodulation
+are subsequently performed. The received pilot and data signals for the kth subcarrier can be
+expressed as
+
+                                   yP (k) = xP (k)h(k) + w(k),
+
+and
+
+                                   yD (k) = xD (k)h(k) + w(k),
+
+respectively, where xP (k) and xD (k) denote the pilot and transmit symbols in the kth subcarrier,
+respectively. xP (k) is known at the receiver and used for CE while xD (k) is unknown at the
+receiver and needs to be detected based on the received signal and estimated channel.
+  The AI receiver in Fig. 1 replaces the three latter modules in the traditional receiver. It directly
+maps the received symbols into the detected binary data. In the following sections, two types
+of AI receivers, namely, data-driven FC-DNN and the model-driven ComNet, and a novel AI
+receiver, called SwitchNet are described in detail.
+
+B. FC-DNN receiver
+  A data-driven AI-aided FC-DNN receiver in Fig. 2 is proposed in [23]. The received signals,
+including pilot and data, are reshaped as the input from complex value to real value initially.
+Therefore, the size of input layer will be 2(KP + KD ) if KP subcarrier pilot and KD subcarrier
+data are available. Then, the input data go through three hidden layers. The numbers of neurons
+in the hidden layers are 500, 250, and 120. The output layer is composed of only N/8 neurons
+and 8 FC-DNN receivers are designed to work in parallel to recover all input binary data, where
+N is the length of the input binary data. Such design is beneficial for ensuring high precision
+of the estimated symbols and avoiding a more complex network. All but the output of layers
+use the ReLU function fRe (a) = max(0, a) as the activation function. The activation function of
+the output layer is the logistic sigmoid function fSi (a) = 1+e1−a for classification. The logistic
+sigmoid function at the output layer maps the input to the interval [0, 1], which can be regarded
+                                                                                                   7
+
+
+
+
+                                      Input
+                                  1
+                          yP      2
+                                                                 Output
+                                  8     2        5    2     1
+                                                                  1
+                                        5        0    5     2                    b̂
+                                                                  6
+                                  1     6        0    0     0           Hard
+                          yD      2                                   decision
+                                  8
+
+                               Reshape FC1     FC2   FC3   FC4   FC5
+                                              FC-DNN receiver
+
+
+Fig. 2. Structure of FC-DNN. The FC-DNN receiver contains five FC layers that directly map
+the received signal to the recovered bitstreams.
+
+
+
+as a soft decision. Hard decisions can be obtained on the basis of the soft decisions. Given that
+each DNN recovers only one-eighth of the transmit data, eight identical DNNs with different
+coefficients are needed to recover all the transmit binary data.
+  The FC-DNN receiver merges CE, SD, and OFDM modulation into one black box and exploits
+offline training but an online deployment method. In the training stage, transmit bits are generated
+randomly as a label and then modulated to form a frame by inserting pilot symbols. The CSI is
+simulated by a specific channel model and varies with each frame. The `2 loss and the adaptive
+moment estimator (Adam) optimizer [39] are used in the training process.
+  The FC-DNN OFDM receiver adopts an end-to-end structure to realize global optimization of
+the receiver. It is robust to nonlinear distortions and potential hardware imperfections, such as
+lack of CP and clipping. However, FC-DNN requires a large labeled data set to train its weights
+and converges slowly because of the large number of weights that need to be trained.
+
+
+C. ComNet receiver
+  A model-driven AI-aided ComNet receiver is proposed in [30] to alleviate the demand for vast
+training data and enabling the acquisition of CSI. The basic idea of the ComNet receiver [30]
+is to use DNNs as auxiliary blocks to refine the original modules in the OFDM receiver in Fig.
+1. Fig. 3 illustrates the architecture of the ComNet receiver [30], which adopts two cascaded
+DNN-based subnets: CE and SD subnets.
+  In the CE subnet, the LS CE is calculated by element-wise division. Then, the LMMSE matrix
+is used as the initiation. In the SD subnet, the zero-forcing (ZF) SD is first obtained by element-
+wise division. The hidden layer FC2 in Fig. 3 uses the ReLU activation function, whereas the
+                                                                                                               8
+
+
+
+
+                yD                                                         demodulation                 bˆ 
+
+
+                yP           ĥ LS                     ĥ      x̂ ZF
+                                                                                                        b̂
+                xP
+
+                                                                                               Hard
+                     Division Reshape    FC1 Reshape        Division   Reshape FC2    FC3
+                                                                                             decision
+
+                     LS CE           CE RefineNet           ZF SD             SD RefineNet
+
+                               CE subnet                                  SD subnet
+
+
+
+Fig. 3. ComNet receiver architecture. The two subnets use traditional communication solutions
+as initializations and apply DL networks to refine the coarse inputs. The crossing short-path
+provides a relatively robust candidate of the binary symbol recovery.
+
+
+
+output layer FC3 uses the logistic sigmoid function. A hard decision is made to decide the
+transmit bits. Alternatively, a short-path of a conventional QAM demodulation module can be
+added to obtain a robust bitstream depending on the scenario.
+  Similar to the FC-DNN receiver in [23], the ComNet receiver [30] uses offline training but
+online deployment method. Different from the FC-DNN receiver, which executes end-to-end
+training [23], the ComNet receiver [30] adopts a two-stage training where the CE and SD
+subnets are trained separately and successively. Once the training process of the CE subnet is
+done, the parameters in the CE subnet will be fixed in the following training process of the SD
+subnet. The labels of the training data include randomly generated transmitted bitstreams for
+updating the SD subnet and the specific channel model for updating the CE subnet.
+  The ComNet receiver [30] exploits expert knowledge and breaks the black box of the purely
+data-driven AI receiver in [23]. Similar to the FC-DNN receiver, the output layer of the SD
+subnet has N/8 neurons and 8 SD subnets that work together in the ComNet receiver.
+
+
+D. SwitchNet receiver
+  The DNN networks in the abovementioned FC-DNN and ComNet receivers are trained with
+simulated data offline. This condition will lead to mismatch and performance degradation if
+practical channels are different from the simulated ones or unexpected distortions are ignored
+during offline training.
+  The delay spread of the multipath channel is an important parameter for calculating the
+LMMSE weight matrix in the CE subnet. The robust LMMSE receiver in [1] needs the max
+                                                                                                9
+
+
+
+delay to calculate the LMMSE filter matrix offline. The delay spread estimation exploiting few
+channel samples online is proposed in [2] by introducing the channel shape in time domain.
+  However, AI-aided receivers learn the environmental features implicitly and the learned pa-
+rameters are unexplained. Therefore, retraining the NNs online is more difficult compared with
+recalculating the LMMSE matrix similar to conventional ways [1], [2]. Therefore, an adaptive
+and practical AI-aided OFDM receiver is desired. Online transmission data [33] should also
+be considered in the training process of DNNs in OFDM receivers for designing a practical
+AI-aided OFDM receiver.
+  As shown in Fig. 4, the SwitchNet receiver is based on the ComNet receiver because it is
+similar to conventional receivers. The difference between them is the architecture of the CE
+subnet is designed for online adaption. As shown in Fig. 4, the CE subnet of the SwitchNet
+receiver consists of LS CE, two or more CE RefineNets, and online training parameters α ∈ [0, 1].
+The structures of the LS CE and each CE RefineNet are the same as those in the ComNet receiver.
+We consider two channel models, namely, the short and long channels, to combat the changing
+delay spread online. However, the architecture can be directly extended to more channel models.
+As depicted in Fig. 4, the CE RefineNet 0 is a basic neural network for channel estimation and
+the CE RefineNet from 1 to M is the compensating network of the CE RefineNet 0 to adapt
+different channel environments.
+
+
+
+                                                              CE
+                                                                              x𝜶1
+                                                          RefineNet 1
+
+                    yP              ĥ LS       CE
+                    xP
+                            LS CE
+                                            RefineNet 0
+                                                                        x𝜶0         +   ĥ
+
+
+                                                              CE
+                                                                              x𝜶2
+                                                          RefineNet 2
+
+
+
+
+                                                               CE
+                                                                              x𝜶M
+                                                          RefineNet M
+
+
+
+
+Fig. 4. CE subnet architecture of the SwitchNet receiver. The CE RefineNet 0 is the basic DNN
+network for CE, and the CE RefineNets from 1 to M are the compensating network of the CE
+RefineNet 0. α is the switch parameters to decide whether the CE RefineNets from 0 to M are
+accessed.
+                                                                                                  10
+
+
+
+  The aforementioned CE RefineNets are trained offline for different channel models, and the
+switch parameters α are trainable online to decide whether the CE RefineNet from 0 to M is
+accessed. Given only M training parameters α, a small batch of OFDM symbols with bit labels
+are needed and overfitting can be avoided. In the offline stage, the CE RefineNet 0 is trained for
+the robust channel first, which only assumes the max delay in time domain as in [1]. Then, the
+trained parameters of CE RefineNet 0 are fixed and the CE RefineNet 1 is trained to adapt the
+short channel. RefineNets from 2 to M have the same process for the different channels. In the
+online stage, the parameters α are trained to switch to the specific channel. For example, under
+the short channel, all α connected to the RefineNets are set as 0 and only CE RefineNet 1 is
+accessed. Denote Wi and θi as the 2K ×2K real multiplicative parameter matrix and the 2K ×1
+real additive parameter vector for the i-th CE RefineNet in Fig. 4, where K is the number of
+effective subcarriers. From Fig. 4, the estimated channel ĥ can be expressed as
+                              M
+                                              !                   M
+                             X                                   X
+                        ĥ =      αi Wi + α0 I (W0 ĥls + θ0 ) +     αi θi .                     (1)
+                              i=1                                           i=1
+
+  The offline training process is divided into two steps similar to the ComNet. In the first step,
+the CE RefineNets are trained one by one, which can be written as
+
+                                    (Ŵi , θ̂i ) = arg min ||ĥ − h||22 ,                        (2)
+                                                      Wi ,θi
+
+where                                             
+                                                  1, j = i,
+                                           αj =                                                  (3)
+                                                       0, j 6= i.
+                                                  
+
+Then, the CE RefineNets are fixed and the SD subnet is trained as
+
+                                (ŴSD , θ̂SD ) = arg min ||b̂ − b||22 ,                          (4)
+                                                      WSD ,θSD
+
+
+where WSD and θSD are trainable parameters in the SD subnet, b̂ is the output of the SD subnet,
+and b is the transmit bitstream.
+  The online training strategy aims to learn a combination of the CE RefineNets with extreme
+few pilots and known bits. If all bits in the data block of the subframes are known to the receiver,
+then they are called training subframes in the following. This end-to-end training process can
+be expressed as
+                                        α̂ = arg min ||b̂ − b||22 ,                              (5)
+                                                  α
+                                                                                               11
+
+
+
+where α = [α0 , α1 , · · · , αM ]. The known bits are better than ECC in online training [33].
+However, the training subframes are insufficient due to the limited transmit resources.
+  The SwitchNet receiver introduces the idea of online training and can adjust to different
+channel environments; thus, making the OFDM system becomes more robust than the FC-DNN
+and the ComNet receivers. Compared with offline switch, the online training of SwitchNet
+receiver can improve the BER performance continuously in the switch process. Meanwhile,
+α can be beyond 0 and 1 with a good combination of the CE RefineNets to adapt a new
+environment. In addition, the SwitchNet receiver can be naturally extended to multi-user MIMO
+systems given that the SwitchNet receiver is inherited from the ComNet, in which the traditional
+methods, including the LS CE and the ZF SD, can be used.
+
+
+                             III. S IMULATION AND D ISCUSSION
+  In this section, we analyze the pros and cons of different AI-aided OFDM receivers through
+extensive simulation.
+
+
+A. Configurations of the simulation system
+  1) Frame structure: Fig. 5 illustrates the frame structure of the simulated OFDM system. In
+Fig. 5, a 15 ms frame is composed of a frame header and 36 subframes. Each subframe contains
+one pilot OFDM symbol and one data OFDM symbol. Each OFDM symbol consists of 128
+subcarriers where 64 subcarriers are used for pilot or data transmission and the others are for
+guard band and DC offset.
+  2) Channel conditions: Three classic channel conditions are chosen for simulation to inves-
+tigate the effect of changing scenarios on the conventional and AI-aided receivers.
+  Short channel in the simulation is with the exponential (EXP) power delay profile (PDP),
+which is defined in IEEE 802.11b to model the indoor channel at the carrier frequency of 2.4
+GHz [2]. The PDP is given as follows:
+
+                                                 1
+                                     P (τ ) =          e−τ /τrms ,                            (6)
+                                                τrms
+where P (τ ) is the received power at delay τ , and τrms denotes the root-mean-square (RMS)
+delay spread. The output of a finite impulse response filter is used to represent channel impulse
+response h for generating the short channel. Each tap is modeled as an independent complex
+Gaussian random variable and set at integer multiples of the sampling interval. The maximum
+number of paths is decided by τrms and sampling period Ts . In this study, the maximum number
+                                                                                                                                 12
+
+
+
+                                                                                       A frame(15ms)
+                                         600 samples
+
+                                         Frame Header                  Subframe1     Subframe2    Subframe3   ……   Subframe36
+
+                                                                       144 samples
+
+
+
+
+                                                                            ……
+
+
+
+
+                                                                                                 ……
+                                                             31
+                                                                  16          128
+                      Frequency Domain                            CP                   CP                           Guard
+
+
+
+
+                                                                            ……
+
+
+
+
+                                                                                                 ……
+                                                             32
+                                           128 subcarriers
+                                                                  CP                   CP                            Pilot
+                                                                         DC offset          DC offset
+
+                                                             1
+                                                                  CP                   CP                           Data
+
+
+
+                                                                            ……
+
+
+
+
+                                                                                                 ……
+                                                             32
+
+                                                                  CP                   CP
+
+                                                                            ……
+
+
+
+
+                                                                                                 ……
+                                                             32
+
+
+
+
+                                                                              Time Domain
+
+Fig. 5. Frame structure of the simulated OFDM system. Each frame contains several OFDM
+symbols. A pilot symbol and a data symbol are set as the inputs of NNs. Each OFDM symbol
+contains 128 subcarriers. A total of 64 subcarriers are used for the pilot symbol or data symbol
+transmission while the vest 64 subcarriers serve as guard band and DC offset.
+
+
+of paths nmax is set as 10τTrms
+                            s
+                                . This model is called EXP(nmax ) channel model in the following
+part.
+  Long channel uses the Stanford University Interim (SUI) channel model [11], which is a
+type of outdoor multipath channels. In IEEE 802.16, the suburban path loss environment can be
+divided into three terrains according to the tree densities and path-loss conditions. This channel
+can be described by different combinations of channel parameters. For SUI-5 channel model,
+the delay spread is [0 0.4nmax nmax ] and power profile is [0 dB − 5 dB − 10 dB], where
+
+                                                                                            10τrms
+                                                                              nmax = d             e.                           (7)
+                                                                                              Ts
+In the following part, SUI-5 environment with the max delay spread at nmax is denoted as
+SUI-5(nmax ).
+  Robust channel is based on the assumptions in [1]. The delay spread is [0 1 · · · nmax ] and
+the power profile is [ nmax1 +1 nmax1 +1 · · · nmax1 +1 ].
+  3) Conventional LMMSE receivers: The channel correlation matrix and the noise power are
+the key parameters for the LMMSE receivers. The noise power can be easily estimated from
+the subcarriers for guard. However, the channel correlation matrix is challenging because of the
+                                                                                                            13
+
+
+
+varying channel environment.
+  Online LMMSE is based on the method of estimating delay spread in [40]. It assumes the
+channel is with multipath fading and its PDP is with exponential shape similar to Short Channel.
+Therefore, the element in the channel autocorrelation matrix can be expressed as
+
+                                                         e−j2πτ0 k/N
+                                   Rf (k)/Rf (0) =                    ,                                   (8)
+                                                      1 + j2πτrms k/N
+where τµ denotes mean delay, τ0 = τµ −τrms ; N is the size of the DFT used in OFDM modulation.
+  Then, the LS CE and DD (decision-directed) CE are used to estimate τrms and τµ . For example,
+if the pilots are limited, then the known data blocks are used to obtain channel information. We
+use the same training frames for Online LMMSE and the SwitchNet for comparison.
+  Robust LMMSE is based on the work in [1], which calculates the max delay and the LMMSE
+matrix offline. Therefore, the channel autocorrelation matrix can be expressed as
+
+                                              Rf = FDFH ,                                                 (9)
+
+where F is discrete DFT matrix and (·)H is Hermite transpose. D is diagonal matrix with the
+elements diag{ nmax1 +1 , nmax1 +1 , · · · , nmax1 +1 , 0, · · · , 0}. In the following part, the robust LMMSE
+receiver designed with the max delay of nmax is called Robust LMMSE nmax .
+  In this study, Perfect baseline has knowledge of true channel and represents the best perfor-
+mance of a linear receiver. The statistic parameters of the channel are changing and difficult to
+obtain. Thus, the Robust LMMSE and the Online LMMSE are also simulated for comparison.
+The performance of the two LMMSE estimator is determined by the accuracy of statistical
+information of channels. The noise is set as 40 dB, which is the same as the training environment
+of NNs.
+  4) Parameter setting: The detailed network layouts of the AI-aided OFDM receivers are
+summarized in Table I. Training parameters are shown in Table II. The parameters in the AI-
+aided OFDM receivers are trained through labeled data in advance. Table II lists the selected
+training parameters in the simulation.
+
+B. Performance of the existing AI-aided OFDM receivers
+  The existing AI-aided OFDM receivers, namely, the FC-DNN and ComNet, adopt offline
+training but an online deployment scheme. We will evaluate the performance variation of FC-
+DNN and ComNet when they encounter mismatched channels. The Robust LMMSE, Online
+MMSE and Perfect baseline are tested for comparison.
+                                                                                           14
+
+
+                 TABLE I. Network layouts of the AI-aided OFDM receivers.
+
+                                                Layer             Output     Activation
+                                                                dimensions    function
+                                               Input               256          None
+                                                FC                 500         ReLU
+                       FC-DNN                   FC                 250         ReLU
+                                                FC                 120         ReLU
+                                                FC                  16        Sigmoid
+                                           LS Estimation           128            /
+                                   CE
+                                                FC                 128          None
+                       ComNet              ZF Detection            128            /
+                                   SD           FC                 120         ReLU
+                                                FC                  16        Sigmoid
+                                           LS Estimation           128            /
+                                   CE           FC1                128          None
+                                                FC2                128          None
+                       SwitchNet         FC1 out + FC2 out         128            /
+                                           ZF Detection            128            /
+                                   SD           FC                 120         ReLU
+                                                FC                  16        Sigmoid
+
+                          TABLE II. Training parameters in simulation.
+
+                                             Parameter          Value
+                                                 SNR            25 dB
+                                           Loss function        MSE
+                                                Epoch            2000
+                                        Initial learning rate   0.001
+                                              Optimizer         Adam
+
+
+
+
+  Fig. 6(a) compares the BER performance of ComNet, FC-DNN, and LMMSE. The AI-aided
+methods are trained and tested in EXP(5) channel, which means the trained and tested channels
+are the same. Fig. 6(a) shows that these receivers exhibit similar BER performance when SNR
+≤ 10 dB given that the influence of the accurate delay spread is slight when the noise power
+is high. The ComNet is close to the Perfect baseline and nearly 1 dB better than the Online
+LMMSE when SNR = 20dB. With the increase in SNR, the ComNet is slightly worse than Online
+LMMSE. This result means that the ComNet learns more to deal with the noise. Meanwhile, the
+proper channel shape assumption of the Online LMMSE results in its tightly close performance
+to the Perfect baseline, especially when SNR is high. The evident performance gain of ComNet
+over FC-DNN suggests that the expert knowledge of the traditional algorithm can be beneficial
+to the learning process of the DL networks. The Robust LMMSE shows the worst performance
+because it uses the least statistic information.
+  Fig. 7(b) compares the BER performance of ComNet and FC-DNN trained in the EXP(5)
+channel but tested in the SUI-5(10) channel. As shown in the figure, the ComNet is the worst.
+The BER performance of the FC-DNN receiver is still close to that of Robust LMMSE, whereas
+                                                                                                                                               15
+
+
+
+
+           10 -1                                                                   10 -1
+
+                                                     ComNet
+                                                     FC-DNN
+           10 -2                                     Robust LMMSE 5                10 -2
+                                                     Online LMMSE
+                                                     Perfect baseline
+           10 -3                                                                   10 -3
+
+
+
+
+                                                                             BER
+     BER
+
+
+
+
+           10 -4                                                                   10 -4
+                                                                                                   ComNet
+                                                                                                   FC-DNN
+                                                                                                   Robust LMMSE 12
+           10 -5                                                                   10 -5
+                                                                                                   Online LMMSE
+                                                                                                   Perfect baseline
+
+           10 -6                                                                   10 -6
+                   0   5   10   15         20   25      30     35       40                 0   5     10    15         20   25   30   35   40
+                                     SNR(dB)                                                                    SNR(dB)
+
+
+                                     (a)                                                                        (b)
+
+Fig. 6. BER performance of FC-DNN and ComNet under matched and mismatched channels.
+(a) FC-DNN and ComNet receivers trained and tested under matched channels. (b) FC-DNN
+and ComNet receivers trained and tested under mismatched channels.
+
+
+the ComNet receiver does not work well and becomes saturated when SNR > 20 dB. The
+Online LMMSE is still close to the Perfect baseline because it can learn the changing channel
+and recalculate the LMMSE matrix. However, a gap exists between the Online LMMSE and the
+Perfect baseline when the SNR is high because the exponential model assumption is inaccurate.
+In general, the ComNet receiver has excellent performance under matched channels and poor
+performance under mismatched channels. By contrast, the FC-DNN is more robust to channel
+mismatch than ComNet, which may be due to the redundant network parameters. The Robust
+LMMSE is worse and shows error floor because its performance degrades when the delay spread
+is longer.
+  The existing AI-aided OFDM receivers outperform the traditional method, especially under
+the non-ideal scenarios, such as insufficient pilots, clipping, and other nonlinear effects [23].
+However, the feasibility of the AI-aided method is still questionable.
+
+
+C. Performance of the SwitchNet receiver
+  Performance degradation of the existing AI receivers for mismatched channels is due to their
+offline training mode, which makes them well known to the trained channel but “unfamiliar”
+with the untrained channels. Performance may not be guaranteed for the AI receivers under
+real scenarios with channels untrained offline. The AI receiver should be trained under more
+                                                                                                                                                16
+
+
+
+channel models offline or the online receiver should be trained to adapt to the real environment,
+as indicated in the proposed SwitchNet, to address the channel mismatch issue.
+  We compare the different sizes of online training set to verify the feasibility of the SwitchNet.
+The SwitchNet is combined with two CE RefineNets trained under EXP(5) and SUI-5(10),
+respectively. We let α = [1 0] to train CE RefineNet 0 for EXP(5) and α = [1 1] to train
+CE RefineNet 1. Fig. 7(a) uses only one subframe for online training, and Fig. 7(a) uses 10
+subframes. The learning rate is set as 0.1, and 50 times of training are conducted for an epoch.
+
+
+
+        1.2                                                                   1.2
+
+
+         1                                                                     1
+
+
+        0.8                                                                   0.8                                             EXP(5)
+                                                        EXP(5)                                                                SUI-5(10)
+                                                        SUI-5(10)             0.6
+        0.6
+    ,                                                                     ,
+
+        0.4                                                                   0.4
+
+
+        0.2                                                                   0.2
+
+
+         0                                                                     0
+
+
+     -0.2                                                                 -0.2
+
+              0   10   20   30   40    50     60   70   80    90    100             0   10   20   30   40     50    60   70   80    90    100
+                                      epoch                                                                 epoch
+
+                                      (a)                                                                   (b)
+
+Fig. 7. Online training process during channel change. The star curve is the training process
+of α1 when the channel changes from SUI-5(10) to EXP(5). The crossing curve is the training
+process of α1 when the channel changes from EXP(5) to SUI-5(10).
+
+  Before training online, the receiver works in the specific channel environment. The value of
+α1 is 0 when the simulated environment is EXP(5) or α1 is 1 when the environment is SUI-
+5(10). When the channel suddenly changes, the value of α adjusts immediately to match the
+new channel. Fig. 7 shows the online-training curves when the channel changes. As shown in
+the figure, the value of α1 of the star curve changes quickly from 1 to 0 within 10 epochs when
+the channel changes from SUI-5(10) to EXP(5). Similarly, the crossing curve adapts to 0 from
+1 within 10 epochs when the channel changes from EXP(5) to SUI-5(10). Within 10 epochs, α1
+moves closer to the value of 0 or 1 and slightly varies around them. The amplitude of variation
+decreases gradually and converges eventually. Although the vibration of the curve in Fig. 7(a)
+is larger than that in Fig. 7(b), the BER performance is still tightly close to that of the ComNet
+trained under the matched channels. Therefore, the online system can perform well in terms of
+adaptability and stability. In our simulation, the 100 epochs can be trained within 1 ms.
+                                                                                                                                                               17
+
+
+
+  A robust combination of the CE RefineNets is proposed to explain the expandable architecture
+of SwitchNet. The CE RefineNet 0 is initiated by the Robust LMMSE 12 and trained for better
+performance. After CE RefineNet 0 is trained, we set α = [0 1 0 0 0] and train for the max
+delay at 3. Then, we set α = [0 1 1 0 0] for the max delay at 6, α = [0 1 1 1 0] for the max
+delay at 9, and [0 1 1 1 1] for the max delay at 12. The pilot numbers are set as 8 and 64 for
+comparison in this simulation.
+
+
+                                                                                        10 0
+           100
+                                               SwitchNet(online) 64 pilots                                                   SwitchNet(online) 8 pilots
+                                               SwitchNet(hard) 64 pilots                                                     SwitchNet(hard) 8 pilots
+                                               Robust LMMSE 64 pilots                                                        Robust LMMSE 8 pilots
+           10-1                                                                         10 -1                                Online LMMSE 8 pilots
+                                               Online LMMSE 64 pilots
+                                               Perfect baseline                                                              Perfect baseline
+
+
+           10-2                                                                         10 -2
+
+
+
+
+                                                                                  BER
+     BER
+
+
+
+
+           10-3                                                                         10 -3
+
+
+
+
+           10-4                                                                         10 -4
+
+
+
+
+                                                                                        10 -5
+                  0   5   10   15         20   25       30       35          40                 0   5   10   15         20   25      30        35         40
+                                     SNR(dB)                                                                      SNR(dB)
+
+                                    (a)                                                                           (b)
+
+Fig. 8. BER performance of SwitchNet after online training when the channel changes. The test
+scenario is SUI-5(10), where the SwitchNet has not learned offline.
+
+  Fig. 8 shows the BER performance of the SwitchNet receiver after online training from the
+initial state, where α = [1 0 0 0 0]. We use 10 OFDM symbols as a training set and train 50 times
+for an epoch. All the online training process converges within 40 epochs. The SwitchNet(online)
+is learned by gradient descent as in Fig. 7 and the SwitchNet(hard) means all the α = values
+are chosen either 0 or 1 by comparing the BER performance. Thus, if we train several ComNets
+offline and choose the best online, then the ComNet has the same BER performance as the
+SwitchNet(hard). α = [0.25 0.73 0.52 0.04 0.00] for SwicthNet(online) with 64 pilots, and
+α = [0.13 0.86 0.65 0.09 0] for SwitchNet(online) with 8 pilots. The SwitchNet(hard) chooses the
+best combination in this scenario and when α = [0 1 1 1 0]. We find that the SwitchNet(online)
+uses the CE RefineNets from 0 to 3 because the CE RefineNet 0 is robust and the CE RefineNets
+from 1 to 3 are trained when nmax = 9. This online training result is reasonable because the
+nmax of SUI-5(10) is 10.
+  Fig. 8(a) shows that the SwitchNet online is close to Online LMMSE and the SwitchNet hard
+is close to Robust LMMSE when SNR is high. The two online methods are better where the
+                                                                                                                                                   18
+
+
+
+robust methods offline have error floor. This performance is due to the aid of online training.
+Online LMMSE is better than the SwitchNet online when SNR ≤ 20 dB. The performance loss
+is reasonable because Online LMMSE has an exponential channel shape assumption, which only
+has a slight model error. The SwitchNet(online) needs to combine the CE RefineNets properly
+online while it has only learned the Robust channel. When the pilot number reduced to 8 in
+Fig. 8(b), the superiority of the SwitchNet to the conventional ways is obvious. Meanwhile,
+the SwitchNet(online) is still better than the SwitchNet(hard). Therefore, the several trainable
+parameters for online training enable the AI-aided method to adapt to the unfamiliar scenarios.
+Robust LMMSE can still work due to its robust design but Online LMMSE fails.
+
+
+                                                                                 100
+          100                                                                                                             SwitchNet(online)
+                                                  SwitchNet(online)                                                       Robust ComNet
+                                                  Robust ComNet                                                           Transfer Learning
+                                                  Transfer Learning              10-1                                     Meta learning
+          10-1                                    Meta learning
+
+
+
+                                                                                 10-2
+          10-2
+                                                                           BER
+    BER
+
+
+
+
+                                                                                 10-3
+          10-3
+
+
+
+                                                                                 10-4
+          10-4
+
+
+
+
+          10-5                                                                   10-5
+                 0   5   10   15     20      25   30       35         40                0   5   10   15         20   25   30       35         40
+                                   SNR(dB)                                                                SNR(dB)
+
+
+                                   (a)                                                                    (b)
+
+Fig. 9. BER performance of SwitchNet and competing methods with 8 pilots. (a) Under the
+scenario of CE RefineNet 2. (b) Under the SUI-5 (10).
+
+  We compare different online training methods with the SwitchNet in Fig. 9. Robust ComNet
+is trained under all the possible scenarios offline, which is the common method to cope with the
+changing scenarios. Transfer learning and meta-learning [41] use Robust ComNet as initiation. A
+total of 10 collected subframes are used to fine tune the CE subnet given a fixed SD subset. The
+Robust ComNet can work under all scenarios but cannot achieve the best performance, which
+shows the similar trend to the Robust LMMSE in Fig. 8. The transfer learning method only has
+a slight improvement over the Robust ComNet because 10 subframes are not enough to train an
+FC layer. Meta-learning is more suitable for such a few training data and better than the transfer
+learning. The SwitchNet shows the best performances and learns α = [−0.01 0 0.98 0 0] in Fig.
+9(a) and α = [0.13 0.86 0.65 0.09 0] in Fig. 9(b), which demonstrates that 10 subframes are
+sufficient for the SwicthNet to find a good combination of the CE RefineNets.
+                                                                                                19
+
+
+
+  In summary, the online training process in the SwitchNet receiver can combat performance
+degradation under the mismatching channel. Compared with training offline, the SwitchNet
+receiver needs much fewer training data and can work under varying channels OTA. However,
+the CE RefineNets in SwitchNet should be trained under several possible environments, which
+are potentially suitable for practical channels. Otherwise, the performance will not be improved
+by online training. The combination of the CE RefineNets can rely on the expert knowledge in
+wireless communications to guarantee the robustness. The SwitchNet not only has the superiority
+of the AI-aided method under the non-ideal scenarios, such as no sufficient pilots, but also shows
+its expandability and flexibility for implementation.
+
+
+D. Complexity analysis
+
+      TABLE III. Forwarrd complexity analysis for SwitchNet and competing methods.
+
+                                   FLOPs   Activation memory   Parameters   Time
+                       SwitchNet   0.34M   10.50kBytes         0.17M        1.2us
+                       ComNet      0.31M   9.47kBytes          0.16M        1.2us
+                       FC-DNN      4.33M   29.37kBytes         2.29M        1.2us
+                       LMMSE       0.06M   /                   /            0.8us
+
+
+
+  Table III compares the complexity in terms of the number of floating-point multiplication-adds
+(FLOPs), activation memory consumption, parameters, and time consumption in one forward
+propagation to recover the binary bitstream in a frame among three AI-aided OFDM receivers.
+As shown in Table III, SwitchNet consumes slightly more resource than ComNet while remaining
+at a low complexity compared with FC-DNN. Specifically, SwitchNet needs 0.03 million more
+FLOPs, 1.03 thousand more bytes activation memory, and 0.01 million more parameters than
+ComNet while only costing approximately 1/10 of hardware resources compared with FC-DNN.
+The additional hardware consumption of SwitchNet relative to that of ComNet is reasonable.
+SwitchNet, which is an enhanced architecture of ComNet, has an extra CE subnet to adapt
+to added channel models; thus, it has a slightly larger hardware consumption than ComNet.
+Meanwhile, the running time of the three AI-aided OFDM receivers is comparative due to
+paralleled calculation of graphic processing unit (GPU) and the same depth of network. The
+traditional OFDM receiver in our system has an LMMSE estimator and an MMSE detector, and
+its complexity is always the lowest. The FLOPs of a CE subnet is similar to that of the LMMSE
+estimator, but that of the SD subnet is much larger because of the fully connected architecture
+and only one-eighth of the transmitted bits demodulated once. Thus, the FLOPs is 8 times that
+                                                                                                20
+
+
+
+in [30]. The high complexity of SD subnet can be reduced if the experimental scenarios are
+simple. By clipping the size of hidden layer and removing the nonlinear activation function,
+the FLOPs of the SwitchNet is close to 0.1 M. The reasons for simplifying the SD subnet are
+discussed in Section IV D.
+  Overall, complexity analysis suggests that SwitchNet has the advantage of adaptability to
+more channel models with acceptable sacrifice in hardware resource compared with ComNet.
+Moreover, SwitchNet consumes considerably fewer hardware resources than FC-DNN.
+
+
+                               IV. OTA T EST AND D ISCUSSION
+
+  OTA test is important for AI-based receivers because considering all distortions in the systems
+is nearly impossible. Several prototyping systems have been developed to verify the feasibility
+and effectiveness of AI-based receivers in real environments. In [37], a novel 5G RaPro system is
+proposed to deploy FPGA-privileged modules on SDR platforms, implement complex algorithms
+on multi-core GPPs, and connect them through high-speed 10-gigabit Ethernet interfaces. Such
+architecture deploys a multi-user full-dimension MIMO prototyping system [37], [38] and is
+therefore flexible and scalable. In this study, we set up the first real-time testbed for AI-aided
+OFDM receivers, which has been never reported before. The RaPro system is used as our testbed
+to test the OTA performance of the FC-DNN, the ComNet, and the SwitchNet receivers. Various
+tests are conducted in different scenarios. After the system setup and software implementation are
+introduced, we will present our experimental results and analyze the flexibility of the AI-based
+receiver.
+
+
+A. System setup
+
+  Fig. 10(a) illustrates the AI-aided OFDM receiver based on the RaPro architecture. It comprises
+SDR nodes at the transmitter and the receiver, respectively, and a multi-core server. Each SDR
+has with one antenna and one RF chain and is provided with a unified reference clock and trigger
+signal by the timing/synchronization module. The AI-aided OFDM receivers are implemented
+on a multi-core server in a Linux environment. The proposed receivers (FC-DNN, ComNet, and
+SwitchNet) can be developed on multi-core GPPs by programming with high-level language, such
+as C/C++, in conjunction with Intel Math Kernel Library (MKL), which is a highly optimized
+and commonly used math library for processors.
+                                                                                               21
+
+
+
+
+                      OFDM Modulator             OFDM Demodulator   AI Receiver
+                                       Channel
+
+                          SDR                          SDR
+                                        (a)
+
+
+
+
+                                         (b)
+
+Fig. 10. AI-aided OFDM receiver system based on the RaPro architecture. OFDM-related
+algorithms are deployed on SDRs while AI receivers are deployed on the multi-core server.
+
+
+  Fig. 10(b) shows the hardware of the assembled AI-aided OFDM receiver system, which is
+implemented by two SDR nodes of USRP-2943R and a multi-core server that contains 32 Intel
+Xeon E5-2680 v2 @ 2.8 GHz processors. Each SDR node consists of two RF transceivers of
+120 MHz bandwidth, one of which is used to transmit modulated radio signals. The multi-core
+server provide sufficient GPPs to meet the requirements of TensorFlow and MKL, which are
+necessary for the implementation of the AI-aided receivers. An RF antenna of USRP-RIO, which
+has center frequency is adjustable from 1.2 GHz to 6 GHz, receives the wireless signals. After
+CP removal and FFT-based OFDM demodulation operated by USRP-RIO, the data are sent to
+the multi-core server via a cable. The video stream is recovered by the AI receiver running on
+the server.
+  The SwitchNet receiver can be easily extended to a MIMO system because the SwitchNet
+receiver is inherited from the ComNet, in which the traditional methods, including LS CE and
+ZF SD, can be used.
+
+
+B. Software implementation
+
+  On the transmitter side, the video stream is transmitted through the RF module after QPSK
+modulation and IFFT. On the receiver side, FFT transformation is performed to the signal received
+by the antenna. Then, the data are sent to the multi-core server through user datagram protocol
+(UDP) module. The AI-aided OFDM receivers (FC-DNN, ComNet, and SwitchNet), which run
+on the multi-core server, will recover and display the original video stream.
+                                                                                                22
+
+
+
+  The proposed AI-aided OFDM receiver contain two phases: training and working. The training
+phase is realized in Python based on TensorFlow and powerful GPU. The back propagation
+algorithm is used to train the weights and biases of the DNN via OTA data captured by USRP-
+RIO. These parameters are saved as comma-separated value (csv) files after training and used for
+the working phase. In the working phase, the values of the weight matrices and bias vectors are
+initiated by the parameters in the csv files. Then, the forward propagation is performed in C/C++
+with the help of Intel MKL library on the multi-core server. Fig. 11(a) shows the architecture of
+the training phase. After the zero padding removal module, 128 effective subcarriers of pilot and
+data are saved. A total of 256 real inputs are prepared for FC-DNN through the separation of their
+real and imaginary parts. For ComNet, the received pilot divides the local pilot to obtain LS CE.
+Similarly, the input of ComNet is real form of LS CE and data. Fig. 11(b) presents the overall
+data processing program diagram of the forward propagation on the multi-core server. Multi-
+threading technology is applied in the multi-core GPP-based AI-aided OFDM receiver design
+to process each module. Each processing thread is bounded to a unique central processing unit
+core with semaphore and spinlock as the synchronization mechanism to avoid the cost of context
+switching. A total of 11 threads are in the implemented system. The main thread is in charge of
+scheduling the other threads. A UDP receiving thread is used to collect the demodulated data
+from USRP-RIO. Eight AI detection (FC-DNN and ComNet) threads run in parallel, where the
+matrix manipulation in the forward propagation is realized based on the Intel MKL Library. After
+detection, one UDP transmitting thread is used to pack the video stream and send to display.
+  Considering that the data transmission and preprocessing capabilities of the receiver (e.g.,
+receiving data, unpacking data, and repacking data to transmit to server) are limited by the host
+of the USRP, the testbed adopts 15 ms frame duration and 731 kHz sample rate. According
+to the frame structure in Fig. 5, each frame contains 36 × 64 × 2 = 4, 608 bits, where 36
+represent the number of subframes to transmit valid data and pilots, 64 are for 64 subcarriers to
+transmit valid modulated symbols, and 2 are for 2 bits in a QPSK symbol. Therefore, the data
+transmission rate is 4608 bits/15 ms= 307 kbps. This data transmission rate can be increased
+if the data transmission and preprocessing strategy of the receiver can be accelerated by FPGA
+implementation.
+                                                                                                                      23
+
+
+
+
+                                 Training                                              Working
+                                                                             UDP Receiving            UDP Sending
+                                                                                                      `
+                                 OTA Signals                                   Thread                   Thread
+
+
+                                 Remove CP
+                                                                                        Main Thread
+
+                                    FFT
+
+                                                                Parameters            Weights and Biases   MKL
+                                                                                        Initialization   Sub-Thread
+                      OTA Data                  Original Bits
+                                                                                       Multiply Weights
+                                                                                         Add Biases
+
+                                                                                      Activation Function
+
+
+                                                                                        Hard Decision
+
+
+
+
+                                  (a)                                                        (b)
+
+Fig. 11. Overall data processing program of training and working phases. The weights and biases
+of the AI receiver trained based on TensorFlow and will be used to initialize the parameters of
+the matrices in the working phase.
+
+
+C. Implementation details
+
+
+
+
+                                                        4m                                      5m
+
+
+
+
+                                          (a)                                                 (b)
+
+
+
+
+                                                                                        Obstacle
+
+                                                                                       AI receiver
+
+                                                                                       Transmitter
+                                        3m           3.2m
+
+
+
+                                          (c)
+
+
+Fig. 12. Three scenarios of the OTA test for real-time AI testbed: (a) indoor scenario with an
+obstacle and windows, doors, and walls around; (b) outdoor scenario where the transmitter and
+receiver are placed on a straight road surrounded by trees and grass; and (c) indoor to outdoor
+scenario in which the transmitter is deployed on the second floor of the building and the receiver
+is outside the building surrounded by several trees and cars.
+
+  1) OTA scenarios for offline-trained AI receivers: As shown in Fig. 12, three different sce-
+narios are chosen to test our real-time AI testbed.
+                                                                                                  24
+
+
+
+  •   Scenario 1 is the indoor scenario in Fig. 12(a), where the transmitter and the receiver are
+      in the same room with obstacles, windows, and walls around; the distance between the
+      transmitter and the receiver is 4 m.
+  •   Scenario 2 is the outdoor scenario in Fig. 12(b), where the transmitter is at a distance of 5
+      m on a straight road surrounded by several trees.
+  •   In Scenario 3, as shown in Fig. 12(c), the transmitter is deployed indoors while the AI
+      receiver is deployed outside the building.
+  The practical channels can be regarded as the EXP channel model because of the limited
+transmission distance, reflectors, and scatters of the three scenarios. Therefore, the EXP channel
+model is applied to train the FC-DNN, ComNet, and SwitchNet receivers offline and conduct
+the OTA test under high and low SNR by changing the antenna gain of the testbed.
+  2) Training strategy for online-trained AI receivers: In the real-time system, the AI receivers
+obtain online training dataset by the received training sequence that is sent by the transmitter and
+known to the receiver. We use pseudo random testing dataset and calculate BER to measure the
+online training performance of the AI receivers. In [30], the CE subnet is trained independently,
+which is very difficult in online training because the accurate information of the real channel
+remains unknown. Thus, the parameters of ComNet are refined by the online training dataset
+in an end-to-end manner, which is the same as the FC-DNN receiver. The online training
+method of FC-DNN and ComNet corresponds to the idea of transfer learning. We use the frame
+structure depicted in Fig. 5, that is, one pilot symbol followed by one data symbol, for real-time
+transmission. The training process is similar to that in Fig. 7(b).
+
+
+D. OTA performance of offline-trained AI receivers
+
+  In this subsection, we compare the experimental results of the offline-trained FC-DNN and
+ComNet receivers in the OTA tests.
+  The two receivers are trained offline under the EXP(5) channel model. The Online LMMSE
+is used as the baseline. As shown in Table IV, the LMMSE method achieves better BER
+performance than the two AI-aided OFDM receivers in all scenarios and the FC-DNN receiver
+slightly outperforms the ComNet receiver. The mismatch phenomenon is observed.
+                                                                                                25
+
+
+TABLE IV. BER performance of AI receivers and the LMMSE receiver in OTA test(mismatch)
+
+                                   SNR          LMMSE          FC-DNN            ComNet
+                                                     −6                 −6
+                                 High SNR   1.74 × 10       5.21 × 10         5.21 × 10−6
+                    Scenario 1
+                                 Low SNR    1.88 × 10−4     3.68 × 10−4       3.94 × 10−4
+                                 High SNR   5.99 × 10−5     1.10 × 10−4       1.11 × 10−4
+                    Scenario 2
+                                 Low SNR    4.71 × 10−4     7.36 × 10−4       7.73 × 10−4
+                                 High SNR   2.78 × 10−5     5.82 × 10−5       7.52 × 10−5
+                    Scenario 3
+                                 Low SNR    1.30 × 10−5     2.86 × 10−5       5.29 × 10−5
+
+
+
+
+  The offline OTA data from the SISO system with 153.6 MHz sampling rate are used for test
+to investigate the aforementioned issue, and Table V shows the result. The Online LMMSE is
+better than FC-DNN in Scenario 1 but worse in others. The ComNet shows the best performance
+in all scenarios, and this performance verifies that the channel realization in our online video
+transmission system is simple due to low sampling rate. We also find that the nonlinear activation
+should be removed because the LS or LMMSE CE and ZF SD can perform well in the real-time
+video transmission. The nonlinear activation is unnecessary in simple channel condition and may
+worsen the BER performance because of its redundant complexity.
+TABLE V. BER performance of AI receivers and the LMMSE receiver in OTA test (153.6MHz
+sampling rate)
+
+                                   SNR      LMMSE         FC-DNN               ComNet
+                                                    −5             −5
+                                 High SNR   6.27 × 10     8.89 × 10          3.21 × 10−5
+                    Scenario 1
+                                 Low SNR    3.91 × 10−4   5.33 × 10−4        1.72 × 10−4
+                                 High SNR   9.98 × 10−4   7.84 × 10−4        5.58 × 10−4
+                    Scenario 2
+                                 Low SNR    5.31 × 10−3   4.44 × 10−3        3.18 × 10−3
+                                 High SNR   6.60 × 10−4   6.52 × 10−4        5.37 × 10−4
+                    Scenario 3
+                                 Low SNR    5.74 × 10−3   4.29 × 10−3        3.01 × 10−3
+
+
+
+  In summary, the expert knowledge in wireless communications is helpful when analyzing
+the effectiveness of the AI-aided methods. The simple channel realizations of our online video
+transmission system in the OTA test still lead to the performance gap between simulation and
+practice.
+
+
+E. Online training for the AI receiver
+
+  In this subsection, we discuss online training for the AI-aided OFDM receiver. Only the
+EXP(5) and SUI-5(10) are chosen to combat the channel environment with different lengths of
+channel spread for simplicity. We perform transfer learning for ComNet and FC-DNN as in Fig.
+                                                                                                  26
+
+
+
+9 to demonstrate the superiority of the SwitchNet. In this case, the network is retrained using
+online data in the transmission stage based on the offline-trained network.
+    TABLE VI. The training process of α when initialized as one under the real channel.
+
+                              epoch        0         10       20       50         100
+                                  α1      1.0    0.107     -0.168   -0.065   -0.059
+
+
+
+  Table VI shows the change in α1 in the online training process, where the learning rate is
+optimized. The initial value of α1 is set to 1 as the network is initialized under the SUI-5 channel
+model and decreases to close to 0 within 20 epochs. This result indicates that SwitchNet can
+adapt to the simple real channel by online training data. α1 is also convergent to -0.059, which
+implies that the real channel is not exactly EXP or SUI-5.
+TABLE VII. BER performances of SwitchNet, ComNet and FC-DNN with different numbers
+of epochs and optimized learning rates.
+
+                                       SwitchNet          ComNet      FC-DNN            LMMSE
+                              0     2.2 × 10−2       2.2 × 10−2     1.2 × 10−3     4.7 × 10−4
+                    epoch    10    4.7 × 10−4        1.4 × 10−3     7.7 × 10−4      4.7 × 10−4
+                            100    4.5 × 10−4        6.7 × 10−4     6.8 × 10−4      4.7 × 10−4
+
+
+
+  Table VII compares the BERs of SwitchNet, ComNet, and FC-DNN by using online training
+with different numbers of epochs. The learning rate for each network is optimized. ComNet
+and FC-DNN are trained by transfer learning. The table shows that the SwitchNet can perform
+online training rapidly with a few epochs. Meanwhile, ComNet and FC-DNN need a relatively
+large number of epochs to yield a similar performance.
+TABLE VIII. BER performances of SwitchNet, ComNet, and FC-DNN with different numbers
+of epochs and decayed learning rates.
+
+                                       SwitchNet          ComNet      FC-DNN            LMMSE
+                                                −2            −2             −3
+                              0     2.2 × 10         2.2 × 10       1.2 × 10       4.7 × 10−4
+                    epoch    10     7.4 × 10−4       1.1 × 10−2     1.4 × 10−3     4.7 × 10−4
+                            100    4.5 × 10−4        9.8 × 10−3     1.4 × 10−3      4.7 × 10−4
+
+
+
+  We also investigate the effect of the learning rate for three networks. Table VIII shows that the
+initial learning rates for SwitchNet, ComNet, and FC-DNN are 0.6, 0.01, and 0.01, respectively.
+The learning rate is decreased to 1/5 when each 1/5 of the total epochs has been trained. Table
+                                                                                                 27
+
+
+
+VIII illustrates that SwitchNet is relatively robust to the learning rate. Conversely, ComNet and
+FC-DNN heavily depend on the learning rate. An improper learning rate will result in severe
+deterioration, failure to restore performance through online training, and additional training data
+and time consumed.
+  The advantage of training with practical data has been verified by carefully tuning the param-
+eters in the NNs. The bottleneck of training with practical data is the convergence speed because
+the practical channel is varying with time.
+  Real-time transmission means the bitstreams are demodulated by the AI-aided receivers online
+in addition to capturing online data and testing offline. The real-time transmission is achieved
+only if the time consumption to process a frame on the receiver is less than the duration of a
+frame. After OTA test, the average duration of data processing on the receiver is 14 ms, which
+allows the realization of the real-time transmission. Among the processing modules, the average
+durations of the AI-aided OFDM receivers to conduct a forward-propagation inference are 2.4,
+0.6, and 0.6 ms for FC-DNN, ComNet, and SwitchNet, respectively; they account for 16%,
+4%, and 4% duty cycle of a frame duration. The quick convergence of SwitchNet and ComNet
+compared with that of FC-DNN is due to the introduction of expert knowledge in wireless
+communications to form the model-driven DL networks.
+  From the abovementioned discussion, we can conclude that SwitchNet is more promising
+than ComNet and FC-DNN in terms of online training. The SwitchNet can avoid overfitting and
+reduce training time because it needs only one parameter to be optimized in the online training
+process. More trainable parameters can be introduced into the network to further improve the
+flexibility and adaptability given that the real-time system has adequate hardware resource and
+time for training model-driven AI networks.
+
+                        V. C ONCLUSIONS AND F UTURE C HALLENGES
+
+  We have proposed an online trainable AI-aided OFDM receiver, named SwitchNet, to adapt
+to the channel variation and diversity in the OTA scenarios. The proposed SwitchNet receiver
+pretrains multiple channels offline and reserves an online trainable parameter to act as a switch
+that chooses the network for the real transmission. Simulation results indicate that the proposed
+SwitchNet receiver has feasibility in online training and outperforms the ComNet and FC-
+DNN receivers and the traditional LMMSE baseline in terms of BER performance. OTA tests
+                                                                                                                              28
+
+
+
+demonstrate BER gains under real scenarios and efficient online training characteristics of the
+proposed SwitchNet receiver.
+   Although the AI-aided OFDM receivers relieve the difficulty of mathematical modeling and
+may outperform conventional communication systems, a performance gap may occur between
+offline and the OTA test due to the mismatch between simulation and real environments. Con-
+sidering all possible system imperfections is challenging. Online training is a promising method
+to solve this dilemma. SwitchNet offers a realizable online training scheme by sharply reducing
+the number of parameters to be trained. The adaptive ability of SwitchNet is guaranteed by the
+addition of subnets that are trained offline under different channel models.
+
+
+                                                       R EFERENCES
+
+ [1] Y. Li, L. J. Cimini, and N. R. Sollenberger, “Robust channel estimation for OFDM systems with rapid dispersive fading
+     channels,” IEEE Trans. Commun., vol. 46, no. 7, pp. 902–915, July 1998.
+ [2] Y. S. Cho, J. Kim, W. Y. Yang, and C. G. Kang, MIMO-OFDM wireless communications with MATLAB. John Wiley &
+     Sons, 2010.
+ [3] S. Coleri, M. Ergen, A. Puri, and A. Bahai, “Channel estimation techniques based on pilot arrangement in OFDM systems,”
+     IEEE Trans. Broadcast., vol. 48, no. 3, pp. 223–229, 2002.
+ [4] O. Simeone, Y. Bar-Ness, and U. Spagnolini, “Pilot-based channel estimation for OFDM systems by tracking the delay-
+     subspace,” IEEE Trans. Wireless Commun., vol. 3, no. 1, pp. 315–325, 2004.
+ [5] M. Myllyla, J.-H. Hintikka, J. Cavallaro, M. Juntti, M. Limingoja, and A. Byman, “Complexity analysis of MMSE detector
+     architectures for MIMO OFDM systems,” in Proc. IEEE 39th Asilomar Conf. Signals, Syst. Comput., 2005, pp. 75–81.
+ [6] S. Rangan, “Generalized approximate message passing for estimation with random linear mixing,” in Proc. IEEE Int. Symp.
+     Inf. Theory (ISIT), 2011, pp. 2168–2172.
+ [7] S. Wu, Z. Ni, X. Meng, and L. Kuang, “Block expectation propagation for downlink channel estimation in massive MIMO
+     systems,” IEEE Commun. Lett., vol. 20, no. 11, pp. 2225–2228, Nov 2016.
+ [8] T. J. O’ Shea and J. Hoydis, “An introduction to deep learning for the physical layer,” IEEE Trans. Cogn. Commun. Netw.,
+     vol. 3, no. 4, pp. 563–575, Dec. 2017.
+ [9] Z.-J. Qin, H. Ye, G. Y. Li, and B.-H. Juang, “Deep learning in physical layer communications,” IEEE Wireless
+     Communications, vol.26, no.2, Apr. 2019.
+[10] H. He, S. Jin, C. Wen, F. Gao, G. Y. Li, and Z. Xu, “Model-driven deep learning for physical layer communications,”
+     IEEE Wireless Commun., vol. 26, no. 5, pp. 77–83, Oct. 2019.
+[11] J. Guo, C.-K. Wen, S. Jin, and G. Y. Li, “Convolutional neural network-based multiple-rate compressive sensing for massive
+     MIMO CSI feedback: Design, simulation, and analysis,” IEEE Trans. Wireless Commun., vol. 19, no. 4, pp. 2827–2840,
+     Apr. 2020.
+[12] T. J. O’ Shea, T. Roy, and T. C. Clancy, “Over-the-air deep learning based radio signal classification,” IEEE J. Sel. Topics
+     Signal Process., vol. 12, no. 1, pp. 168–179, 2018.
+[13] T. Gruber and S. Cammerer and J. Hoydis and S. ten Brink, “On deep learning-based channel decoding,” in Proc. of CISS,
+     2017, pp. 1–6.
+                                                                                                                            29
+
+
+
+[14] E. Nachmani, E. Marciano, D. Burshtein, and Y. Be’ery. (2017) RNN decoding of linear block codes. [Online]. Available:
+     https://arxiv.org/abs/1702.07560,preprint.
+[15] F. Liang, C. Shen, and F. Wu, “An iterative BP-CNN architecture for channel decoding,” IEEE J. Sel. Topics Signal
+     Process., vol. 12, no. 1, pp. 144–159, Feb. 2018.
+[16] M. Soltani, V. Pourahmadi, A. Mirzaei, and H. Sheikhzadeh, “Deep learning-based channel estimation,” IEEE Commun.
+     Lett., Feb. 2019.
+[17] H. He, C. Wen, S. Jin, and G. Y. Li, “Model-driven deep learning for MIMO detection,” IEEE Trans. Signal Process.,
+     vol. 68, pp. 1702–1715, Feb. 2020.
+[18] N. Samuel, T. Diskin, and A. Wiesel. (2017) Deep MIMO detection. [Online]. Available: https://arxiv.org/abs/1706.01151,
+     preprint.
+[19] C. Wen, W. Shih, and S. Jin, “Deep learning for massive MIMO CSI feedback,” IEEE Wireless Commun. Lett., vol. 7,
+     no. 5, pp. 748–751, Mar. 2018.
+[20] T. Wang, C. Wen, S. Jin, and G. Y. Li, “Deep learning-based CSI feedback approach for time-varying massive MIMO
+     channels,” IEEE Wireless Commun. Lett., vol. 8, no. 2, pp. 416–419, Oct. 2019.
+[21] S. Dörner, S. Cammerer, J. Hoydis, and S. t. Brink, “Deep learning-based communication over the air,” IEEE J. Sel. Topics
+     Signal Process., vol. 12, no. 1, pp. 132–143, Dec. 2018.
+[22] H. Ye, L. Liang, G. Y. Li, and B.-H. Juang, “Deep learning-based end-to-end wireless communication systems with
+     conditional GANs as unknown channels,” IEEE Trans. Wireless Commun., vol. 19, no. 5, pp. 3133–3143, May 2020.
+[23] H. Ye, G. Y. Li, and B. H. Juang, “Power of deep learning for channel estimation and signal detection in OFDM systems,”
+     IEEE Wireless Commun. Lett., vol. 7, no. 1, pp. 114–117, Feb. 2018.
+[24] Z. Zhao, M. C. Vuran, F. Guo, and S. Scott, “Deep-waveform: A learned OFDM receiver based on deep complex
+     convolutional networks,” Oct. 2018. [Online]. Available: https://arxiv.org/pdf/1810.07181.
+[25] Q. Huang, C. Zhao, M. Jiang, X. Li, and J. Liang, “Cascade-net: a new deep learning architecture for OFDM detection,”
+     Nov. 2018. [Online]. Available: https://arxiv.org/pdf/1812.00023.
+[26] E. Balevi and J. G. Andrews, “One-bit OFDM receivers via deep learning,” IEEE Trans. Commun., vol. 67, no. 6, pp.
+     4326–4336, Jun. 2019.
+[27] G. Gui, H. Huang, Y. Song, and H. Sari, “Deep learning for an effective nonorthogonal multiple access scheme,” IEEE
+     Trans. Veh. Technol., vol. 67, no. 9, pp. 8440–8450, Sep. 2018.
+[28] T. Xu, T. Xu, and I. Darwazeh, “Deep learning for interference cancellation in non-orthogonal signal based optical
+     communication systems,” in Proc. 2018 Progress In Electromagnetics Research Symposium-Spring (PIERS), 2018.
+[29] J. Sun, H. Li, Z. Xu et al., “Deep ADMM-Net for compressive sensing MRI,” in Proc. Adv. Neural Inf. Process. Syst.,
+     Dec 2016, pp. 10–18.
+[30] X. Gao, S. Jin, C. Wen, and G. Y. Li, “ComNet: Combination of deep learning and expert knowledge in OFDM receivers,”
+     IEEE Commun. Lett., vol. 22, no. 12, pp. 2627–2630, Dec. 2018.
+[31] M. Kim, W. Lee, and D. Cho, “A novel PAPR reduction scheme for OFDM system based on deep learning,” IEEE Commun.
+     Lett., vol. 22, no. 3, pp. 510–513, Mar. 2018.
+[32] A. Felix, S. Cammerer, S. Dörner, J. Hoydis, and S. T. Brink, “OFDM-autoencoder for end-to-end learning of
+     communications systems,” in Proc. IEEE Int. Workshop Signal Process. Adv. Wireless Commun. (SPAWC), Jun. 2018,
+     pp. 1–5.
+[33] S. Schibisch, S. Cammerer, S. Dörner, J. Hoydist, and S. Brink, “Online label recovery for deep learning-based
+     communication through error correcting codes,” in Proc. Int. Symp. Wireless Commun. Syst. (ISWCS), Aug. 2018, pp.
+     1–5.
+                                                                                                                         30
+
+
+
+[34] J. Liu, K. Mei, X. Zhang, D. Ma, and J. Wei, “Online extreme learning machine-based channel estimation and equalization
+     for OFDM systems,” IEEE Commun. Lett., vol. 23, no. 7, pp. 1276–1279, Jul. 2019.
+[35] H. Mao, H. Lu, Y. Lu, and D. Zhu, “RoemNet: Robust meta learning based channel estimation in OFDM systems,” in
+     Proc. IEEE Int. Conf. Commun. (ICC), Shanghai, China, May 2019.
+[36] S. Park, O. Simeone, and J. Kang, “End-to-end fast training of communication links without a channel model via online
+     meta-learning,” arXiv preprint arXiv:2003.01479, 2020.
+[37] X. Yang, Z. Huang, B. Han, S. Zhang, C.-K. Wen, F. Gao, and S. Jin, “RaPro: A novel 5G rapid prototyping system
+     architecture,” IEEE Wireless Commun. Lett., vol. 6, no. 3, pp. 362–365, Apr. 2017.
+[38] X. Gao, Z. Huang, X. Lu, S. Zhang, C.-K. Wen, and S. Jin, “Implementation of massive MIMO uplink receiver on RaPro
+     prototyping platform,” IEEE Access, vol. 6, pp. 8133–8147, Feb. 2018.
+[39] D. P. Kingma and J. Ba, “Adam: A method for stochastic optimization,” Comput. Sci., 2014.
+[40] K.-C. Hung and D. W. Lin, “Pilot-based LMMSE channel estimation for OFDM systems with power–delay profile
+     approximation,” IEEE Trans. Veh. Technol., vol. 59, no. 1, pp. 150–159, 2010.
+[41] C. Finn, P. Abbeel, and S. Levine, “Model-agnostic meta-learning for fast adaptation of deep networks,” arXiv preprint
+     arXiv:1703.03400, 2017.
+

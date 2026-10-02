@@ -61,6 +61,19 @@ class LoRAResidual(nn.Module):
         return self.up(self.down(x))
 
 
+class ResidualLogitAdapter(nn.Module):
+    """在线阶段使用的零初始化 logit 残差适配器。"""
+
+    def __init__(self, d_model: int):
+        super().__init__()
+        self.linear = nn.Linear(d_model, 1)
+        nn.init.zeros_(self.linear.weight)
+        nn.init.zeros_(self.linear.bias)
+
+    def forward(self, hidden: torch.Tensor) -> torch.Tensor:
+        return self.linear(hidden)
+
+
 class DenoiserBlock(nn.Module):
     def __init__(self, config: UnfoldedConfig):
         super().__init__()
@@ -148,6 +161,9 @@ class UnfoldedEqualizer(nn.Module):
             nn.init.zeros_(self.head.bias)
         self.alpha = nn.Parameter(torch.full((self.config.iterations,), 0.2))
         self.damping = nn.Parameter(torch.full((self.config.iterations,), 0.2))
+        # 该模块只在在线运行时动态挂载，不进入离线 checkpoint。
+        self.online_residual_adapter: ResidualLogitAdapter | None = None
+        self._last_online_features: torch.Tensor | None = None
         mark_peft_group(self.conditioner, "conditioner_film")
         mark_peft_group(self.head, "head")
         self.peft = PEFTRegistry(self)
@@ -164,6 +180,7 @@ class UnfoldedEqualizer(nn.Module):
         adapt_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         rx_iq = self._apply_phase_correction(rx_iq, condition)
+        self._last_online_features = None
         pilot_context = None
         if self.config.pilot_conditioned:
             pilot_context = self._pilot_context(rx_iq, adapt_symbols, adapt_mask)
@@ -200,7 +217,30 @@ class UnfoldedEqualizer(nn.Module):
             damping = torch.sigmoid(self.damping[layer])
             soft_update = torch.complex(torch.tanh(logits), torch.zeros_like(logits))
             soft_symbols = (1.0 - damping) * soft_update + damping * soft_symbols
+        if self.online_residual_adapter is not None:
+            # 只在全部展开迭代结束后叠加残差，保证 RLS 的特征不被 Adapter 反向改变。
+            self._last_online_features = hidden.detach()
+            logits = logits + self.online_residual_adapter(hidden).squeeze(-1)
         return logits, torch.sigmoid(logits)
+
+    def attach_online_residual_adapter(self) -> ResidualLogitAdapter:
+        """动态挂载零初始化在线残差模块，避免改变离线 checkpoint 结构。"""
+
+        if self.online_residual_adapter is None:
+            adapter = ResidualLogitAdapter(self.config.d_model)
+            reference = next(self.parameters())
+            adapter = adapter.to(device=reference.device, dtype=reference.dtype)
+            adapter.train(self.training)
+            for parameter in adapter.parameters():
+                parameter.requires_grad_(False)
+            self.online_residual_adapter = adapter
+        return self.online_residual_adapter
+
+    @property
+    def online_residual_features(self) -> torch.Tensor | None:
+        """返回最近一次前向传播的最终隐藏特征，供在线递推更新使用。"""
+
+        return self._last_online_features
 
     def _physics_warm_start_logits(
         self,

@@ -1,5 +1,9 @@
 # Reference Literature: RL for Adaptive Channel Equalization and Bit Sequence Recovery
 
+> 本目录已补充公开全文。当前共有 22 个 PDF（21 篇 arXiv 论文和 1 篇本地 P-FTNet 资料），
+> 以及对应的文本抽取、arXiv 元数据和 SHA-256 下载清单。详细文件映射见
+> [`literature_catalog.md`](literature_catalog.md)，下载校验见 [`download_manifest.json`](download_manifest.json)。
+
 ## Research Topic
 
 Adaptive signal recovery for bit sequences transmitted over a channel using **on-policy online reinforcement learning**. Bit sequence structure: **training sequence + pilot + data**.
@@ -49,4 +53,6 @@ Papers collected from arXiv (cs.IT, eess.SP), CrossRef, Semantic Scholar. Keywor
 - **Meta-RL for Fast and Data-Efficient Spectrum Allocation in Dynamic Wireless Networks** - Oluwaseyi Giwa et al. (2025) [arXiv:2507.10619](https://arxiv.org/abs/2507.10619)
 - **Composite Reward Design in PPO-Driven Adaptive Filtering** - Abdullah Burkan Bereketoglu (2025) [arXiv:2506.06323](https://arxiv.org/abs/2506.06323)
 
-Total papers: 24
+当前 BibTeX 共收录 24 个原有条目；本轮新增的 21 篇 arXiv 元数据已经写入
+`arxiv_metadata.json`，其中与原有条目重合的论文保留同一引用记录。仅 DOI 的资料和
+尚无合法公开全文的条目见 [`doi_only.md`](doi_only.md)。

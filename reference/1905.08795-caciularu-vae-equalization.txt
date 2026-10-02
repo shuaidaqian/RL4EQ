@@ -1,0 +1,1551 @@
+                                                   Unsupervised Linear and Nonlinear Channel
+                                                   Equalization and Decoding using Variational
+                                                                                            Autoencoders
+                                                                Avi Caciularu and David Burshtein, Senior Member, IEEE
+arXiv:1905.08795v2 [cs.LG] 13 Apr 2020
+
+
+
+
+                                                                                                          Abstract
+
+                                                    A new approach for blind channel equalization and decoding, variational inference, and variational autoencoders
+                                               (VAEs) in particular, is introduced. We first consider the reconstruction of uncoded data symbols transmitted over
+                                               a noisy linear intersymbol interference (ISI) channel, with an unknown impulse response, without using pilot
+                                               symbols. We derive an approximate maximum likelihood estimate to the channel parameters and reconstruct the
+                                               transmitted data. We demonstrate significant and consistent improvements in the error rate of the reconstructed
+                                               symbols, compared to existing blind equalization methods such as constant modulus, thus enabling faster channel
+                                               acquisition. The VAE equalizer uses a convolutional neural network with a small number of free parameters.
+                                               These results are extended to blind equalization over a noisy nonlinear ISI channel with unknown parameters.
+                                               We then consider coded communication using low-density parity-check (LDPC) codes transmitted over a noisy
+                                               linear or nonlinear ISI channel. The goal is to reconstruct the transmitted message from the channel observations
+                                               corresponding to a transmitted codeword, without using pilot symbols. We demonstrate improvements compared to
+                                               the expectation maximization (EM) algorithm using turbo equalization. Furthermore, unlike EM, the computational
+                                               complexity of our method does not have exponential dependence on the size of the channel impulse response.
+
+
+                                                                                                       Index Terms
+
+                                                    Blind equalizers, maximum likelihood estimation, deep learning, convolutional neural networks, belief propa-
+                                               gation.
+
+
+
+                                                                                                  I. I NTRODUCTION
+
+                                            Deep learning methods have recently been considered in various communication problems. For example,
+                                         in [1]–[5] deep learning methods were considered to solve the problem of channel decoding, in [6] an
+                                         autoencoder for short blocklength end-to-end communications was proposed, and in [7] deep learning
+
+                                           This research was supported by the Israel Science Foundation (grant no. 1868/18), and by the Yitzhak and Chaya Weinstein Research
+                                         Institute for Signal Processing.
+                                           A. Caciularu is with the school of Electrical Engineering, Tel-Aviv University, tel-aviv 6997801, Israel (email: avi.c33@gmail.com).
+                                           D. Burshtein is with the school of Electrical Engineering, Tel-Aviv University, tel-aviv 6997801, Israel (email: burstyn@eng.tau.ac.il).
+                                                                                                           2
+
+
+
+was used for MIMO detection. Various authors have considered deep learning-based channel equalization,
+separately or jointly with the decoding task. In [8] deep learning-based detection algorithms were used
+when the channel model is unknown. In [9] the authors show improved decoding of low-density parity-
+check (LDPC) codes, by augmenting the belief propagation (BP) algorithm with a convolutional neural
+network. In [10], [11], generative adversarial networks (GANs) were proposed to model channel effects
+in end-to-end communication systems.
+  In this work, we consider transmission over a noisy intersymbol interference (ISI) channel with an
+unknown impulse response. The ISI channel is useful to model various communication scenarios, such as
+multipath in wireless channels [12]. Unlike the works that were mentioned above, we do not assume the
+availability of a pilot signal to learn the unknown channel. The motivation is that pilot symbols reduce
+the communication throughput, especially when the communication environment is changing rapidly. Nor
+do we assume any prior knowledge on the ISI channel. Hence, decision directed equalization cannot
+be used. Instead, unsupervised, blind channel equalization is proposed. The method is unsupervised in
+the sense that we cannot assume the availability of channel output samples corresponding to known
+transmitted symbols. For uncoded transmitted data, the standard approach for blind channel equalization
+is the constant modulus algorithm (CMA) [13]–[15]. Blind neural network-based algorithms using the
+constant modulus (CM) criterion were proposed in [16]. The maximum likelihood (ML) criterion has
+also been considered for blind channel equalization [17]–[21] (and references therein). Combined blind
+equalization and decoding using expectation maximization (EM) for the case where the transmitted data is
+coded was considered in [22], [23]. The proposed solutions use the EM algorithm [24] or an approximate
+EM, which requires an iterative application of the Bahl, Cocke, Jelinek, and Raviv (BCJR) algorithm [25]
+or the Viterbi algorithm. Hence, the complexities of these algorithms (both execution time and memory
+consumption) are exponential in the channel memory size, which may be prohibitive. In fact, for a channel
+impulse response of size M, and signal constellation of size q (e.g., for BPSK q = 2 and for QPSK q = 4),
+the number of states in the BCJR trellis is q M−1 .
+  In our work we also consider nonlinear channels, where the nonlinear distortion may be due to the
+presence of amplifiers, converters and mixers in transmitters and receivers. Channel equalization is applied
+to overcome these effects and reconstruct the signal before using the channel decoder. Some authors [26]–
+[30] have considered the nonlinear channel equalization problem under a supervised learning setup, which
+requires pilot signals for training the equalizer.
+  In the first part of this work, which was initially presented in [31], we present a new approach for
+unsupervised blind channel equalization of uncoded data, transmitted over a noisy ISI channel with
+an unknown impulse response, without the availability of pilot symbols. The method uses variational
+inference, e.g. [32], [33], and variational autoencoders (VAEs) in particular [34], [35] as a means to
+                                                                                                        3
+
+
+
+obtain an approximate maximum likelihood estimate to the channel parameters. VAEs are widely used in
+the literature of deep learning for unsupervised and semi-supervised learning, and as a generative model.
+We demonstrate significant and consistent improvements in the error rate of the reconstructed symbols,
+compared to existing blind equalization methods such as constant modulus, thus enabling faster channel
+acquisition. In fact, for the channels that were examined, the performance of the new blind VAE equalizer
+(VAEE) was close to the performance of a non-blind adaptive linear minimum mean square error (MMSE)
+equalizer [36]. Furthermore, unlike the ML-based blind equalization methods in the literature [17]–[21],
+the computational complexity of our approach is not exponential in the channel memory size. In fact,
+the VAEE uses a convolutional neural network with a very small number of free parameters. We report
+on the number of iterations that the VAEE requires later on in the paper, and we also comment on the
+computational complexity of each iteration. These results are extended to unsupervised blind equalization
+over a noisy nonlinear ISI channel with unknown parameters. We then consider coded communication
+using LDPC codes transmitted over a noisy linear or nonlinear ISI channel. Here the goal is to decode a
+transmitted codeword when the only data available for decoding are the channel observations corresponding
+to this unknown transmitted codeword. Our method is shown to be superior to other methods for blind
+channel equalization, e.g., EM using Turbo equalization [37], [38], where only a genie-aided version
+worked well for some channels in the coded data setup. In particular, for nonlinear channels, the EM
+algorithm must ignore the unknown nonlinearity while our method can model it using a VAE-decoder
+neural network. Furthermore, unlike EM, the computational complexity of our method does not have
+exponential dependence on the size of the channel impulse response.
+
+  Our main contribution in this paper can be summarized as follows:
+
+
+  •   We present a new method for blind channel equalization using variational inference, and VAEs in
+      particular.
+  •   We extend the method to the case of coded communications.
+  •   Both for linear and for nonlinear channels we demonstrate improvements compared to the baseline
+      methods for blind channel equalization.
+
+
+  The rest of this paper is organized as follows. In Section II we present the problem setup considered
+in this paper. In Section III we present our proposed solution for uncoded data transmitted over a noisy
+linear ISI channel. In Section IV we consider the same setup for noisy nonlinear channels. In Section V
+we consider LDPC coded data transmitted over noisy (linear or nonlinear) ISI channels, and present joint
+blind equalization and decoding using our method. In Section VI we present simulation results. Finally,
+Section VII concludes this paper.
+                                                                                                                         4
+
+
+
+
+                                                                    w(t)
+   {x k }               x(t)          x(t) ∗ h(t)                     y(t)               {y k }               { x̂ k }
+            Modulator          h(t)                 g (·)          +         Sampling             Equalizer
+
+                               Fig. 1: End-to-end communication system model.
+
+
+                                             II. P ROBLEM SETUP
+
+  The communication channel is modeled as a convolution of the input, {x k }, with some causal, finite
+impulse response (FIR), time invariant filter, h = (h0, h1, . . . , h M−1 ), of size M, followed by the possibly
+nonlinear mapping g(·) and the addition of white Gaussian noise
+                                                          !
+                                               X
+                                       yn = g     x k hn−k + wn                                                     (1)
+                                                      k
+
+This is the equivalent model of {y k } in the end-to-end communication system shown in Fig. 1. In this
+figure, x(t) is the modulated analog signal, h(t) is the analog channel impulse response, and y(t) =
+g(x(t)∗ h(t))+ w(t) is the received noisy channel output signal. The samples {y k } are obtained by sampling
+y(t) at the symbol rate.
+  The equalizer in Fig. 1 reconstructs an estimate of the transmitted symbol sequence, { x̂ k }. Now, suppose
+that we observe a finite window of measurements y = (y0, y1, . . . , yN−1 ). For clarity of presentation, we
+                                                            ∆
+
+
+
+assume that the input signal is causal (x k = 0 for k < 0). We refer to this assumption later. Equation (1)
+can be written compactly for the measurements collected in y as
+
+                                                y = g(x ∗ h) + w                                                    (2)
+
+where x = (x0, x1, . . . , xN−1 ) is the transmitted message, and w = (w0, w1, . . . , wN−1 ) is an i.i.d. sequence
+of additive white Gaussian noise. The function g() in (2) is defined by g(u) = (g(u0 ), . . . , g(u N−1 )) for the
+                                                                                   ∆
+
+
+
+input vector u = (u0, . . . , u N−1 ) (i.e., the scalar function g(·) is applied component-wise on x ∗ h). Note
+that by setting g(x) = x the model degenerates to a noisy linear ISI channel. In this paper we consider
+both BPSK and QPSK modulation, although the derivation can be extended to other constellations.
+  Our goal in this paper is to design the equalizer that reconstructs the transmitted sequence x. The
+design utilizes only the channel observations y, i.e., without knowing the channel parameters, including
+the impulse response h, the nonlinear function g(·) and the noise variance. This is an unsupervised blind
+channel equalization problem where pilot signals are not available.
+  We will discuss both the case of uncoded data, {x k } (or when coding information is not used), and the
+case of coded data.
+                                                                                                                5
+
+
+
+A. BPSK modulation
+
+  For BPSK modulation, x k = ±1. We assume a uniformly distributed transmitted sequence, so that for
+all x ∈ {−1, 1} N the probability of x is given by
+
+                                                     p(x) = 2−N                                              (3)
+
+The noise, w, is a sequence of independent identically distributed (i.i.d) Gaussian random variables with
+variance σw2 . Given x, y is a vector of statistically independent, normally distributed components. The
+conditional density function of y is N (g(x ∗ h), σw2 IN ). Thus, for θ = h, g(·), σw2 , the conditional density
+                                                                        ∆ 
+
+
+
+of y given x can be expressed as
+
+                                                     1           −ky−g(x∗h)k 2 /[2σw2 ]
+                                  pθ (y | x) =              ·e
+                                                      2 N/2
+                                                       
+                                                 2πσw
+
+
+
+B. QPSK modulation
+
+  For QPSK modulation, x k = ±1 ± j, and the above vectors can be written as combinations of real (I)
+and imaginary (Q) components, so that, x = x I + j · xQ , h = h I + j · hQ and y = y I + j · yQ . We assume a
+uniformly distributed transmitted sequence, so that for all valid x the probability of x is given by
+
+                                           p(x) = p(x I )p(xQ ) = 2−2N                                       (4)
+
+Each element of the i.i.d noise sequence, w, is complex Gaussian with statistically independent real and
+imaginary components, each with variance σw2 /2. Given x, y I and yQ are statistically independent, normally
+distributed. The conditional density function of y I is N (< (g(x ∗ h)) , (σw2 /2)IN ). The conditional density
+function of yQ is N (= (g(x ∗ h)) , (σw2 /2)IN ). Thus, for θ = h, g(·), σw2 , the conditional density of y given
+                                                              ∆ 
+
+
+
+x can be expressed as
+                                                                    
+                                     pθ (y | x) = pθ y I | x pθ yQ | x
+                                                      1          −ky−g(x∗h)k 2 /σw2
+                                                 =         ·e
+                                                         2 N
+                                                                                                             (5)
+                                                     πσw
+
+                      III. P ROPOSED METHOD FOR A NOISY LINEAR ISI CHANNEL
+
+  In this section we consider the uncoded case, where coding information in {x k } is not used. We also
+assume that g(x) = x (see Fig. 1) so that the channel is linear. In the next section we consider the case of
+a nonlinear channel. We start with the case of QPSK modulation, and then note how the results simplify
+for BPSK modulation.
+                                                                                                               6
+
+
+
+
+                                                            Φ        x
+
+
+
+                                                                     y        θ
+
+
+Fig. 2: A directed graphical model describing the communication channel and the network structure used
+for inference (following [34, Fig. 1]). The generative model p(x)pθ (y|x) is denoted by solid lines. The
+variational approximation qΦ (x|y) to the posterior pθ (x|y) is denoted by dashed lines.
+
+
+A. QPSK modulation
+
+  We propose using ML estimation of the channel impulse response, h, and noise variance, σw2 . That is,
+we search for the vector θ = (h, σw2 ) that maximizes1 log pθ (y). The ML estimate has strong asymptotic
+optimality properties, and in particular asymptotic efficiency [18]. For the CMA criterion, on the other
+hand, one can only claim asymptotic consistency [39]. However, applying the exact ML criterion to our
+problem is very difficult since pθ (y) should first be expressed as
+                                                                 X
+                                                      pθ (y) =       p(x)pθ (y | x)
+                                                                 x
+
+where we sum over all 22N possible input sequences x and where p(x) is given by (4). Nevertheless,
+for this kind of problems, it has been shown in various applications that it is possible to simplify the
+estimation problem by using the variational inference approach for ML estimation, e.g. [32], [33]. By the
+variational inference approach, instead of directly maximizing pθ (y) over θ, one maximizes iteratively
+a variational lower bound, also called evidence lower bound (ELBO), as follows. It can be shown, e.g.,
+[32]–[34] that
+
+                    log pθ (y) ≥ EqΦ (x | y) [− log qΦ (x | y) + log pθ (x, y)]
+                                                                                         ∆
+                                 = −DK L [qΦ (x | y)||p(x)] + EqΦ (x | y) [log pθ (y | x)] = − L (θ, Φ, y)   (6)
+                                   |        {z           } |               {z           }
+                                                  A                               B
+
+where DK L [·||·] denotes the Kullback Leibler distance between two density functions, and qΦ (x | y) is an
+arbitrarily parametrized (by Φ) conditional density function. Now, instead of directly maximizing pθ (y),
+one maximizes the lower bound −L (θ, Φ, y) over θ and Φ jointly. Following [34, Fig. 1] , Fig. 2 shows
+a directed graphical model that describes the communication channel and the network structure used for
+inference.
+ 1 The default base of the logarithms in this paper is e.
+                                                                                                                                            7
+
+
+
+  In fact, it can be shown [32]–[34] that by searching over θ and all possible conditional densities q(x | y),
+one obtains the ML estimate of θ. Furthermore, if pθ (x | y) can be computed analytically, then, by setting
+qΦ (x|y) = pθ 0 (x | y), where θ 0 is the value of θ at the beginning of the iteration (there is no unknown Φ
+in this case) yields the EM algorithm [32], [33].
+  Typically, when using the VAE approach, both pθ (y | x) and qΦ (x | y) are implemented using neural
+networks. A probabilistic VAE-encoder network implements qΦ (x | y), and a probabilistic VAE-decoder
+network implements pθ (y | x). The unobserved variables x provide a latent representation of the data y
+[34]. In our problem, for a noisy linear ISI channel, p(x) is given in (4), and the VAE-decoder, pθ (y | x), is
+given in (5) (with g(x) = x). Hence, for a noisy linear ISI channel, unlike a standard VAE, we do not need
+a neural network to implement the VAE-decoder. However, we are using a neural network to implement
+the VAE-encoder, qΦ (x | y), which acts as an equalizer in our problem. Given the channel output sequence,
+y, we first use it to estimate the VAE parameters θ and Φ. Then we obtain an estimated bit sequence, x,
+using the hard decoded output of the VAE-encoder (equalizer), qΦ (x | y). We use the following model,
+                                                  N−1                       N−1
+                                                                                                  Q      Q
+                                                  Y                         Y      I       I
+                                  qΦ (x | y) =           qΦ, j (x j |y) =         qΦ, j (x j | y)qΦ, j (x j | y)
+                                                   j=0                      j=0
+
+Recalling that x Ij ∈ {−1, 1} and x Qj ∈ {−1, 1}, this is a multivariate Bernoulli distribution with statistical
+independence between components. Denoting by
+
+                                                          I       ∆   I       I
+                                                         qΦ, j (y) = qΦ, j (X j = 1|y)
+                                                          Q       ∆   Q       Q
+                                                         qΦ, j (y) = qΦ, j (X j = 1|y)
+
+
+the conditional probabilities (under the variational model) of the events X jI = 1 and X jQ = 1 given y, we
+have
+                      N−1             (1+x jI )/2                 (1−x jI )/2             (1+x Qj )/2                 (1−x Qj )/2
+                                                                                     Q                             Q
+                      Y      I                             I
+         qΦ (x | y) =       qΦ, j (y)                 1 − qΦ, j (y)                 qΦ, j (y)                 1 − qΦ, j (y)
+                          j=0
+
+                                                                                                 I (y)
+  In our implementation of the VAE-encoder, we used a convolutional neural network to implement qΦ, j
+     Q
+and qΦ, j (y). The network has complex convolutional layers, each with two output channels, corresponding
+to the real and imaginary parts of the convolution as in [40], [41]. The input and output layers are also
+separated to two channels corresponding to the real and imaginary components of the input, y, and the
+output probabilities, q. The convolutional layers are both one dimensional (1D) as in [41], and with a
+residual connection as in [42]. The nonlinear activation function of the first layer is a SoftSign function
+                     x
+defined by f (x) = |x|+1 , which, in our experiments, proved to converge faster than other functions such
+as LeakyReLU and Tanh. The nonlinear activation function of the second layer is a sigmoid function,
+that ensures that the outputs are in [0, 1], and so they represent valid probability values. Note that each
+                                                                                                       8
+
+
+
+
+                                  Input       y
+                                              NX2
+
+
+
+
+                               Complex Conv1D Layer
+                                              NX2
+
+
+
+                                                  SoftSign
+
+                               Complex Conv1D Layer
+                                              NX2
+
+
+
+
+                                              +
+                                                  Sigmoid
+                                     n               o
+                                       I (y), qQ (y)
+                               Output qΦ, j    Φ, j
+
+                                              NX2
+
+
+
+
+Fig. 3: Our equalizer’s architecture (VAE-encoder network) using complex convolutional residual network.
+Each convolution output is listed as Width × #Channels.
+
+
+convolutional layer uses only one filter. Using more than one filter did not improve results. Our VAE-
+                                       I (y), qQ (y)}, is depicted in Fig. 3.
+encoder neural network, implementing {qΦ, j    Φ, j
+  We now derive an explicit expression for the loss L (θ, Φ, y) = −A − B (see Eq. (6)) that needs to be
+minimized with respect to both θ and Φ (alternatively, −L (θ, Φ, y) needs to be maximized).
+  For the term A we have
+
+                                         X
+                                   A=         qΦ (x|y) · (log p(x) − log qΦ (x|y))
+                                          x
+                                         X
+                                     =        qΦ (x|y) · (−2N log 2 − log qΦ (x|y))
+                                          x
+
+                                     = −2N log 2 + H [qΦ (x|y)]                                      (7)
+
+where H [qΦ (x|y)], the entropy of qΦ (x|y), is given by
+                                       "                   #
+                                         N−1
+                                         Y                    N−1
+                                                              X                   
+                      H [qΦ (x|y)] = H       qΦ, j (x j |y) =     H qΦ, j (x j |y)
+                                                j=0               j=0
+                                                                                                                                    9
+
+
+                              N−1
+                              Xh                                                                  
+                                      I              I                 I                     I
+                         =−          qΦ, j (y) log qΦ, j (y) +   1 − qΦ, j (y)   log   1 − qΦ, j (y)
+                              j=0
+                                                                                                                         i
+                                      Q             Q                              Q                             Q
+                                    +qΦ, j (y) log qΦ, j (y) +                1 − qΦ, j (y)       log       1 − qΦ, j (y)         (8)
+
+For the term B we have
+                                                                                                               
+                                                                                   1
+                               B = EqΦ (x|y) −N log                   πσw2         − 2 ky − x ∗ hk 2
+                                                                                     σ
+                                                                                   w
+                                    = −N log (π) − N log σw2
+                                         1           h              i
+                                      − 2 · EqΦ (x|y) ky − x ∗ hk 2                                                               (9)
+                                        σw |           {z          }
+                                                                      C
+We now compute the term C (and hence B) analytically. This is possible due to the special structure of
+the problem, where pθ (y | x) is given by the closed form expression (5), with g(x) = x. First, by the
+definition of C we have,
+                                            "                                                                   !
+                                      N−1                                 N−1
+                                                |yn | 2 − 2< yn
+                                      X                                   X
+                               C=                                                  EqΦ (x|y) {x k } hn−k
+                                      n=0                                 k=0
+                                                                                                   #
+                                                    N−1
+                                                    X
+                                                +           EqΦ (x|y) {x k xl } hn−k hn−l                                        (10)
+                                                    k,l=0
+
+where (·) denotes the complex conjugate. Now,
+                                                                             
+                                                I                   Q
+                           EqΦ (x|y) {x k } = 2qΦ,k (y) − 1 + j · 2qΦ,k (y) − 1                                                  (11)
+
+Hence, for the case where k 6= l we have
+
+                    EqΦ (x|y) {x k xl } = EqΦ (x|y) {x k } · EqΦ (x|y) {xl }                                                     (12)
+                      h                                                                 i
+                              I                 I                      Q              Q
+                    = 2qΦ,k      (y) − 1 2qΦ,l      (y) − 1 + 2qΦ,k       (y) − 1 2qΦ,l (y) − 1 +
+                           h                                                               i
+                                 Q                  I                     I              Q
+                      j · 2qΦ,k (y) − 1 2qΦ,l (y) − 1 − 2qΦ,k (y) − 1 2qΦ,l (y) − 1                                              (13)
+
+We also have
+                                                          EqΦ (x|y) {x k x k } = 2                                               (14)
+
+Using (11), (13) and (14) in (10), it is straight-forward to obtain an explicit expression for C. However,
+in order to compute the third term in the summation over n efficiently, we use the fact that
+                                       N−1
+                                       X
+                                                EqΦ (x|y) {x k xl } hn−k hn−l =
+                                       k,l=0
+                                                                                       2
+                                                 N−1
+                                                 X
+                                                          EqΦ (x|y) {x k } hn−k +
+                                                    k=0
+                                                N−1                h                       i
+                                                                                         2
+                                                          |hn−k | 2 2 − EqΦ (x|y) {x k }
+                                                X
+                                                                                                                                 (15)
+                                                 k=0
+                                                                                                                               10
+
+
+
+which follows from (12) and (14). It is now straightforward to use (11), (13), (14) and (15) in (10), and
+obtain
+                                                              N−1
+                                                              Xh                          i
+                                                    C=               |yn | 2 − 2αn + βn                                      (16)
+                                                              n=0
+where
+                              N−1
+                              Xn             h                                        i
+                                                                      Q       Q
+                       αn =             ynI · hn−k
+                                               I       I
+                                                     2qΦ,k (y) − 1 − hn−k   2qΦ,k (y) − 1 +
+                              k=0
+                                         h                                         i o
+                                    ynQ · hn−k
+                                           Q       I
+                                                 2qΦ,k            I
+                                                       (y) − 1 + hn−k     Q
+                                                                        2qΦ,k (y) − 1                                        (17)
+
+and
+                                                                                                             2
+                              "                                                                              #
+                                  N−1                                             
+                                                              Q     Q
+                       βn =
+                                  X      I     I
+                                        hn−k 2qΦ,k (y) − 1 − hn−k 2qΦ,k (y) − 1
+                                  k=0
+                                                                                                         2
+                              "                                                                          #
+                                  N−1                                             
+                                         Q                                          Q
+                                  X                   I                       I
+                          +             hn−k        2qΦ,k (y) − 1          + hn−k 2qΦ,k (y) − 1
+                                  k=0
+                              N−1
+                              X 
+                                               2                  2
+                                          I                    Q
+                          +              hn−k         +       hn−k         ·
+                              k=0
+                                                                                            2                      2
+                                              Q           I                         I                        Q
+                                            4qΦ,k (y) + 4qΦ,k (y) − 4              qΦ,k (y)        −4       qΦ,k (y)         (18)
+
+  Now, to train our VAEE model, we need to minimize L(θ, Φ, y) = −A − B with respect to θ = {h, σw2 }
+and Φ. We start with the minimization with respect to σw2 . Note that A is independent of σw2 , and B
+depends on σw2 as described in (9). Hence, by setting the derivative of B with respect to σw2 to zero,
+we obtain that the optimal value of σw2 is given by σw2 = C/N. Using this and (7) we see that up to an
+additive constant (which does not influence the gradients of the learned parameters θ, Φ), the loss function
+L(h, Φ, y) (using σw2 = C/N) for QPSK modulation is given by
+
+                           LQPSK (h, Φ, y) = L(h, Φ, y) = N log C − H [qΦ (x|y)]                                             (19)
+
+where H [qΦ (x|y)] is given in (8), and C is given in (16), (17) and (18).
+  The unknown parameters in our VAEE model are h and Φ. We estimate these parameters by applying
+gradient descent based optimization on the loss function L(h, Φ, y) defined in (19). In our simulation
+program, the gradient of the loss function with respect to h and Φ was calculated automatically by the
+Tensorflow framework [43]. It can be verified that the complexity (mainly multiplications and additions)
+of this computation scales linearly with respect to N. It also scales linearly with respect to the number
+of free parameters which include the M coefficients of the channel impulse response and the convolution
+kernels of the neural network.
+  Recalling the definition of C in (9), we see that our loss function, L(h, Φ, y) defined in (19), consists of
+the entropy of the variational approximation to the posterior, H [qΦ (x|y)], that we wish to maximize (this
+                                                                                                                11
+
+
+
+is reasonable due to the i.i.d assumption of the symbols), and an autoencoder distortion term, N log C,
+that we wish to minimize.
+  Our method provides an estimated channel response, h, as part of the learning process. Note that we
+do not have to know the exact value of M. Instead, it suffices to have an upper bound on the order of
+the channel impulse response (or an upper bound on the order of a finite impulse response with which
+the true channel impulse response can be well approximated). Also note that the VAE-encoder network
+                           I (y), qQ (y)}, of the transmitted data.
+outputs a soft decoding, {qΦ, j    Φ, j
+
+
+
+
+B. BPSK modulation
+
+  The derivation above can be degenerated to BPSK modulation, where the transmitted symbols are
+x k ∈ {1, −1}, representing the bits ck ∈ {0, 1} (such that x k = (−1)ck , and the noise is real and Gaussian
+with expectation zero and variance σw2 . In this case, denoting
+
+                                                          ∆
+                                                qΦ, j (y) = qΦ, j (X j = 1|y)                                 (20)
+
+we have
+                                              N−1
+                                              Y                  (1+x j )/2                    (1−x j )/2
+                            qΦ (x | y) =            qΦ, j (y)                  1 − qΦ, j (y)
+                                              j=0
+
+The loss is
+
+                                               LBPSK (h, Φ, y) = −A − B
+
+where
+
+                                          X
+                                 A=            qΦ (x|y) · (log p(x) − log qΦ (x|y))
+                                          x
+
+                                    = −N log 2 + H [qΦ (x|y)]                                                 (21)
+
+and
+                                    "                     #
+                                        N−1
+                                        Y                          N−1
+                                                                   X                      
+                 H [qΦ (x|y)] = H             qΦ, j (x j |y) =            H qΦ, j (x j |y)
+                                        j=0                         j=0
+                                   N−1
+                                   X                                                               
+                              =−           qΦ, j (y) log qΦ, j (y) + 1 − qΦ, j (y) log 1 − qΦ, j (y)          (22)
+                                    j=0
+
+Instead of the QPSK loss, Eq. (19), we now have
+
+                                                              N
+                                 LBPSK (h, Φ, y) =              log C − H [qΦ (x|y)]                          (23)
+                                                              2
+                                                                                                     12
+
+
+
+
+                            Input         y
+                                          NX1
+
+
+
+
+                            Conv1D Layer
+                                          NX1
+
+
+
+                                                Tanh
+
+                            Conv1D Layer
+                                          NX1
+
+
+
+
+                                          +
+                                                Sigmoid
+                                    
+                           Output       qΦ, j (y)
+                                         NX1
+
+
+
+
+                    Fig. 4: Our equalizer’s architecture for BPSK communication.
+
+
+for
+                                         h              i
+                              ∆
+                            C = EqΦ (x|y) ky − x ∗ hk 2
+                                     (
+                                N−1                 N−1
+                                       (yn )2 − 2yn
+                                X                   X                 
+                              =                          2qΦ,k (y) − 1 hn−k
+                                 n=0                        k=0
+                                          "                                 #2
+                                              N−1
+                                              X                      
+                                    +               2qΦ,k (y) − 1 hn−k
+                                              k=0
+                                                                                               )
+                                          N−1               h                            2i
+                                                        2
+                                          X
+                                    +            (hn−k )        4qΦ,k (y) − 4 qΦ,k (y)             (24)
+                                          k=0
+
+Our VAE-encoder network for BPSK signaling, implementing {qΦ, j (y)}, is depicted in Fig. 4. Unlike the
+QPSK case, we now use standard real one dimensional convolutional layers.
+
+
+                  IV. P ROPOSED METHOD FOR A NOISY NONLINEAR ISI CHANNEL
+
+  Some authors have considered the nonlinear channel equalization problem, but only under a supervised
+learning setup, which requires pilot signals for training the equalizer, [26]–[30]. We now consider the
+                                                                                                          13
+
+
+
+
+                                          Input           x
+                                                         N ×1
+
+
+
+
+                                          Conv1D Layer - x ∗ h
+                                                         N ×1
+
+
+
+
+                                               A          A         A
+
+                                                          N
+                                                   
+                                        Output         G j (θ, x)
+                                                        N ×1
+
+
+
+     Fig. 5: Our new VAE-decoder architecture, using a neural network A block (shown in Fig. 6).
+
+
+extension of our unsupervised blind VAEE to noisy nonlinear ISI channels. The channel model is described
+by (1) and (2) in Section II with an unknown, possibly nonlinear, function g(·) (also shown in Fig. 1) in
+addition to the other unknown channel parameters. Throughout this section we assume BPSK modulation,
+but the same derivation can be used for QPSK modulation.
+  Since the nonlinear function g(·) is unknown and needs to be learned, we use a VAE-decoder neural
+network in addition to the VAE-encoder neural network that we had in the linear channel case. Hence, for a
+noisy nonlinear ISI channel we are using a classical VAE structure, incorporating neural networks to model
+both the encoder and the decoder, thus using the full flexibility that the VAE approach offers. The VAE-
+decoder neural network has input x and output G(x, θ) where θ is the neural network’s parameter vector.
+The vector θ includes both the unknown ISI channel response, h, and the neural network parameters,
+ψ, used to model the nonlinearity g(·), i.e., θ = (h, ψ) . The VAE-decoder G(x, θ) needs to implement
+(approximately) the function g(x ∗ h), i.e.,
+
+                                               G (x, θ) ≈ g (x ∗ h)
+
+The VAE-decoder network we use, which acts as an equalizer in our problem to estimate the latent
+transmitted bit sequence, x, is described in Figs. 5-6 and Table I. As can be seen in Fig. 5, the VAE-
+decoder network first applies the convolution with h using a convolutional layer. We then implement the
+function g(·) using the neural network A, shown in Fig. 6. The neural network A is applied component-
+wise on the results of the convolution with h. It uses a fully connected (FC) architecture as described in
+Fig. 6 and Table I, including ReLU activation functions, dropout layers [44] and a linear output layer.
+                                                                                                         14
+
+
+
+
+                                          ReLU
+
+
+
+                                        Dropout
+
+
+
+                                          ReLU
+
+
+
+                                        Dropout
+
+
+
+
+                                 Fig. 6: The neural network A in Fig. 5.
+
+               TABLE I: The VAE-decoder’s Fully Connected Neural Network A Layout
+
+                                         Layer       Output dimensions
+                                         Input       1
+                                         FC/ReLU     5
+                                         Dropout     5
+                                         FC/ReLU     5
+                                         Dropout     5
+                                         Linear      1
+
+
+
+                                                                                           NL (θ, Φ, y)
+  Repeating the derivation in Section III-B for the nonlinear case, the new loss function LBPSK
+is given by the same expression (23), i.e.,
+
+                                 NL                 N
+                                LBPSK (θ, Φ, y) =     log CNL − H [qΦ (x|y)]                          (25)
+                                                    2
+
+where H [qΦ (x|y)] is given by (22) for qΦ, j (y) defined by (20). However, unlike the analytic computation
+of C in Section III for linear channels, CNL , which is defined by
+                                                 h                 i
+                                      ∆
+                                  CNL = EqΦ (x|y) ky − g(x ∗ h)k 2
+                                                 h                i
+                                      ≈ EqΦ (x|y) ky − G(x, θ)k 2
+                                                                                                                   15
+
+                                                            (                            )
+                                                                N−1
+                                                                      [yn − Gn (x, θ)]
+                                                                                     2
+                                                                X
+                                              = EqΦ (x|y)                                                       (26)
+                                                                n=0
+
+
+(Gn (·) is the n-th output cell of the neural network) cannot be computed analytically. Our VAE-encoder
+network, implementing qΦ, j (y), is the same as in Section III-B (Fig. 4). Hence, we now have two neural
+networks, a VAE-decoder neural network implementing G(x, θ), and a VAE-encoder neural network
+implementing qΦ (x|y). The two neural networks are trained jointly using a gradient descent approach.
+                                           NL (θ, Φ, y) with respect to θ and Φ. By (25) and (26) we
+Hence, we need to compute the gradient of LBPSK
+have
+                                                      (                       )
+                                                        N−1
+                                    N
+                                                            [yn − Gn (x, θ)]2
+                    NL
+                                                        X
+                ∇θ LBPSK (θ, Φ, y) = ∇θ log EqΦ (x|y)                                                           (27)
+                                    2                   n=0
+                                                      (                       )
+                                                        N−1
+                                    N
+                                                            [yn − Gn (x, θ)] − ∇Φ H [qΦ (x|y)]
+                                                                            2
+                    NL
+                                                        X
+                ∇Φ LBPSK (θ, Φ, y) = ∇Φ log EqΦ (x|y)                                                           (28)
+                                    2                   n=0
+
+
+The second term in the right hand side (RHS) of (28) can be easily computed from (22) (the derivative
+of qΦ, j (y) with respect to Φ is obtained by the backpropagation algorithm applied to the VAE-encoder
+neural network). Following the common approach [34], [45], the gradient with respect to θ in (27) can
+be well approximated using
+                                                          (                        )
+                                                            N−1
+                                                  N
+                                                                [yn − Gn (x̂, θ)]2
+                                  NL
+                                                            X
+                              ∇θ LBPSK (θ, Φ, y) ≈ ∇θ log                                                       (29)
+                                                  2         n=0
+
+
+where x̂ is obtained by sampling using the Bernoulli distribution with probabilities given by the output
+of the VAE-encoder neural network that implements {qΦ, j (y)}, i.e., we set xˆj = 1 ( xˆj = −1, respectively)
+with probability qΦ, j (y) (1 − qΦ, j (y)).
+  However, it is more difficult to obtain a reliable estimate to the first term in the RHS of (28). When x
+in the model is continuous (e.g., a Gaussian random variable), the reparameterization trick can be used
+[34]. For discrete x (as in our problem), the reparametrization trick cannot be applied. Instead, various
+approximation schemes to the gradient have been suggested, e.g., [45], [46]. In [47], [48] the gradient
+is approximated using continuous relaxations of discrete distributions. This approximation was shown to
+possess a favorable trade-off between estimation quality, computational complexity and sample efficiency.
+Hence it was adopted in our work.
+  The method in [47], [48] is based on a continuous relaxation of the Gumbel-Max trick [49], [50],
+which allows us to sample from a categorical distribution (in our case this is the Bernoulli distribution
+with probabilities (qΦ, j (y), 1 − qΦ, j (y))). Denote by U(0, 1) the standard uniform distribution. We repeat the
+following procedure for j = 0, 1, . . . , N − 1: We first sample u j,k ∼ U(0, 1), and set g j,k = − log − log u j,k
+                                                                                                                    
+                                                                                                              16
+
+
+
+for k = 1, 2. By definition, g j,1 and g j,2 are said to be Gumbel(0, 1) distributed. We now define, for
+j = 0, 1, . . . , N − 1,
+                                                     exp log qΦ, j (y) + g j,1 /τ
+                                                                               
+                              ∆
+                           ĉ j =
+                                  exp log qΦ, j (y) + g j,1 /τ + exp log 1 − qΦ, j (y) + g j,2 /τ
+                                                                                            
+                              ∆
+                           x̂ j = 2ĉ j − 1                                                                (30)
+
+where τ > 0 is some parameter (temperature). It can be shown [47], [48], that for τ → 0, the resulting
+x̂ is a sample from the distribution qΦ (x|y) (ĉ j is the sampled soft bit value, and x̂ j is the corresponding
+sampled soft BPSK modulated symbol). Our estimate to the first term in the RHS of (28) is then
+                                                       N−1
+                                              N
+                                                           [yn − Gn (x̂, θ)]2
+                                                       X
+                                                ∇Φ log
+                                              2        n=0
+
+We set τ > 0 to keep x̂ j , defined in (30), smooth and differentiable with respect to Φ. In our simulations
+we initialize the temperature to τ = 5 and set it to be trainable as recommended in [47], [48].
+  We note that our stochastic approximation (29) to the gradient (27) is biased. This is due to the fact that
+by optimizing the loss analytically with respect to σw (recall Section III-A) we obtained a log-expectation
+expression in (27). As an alternative to the analytic optimization of σw , one could estimate σw using
+stochastic gradient descent. The advantage of doing so is that the stochastic approximation to the gradient
+of θ will then be unbiased. The drawback is that we would then not use the fact that σw can be optimized
+analytically. A similar note applies to the stochastic approximation to the gradient (28) with the following
+difference: In this case, the continuous relaxation of the Gumbel-Max trick already creates a bias in the
+gradient estimation. A thorough evaluation of this topic is left to future research.
+
+
+                                   V. E XTENSION TO LDPC CODED COMMUNICATION
+
+  In order to enable reliable communications at rates close to channel capacity, an error correcting code
+needs to be incorporated. In this section we assume the availability of only the channel observations
+corresponding to a single transmitted codeword, without knowing the channel parameters and without
+using pilot signals that reduce the communication rate. The goal is to reconstruct the transmitted message
+from this data alone in an unsupervised way. It is useful for a fast changing communication (e.g., wireless)
+environment.
+  Throughout the section we assume a noisy linear ISI channel and BPSK modulation. However, the same
+derivation can be applied to a noisy nonlinear ISI channel by incorporating our method in Section IV. In
+the simulations section we report results for both the linear and nonlinear cases under BPSK modulation.
+The results can also be easily extended to other modulation schemes (e.g., QPSK). We discuss the case
+where the transmitted data, x, is a BPSK modulated codeword, c (i.e. xi = (−1)ci ), of a sparse graph-based
+                                                                                                            17
+
+
+
+code. For concreteness, in this paper we assume an LDPC code [51]. However, our methods can be used
+for other linear sparse graphical codes such as turbo codes, to which BP decoding can be applied.
+  A binary LDPC code, C, is a binary linear code that can be described by a sparse binary parity check
+matrix H of dimensions J × N, such that C = {c : Hc = 0}. The blocklength of the code is N, and the
+code rate is at least (N − J)/N (due to a possible linear dependence between the rows of H). The matrix
+H can also be represented by a Tanner graph, G, [52] which is a sparse bipartite graph, with N left nodes,
+I, also called variable nodes, and J right nodes, J , also called parity check nodes. A variable node i ∈ I
+(parity check node j ∈ J , respectively), can only connect to parity check (variable) nodes. We denote
+this set of neighbor nodes by Ni (N j , respectively). An edge connects the parity check node j ∈ J and
+the variable node i ∈ I if and only if H j,i = 1. LDPC codes can be efficiently decoded using Gallager’s
+probabilistic decoding algorithm, also known as the sum-product or BP algorithm. This algorithm is a
+message passing algorithm over edges in the Tanner graph [52].
+  We describe two methods for enhancing the operation of our VAEE when x is a BPSK modulated LDPC
+codeword. In section V-A we add a loss term that penalizes the soft decoding based on the estimated
+probabilities that the check nodes in the Tanner graph are not satisfied. In section V-B we suggest a
+decoding scheme that applies the VAEE followed by the BP decoding algorithm iteratively similarly to
+[9]. In our experiments we observed that both methods were useful to improve decoding, and the best
+results were obtained by using both simultaneously (results are provided below in the simulations section).
+
+
+
+A. Augmenting the loss using Gallager’s lemma
+
+  In [51, Lemma 1], Gallager proved the following. Consider m statistically independent bits, where the
+i’th bit is 1 with probability Pi and 0 with probability 1 − Pi . Then the probability that an even number
+of bits are 1 is
+                                                   Qm
+                                             1+     i=1 (1 − 2Pi )
+                                                                                                         (31)
+                                                        2
+
+Recall that qΦ,i (y) (1 − qΦ,i (y), respectively) is an estimate to the probability that xi = 1 (xi = −1),
+corresponding to ci = 0 (ci = 1). Hence, by [51, Lemma 1], for any parity check node, j ∈ J , the
+probability that the check node is satisfied, i.e., an even number of variable nodes i ∈ N j satisfy ci = 1,
+can be estimated by (we set Pi = 1 − qΦ,i (y) in (31) since this is the probability that ci = 1, corresponding
+to xi = −1)
+                                                                        
+                                                        2qΦ,i (y) − 1
+                                               Q
+                                          1+    i∈Nj
+                                                        2
+                                                                                                            18
+
+
+
+Now, for a valid codeword c ∈ C, all check nodes are satisfied. Hence we request a low value to the
+following Gallager loss defined by,
+                                                                                         
+                                                                         2qΦ,i (y) − 1
+                                                                 Q
+                                                      Y 1+        i∈Nj
+                                 LG (Φ, y) = − log
+                                                      j∈J                2
+                                                                                         
+                                                                         2qΦ,i (y) − 1
+                                                                 Q
+                                                X           1+    i∈Nj
+                                           =−         log
+                                                j∈J                      2
+  Instead of LBPSK (h, Φ, y) in (23), we thus propose the following augmented loss for the coded data
+case
+                             G
+                            LBPSK (h, Φ, y) = λ · LBPSK (h, Φ, y) + (1 − λ) · LG (Φ, y)                  (32)
+
+where λ ∈ [0, 1] is a hyper-parameter determining how much weight is assigned to each component of
+the total loss. Note that for λ = 0 our loss function is just LG (Φ, y), and the VAE-encoder can produce
+the trivial solution, qΦ,i (y) = 1 for all i, corresponding to the zero codeword. Hence, we must set λ > 0.
+  Our Gallager loss, LG (Φ, y), is similar to the syndrome loss introduced in [53]. However, in [53] the
+syndrome loss is used to improve the training of a neural message passing decoder, while in our work
+the Gallager loss is used for blind channel equalization of coded data. In addition, our loss is a likelihood
+based score.
+
+
+B. Iterative VAE Equalization and BP decoding
+
+  We now extend the VAEE to a turbo VAEE algorithm that applies VAEE and BP decoding iteratively,
+similarly to the turbo equalization algorithm [37], [38]. We start the first iteration of the turbo VAEE
+algorithm by applying the VAEE. The prior probability of the transmitted binary data, x (where xi ∈
+{1, −1}), is then uniform
+                                                                 pi(1) (xi ) = 2−N
+                                                            Y
+                                       p(x) = p(1) (x) =                                                 (33)
+                                                             i
+as in (3). The output of the VAEE (with or without the Gallager loss term that incorporates some coding
+information) are the probabilities {qΦ,i (y) = qΦ,i (Xi = 1|y)}. We then apply the BP algorithm using these
+probabilities, produced by the VAEE, as uncoded data from the channel. The corresponding uncoded
+log-likelihood ratios (LLRs) at the input to the BP algorithm are
+                                                 qΦ (Xi = 1 | y)         qΦ,i (y)
+                                LLRi(1) = log                    = log
+                                                qΦ (Xi = −1 | y)       1 − qΦ,i (y)
+
+for i = 0, 1, . . . , N − 1. The outputs of the BP are soft decoding LLRs of the transmitted codeword, denoted
+by
+                                              (1)            pi(1) (Xi = 1)
+                                           LLRi = log                                                    (34)
+                                                            pi(1) (Xi = −1)
+                                                                                                                 19
+
+
+
+where pi(1) (Xi = xi ) = pi(1) (xi ) are the probabilities obtained by the BP algorithm. Note that according to the
+                                                                                                                (1)
+principles of message passing algorithms [52], for each i the final marginalization used to obtain LLRi
+does not include the input channel LLR message LLRi(1) . By (34), and since pi(1) (Xi = −1) = 1−pi(1) (Xi = 1),
+                                                (1)
+pi(1) (Xi = 1) can be extracted from LLRi             using
+                                                                    (1)  −1
+                                           pi(1) (Xi = 1) = 1 + e−LLRi                                        (35)
+
+We now move on to the second turbo VAEE iteration by applying VAEE using
+
+                                                                            pi(1) (xi )
+                                                                      Y
+                                                p(x) = p(2) (x) =                                             (36)
+                                                                        i
+
+as prior probabilities of the transmitted data, x. Recall that the VAEE was derived under the assumption
+of uniform p(x) as in (3) and (33). Hence, we need to generalize the algorithm to the case where the prior
+probability is given in (36). This is easy, however, since the only change in the VAEE training is in the
+computation of the term A, which was previously calculated using (21), and is now computed as follows,
+                                      X
+                               A=         qΦ (x|y) (log p(x) − log qΦ (x|y))
+                                      x
+                                      X                X
+                                  =       qΦ (x|y)            log pi (xi ) + H [qΦ (x|y)]
+                                      x                  i
+                                       N−1
+                                      XY                       X
+                                  =              qΦ (xl |y)         log pi (xi ) + H [qΦ (x|y)]
+                                      x   l=0                   i
+                                      XX
+                                  =              qΦ (xi |y) log pi (xi ) + H [qΦ (x|y)]
+                                      i    xi
+                                      X X
+                                  =                    qΦ,i (x|y) log pi (x) + H [qΦ (x|y)]
+                                      i   x∈{−1,1}
+
+The corrected loss to be minimized instead of (23) is thus
+
+                   0                  N                        X X
+                  LBPSK (h, Φ, y) =     log C − H [qΦ (x|y)] −            qΦ,i (x|y) log pi (x)               (37)
+                                      2                        i x∈{−1,1}
+
+where C is given in (24) (the Gallager loss LG can also be used by adding it to the above loss term).
+  The same procedure is repeated in the other decoding iterations. In general, in the first stage of the l-th
+iteration (l = 1, 2, . . .), our proposed turbo VAEE applies the VAEE, by minimizing (37) (possibly with
+the addition of the Gallager loss, LG , as in (32)) using
+
+                                                 pi (x) = pi(l) (x) = pi(l−1) (x)                             (38)
+
+for i = 0, 1, . . . , N − 1 and x ∈ {1, −1} as input (for initialization, l = 1, we use pi (x) = pi(1) (x) = 1/2 as
+was described above). The VAEE produces the probabilities qΦ,i (y) = qΦ,i (Xi = 1|y). Then, in the second
+stage of the l-th iteration, we apply the BP algorithm, using qΦ,i (y) as uncoded probabilities from the
+                                                                                                                (l)
+channel. The BP algorithm produces the probabilities pi(l) (x), x ∈ {1, −1} as in the first iteration: LLRi
+                                                                                                                                                               20
+
+
+
+                                                     Channel                                            Turbo VAEE
+                Transmitter
+                                                                   w                                                                     n                 o
+                                               Intersymbol                                  Variational                                     pi(l) (xi )
+    m      LDPC       c        BPSK       x                  x∗h             y                              qΦ,i (y)     Belief
+                                                 interef-          +   n                 o Autoencoder
+           Encoder            modulator                                    pi(l) (xi )                                 Propagation
+                                                 erence                                     Equalizer
+
+
+                                                                             +                      α                      D
+
+                                                                                 (1 − α) 12
+
+
+
+Fig. 7: Our proposed turbo VAEE which consists of iterative VAEE and BP decoding. D is a delay
+element.
+
+
+is obtained from variable node final marginalization, by summing all incoming final LLR messages to
+                                                                                                                                     q       (y)
+variable node i in the Tanner graph, except for the input channel LLR message, LLRi(l) = log 1−qΦ,iΦ,i (y) , and
+                              (l)  −1
+then pi(l) (Xi = 1) = 1 + e−LLRi        as in (35). These probabilities are subsequently used as input to the
+next (l + 1) iteration of the VAEE.
+  Due to the presence of short cycles in the code Tanner graph, the (loopy) BP algorithm is not accurate.
+It tends to overestimate the reliabilities of the estimated bits. Hence, we found it useful to weaken (pull
+back towards 1/2) the prior probabilities used in the beginning of each iteration by modifying (38) to
+                                                                                              1
+                                          pi (x) = pi(l) (x) = αpi(l−1) (x) + (1 − α)                                                                 (39)
+                                                                                              2
+for i = 0, 1, . . . , N − 1 and x ∈ {1, −1}, where α is some hyper-parameter. Similarly, we found it useful to
+weaken the LLRs passed from the VAEE to the BP decoder by attenuating these by a factor of η ∈ (0, 1).
+  A high-level system scheme is shown in Fig. 7.
+
+
+                                               VI. S IMULATION RESULTS
+
+  In our derivation above we assumed that both the channel impulse response, h, and the input signal
+{x k } are causal. Hence, considering for example the BPSK case, Eq. (24) (and similarly for the QPSK
+case), we sum over k = 0, 1, . . . , N − 1, and we do not need to consider negative values of k. However,
+if we are considering a sampled block y = (y0, y1, . . . , yN−1 ) of N measurements of the signal starting
+at some arbitrary time, then the above causality assumption on x does not hold. Nevertheless, the edge
+effect decays as N increases. The causality assumption is equivalent to M − 1 zero-padding of x =
+(x0, x1, . . . , xN−1 ) on the left. Alternatively (supposing odd M for simplicity), we can assume that h =
+(h−(M−1)/2, . . . , h0, . . . , h(M−1)/2 ). Accordingly, we assume zero-padding of x = (x0, x1, . . . , xN−1 ) by (M −
+1)/2 both on the left and on the right, and the given measurements vector y = (y0, y1, . . . , yN−1 ) is the
+                                                                                                       21
+
+
+
+result of the channel model (2). As a result of this assumption we can still use the same equation (24)
+with summation over the same range of k. We used this second approach in our experiments with uncoded
+data, although the performance was similar to the performance of the first approach.
+  For the experiments with coded data we assumed that the transmitted BPSK modulated codeword
+x = (x0, x1, . . . , xN−1 ) starts after a random (and unknown) sequence of BPSK modulated bits. The
+filter h = (h0, h1, . . . , h M−1 ) is a causal size M impulse response. The channel measurements are
+y = (y0, y1, . . . , yN−1 ) (N measurements). The same conditions were used for the baseline methods that
+we compared with.
+  We implemented our VAEE algorithms using the Tensorflow framework [43] which provides automatic
+differentiation of the loss function. For the LDPC infrastructure, we used the software toolbox in [54].
+For the turbo operation mode, we used the BP algorithm implemented in [9].
+
+
+
+A. Linear channels, uncoded data
+
+  We start by reporting results for noisy linear ISI channels under QPSK modulation, without using
+coding information. Our algorithm was compared with the adaptive CMA [55], and with the neural
+network CMA (NNCMA) [16] blind equalization algorithms. In addition, we compared the performance
+to the adaptive linear MMSE [36] non-blind equalizer that observes the actual transmitted sequence.
+The baseline algorithms are on-line algorithms. This means that for each incoming data sample, a single
+update is made and this sample is not used any longer. In order to improve the performance of the
+baseline algorithms, we have modified them so that after using the entire given block of data, based on
+which we learn the channel, we start a new training round on the given block of data, and repeat this
+process until convergence. In our first experiments in this subsection, reported in Figs. 8, 9 and 10, we
+used the Adam optimization algorithm [56] to minimize our loss function. For all experiments in the
+uncoded case, and all blind equalization methods, we note that one can recover the transmitted bits only
+up to some unknown delay and rotation of the constellation, which for QPSK means that we need to
+examine four different possible rotations (0°, 90°, 180°, 270°). For each SNR point in the experiments in
+this subsection, we obtained the symbol error rate (SER) by averaging over the SER values corresponding
+to 20 independent sets of training and test data sequences. Each training sequence contained the channel
+observations corresponding to L (unknown) random QPSK symbols (with L varying between experiments
+as described below), and each test data sequence contained the channel observations corresponding to
+K = 10,000 random QPSK data symbols. As an alternative we could have tested the results on the same
+data used for training (for this data too, we do not know the actual transmitted symbol at the receiver
+since we assume an unsupervised setup). When doing so, the SER remained essentially the same as for
+                                                                                                            22
+
+
+
+
+                Fig. 8: SER vs. SNR for the equalization algorithms. The channel is h1 .
+
+
+the independent test data in all the experiments. In calculating the SER we took into account all possible
+rotations and delays.
+  In all our experiments, we used the same convolutional neural network VAE-encoder architecture in Fig.
+3, with a filter with five complex coefficients in the first layer, and a filter with two complex coefficients
+in the second layer. Hence, the total number of free parameters in the model was only M + 15 (M channel
+impulse response parameters in the VAE-decoder, 1 parameter representing the noise variance, and 14
+(2 × (5 + 2)) real parameters in the convolutional neural network VAE-encoder).
+  In our first set of experiments, we compared our model to the baseline algorithms at various noise
+levels, using the following non-minimum phase channels taken from [57], [58]
+
+                        h1 =[0.0545 + 0.05 j, 0.2832 − 0.11971 j, −0.7676 + 0.2788 j,
+
+                             − 0.0641 − 0.0576 j, 0.0466 − 0.02275 j]
+
+                        h2 =[0.0554 + 0.0165 j, −1.3449 − 0.4523 j,
+
+                            1.0067 + 1.1524 j, 0.3476 + 0.3153 j]
+
+We generated L = 2000 random QPSK symbols as the training sequence. Then we applied convolution
+with the channel impulse response, and added white Gaussian noise at a signal to noise ratio (SNR) in the
+                                                    ∆
+range 0dB – 10dB. The SNR is defined by SNR = 20 log10 (||x ∗ h||/||w||). To train the model, for each
+update step, we sampled from the training set a mini-batch of a single sub-sequence of length N = 128.
+Figs. 8 and 9 present SER results for h1 and h2 respectively. As can be seen, the new VAEE significantly
+outperforms the baseline blind equalizers, and is quite close to the performance of the non-blind adaptive
+linear MMSE equalizer.
+                                                                                                       23
+
+
+
+
+                Fig. 9: SER vs. SNR for the equalization algorithms. The channel is h2 .
+
+
+
+
+Fig. 10: SER vs. number of training symbols for the equalization algorithms. SNR = 10dB. The channel
+is h1 .
+
+
+   In our following experiment, we compared the SER of the equalization algorithms as the number of
+training symbols varied from L = 50 to L = 500,000. For each update step we sampled from the training set
+a mini-batch of a single sub-sequence of length N = min (128, L). We used the channel impulse response
+h1 above. Fig. 10 presents the results for SNR=10dB. Again, the new VAEE algorithm significantly
+outperforms the baseline blind equalization algorithms. The results show that the VAEE enables faster
+channel acquisition compared to the other blind equalization algorithms.
+   Further experiments for uncoded data are reported in [31].
+   For maintaining good performance but faster convergence time, we re-ran simulations from [31] using
+a variety of gradient descent-based optimizers. In Fig. 11 we report on the number of parameter updates
+                                                                                                            24
+
+
+
+
+           Fig. 11: Number of parameter updates vs. SNR for different N. The channel is h1 .
+
+
+required for convergence of the VAEE algorithm when using the channel h1 . To train the model, we
+sampled a mini-batch of a single sub-sequence of length N ∈ {10, 128} out of the given training symbols.
+Then we let the algorithm train until convergence was achieved. As presented in Fig. 11, the AMSGrad
+optimizer [59] leads to a significant speedup in the training of our model compared to the Adam algorithm
+[56]. The bit error rate (BER) and SER performance did not change much between optimizers. Thus, we
+used the AMSGrad optimizer in our subsequent simulations.
+
+
+B. Linear channels, coded data
+
+  In all our experiments with coded data (this subsection and the following one) we assume the availability
+of only the channel observations corresponding to a single transmitted LDPC codeword (i.e., we do not
+have additional training data). As explained above, our goal is to reconstruct the transmitted message
+from this data alone without knowing the channel parameters. As an upper bound on the performance,
+we compared our results to the non-blind turbo equalization algorithm [37], [38] which knows the true
+channel. This algorithm applies the BCJR algorithm [25] and the BP algorithm iteratively.
+  We then implemented and compared our algorithm to the (blind) EM algorithm [24] for a noisy linear
+ISI channel, taking into account the coding information similarly to [23]. In every iteration, this turbo EM
+algorithm re-estimates the ISI channel impulse response and the noise variance. It applies the generalized
+BCJR algorithm [21] and the BP algorithm iteratively as in the turbo equalization algorithm. As explained
+in [21], the accurate implementation of the EM requires the computation of the posterior joint expectation
+E xi, x j y] of two transmitted symbols. In the approximate EM algorithm for a noisy ISI channel proposed
+  
+                                                      
+in [20], the approximation E xi x j y] ≈ E [xi | y] · E x j y] is used. Under this approximation, the standard
+BCJR algorithm is sufficient to implement EM estimation. To improve results, a generalized BCJR is
+                                                                                                                25
+
+
+
+derived in [21] to compute E xi, x j y] accurately. We have also implemented and evaluated channel
+                            
+
+estimation with the least squares method as described in [17]. These results are not shown since in all
+our experiments the EM algorithm outperformed the least squares estimation method. As noted above,
+the turbo equalization algorithm is channel informed, i.e., it knows the true ISI channel impulse response
+and noise variance. On the other hand, our turbo VAEE algorithm and the turbo EM algorithm are blind.
+They perform unsupervised joint estimation of the channel coefficients, noise variance and the transmitted
+codeword.
+  In all our experiments with coded data, we used the same convolutional neural network VAE-encoder
+architecture in Fig. 4. We used a filter with 10 coefficients in the first layer, and a filter with 5 coefficients
+in the second layer. Hence, the total number of free parameters in the model was M + 16 (M parameters
+for the channel impulse response, 1 parameter for the channel noise variance, and 15 parameters for the
+convolutional neural network VAE-encoder). In the turbo VAEE experiments we first applied standalone
+VAEE (with a Gallager loss term) for I iterations, and only then started turbo mode where we apply
+T external iterations, each consisting of one VAEE iteration and B BP iterations. The values of the
+hyper-parameters used are summarized in Table II.
+
+                                TABLE II: Values of the hyper-parameters.
+                                  Variable               Definition                Value
+
+                                     T       Total number of training iterations    80
+                                     lr       Learning rate for VAEE training      10−1
+                                     λ                 Weight in (32)               0.7
+                                     η       Attenuation factor in Section V.B      0.1
+                                     α               Coefficient in (39)            0.2
+                                     B            Number of BP iterations           15
+                                                 after each VAEE iteration
+                                     I          Number of VAEE iterations           50
+                                                before applying turbo mode
+
+
+  In the results presented in the following experiments, for each SNR point, we display the average
+BER obtained by repeating the following basic experiment: At the transmitter we encode one codeword
+(unknown at the receiver) and transmit it over the channel. At the receiver we apply the decoding algorithm
+on the channel observations to decode the unknown codeword. Then we measure the decoding BER,
+defined as the fraction of erroneous decoded bits out of the N code bits. Now, in order to obtain a
+statistically reliable BER estimate, we repeat this basic experiment several times, each time with a different
+randomly chosen codeword and a different randomly chosen channel noise realization, and calculate the
+average BER reported in the figures. We evaluated the various decoding algorithms at various noise levels,
+using two LDPC codes from the Wimax IEEE 802.16e standard. The parity check matrices are taken from
+                                                                                                         26
+
+
+
+
+           (a) LDPC code with blocklength N1                       (b) LDPC code with blocklength N2
+
+Fig. 12: BER vs. SNR for the blind decoding algorithms and for the channel informed turbo equalizer.
+The channel is h̃1 .
+
+
+[54]. The first code has blocklength N1 = 576 and the second has blocklength N2 = 2304. The rate of both
+codes is 3/4. The following causal non-minimum phase channel impulse responses were used to simulate
+the ISI,
+
+                               h̃1 =[0.2, 0.9, 0.3]
+
+                               h̃2 =[0.2, 0.9, 0.3, 1.0]
+
+                               h̃3 =[0.16, 0.545, −0.672, 0.256, 0.095, −0.389]
+
+Channel h̃3 is taken from [60].
+  For reference, we have computed the Shannon threshold SNR for which channel capacity is equal to
+the code rate used (3/4). The obtained thresholds for h̃1 , h̃2 and h̃3 were 2.84dB, 2.95dB and 3.0dB
+respectively. The capacity of the noisy ISI channel was computed using the water-filling algorithm [61].
+We have not imposed BPSK modulation in the computation of the capacity. Hence, the actual capacity
+under BPSK is smaller and the corresponding Shannon threshold SNR is higher than reported. Figs.
+12, 13 and 14 present BER results for the channels h̃1 , h̃2 and h̃3 , respectively, for the two codes with
+blocklengths N1 and N2 . The blind decoding algorithms that were examined include standalone VAEE,
+standalone VAEE with a Gallager loss term as described in Section V-A, turbo VAEE with a Gallager
+loss term LG component and BP iterations as described in Sections V-A and V-B, and turbo EM. As a
+practical upper bound on the achievable performance we also plot the BER of the channel informed non-
+blind turbo equalizer. Naive implementation of turbo EM did not work well. To boost the performance
+we had to first apply EM without incorporating code information (i.e., without using the BP algorithm).
+Then, in a second stage, the BP could be incorporated to the scheme. However, since the first EM stage
+                                                                                                                27
+
+
+
+
+           (a) LDPC code with blocklength N1                         (b) LDPC code with blocklength N2
+
+Fig. 13: BER vs. SNR for the blind decoding algorithms and for the channel informed turbo equalizer.
+The channel is h̃2 .
+
+
+
+
+           (a) LDPC code with blocklength N1                         (b) LDPC code with blocklength N2
+
+Fig. 14: BER vs. SNR for the blind decoding algorithms and for the channel informed turbo equalizer.
+The channel is h̃3 .
+
+
+
+does not use code information, it has an inherent ambiguity regarding the polarity of the channel impulse
+response (if ĥ is the estimated response, then −ĥ is also a good possibility). Hence, we need to carry
+out the second EM stage using both ĥ and −ĥ and choose that option with minimum BER. However, in
+reality we cannot compute the error rate. Furthermore, even though we assumed that the length of the
+channel impulse response, M, is known, so that the optimal estimated response is close to h or −h, the
+EM algorithm occasionally converged to a local minimum which was close to a shift left or a shift right
+of h (or −h). Hence to obtain good results, in all our simulations with EM we tested all 6 possibilities
+after the first EM stage (the two possible polarities and the three possibilities for shift left by 1, shift right
+                                                                                                                                 28
+
+
+
+by 1 and no shift). For each possibility we applied the second EM stage with BP iterations incorporated,
+and finally we picked the option that yielded minimum BER. This is a genie-aided EM that cannot be
+used in practice. In order to make it a practical algorithm, one could incorporate CRC bits within the
+transmitted message bits, but this would incur rate loss2 On the other hand, the turbo VAEE algorithm
+did not have this problem, due to the Gallager loss term, and we used a single run (rather than 6 runs) for
+each simulation. As can be seen, the new blind turbo VAEE algorithm is worse than the genie-aided turbo
+EM for h̃1 and h̃2 , but is better even than genie-aided turbo EM for h̃3 , which does not work well for this
+channel with the longer impulse response. A practical (non-genie-aided) EM algorithm was significantly
+inferior to turbo VAEE for all channels. Standalone VAEE and VAEE with Gallager loss performed much
+worse then the full turbo VAEE algorithm (that incorporates the Gallager loss). However, these algorithms
+require much less computations compared to turbo VAEE.
+
+
+C. Nonlinear channels
+
+  We simulated the nonlinear channels as proposed in [26]–[30],
+
+                                        g1 (an ) = tanh (an )
+
+                                        g2 (an ) =an + 0.2an2 − 0.1an3
+
+                                        g3 (an ) =an + 0.2an2 − 0.1an3 + 0.5 cos (πan )
+                        ∆    P
+where we define an =             k x k hn−k . It should be noted that g2 (·) and g3 (·) represent an amplifier working
+
+in saturation.
+  As a practical upper bound on the performance, we compared our results to a non-blind turbo
+equalization algorithm which knows the true channel impulse response h, the noise variance σw2 and the
+nonlinearity g(·). This algorithm uses a modified BCJR algorithm which is very similar to the standard
+BCJR algorithm [25], except that after we have computed the convolution an we apply the nonlinear
+function g(·). That is, we compute g(an ) and proceed as before. We also compared our turbo VAEE
+algorithm to the turbo EM algorithm that was used in the previous subsection. This algorithm ignores
+the nonlinearity. To the best of our knowledge there does not exist any other baseline blind estimation
+algorithm for the nonlinear case that we could compare with.
+  In the following simulations, we used the channel h̃3 , and the same two LDPC codes with blocklengths
+N1 = 576 and N2 = 2304 that were used in the previous section. The dropout probabilities in Fig. 6,
+describing the neural network A, were 0.3. The results are presented in Figs. 15, 16 and 17. The SNR is
+                         ∆
+now defined by SNR = 20 log10 (||g(x ∗ h)||/||w||). As can be seen, the new iterative turbo VAEE algorithm
+
+ 2 We tried using the Hamming weight of the syndrome of the decoded codeword instead of using BER, but this did not work well.
+                                                                                                        29
+
+
+
+
+           (a) LDPC code with blocklength N1                      (b) LDPC code with blocklength N2
+
+Fig. 15: BER vs. SNR for the blind decoding algorithms and for the channel informed turbo equalizer.
+The channel is h̃3 . The nonlinearity is g1 (·).
+
+
+
+
+           (a) LDPC code with blocklength N1                      (b) LDPC code with blocklength N2
+
+Fig. 16: BER vs. SNR for the blind decoding algorithms and for the channel informed turbo equalizer.
+The channel is h̃3 . The nonlinearity is g2 (·).
+
+
+significantly outperforms the blind turbo genie-aided EM algorithm. This is not surprising since the turbo
+EM algorithm ignores the nonlinearity, as mentioned above.
+
+                                               VII. C ONCLUSION
+
+  We introduced novel unsupervised neural network-based algorithms for blind channel equalization using
+the method of variational autoencoders. Both linear and nonlinear noisy ISI channels were considered.
+The results were then extended to joint equalization and decoding of LDPC codes using an iterative
+turbo VAEE algorithm. We showed significantly improved BER performance compared to the baseline
+algorithms. For LDPC coded data, only a genie-aided turbo EM algorithm performed well for some of the
+                                                                                                                                        30
+
+
+
+
+            (a) LDPC code with blocklength N1                                       (b) LDPC code with blocklength N2
+
+Fig. 17: BER vs. SNR for the blind decoding algorithms and for the channel informed turbo equalizer.
+The channel is h̃3 . The nonlinearity is g3 (·).
+
+
+channels, and even this genie-aided implementation did not work well for the longer impulse response.
+Furthermore, the computational complexity of turbo EM is exponentially increasing in the length of the
+estimated channel impulse response, since it uses a trellis-based equalizer, where the number of states
+grows exponentially with the length of the estimated impulse response. Turbo VAEE, on the other hand,
+uses a simple convolutional neural network. Future research should extend our method to generalized
+setups such as higher constellations and channel acquisition for massive MIMO.
+
+
+                                                           R EFERENCES
+
+[1] E. Nachmani, Y. Be’ery, and D. Burshtein, “Learning to decode linear codes using deep learning,” in 54’th Annual Allerton Conf. On
+    Communication, Control and Computing, September 2016, pp. 341–346.
+[2] E. Nachmani, E. Marciano, L. Lugosch, W. J. Gross, D. Burshtein, and Y. Be’ery, “Deep learning methods for improved decoding of
+    linear codes,” IEEE Journal of Selected Topics in Signal Processing, vol. 12, no. 1, pp. 119–131, 2018.
+[3] T. Gruber, S. Cammerer, J. Hoydis, and S. ten Brink, “On deep learning-based channel decoding,” in Conference on Information
+    Sciences and Systems, 2017.
+[4] S. Cammerer, T. Gruber, J. Hoydis, and S. ten Brink, “Scaling deep learning-based decoding of polar codes via partitioning,” in IEEE
+    Global Communications Conference (GLOBECOM), 2017, pp. 1–6.
+[5] N. Raviv, A. Caciularu, T. Raviv, J. Goldberger, and Y. Be’ery, “perm2vec: Graph permutation selection for decoding of error correction
+    codes using self-attention,” arXiv preprint arXiv:2002.02315, 2020.
+[6] T. O’Shea and J. Hoydis, “An introduction to deep learning for the physical layer,” IEEE Transactions on Cognitive Communications
+    and Networking, vol. 3, no. 4, pp. 563–575, 2017.
+[7] N. Samuel, T. Diskin, and A. Wiesel, “Deep MIMO detection,” in IEEE 18th International Workshop on Signal Processing Advances
+    in Wireless Communications (SPAWC), Sapporo, Japan, July 2017.
+[8] N. Farsad and A. Goldsmith, “Neural network detection of data sequences in communication systems,” IEEE Transactions on Signal
+    Processing, vol. 66, no. 21, pp. 5663–5678, November 2018.
+                                                                                                                                       31
+
+
+
+ [9] F. Liang, C. Shen, and F. Wu, “An iterative BP-CNN architecture for channel decoding,” IEEE Journal of Selected Topics in Signal
+     Processing, vol. 12, no. 1, pp. 144–159, 2018.
+[10] H. Ye, G. Y. Li, B.-H. Juang, and K. Sivanesan, “Channel agnostic end-to-end learning based communication systems with conditional
+     GAN,” in IEEE Global Communications Conference (Globecom workshops), 2018, pp. 1–5.
+[11] T. J. O’Shea, T. Roy, and N. West, “Approximating the void: Learning stochastic channel models from observation with variational
+     generative adversarial networks,” in 2019 International Conference on Computing, Networking and Communications (ICNC), 2019, pp.
+     681–686.
+[12] J. G. Proakis and M. Salehi, Digital communications, 5th ed.     McGraw-Hill Education, 2007.
+[13] D. Godard, “Self-recovering equalization and carrier tracking in two-dimensional data communication systems,” IEEE Transactions on
+     Communication, vol. 28, no. 11, pp. 1867–1875, 1980.
+[14] J. Treichler and B. Agee, “A new approach to multipath correction of constant modulus signals,” IEEE Transactions on Acoustics,
+     Speech, and Signal Processing, vol. 31, no. 2, pp. 459–472, 1983.
+[15] R. Johnson, P. Schniter, T. J. Endres, J. D. Behm, D. R. Brown, and R. A. Casas, “Blind equalization using the constant modulus
+     criterion: A review,” Proceedings of the IEEE, vol. 86, no. 10, pp. 1927–1950, 1998.
+[16] C. You and D. Hong, “Nonlinear blind equalization schemes using complex-valued multilayer feedforward neural networks,” IEEE
+     Transactions on Neural Networks, vol. 9, no. 6, pp. 1442–1455, 1998.
+[17] M. Ghosh and C. L. Weber, “Maximum-likelihood blind equalization,” Optical Engineering, vol. 31, no. 6, pp. 1224–1229, 1992.
+[18] L. Tong and S. Perreau, “Multichannel blind identification: From subspace to maximum likelihood methods,” Proceedings of the IEEE,
+     vol. 86, no. 10, pp. 1951–1968, 1998.
+[19] H. A. Cirpan and M. K. Tsatsanis, “Maximum likelihood blind channel estimation in the presence of doppler shifts,” IEEE Transactions
+     on Signal Processing, vol. 47, no. 6, pp. 1559–1569, 1999.
+[20] G. K. Kaleh and R. Vallet, “Joint parameter estimation and symbol detection for linear or nonlinear unknown channels,” IEEE
+     Transactions on Communications, vol. 42, no. 7, pp. 2406–2413, 1994.
+[21] J. Gunther, D. Keller, and T. Moon, “A generalized BCJR algorithm and its use in iterative blind channel identification,” IEEE Signal
+     Processing Letters, vol. 14, no. 10, pp. 661–664, 2007.
+[22] X. Wang and R. Chen, “Blind turbo equalization in Gaussian and impulsive noise,” IEEE Transactions on Vehicular Technology, vol. 50,
+     no. 4, pp. 1092–1105, 2001.
+[23] J. H. Gunther, M. Ankapura, and T. K. Moon, “A generalized LDPC decoder for blind turbo equalization,” IEEE Transactions on
+     Signal Processing, vol. 53, no. 10, pp. 3847–3856, Oct. 2005.
+[24] A. P. Dempster, N. M. Laird, and D. B. Rubin, “Maximum likelihood from incomplete data via the EM algorithm,” Journal of the
+     Royal Statistical Society: Series B, vol. 39, no. 1, pp. 1–22, 1977.
+[25] L. Bahl, J. Cocke, F. Jelinek, and J. Raviv, “Optimal decoding of linear codes for minimizing symbol error rate,” IEEE Transactions
+     on information theory, vol. 20, no. 2, pp. 284–287, 1974.
+[26] B. Mitchinson and R. F. Harrison, “Digital communications channel equalization using the kernel adaline,” IEEE Transactions on
+     Communications, vol. 50, no. 4, pp. 571–576, 2002.
+[27] J. C. Patra, P. K. Meher, and G. Chakraborty, “Nonlinear channel equalization for wireless communication systems using Legendre
+     neural networks,” Signal Processing, vol. 89, no. 11, pp. 2251–2262, 2009.
+[28] P. M. Olmos, J. J. Murillo-Fuentes, and F. Pérez-Cruz, “Joint nonlinear channel equalization and soft LDPC decoding with Gaussian
+     processes,” IEEE Transactions on Signal Processing, vol. 58, no. 3, pp. 1183–1192, 2010.
+[29] H. Ye and G. Y. Li, “Initial results on deep learning for joint channel equalization and decoding,” in 2017 IEEE 86th Vehicular
+     Technology Conference (VTC-Fall), 2017, pp. 1–5.
+[30] W. Xu, Z. Zhong, Y. Be’ery, X. You, and C. Zhang, “Joint neural network equalizer and decoder,” in 15th International Symposium
+     on Wireless Communication Systems (ISWCS), Aug. 2018, pp. 1–5.
+                                                                                                                                          32
+
+
+
+[31] A. Caciularu and D. Burshtein, “Blind channel equalization using variational autoencoders,” in 2018 IEEE International Conference
+     on Communications Workshops (ICC Workshops), Kansas City, MO, May 2018.
+[32] C. M. Bishop, Pattern recognition and machine learning.       springer, 2006.
+[33] D. M. Blei, A. Kucukelbir, and J. D. McAuliffe, “Variational inference: A review for statisticians,” Journal of the American statistical
+     Association, vol. 112, no. 518, pp. 859–877, 2017.
+[34] D. P. Kingma and M. Welling, “Auto-encoding variational Bayes,” in International Conference on Learning Representations, 2014.
+[35] D. J. Rezende, S. Mohamed, and D. Wierstra, “Stochastic backpropagation and approximate inference in deep generative models,” in
+     International Conference on Machine Learning, 2014.
+[36] Y. Gong, X. Hong, and K. F. Abu-Salim, “Adaptive MMSE equalizer with optimum tap-length and decision delay,” in Sensor Signal
+     Processing for Defence (SSPD 2010), 2010.
+[37] C. Douillard, M. Jézéquel, C. Berrou, D. Electronique, A. Picart, P. Didier, and A. Glavieux, “Iterative correction of intersymbol
+     interference: Turbo-equalization,” European transactions on telecommunications, vol. 6, no. 5, pp. 507–511, 1995.
+[38] R. Koetter, A. C. Singer, and M. Tuchler, “Turbo equalization,” IEEE signal processing magazine, vol. 21, no. 1, pp. 67–80, 2004.
+[39] O. Shalvi and E. Weinstein, “New criteria for blind deconvolution of nonminimum phase systems (channels),” IEEE Transactions on
+     information theory, vol. 36, no. 2, pp. 312–321, 1990.
+[40] C. Trabelsi, O. Bilaniuk, Y. Zhang, D. Serdyuk, S. Subramanian, J. F. Santos, S. Mehri, N. Rostamzadeh, Y. Bengio, and C. J. Pal,
+     “Deep complex networks,” in Proc. 6th Int. Conf. on Learning Representations (ICLR), 2018.
+[41] T. J. O’Shea, L. Pemula, D. Batra, and T. C. Clancy, “Radio transformer networks: Attention models for learning to synchronize in
+     wireless systems,” in 50th Asilomar Conference on Signals, Systems and Computers, 2016, pp. 662–666.
+[42] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for image recognition,” in IEEE Conference on Computer Vision and
+     Pattern Recognition, 2016, pp. 770–778.
+[43] M. Abadi, P. Barham, J. Chen, Z. Chen, A. Davis, J. Dean, M. Devin, S. Ghemawat, G. Irving, M. Isard et al., “TensorFlow: A System
+     for Large-Scale Machine Learning,” in 12th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 16),
+     2016, pp. 265–283.
+[44] N. Srivastava, G. Hinton, A. Krizhevsky, I. Sutskever, and R. Salakhutdinov, “Dropout: a simple way to prevent neural networks from
+     overfitting,” The Journal of Machine Learning Research, vol. 15, no. 1, pp. 1929–1958, 2014.
+[45] A. Mnih and K. Gregor, “Neural variational inference and learning in belief networks,” in International Conference on Machine
+     Learning (ICLR), 2014.
+[46] A. Mnih and D. J. Rezende, “Variational inference for Monte Carlo objectives,” in International Conference on Machine Learning
+     (ICLR), 2016.
+[47] C. J. Maddison, A. Mnih, and Y. W. Teh, “The concrete distribution: A continuous relaxation of discrete random variables,” in
+     International Conference on Learning Representations, 2017.
+[48] E. Jang, S. Gu, and B. Poole, “Categorical reparameterization with Gumbel-Softmax,” in International Conference on Learning
+     Representations, 2017.
+[49] E. J. Gumbel, “Statistical theory of extreme values and some practical applications,” Nat. Bur. Standards Appl. Math. Ser. 33, 1954.
+[50] R. D. Luce, Individual Choice Behavior.     John Wiley, 1959.
+[51] R. G. Gallager, “Low density parity check codes,” IEEE Transactions on Information Theory, vol. 8, pp. 21–28, January 1962.
+[52] T. Richardson and R. Urbanke, Modern Coding Theory.        Cambridge, UK: Cambridge University Press, 2008.
+[53] L. Lugosch and W. J. Gross, “Learning from the syndrome,” in 2018 52nd Asilomar Conference on Signals, Systems, and Computers,
+     2018, pp. 594–598.
+[54] M. Helmling, S. Scholl, F. Gensheimer, T. Dietz, K. Kraft, S. Ruzika, and N. Wehn, “Database of Channel Codes and ML Simulation
+     Results,” www.uni-kl.de/channel-codes, 2017.
+[55] S. Abrar and A. K. Nandi, “An adaptive constant modulus blind equalization algorithm and its stochastic stability analysis,” IEEE
+     Signal Processing Letters, vol. 17, no. 1, pp. 55–58, 2010.
+                                                                                                                                       33
+
+
+
+[56] D. Kingma and J. Ba, “Adam: A method for stochastic optimization,” in International Conference on Learning Representations, 2015.
+[57] S. S. Ranhotra, A. Kumar, M. Magarini, and A. Mishra, “Performance comparison of blind and non-blind channel equalizers using
+     artificial neural networks,” in 2017 9’th International Conference on Ubiquitous and Future Networks (ICUFN), 2017, pp. 243–248.
+[58] Y. Fang and T. W. S. Chow, “Blind equalization of a noisy channel by linear neural network,” IEEE transactions on neural networks,
+     vol. 10, no. 4, pp. 918–924, 1999.
+[59] S. J. Reddi, S. Kale, and S. Kumar, “On the convergence of Adam and beyond,” in International Conference on Learning Representations,
+     2018.
+[60] L. Salamanca, J. J. Murillo-Fuentes, and F. Pérez-Cruz, “Channel decoding with a Bayesian equalizer,” in IEEE International Symposium
+     on Information Theory, 2010, pp. 1998–2002.
+[61] T. M. Cover and J. A. Thomas, Elements of Information Theory, 2nd ed.      New York: Wiley, 2006.
+

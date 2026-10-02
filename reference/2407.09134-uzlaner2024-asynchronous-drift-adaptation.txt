@@ -1,0 +1,923 @@
+                                                                                                                                                                                        1
+
+
+
+
+                                         Asynchronous Online Adaptation via Modular Drift
+                                                  Detection for Deep Receivers
+                                                                        Nicole Uzlaner∗ , Tomer Raviv∗ , Nir Shlezinger, and Koby Todros
+
+
+
+
+                                            Abstract—Deep learning is envisioned to facilitate the opera-               of channel conditions. Joint learning effectively seeks a non-
+                                         tion of wireless receivers, with emerging architectures integrating            coherent receiver, at the cost of performance degradation com-
+                                         deep neural networks (DNNs) with traditional modular receiver                  pared with coherent operation. A second approach estimates
+                                         processing. While deep receivers were shown to operate reliably
+                                         in complex settings for which they were trained, the dynamic                   the channel on each coherence interval, providing the estimate
+                                                                                                                        as an additional input to the DNN [9], [10], while being
+arXiv:2407.09134v1 [cs.IT] 12 Jul 2024
+
+
+
+
+                                         nature of wireless communications gives rise to the need to
+                                         repeatedly adapt deep receivers to channel variations. However,                typically limited to linear channel models. A third approach
+                                         frequent re-training is costly and ineffective, while in practice,             designs deep receivers that can be applied to several different
+                                         not every channel variation necessitates adaptation of the entire              data distributions observed during training using architectures
+                                         DNN. In this paper, we study concept drift detection for identifying
+                                         when does a deep receiver no longer match the channel, enabling                based on ensemble learning [11] and hypernetworks [12], [13].
+                                         asynchronous adaptation, i.e., re-training only when necessary.                   The aforementioned approaches train DNN-aided receivers
+                                         We identify existing drift detection schemes from the machine                  as in conventional deep learning domains, i.e., offline and
+                                         learning literature that can be adapted for deep receivers in                  not on-device. An alternative approach, which is promising
+                                         dynamic channels, and propose a novel soft-output detection                    in terms of performance and flexibility, re-trains the DNN
+                                         mechanism tailored to the communication domain. Moreover,
+                                         for deep receivers that preserve conventional modular receiver                 on device online. This leads to improved performance as the
+                                         processing, we design modular drift detection mechanisms, that                 deep receiver matches the current data distribution, particularly
+                                         simultaneously identify when and which sub-module to re-train.                 when re-training synchronously with channel variations, e.g.,
+                                         The provided numerical studies show that even in a rapidly time-               on each coherence duration [14], [15]. Yet, online learning
+                                         varying scenarios, asynchronous adaptation via modular drift                   is challenging to implement due to the limited resources of
+                                         detection dramatically reduces the number of trained parameters
+                                         and re-training times, with little compromise on performance.                  wireless receives. Various techniques have been proposed to
+                                                                                                                        facilitate online learning by designing rapid training mech-
+                                                                                                                        anisms [16], [17], combining Bayesian training to facilitate
+                                                                   I. I NTRODUCTION                                     learning from scarce pilots [18]–[20], and developing data
+                                                                                                                        generation and enrichment techniques [21], [22]. Alternative
+                                            The constantly growing demands for throughput and robust-
+                                                                                                                        approaches design deep receivers by converting conventional
+                                         ness led to a rising interest in designing deep neural network
+                                                                                                                        modular receiver processing into machine learning (ML)
+                                         (DNN) for wireless communications [2]. A key aspect in
+                                                                                                                        models [23], [24], obtaining modular architectures that are
+                                         which DNNs are expected to contribute is receiver processing,
+                                                                                                                        more compact compared to end-to-end DNNs and are more
+                                         where their abstractness can be leveraged to learn from data to
+                                                                                                                        amenable to rapid adaptation with limited data [6], [25], [26].
+                                         reliably operate in complex and unknown channel models [3]–
+                                                                                                                           The approaches discussed above can still be computationally
+                                         [5]. Still, integrating DNNs into receiver processing gives
+                                                                                                                        infeasible if applied repeatedly on each coherence interval.
+                                         rise to several core challenges associated with such systems,
+                                                                                                                        Moreover, as long as the the distribution on which the DNN-
+                                         that are notably more dominant in wireless communications
+                                                                                                                        aided receiver was trained matches the instantaneous test
+                                         compared to traditional deep learning domains, e.g., computer
+                                                                                                                        distribution, the receiver is fit to successfully detect and re-
+                                         vision and language processing. These fundamental challenges
+                                                                                                                        training is not mandatory. For example, in the studies [14],
+                                         include the dynamic nature of wireless channels, and the
+                                                                                                                        [15], [27], it was empirically observed that there are cases in
+                                         limited compute/power resources of wireless devices [6].
+                                                                                                                        which mismatches between the train channel and test channel
+                                            To see how these challenges affect deep receivers, recall that
+                                                                                                                        lead to performance degradation, while in other cases DNN-
+                                         DNNs are typically trained offline on powerful servers for a
+                                                                                                                        aided receivers generalize well to unseen channels.
+                                         task determined by the training data and its distribution. In
+                                                                                                                           Taking the above into consideration, we claim that the
+                                         wireless communications, the dynamic nature of the channel
+                                                                                                                        rate of adaptations can be reduced if done asynchronously,
+                                         implies that the receiver task (which is dictated by the data
+                                                                                                                        training only when the change in the channel causes per-
+                                         distribution) changes over time [7]. The direct approach to
+                                                                                                                        formance deterioration. Moreover, the emergence of modular
+                                         tackle this, coined joint learning [8], trains over a broad range
+                                                                                                                        deep receiver architectures implies that one can possibly adapt
+                                           Parts of this work were accepted for presentation in the 2024 IEEE Signal    only some of the sub-modules of the overall architecture,
+                                         Processing Advances in Wireless Communications (SPAWC) as the paper [1].       reducing the computational effort of each online adaptation.
+                                         This work was supported by the Israeli Innovation Authority. The authors are   This motivates exploring ways to enable asynchronous and
+                                         with the School of ECE, Ben-Gurion University of the Negev, Israel (e-mail:
+                                         {nicoleu; ravivto}@post.bgu.ac.il, {nirshl; todros}@bgu.ac.il).                modular online learning by identifying when re-training is
+                                           * These authors contributed equally to this work                             needed and which sub-module should be adapted, in order
+                                                                                                                                      2
+
+
+
+to enable high performance online learning without inducing               numerical results and analytical analysis demonstrate that
+notable excessive complexity.                                             complexity overhead can be greatly reduced, as compared
+   In this work, we study mechanisms for detecting when and               to an synchronous online learning, by employing these
+which sub-modules of a deep receiver should be re-trained                 detectors, while the loss in accuracy is minimal.
+under dynamic channel conditions. We seek to reduce the                • Modular drift detection: We formulate drift detection
+amount of re-training, as well as the number of parameters                mechanisms for interpretable sub-modules of model-
+adapted, while keeping the overall symbol error rate (SER)                based deep receivers [23], [33]. We propose to only re-
+similar to frequent online training. We adopt the framework of            train specific modules of the receiver architecture that
+concept drift, which encompasses ML techniques for detecting              need adaptation due to temporal variations of the chan-
+changes in the suitability of a model due to variations in                nel, and provide a complexity analysis characterizing
+data distributions [28]. The fact that concept drift detectors            the savings of modular drift detection. Our numerical
+typically focus on identifying shifts in the usefulness of an             results validate the additional savings to computational
+ML model, rather than identifying shifts in the underlying                complexity, again with negligible loss to accuracy.
+distribution [29], makes this framework suitable for realizing         • Extensive experimentation: We extensively evaluate
+asynchronous online learning. We thus seek to enable deep                 asynchronous online training using our proposed schemes
+receivers to operate reliably while avoiding re-training the              for both single-input single-output (SISO) and multiple-
+overall DNN on every coherence duration.                                  input multiple-output (MIMO) systems, considering dif-
+   We commence by exploring techniques for identifying when               ferent time-varying channel profiles: a single-user syn-
+re-training is needed, without accounting for the architecture            thetic bursty channel, a multiple-users synthetic bursty
+of the deep receiver. We identify two common concept drift                channel, and COST 2100 [34] channels. The findings
+mechanisms, the Drift Detection Method (DDM) [30] and                     of our experiments support the validity of our proposed
+Page Hinkley Test (PHT) [31], as candidate methods for                    approach.
+detecting the need for online training of deep receivers with          The rest of this paper is organized as follows: In Section II
+and without pilots, respectively. These existing methods are        we review the system model. The drift detection methods are
+designed for arbitrary hard decision classifiers, while receivers   proposed for arbitrary deep receivers in Section III, while
+often employ soft probabilistic outputs (used for, e.g., log        Section IV extends our approach to exploiting modular deep
+likelihood ratios). Thus, we propose a dedicated drift detection    receiver architectures. Section V presents our numerical study,
+scheme for deep receivers based on the Hotelling test [32],         while Section VI concludes the paper.
+that is tailored to identify when a deep receiver needs to be          Throughout the paper, we use boldface letters for vectors,
+re-trained by observing its soft outputs.                           e.g., x. Calligraphic letters, such as X , are used for sets, with
+   Next, we focus on modular deep receivers, designed by            |X | being the cardinality of X , and ∅ denoting the empty set.
+augmenting conventional receiver processing algorithms with
+compact DNNs as a form of model-based deep learning [33].                                 II. S YSTEM M ODEL
+We leverage the interpretable modular architecture of such
+deep receivers, and particularly the fact that each sub-module        In this section we detail the considered system model for
+is assigned with a concrete functionality, to support asyn-         asynchronous online learning. We first describe the block-
+chronous learning of only the necessary sub-modules, rather         fading communication system under study in Subsection II-A,
+than the entire receiver. To that aim, we extend our concept        and review hard and soft-output receivers in Subsection II-B.
+drift approach into modular drift detection. There, the detector    Then, we formulate the asynchronous online learning problem,
+observes different sub-modules based on their designated            which is the focus of this study, in Subsection II-C.
+interpretable meaning, such that each functionality may be
+adapted asynchronously while the others are kept unchanged.         A. Time-Varying Channel Model
+We numerically demonstrate the gains of incorporating our              We consider a block-fading communication system in
+modular concept drift mechanisms, in reducing the amount of         discrete-time. Each block is comprised of B tran time in-
+re-training and its burden compared with synchronous online         stances, during which the channel parameters, denoted h[t]
+training, without notably degrading performance.                    for the t-th block, are constant. Let si [t] ∈ S be a symbol
+   Our main contributions are summarized as follows:                transmitted from constellation S at the i-th time instance
+   • Asynchronous online learning via drift detection:              of block t. The transmitted block stran [t] := {si [t]} is
+      We identify the need for asynchronous online learning,        divided into B pilot known pilots, denoted spilot [t], followed by
+      stemming from the observation that not every variation        B info = B tran − B pilot information symbols, denoted sinfo [t].
+      between train and test channel necessities adaptation of         The channel output at time i is denoted y i [t] ∈ Y, and the
+      deep receivers. We propose adopting the ML framework          received block is y rec [t] := {y i [t]}. Similarly to the channel
+      of concept drift detection [29] as providing means for        input, the channel output can be separated by the receiver into
+      enabling asynchronous online learning of deep receivers.      its pilot and information parts denoted y pilot [t] and y info [t],
+   • Soft-probabilities drift detection mechanism: We adapt         respectively. We consider a generic channel model, determined
+      common drift detection algorithms to the domain of deep       by a conditional distribution parameterized by h[t],
+      receivers, and introduce a novel soft-probabilities drift
+      detection mechanism based on the Hotelling test [32]. Our                        y i [t] ∼ Ph[t] (y i [t]|si [t]).           (1)
+                                                                                                                                               3
+
+
+
+In (1), the channel model is subject to the (possibly unknown)        is formulated as
+conditional distribution Ph[t] (·|·), that depends on the current                            T        B tran
+
+channel parameters h[t].                                                             1      X         X
+                                                                                                                  Pr ŝi [t] ̸= sinfo
+                                                                                                                                         
+                                                                             min                                                 i    [t]    (3)
+                                                                                 T · B info t=1
+                                                                                                   i=B pilot +1
+                                                                                           T
+                                                                                           X
+                                                                              subject to         |Mtr [t]| ≤ C,
+B. Deep Receivers                                                                          t=1
+
+   The receiver is aided by a DNN, which is comprised of              where C ≪ T constrains the amount of re-training. If the
+M distinct sub-modules. These modules can represent, e.g.,            threshold C is too low, the receiver may suffer from perfor-
+parameterized iterations, as in deep unfolded optimizers [33],        mance degradation, while if it is too large the complexity gain
+[35], or user-wise learned modules as in [15], [36]. We use           of the scheme is minimal over synchronous online training.
+φm [t] to denote parameters of the mth sub-module at block            Thus, this hyperparameter should be carefully chosen based
+t, with m ∈ {1, . . . , M } := M, which are stacked into              on the varying nature of the test scenario and the desired
+the overall DNN parameter vector φ[t] = [φ1 [t], . . . , φM [t]].     gains in complexity. This is further explored in Subsec-
+This formulation clearly accommodates non-modular DNN                 tion IV-B. Also, while     analytically evaluating the probability
+architectures, where one can only associate their output with         Pr ŝi [t] ̸= sinfo
+                                                                                     i    [t] is challenging for the considered complex
+a concrete soft estimate, by setting M = 1.                           channels models and when using DNN-aided receivers, this
+                                                                      quantity can be evaluated empirically (see Section V).
+   We focus on soft-output receivers, which map a channel
+output y into an estimate of the conditional distribution of
+s, denoted P̂φ[t] (s|y). During information transmission, the         III. U NSTRUCTURED A SYNCHRONOUS O NLINE L EARNING
+soft estimate is used to provide a hard estimate denoted ŝi [t],
+either by downstream processing (as in, e.g., [14], [36]), or by         We commence by tackling (3) without accounting for pos-
+taking the maximum a-posteriori probability rule [15].                sible structures in the deep receiver architecture. Accordingly,
+   When applying online learning on block t, the receiver             in this section we restrict the optimized set Mtr [t] to take
+                                                              pilot   binary values, i.e., it can either be ∅ (indicating no adaptation)
+updates φ[t] using the pilots data Q[t] := {y i [t], si [t]}B
+                                                            i=1 .
+                                                                      or M (thus training the entire architecture). This form of
+Training follows standard stochastic gradient descent (SGD)-
+                                                                      unstructured asynchronous learning is used as a basis for
+based learning with the cross-entropy loss, seeking the solution
+                                                                      modular asynchronous online learning, detailed in Section IV.
+to
+                          X                                              As we do not account here for the DNN structure, we
+             arg max             log P̂φ[t] (si |y i ) ,        (2)   focus on introducing drift detection mechanisms that enable
+                φ[t]
+                       (y i ,si )∈Q[t]                                asynchronous online learning for deep receivers. We first
+After training, the receiver recovers the information symbols         adapt existing detectors from the ML literature based on
+from y info [t] using its DNN-aided mapping.                          the supervised DDM [30] and unsupervised PHT [31] in
+                                                                      Subsection III-A. We then propose a soft-output mechanism
+                                                                      in Subsection III-B, and discuss the considered methods in
+                                                                      Subsection III-C.
+C. Problem Formulation
+
+   Online training is typically studied assuming (i) training of      A. Conventional Detectors
+the entire set of parameters φ[t] based on (2); and (ii) that            Various methods are proposed in the ML literature for
+such training is done on each coherence interval, i.e., at every      drift detection, mostly focusing on ML models trained for
+block. We refer to this form of adaptation, which is clearly          hard classification. Typically, such schemes are divided into
+computationally extensive, as synchronous online learning.            supervised and unsupervised settings. Using the notations of
+Here, we propose to alleviate the computational burden of             Subsection II-C, supervised detectors determine Mtr [t] based
+online learning by adopting an asynchronous approach.                 on φ[t − 1] and the observed pilots Q[t], while unsupervised
+   In asynchronous online learning, the receiver is allowed to        mechanisms use only the channel output, i.e., y[t], in addition
+decide on each block t: (i) whether to apply training; and            to φ[t − 1]. We next adapt two candidate methods for our
+(ii) which sub-modules of φ[t] to train. To formulate this            setting of unstructured asynchronous online learning of deep
+mathematically, we introduce the set Mtr [t] ⊆ M, whose               receivers: the supervised DDM and the unsupervised PHT.
+elements represent the modules that are to be trained on block           1) DDM: One of the most popular supervised drift detector
+t. Setting Mtr [t] = ∅ indicates that no online learning is           is the DDM. It is based on the premise that when the
+done. The operation of asynchronous online learning compared          distribution of stream-based data changes, the classification
+with its conventional synchronous counterpart is illustrated in       error increases. DDM is obtained by assuming that the average
+Fig. 1.                                                               number of errors obeys a (scaled) binomial distribution [30].
+   The setting of Mtr [t] should aim at minimizing the SER            Retraining is declared when the empirical standard deviation
+over the information symbols, while limiting the overall num-         above the empirical mean exceeds a confidence interval deter-
+ber of re-training operations. Over a horizon of T blocks, this       mined from previous blocks.
+                                                                                                                                                   4
+
+
+
+
+Fig. 1. Schematic illustration of (a) synchronous online learning compared to (b) asynchronous online learning.
+
+
+
+ Algorithm 1: Supervised DDM Algorithm                                         Algorithm 2: Unsupervised PHT Algorithm
+  Input: Pilots Q[t]; DNN φ[t]; Threshold λ;                                    Input: Received y rec [t]; Threshold λ
+         Previous moments µ[t − 1], σ[t − 1];                                           Previous statistics µ[t − 1], d[t − 1];
+         Forgetting parameter β;                                                        Forgetting parameter β; Change factor δ;
+1 DDM (M)                                                                     1 PHT (M)
+2    Use DNN modules M to compute ŝpilot [t]                                 2    Calculate µ[t] from (5)
+3    Calculate µ[t] and σ[t] via (4)                                          3    Calculate d[t] from (6)
+4    if µ[t] + σ[t] > µ[t − 1] + λ · σ[t − 1] then                            4    if |d[t] − d[t − 1]| > λ then
+         return Mtr [t] = M                                                                       1
+                                                                                                      PB tran rec
+5                                                                             5         µ[t] ← B tran    i=1 ∥y i [t]∥
+6    else                                                                     6         return Mtr [t] = M
+7        µ[t] ← βµ[t] + (1 − β)µ[t − 1]                                       7    else
+8        σ[t] ← βσ[t] + (1 − β)σ[t − 1]                                       8         return Mtr [t] = ∅
+9        return Mtr [t] = ∅
+                                                                              block.
+   Adapting the DDM to our setting, the empirical mean µ[t]                     To detect changes, the cumulative mean µ[t] is calculated
+is obtained as the error rate over the pilot blocks. Letting 1A               via
+be the indicator of event A, we compute                                                                 B tran
+                                                                                                   β    X
+                                      pilot
+                                      BX                                               µ[t] =                     y mag
+                                                                                                                    i   [t] + (1 − β)µ[t − 1],   (5)
+                              1                                                                  B tran i=1
+                   µ[t] =                     1ŝi [t]̸=si [t] .      (4a)
+                            B pilot   i=1                                     with forgetting factor β ∈ [0, 1] and y mag [t] ≡ ∥y rec [t]∥.
+The empirical standard deviation σ[t] is computed by the                      Then, the aggregated distance between the channel outputs
+binomial standard deviation as                                                and µ[t] is calculated as
+                         r
+                            µ[t](1 − µ[t])                                                        n BXtran
+
+                  σ[t] =                   .        (4b)
+                                                                                                                                    o
+                                B pilot                                                 d[t] = max 0,      (∥y mag
+                                                                                                               i   [t] − µ[t]∥ − δ)  ,           (6)
+                                                                                                            i=1
+   Using the empirical estimates in (4), DDM checks whether
+the statistic µ[t]+σ[t] exceeds the confidence interval [0, µ[t−              with δ being the magnitude change factor. The drift detection
+1] + λσ[t − 1]], indicating a significant error rate that requires            statistics is the difference between d[t] and d[t − 1], i.e., re-
+retraining, where λ is a constant representing a configurable                 training is declared when it exceeds a threshold λ. This process
+threshold. If no re-training is needed, the empirical moments                 is described as Algorithm 2.
+in (4) are combined along with µ[t−1], σ[t−1] with forgetting
+factor β ∈ [0, 1] to be used for the next block. The procedure                B. Proposed Soft-Output Drift Detectors
+is summarized as Algorithm 1.                                                    DDM and PHT are well-established drift detectors in the
+   2) PHT: A common unsupervised drift detection algorithm                    literature on ML for online streaming data. However, in
+is based on the PHT. This test detects whether changes occur                  our context of deep receivers, DDM views the receiver as
+in the channel output distribution, by measuring deviations                   a black-box hard decision classifier, thus not exploiting its
+in the first-order moments. Unlike DDM, which declares re-                    soft-outputs; PHT only observes the channel output, and is
+training based on the output of the DNN, PHT [31] is invariant                designed to identify when its distribution changes rather than
+of the DNN, and is effectively an online change point detection               when the receiver needs re-training. Accordingly, we derive
+algorithm often used for drift detection [37]. Accordingly, it                drift detection methods that leverage the presence of pilots,
+is not restricted to pilots, and can use the entire transmitted               while exploiting the soft-outputs of deep receivers.
+                                                                                                                                                5
+
+
+
+   The rationale for our method is based on the fact                    Algorithm 3: Posterior-Based Drift Detection
+that changing h[t] affects the distribution (1), namely,
+                                                                         Input: Pilots Q[t]; DNN φ[t]; Threshold λ;
+Ph[t] (y i [t]|si [t] = s) conditioned on the transmitted s ∈ S.
+                                                                                Previous means {µs [t − 1]};
+Accordingly, following [38], such changes are expected to
+                                                                                Forgetting parameter β;
+reflect on the receiver’s output corresponding to that sym-
+                                                                       1 Posterior Drift Detection (M)
+bol, i.e., P̂φ[t] (si [t] = s|y i [t]). We thus treat the values of
+                                                                       2    Compute {P̂{φm [t]}m∈M (s|y)}(s,y)∈Q[t]
+P̂φ[t] (si [t] = s|y i [t]) when the transmitted pilot is s ∈ S as
+                                                                       3    for s ∈ S do
+independent realizations of a random variable. Note that in a
+                                                                       4        Calculate µs [t] via (7)
+single block, where the channel distribution remains approxi-
+                                                                       5    end
+mately constant, these soft outputs are identically distributed.
+                                                                       6    Calculate µ[t] from (8)
+   Based on this representation, we formulate two soft-output
+                                                                       7    if µ[t] < λ then
+oriented drift detection schemes: The first, termed Posterior-
+                                                                       8        return Mtr [t] = M
+Based Drift Detection, utilizes only the mean of the distribu-
+                                                                       9    else
+tion and is thus very simple to implement; the second extends
+                                                                      10        µs [t] ← βµs [t] + (1 − β)µs [t − 1], ∀s ∈ S
+the posterior-based detector to improve detection accuracy at
+                                                                      11        return Mtr [t] = ∅
+the cost of some complexity increase. This is achieved by
+employing the empirical covariance as well using Hotelling’s          moments of two compared distributions [32]. To that sake,
+two-sample t-squared test [32], and thus the test is coined           it employs a normalized version of the squared difference
+Hotelling Drift Detection.                                            between the respective empirical means, computed as
+   1) Posterior-Based Drift Detector: For each s ∈ S, let I s [t]
+be the time indices where s is used as pilot, i.e.,                                   (|I s [t]|−1)σ s [t]+(|I s [t − 1]|−1)σ s [t − 1]
+                                                                         σ̂ s [t] =                                                     .    (10)
+                                                                                                 |I s [t]| + |I s [t − 1]| − 2
+            I s [t] := {i ∈ 1, . . . , B pilot |si [t] = s}.
+                                                                      The Hotelling test statistic is given by
+Next, we gather the soft outputs corresponding to s, i.e.,                              |I s [t]| · |I s [t − 1]| (µs [t] − µs [t − 1])2
+{P̂φ[t] (s|y i [t])}i∈I s [t] , which we treat as independent real-      T s [t] =                               ·                       .   (11)
+                                                                                       |I s [t]| + |I s [t − 1]|           σ̂ s [t]
+izations of a random variable.
+   In the first method, we only consider the empirical mean              We thus obtained an ensemble of |S| test statistics, each
+µs of the posterior for each symbol s, i.e.,                          taken from a possibly different number of realizations. Ac-
+                               1    X                                 cordingly, the statistic for detecting if re-training is needed is
+                µs [t] = s              P̂φ[t] (s|y i [t]) .    (7)   obtained by weighted averaging (11) over s ∈ S, i.e.,
+                           |I [t]|    s
+                                i∈I [t]                                                            X |I s [t]|
+                                                                                          T [t] =              T s [t].             (12)
+Then, we compute the average of the empirical means across                                             B pilot
+                                                                                                        s∈S
+all the symbols as
+                          X |I s [t]|                                 If T [t] deviates from a chosen threshold λ, then re-training is
+                   µ[t] =             µs [t].          (8)            declared. The procedure is summarized as Algorithm 4.
+                            B pilot                                      For a single Hotelling test, the threshold can be determined
+                              s∈S
+
+If this value falls below a probability threshold λ, then the         from the asymptotic distribution of the statistic [32] (i.e., when
+receiver is deemed unsure of the probabilities and re-training        the number of pilots with a given s ∈ S is asymptotically
+occurs.                                                               large). This setting allows meeting a desired rate of ’false
+   The resulting algorithm, summarized in full as Algorithm 3,        alarms’, which in our case represents unnecessary re-training
+is simple to implement, as it requires only an estimate of the        operations. However, in our ensemble test, (12) is obtained by
+first-order moment of the posterior. The test can be extended         a weighted sum of correlated test statistics [39], and we are
+to also account for second-order moments, as detailed next.           particularly interested in settings where the number of pilots
+   2) Hotelling Drift Detector: While accounting merely for           is limited and small. Accordingly, we set λ by empirical trials,
+the estimated mean of the posterior is simple to implement, it        and leave the asymptotic analysis of (12) for future work.
+does not consider the variations in its value observed within
+the observed pilots. To account for these statistics as well,         C. Discussion
+we propose a drift detector that is based on Hotelling’s test.           The detectors proposed in the previous subsections al-
+The proposed detector follows the same computation of the             low asynchronous online learning while operating with re-
+empirical mean as in (7), but also involves its empirical             duced complexity. To provide a comparative discussion, we
+variance via                                                          note that all methods track test statistics whose computation
+                  1      X                               2          involves simple averaging procedures. In particular, DDM
+    σ s [t] = s                P̂φ[t] (s|y i [t]) − µs [t] . (9)
+             |I [t]| − 1                                              (Algorithm 1) tracks merely a single scalar statistic, based
+                          s
+                         i∈I [t]
+                                                                      on the error rate. Even though its simplicity and minimal
+   Hotelling’s two-sample t-squared test is an affine-invariant       memory footprint are a great fit for low resource scenarios,
+and asymptotically constant-false-alarm-rate detector, which          this supervised method can potentially falter when the scenario
+is designed to detect a difference between the first-order            exhibits gradual slow changes or the labeled data is limited.
+                                                                                                                                      6
+
+
+
+
+  Algorithm 4: Soft-Output Hotelling Drift Detection                 employ hybrid model-based/data-driven architectures. These
+                                                                     architectures follow the processing chain of classic model-
+   Input: Pilots Q[t]; DNN φ[t]; Threshold λ;
+                                                                     based receiver processing, comprised of an interconnection
+          Previous moments {µs [t − 1], σ s [t − 1]};
+                                                                     of task-oriented modules, while promoting flexibility via the
+          Forgetting parameter β;
+                                                                     parameterization of each module. Such architectures tend to
+ 1 Hotelling Drift Detection (M)
+                                                                     be less parameterized as compared to black-box end-to-end
+ 2    Compute {P̂{φm [t]}m∈M (s|y)}(s,y)∈Q[t]                        DNNs [25], and their modular architecture can be leveraged
+ 3    for s ∈ S do                                                   to facilitate learning more rapidly [16] and with less data [20].
+ 4        Calculate µs [t] and σ s [t] via (7) and (9)               Here, we show that their modularity can also facilitate asyn-
+ 5        Calculate T s [t] from (11)                                chronous online learning.
+ 6    end                                                               To that end, we extend the asynchronous online learning
+ 7    Calculate T [t] from (12)                                      framework of Section III to take into account the modular
+ 8    if T [t] > λ then                                              structure of such deep receivers, allowing for different levels
+ 9        return Mtr [t] = M                                         of adaptation per each module. Our approach is formulated in
+10    else                                                           Subsection IV-A. We provide an analysis of the complexity
+11        µs [t] ← βµs [t] + (1 − β)µs [t − 1], ∀s ∈ S               of modular asynchronous online learning in Subsection IV-B,
+12        σ s [t] ← βσ s [t] + (1 − β)σ s [t − 1], ∀s ∈ S            and conclude with a discussion in Subsection IV-C.
+13        return Mtr [t] = ∅
+
+PHT tracks a test statistic for each input, and all are used to      A. Modular Online Learning
+compute an additional distance metric, i.e., if the input is a
+                                                                        The formulation of the deep receiver in Subsection II-A
+|Y| × 1 vector, then |Y| + 1 variables are tracked. Its operation
+                                                                     considers DNNs that can be viewed as an interconnection
+does not require pilots, being an unsupervised ML approach.
+                                                                     of M modules. This formulation is quite general, as, e.g.,
+Yet, it only detects when the channel changes, which may
+                                                                     one can treat each layer or residual block of a DNN as a
+not always be indicative of when re-training is needed due
+                                                                     module. Here, we specifically focus on architectures where
+to performance deterioration. Moreover, these two methods,
+                                                                     each layer has an operational meaning, in the sense that one
+while being conventional drift detection techniques in the ML
+                                                                     can evaluate its performance based on its output features, and
+literature, are based on hard decision values, unable to exploit
+                                                                     not just based on the output of the overall DNN. Such modular
+the outputs of soft receivers.
+                                                                     architectures naturally arise when designing DNNs via deep
+   Our proposed soft-input detectors formulated in Subsec-
+                                                                     unfolding [33], which is extensively studied in the context
+tion III-B exploit the soft probabilities of deep receivers. The
+                                                                     of wireless communications [35], with candidate receiver
+posterior-based detector achieves this by monitoring fluctua-
+                                                                     architectures including the DeepSIC symbol detector [15] and
+tions in the mean of the predicted posterior for each distinct
+                                                                     the WBP decoder [40].
+symbol, thus tracking |S| variables. The Hotelling detector
+                                                                        In modular deep receivers, each module is designed to fulfill
+also tracks second-order moments, i.e., 2|S| variables. Its
+                                                                     specific functions within the communication receiver. Notably,
+additional complexity compared with the posterior detector
+                                                                     certain functionalities necessitate rapid adaptation, while oth-
+allows achieving improved asynchronous learning, as numeri-
+                                                                     ers remain unchanged over a longer duration. We focus on
+cally demonstrated in Section V. Still, both approaches enable
+                                                                     settings where each module can be assessed (and thus trained)
+asynchronous online learning, and are characterized by ease of
+                                                                     separately. For instance, unfolded modular architectures as
+implementation while requiring a negligible memory footprint.
+                                                                     in [15], [36], [40] have each module produce a soft estimate
+   The proposed soft detectors, as well as DDM, are designed
+                                                                     of a subset of the transmitted data, i.e., the mth module output
+to identify fluctuations in the receiver and not in the channel,
+                                                                     at block t is a soft estimate P̂φm [t] (s|y). Accordingly, each
+and are thus expected to lead to asynchronous online learn-
+                                                                     module parameters φm [t] can be online trained to approach
+ing on the specific blocks where such adaptation is indeed                                    X
+required. This behavior is systematically observed in our                        arg max              log P̂φm [t] (si |y i ) .  (13)
+numerical study in Section V. While the considered algorithms                      φm [t]
+                                                                                            (y i ,si )∈Q[t]
+are unstructured, i.e., invariant of the modular architecture, and
+                                                                        Modular asynchronous online learning leverages this in-
+aim at detecting drifts in the overall DNN comprised of M
+                                                                     terpretable structure to further facilitate re-training, utilizing
+modules (regardless of M ), they can be extended to enable
+                                                                     drift detection mechanisms to identify which modules are
+modular asynchronous learning, as detailed next.
+                                                                     to be retrained. In this case, the set of modules requiring
+                                                                     adaptation at block t, denoted Mtr [t], can be any subset
+    IV. M ODULAR A SYNCHRONOUS O NLINE L EARNING                     of M. The modular asynchronous learning thus applies drift
+   Asynchronous online learning using the detectors detailed         detection via any of the mechanisms detailed in Section III
+so far aims at reducing the number of re-training times while        for each module separately, and adapts only those identified as
+maintaining the error rate as low as possible. Nonetheless, re-      requiring re-training. The resulting procedure is summarized
+training of highly-parameterized deep receivers may still in-        as Algorithm 5 (formulated for supervised pilot-aided drift
+duce notable computational burden even after reducing the re-        detectors), where the method Drift Detect in Step 4 can be
+training times. In the following we focus on deep receivers that     replaced with any of Algorithms 1-4. The constraint on the
+                                                                                                                                     7
+
+
+
+
+ Algorithm 5: Modular Asynchronous Online Learning                   each block of index t is given by
+                                                                                                       M
+  Input: Pilots Q[t]; DNN φ[t];                                                                 κT (φ) X
+                                                                                                         Pr m ∈ Mtr [t] . (14)
+                                                                                                                       
+1 Asynchronous Online Learning
+                                                                      CModl (M ) = M · κd +
+                                                                                                 M m=1
+2    Set Mtr [t] = ∅
+3    for m ∈ M do                                                          Proof: The first summand in (14) stems from the fact that
+4        Mtr [t] ← Mtr [t]∪ Drift Detection({m})                     each of the M modules is inspected (Step 4 of Algorithm 5),
+5    end                                                             which is thus given by M · κd . The second represents the
+6    if Mtr [t] ̸= ∅ then                                            complexity of online training (Step 7 of Algorithm 5), in which
+7        Online adapt {φm [t]}m∈Mtr [t]                              each module of index m is re-trained at complexity κT (φm ) =
+                                                                      1                           tr
+                                                                     M κT (φ) whenever m ∈ M [t].
+overall number of re-training modules in (3) is enforced by             Proposition 1 is stated for modular asynchronous online
+proper setting of the threshold λ.                                   learning. Nonetheless, we note that this form of asynchronous
+   It is noted that the online adaptation in Step 7 does not         learning specializes unstructured asynchronous learning by
+specify how the identified modules in Mtr [t] are re-trained.        setting M = 1, and by observing that the detection complexity
+In general, they can be jointly adapted based on the overall         κd is invariant of the DNN size. Consequently, we can use (14)
+system output as in (2). Alternatively, as also done in our          to characterize the corresponding complexity, as stated in the
+experimental study in Section V, the modules can be trained          following corollaries:
+sequentially (see [15]), with each module adapted based on
+                                                                     Corollary 1. The excessive computational complexity of un-
+(13). Moreover, while Step 4 is formulated as examining every
+                                                                     structured asynchronous online learning on each block of
+module separately, it can be readily extended to examining
+                                                                     index t is given by
+distinct subset of modules by replacing {m} with the corre-
+                                                                        CUnst = CModl (1) = κd + Pr Mtr [t] ̸= ∅ κT (φ). (15)
+                                                                                                                
+sponding subset of M.
+                                                                       The characterizations of the excessive complexity of the
+                                                                     considered forms of asynchronous online allow one to compare
+B. Complexity Analysis                                               the complexity savings of leveraging modularity, as well as
+   Asynchronous modular online learning can greatly facilitate       that of asynchronous online learning compared to its syn-
+the operation of deep receivers in dynamic wireless channels.        chronous counterpart, whose excessive complexity is
+Given the considerable resource and latency expenditure asso-                               CSync = κT (φ).                      (16)
+ciated with re-training, it is imperative to limit the number of
+re-training operations. In the following, we analyze the com-        In particular, comparing (14) with (16), reveals that the reduc-
+putational complexity of asynchronous online training (both          tion in computation of asynchronous over synchronous online
+modular and unstructured) with drift detection and compare it        learning is given by
+to synchronous online training.                                                                M
+                                                                       CModl (M )     κd     1 X
+                                                                                                  Pr m ∈ Mtr [t] . (17)
+                                                                                                                
+   In our analysis we introduce the following symbols:                            =M       +
+                                                                        CSync        κT (φ) M m=1
+  • Detection complexity κD , representing the effort in iden-
+    tifying a drift via the methods detailed in Section III. As         We note that, as discussed in Subsection III-C the computa-
+    discussed in Subsection III-C, once the DNN is applied,          tional effort of detection tests via Algorithms 1-4 is negligible
+    Algorithms 1-4 do not depend on the DNN or the number            compared to that of training a DNN. Consequently,
+    of its modules. Specifically, κd is constant, depending                                  κd           κd
+                                                                                        M          =            ≈ 0,
+    only on the input (for PHT) or output (for soft-output                                 κT (φ)     κT (φm )
+    detectors) dimensions.                                           for any DNN module m ∈ M. Accordingly, the complexity
+  • Training complexity κT (φ), representing the computa-
+                                                                     reduction of asynchronous operation can be approximated as
+    tional effort in training a DNN with parameters φ. For
+                                                                                           M
+    standard SGD-based training, complexity scales linearly                CModl (M )   1 X
+                                                                                              Pr m ∈ Mtr [t] ≤ 1.
+                                                                                                            
+                                                                                      ≈                                          (18)
+    with the number of trainable
+                              PMparameters [41, Ch. 11], and                CSync       M m=1
+    thus we write κT (φ) = m=1 κT (φm ).
+                                                                     By (18), asynchronous online learning is expected to reduce
+For simplicity (and also corresponding to the common prac-           the computational effort compared to synchronous online
+tice in unfolded architectures [15], [40]), we assume that           learning, where the reduction becomes more substantial when
+each module has the same number of parameters, such that             the probability of detecting drifts reduces.
+              1
+κT (φm ) = M    κT (φ) for each m ∈ M.
+   Using the above notations, we can characterize the compu-         C. Discussion
+tational effort due to online learning, as stated in the following
+proposition:                                                           Extending asynchronous online learning to operate in a
+                                                                     modular fashion exploits the interpretable structure of hybrid
+Proposition 1. The excessive computational complexity of             model-based/data-driven deep receivers. This is achieved by
+modular asynchronous online learning via Algorithm 5 on              applying drift detection to the subset of relevant modules in the
+                                                                                                                                            8
+
+
+
+overall network, i.e., using the mechanisms as in Algorithms 1-            our numerical evaluations for SISO and MIMO channels in
+4 to adapt less parameters. Our complexity analysis indicates              Subsections V-B and V-C, respectively.
+that asynchronous operation is expected to alleviate some of
+the computational burden of synchronous online learning. The
+                                                                           A. Experimental Setup
+saving ratio, given in (18), depends on both the detection
+threshold λ, as well as on the nature of the variations of the                We evaluate asynchronous online learning over two main
+underlying channel. In Section V, we empirically demonstrate               channels:
+that substantial reductions in computational effort, i.e., in                 1) Finite-Memory SISO Channels: Our first numerical
+the amount of parameters re-trained and re-training times,                 study considers a simple SISO case, with the purpose of
+are achieved with only a minor performance loss compared                   depicting the potential of our suggested scheme in maintaining
+to synchronous online learning in various channel variation                accurate detection of deep receivers in time-varying channels
+profiles.                                                                  while reducing the computational overhead. We employ a
+   Comparing Corollary 1 and Proposition 1 indicates that                  finite memory channel with four taps and additive zero-mean
+leveraging modular architectures is expected to be most ben-               white real Gaussian noise (AWGN). We transmit symbols from
+eficial in settings where (i) the detection compleixty κd is               the binary phase shift keying (BPSK) constellation only. The
+negligble compared to the training complexity (which is the                temporal variations, illustrated in Fig. 2(a), are simulated based
+expected case, as discussed above); and (ii) the channel                   on the COST2100 [34] channel using the 5 GHz indoor hall
+variations typically require adapting only subsets of the overall          setting. We transmit T = 100 blocks of B tran = 104 symbols
+architecture. The latter is expected to occur when the variations          each.
+affect only certain modules, e.g., when only part of the users                We test two DNN-based receivers for the SISO setting:
+are mobile in an uplink MIMO setup. In the extreme settings                   • ViterbiNet proposed in [14], which augments the Viterbi
+where only a single module is to be adapted, such that the                       algorithm with learnable parameters, to account for inac-
+events {m ∈ Mtr [t]} are mutually exclusive, then                                curate or unknown channel knowledge.
+                                                                              • A recurrent neural network (RNN) compromised of a
+          Pr m ∈ Mtr [t] = Pr ∪M                  tr
+                                                     
+                                      m=1 m ∈ M [t]
+                                M
+                                                                                 sliding-window long short-term memory layer with a
+                                X                                                fully connected output layer.
+                                      Pr m ∈ Mtr [t] ,
+                                                    
+                            =
+                                m=1                                        For the parameters-compact ViterbiNet, which can converge
+and a complexity reduction by a factor of M is achieved due                using a small dataset of only a few hundred symbols, we
+to the modular operation.                                                  consider B pilot = 500 pilots followed by B info = 9, 500
+                                                                           information symbols. The RNN, on the hand, is more data
+   It is noted that our design focuses on settings where the
+                                                                           consuming, thus we use B pilot = 1, 000 and B info = 9, 000.
+DNN can be divided into modules that can be evaluated sepa-
+rately, and for which one can expect certain channel variations               2) Memoryless MIMO Channels: The main bulk of our
+to require adapting only subsets of the architecture. One can              numerical study considers an uplink MIMO setting comprised
+potentially consider using this approach in black-box DNNs                 of four users communicating with a receiver equipped with
+by viewing sets of layers or residual blocks as modules, while             four antennas using BPSK signals. This scenario allows us to
+evaluating drifts based on the overall outputs. In a broader               compare the considered drift detection mechanisms, as well
+sense, our proposed scheme could be combined with other                    as unstructured and modular asynchronous online learning.
+solutions that facilitate adaptation in dynamic communication              Transmission spans T = 100 blocks arising from three
+scenarios with scarce labeled data [6]. For example, data                  different forms of temporal variations: (i) synthetic single-
+augmentations [21], [42] that exploit the unique invariance                user variations (Fig. 2(b)), representing, e.g., a single mobile
+properties of communication systems could be used to enrich                user; (ii) synthetic multi-user variations (Fig. 2(c)), where all
+the small pilot dataset. Alternatively, meta-learning training             four users exhibit bursty channel variations; (iii) COST2100
+[16], [17] may allow faster convergence due to a module-wise               channel [34] using the 5 GHz indoor hall setting (Fig. 2(d))
+inductive bias that is valid across many different channels.               for each per user channel.
+Similarly, the recent identification of Bayesian deep learning                We use two deep receivers for the MIMO setting:
+as facilitating training deep receivers from few pilots [19], [20]            • DeepSIC [15] is a modular DNN architecture based
+indicate the need for new forms of concept drift detectors. We                   on soft interference cancellation receiver. DeepSIC uses
+leave these extensions to future works.                                          DNN blocks to output the symbol estimation for each user
+                                                                                 at each iteration, thus is suitable for modular re-training.
+                                                                              • A fully connected DNN comprised of a multi-layered
+               V. N UMERICAL E VALUATIONS
+                                                                                 perceptron with a ReLU activation in its hidden layer,
+  In this section we numerically evaluate the asynchronous                       and an output layer with a softmax activation.
+online learning framework across various scenarios for differ-
+                                                                           For all MIMO channels, the number of pilot symbols in each
+ent DNN-aided receiver architectures* . The details of our ex-
+                                                                           block is B pilot = 2000.
+perimental setups are provided in Subsection V-A. We present
+                                                                              3) Training Methods: We compare the performance
+ * The   source code is available      at   https://github.com/nicoleva/   achieved with the asynchronous online learning to two meth-
+modular-concept-drift-for-receivers                                        ods of synchronous training:
+                                                                                                                           9
+
+
+
+                                                         •  Always - conventional synchronous online training, that
+                                                            re-trains on each consecutive block. The performance of
+                                                            this computationally-intensive approach serves as a lower
+                                                            bound on the achievable error-rate.
+                                                          • Periodic - synchronous online training that trains once
+                                                            every 10 blocks, instead of every block. It benefits from
+                                                            reduced complexity but suffers from the inability to
+                                                            choose when to issue re-training as in our suggested
+                                                            asynchronous framework.
+                                                          The asynchronous methods re-train in the consecutive block
+                                                       following a drift detection. To ensure fair comparison, we
+                                                       impose a constraint on the asynchronous online learning
+                                                       method via the setting of C in (3), stipulating that the number
+                            (a) SISO COST2100          of re-training iterations does not surpass a predetermined value
+                                                       (ensuring fair comparison with periodic synchronous online
+                                                       learning). To report the number of re-training operations car-
+                                                       ried out, we write the average number of re-training operations
+                                                       over a horizon of T blocks with square brackets. For instance,
+                                                       DDM[9.2] implies that DDM used 9.2 re-training operations
+                                                       on average over the entire transmission.
+
+                                                       B. SISO Channel Results
+                                                          Our first numerical study aims at showcasing the potential of
+                                                       asynchronous online learning in approaching the performance
+                                                       of synchronous online learning while reducing the number of
+                                                       re-trainings. We adopt the SISO settings in Subsection V-A,
+                     (b) MIMO Single-User Variations   and employ only the mechanisms from traditional ML litera-
+                                                       ture, i.e., the DDM (Algorithm 1) and the PHT (Algorithm 2).
+                                                          We          estimate          the        cumulative    probability
+                                                       PB tran                           info
+                                                                                                 
+                                                          i=B  pilot +1 Pr ŝi [t] ̸ = s i    [t]  from  (3)  by calculating
+                                                       the accumulated BER as a function of the block index at
+                                                       an signal-to-noise ratio (SNR) of 12 dB. The resulting BER
+                                                       evolution for all considered adaptation schemes for either
+                                                       ViterbiNet or the RNN architectures are reported in Fig. 3.
+                                                       For both architectures, the gains of applying asynchronous
+                                                       learning is apparent. Most notably, adapting based on drifts
+                                                       detected in the receiver via DDM (instead of based on the
+                                                       channel distribution via PHT) yields performance that closely
+                                                       matches synchronous online learning, while reducing the
+                      (c) MIMO Multi-User Variations   number of re-training steps by a factor of more than ×10
+                                                       (from 100 online training operations to only 9). Compared to
+                                                       periodic re-training, the schemes have similar complexity but
+                                                       allow one to select when to re-train, achieving overall lower
+                                                       BER. Comparing these figures to the temporal variations
+                                                       depicted in Fig. 2(a), we observe that the detected drifts
+                                                       (marked with markers for each method) approximately
+                                                       correspond to the abrupt variations in the channel (e.g.,
+                                                       blocks t = 25 and t = 65).
+                                                          Next, we repeat the above experiment for multiple SNRs
+                                                       in the range of 9 − 13dB, while using the same chan-
+                                                       nel profile, and measure the average BER after T = 100
+                                                       blocks. Fig. 4 presents the results. Note that for ViterbiNet,
+                                                       the DDM mechanism allows one to reduce the complexity
+                          (d) MIMO COST2100
+                                                       overhead as compared to synchronous online training, while
+Fig. 2. Channel variation profiles.                    also improving BER as compared to the periodic training.
+                                                       However, the PHT shows little improvement as compared to
+                                                       the periodic training. These observations are not consistent,
+                                                                                                                                      10
+
+
+
+
+                           (a) ViterbiNet                                                       (a) ViterbiNet
+
+
+
+
+                             (b) RNN                                                              (b) RNN
+
+Fig. 3. Aggregated BER versus block. SISO COST2100 Channel. Markers   Fig. 4. Average BER versus SNR. SISO COST2100 Channel.
+indicate re-training blocks.
+                                                                      infrequent and abrupt variations, yielding notable drifts in all
+as for the RNN architecture, both mechanisms improve on               mechanisms.
+the fallacies of the synchronous and periodic online training,           Since DeepSIC is a modular deep receiver architecture, one
+offering a robust trade-off over all considered noise levels.         would expect that under single-user variations only some of
+These results indicate that asynchronous online learning is           the underlying modules of it should be adapted. The corre-
+able to facilitate the adaptation of deep receivers under time-       sponding Fig. 5(c) depicts the BER results for the modular
+varying conditions, and illustrate that detection mechanisms          asynchronous algorithm suggested in Subsection IV. It appears
+have a different impact for each architecture.                        that both DDM and HT methods obtained the same BER as
+                                                                      in the unstructured case (Fig. 5(a)), while further reducing the
+                                                                      number of re-training operations by adapting only parts of the
+C. Multi-User MIMO Channels                                           deep receiver. Notably, while DDM outperforms HT in terms
+   We proceed to comparing the different asynchronous online          of average BER, HT demonstrates superior efficiency, reducing
+learning methods proposed in Section III, as well as mea-             the number of training rounds by a factor of ×1.3 as compared
+suring the gains of modular asynchronous learning detailed            to DDM and a factor of ×40 as compared to the synchronous
+in Section IV. To that aim, we consider the MIMO settings             always baseline. An exception to this trend was observed
+from Subsection V-A. Unlike the previous study, here we not           with PHT, which exhibits inferior performance relative to
+only use conventional drift detection mechanisms, but also our        unstructured online learning, indicating that detecting drifts by
+proposed soft-output detector based on the Hotelling test (HT).       evaluating the statistics of internal features is less reliable in
+                                                                      identifying when re-training is needed compared to observing
+   1) Synthetic Single-User Variations: We first consider a
+                                                                      the deep receiver itself.
+channel in which the variations are exhibited by a single
+user only (Fig. 2(b)). We report in Fig. 5 the aggregated               2) Synthetic Multi-User Variations: Next, we consider a
+BER versus the block index under SNR of 12 dB for two                 more dynamic scenario of multiple moving users, as in
+deep receiver architectures, DeepSIC (Fig. 5(a)) and the fully-       Fig. 2(b). Now the channel variations are still associated with
+connected DNN (Fig. 5(b)). We observe that all drift detection        specific modules in DeepSIC, however the relations between
+methods yield a substantial decrease in BER with fewer                them is more complex. We again consider an SNR of 12 dB,
+retraining iterations compared to the periodic approach. The          reporting the resulting aggregated BER versus block achieved
+fact that all drift detectors yield relatively similar performance    using DeepSIC trained online in an unstructured manner and in
+in unstructured asynchronous online learning stems from the           modular manner, and the fully-connected unstructured DNN,
+                                                                                                                                                  11
+
+
+
+                                                                            single sub-module, as in the study reported in Fig. 5(c).
+                                                                               3) COST2100 Channel: We conclude our numerical eval-
+                                                                            uation by considering physically-compliant MIMO channels
+                                                                            obtained using COST2100. The channel variations in Fig. 2(d)
+                                                                            corresponds to different users walking in an indoor environ-
+                                                                            ment, and include both smooth drifts as well as occasional
+                                                                            bursty variations that necessitate re-training.
+                                                                               The aggregated BERs for unstructured asynchronous online
+                                                                            learning of both deep receivers, as well as for modular online
+                                                                            learning of DeepSIC, are reported in Figs. 7(a)-7(c), respec-
+                                                                            tively. Similarly to previous results, we see a deterioration
+                                                                            in the BER performance for all considered architectures as
+                       (a) DeepSIC (Unstructured)                           compared to synchronous online training while reducing the
+                                                                            operations by a factor of ×10. Here, our proposed HT achieves
+                                                                            the best performance among all drift detection mechanisms, for
+                                                                            both unstructured and modular cases. Our suggested HT-based
+                                                                            method shines in the modular case, where it further reduces
+                                                                            the amount of re-training of the DDM approach, allowing a
+                                                                            robust adaptation in combined smooth-and-bursty variations.
+                                                                               Generalizing the above results to multiple SNRs, as seen
+                                                                            for both receivers in Fig. 8, shows that the HT-based mech-
+                                                                            anism is indeed more robust for different levels of noise,
+                                                                            and that its gains in performance and complexity reduction
+                                                                            are consistent across all SNRs. The most notable gains are
+                                                                            again observed when adopting modular asynchronous online
+                                                                            learning (Fig. 8(c)). Still, we note the notable reduction in
+                (b) Fully connectied DNN (Unstructured)
+                                                                            computational complexity provided by asynchronous online
+                                                                            learning leads to some performance degradation compared to
+                                                                            re-training synchronously on each coherence interval. This per-
+                                                                            formance degradation observed for DeepSIC in Figs. 8(a) and
+                                                                            8(c) is around 1 dB in SNR, while the complexity reduction
+                                                                            is by over 11× (unstructured case) and 20× (modular case)
+                                                                            less parameters re-trained.
+
+                                                                                                    VI. C ONCLUSION
+                                                                               We proposed a framework for re-training deep receivers
+                                                                            online in an asynchronous manner, building on the empirical
+                                                                            observation that not every channel variation necessitates re-
+                                                                            training. To enable such asynchronous online learning, we
+                                                                            studied drift detectors, adapting two conventional mechanisms
+                        (c) DeepSIC (Modular)                               – DDM and PHT – and proposing two soft-decision mech-
+                                                                            anisms. We proposed to exploit the modular structure of
+Fig. 5. Aggregated BER versus block. MIMO Single-User Variations Channel.
+Markers indicate re-training blocks.                                        hybrid model-based/data-driven receivers to reduce complexity
+                                                                            by re-training only part of the sub-modules. Our proposed
+in Fig. 6.
+                                                                            asynchronous modular online learning framework showed
+   In line with previous results, a BER decrease is observed in
+                                                                            improved accuracy with notable computational burden reduc-
+Fig. 6 when employing the asynchronous drift methods that
+                                                                            tion compared to re-training periodically, and with minimal
+utilize the deep receiver outputs, both in DeepSIC and the
+                                                                            accuracy loss compared to online training at every coherence
+fully-connected DNN. The unsupervised PHT fails in achiev-
+                                                                            duration.
+ing reliable performance within the limited amount of allowed
+re-training operations as the distribution constantly changes,
+and therefore its performance is omitted from the figures.                                             R EFERENCES
+Here the re-training number is similar for the drift detection
+                                                                            [1] N. Uzlaner, T. Raviv, N. Shlezinger, and K. Todros, “Concept drift
+mechanisms and the periodic training scheme, but a reduction                    detection for deep learning aided receivers in dynamic channels,” in
+is observed in all methods. The gains are most significant in                   2024 IEEE 25rd International Workshop on Signal Processing Advances
+the modular case depicted in Fig. 6(c). This indicates that                     in Wireless Communication (SPAWC). IEEE, 2024.
+                                                                            [2] W. Saad, M. Bennis, and M. Chen, “A vision of 6G wireless systems:
+modular asynchronous online learning is beneficial even when                    Applications, trends, technologies, and open research problems,” IEEE
+the channel variations cannot be consistently attributed to a                   Netw., vol. 34, no. 3, pp. 134–142, 2019.
+                                                                                                                                     12
+
+
+
+
+               (a) DeepSIC (Unstructured)                    (b) Fully connected DNN                        (c) DeepSIC (Modular)
+
+Fig. 6. Aggregated BER versus block. MIMO Multi-User Variations Channel. Markers indicate re-training blocks.
+
+
+
+
+                       (a) DeepSIC (Unstructured)
+                                                                                                   (a) DeepSIC (Unstructured)
+
+
+
+
+                (b) Fully connected DNN (Unstructured)
+                                                                                            (b) Fully connected DNN (Unstructured)
+
+
+
+
+                        (c) DeepSIC (Modular)
+                                                                                                    (c) DeepSIC (Modular)
+Fig. 7. Aggregated BER versus block. MIMO COST2100 Channel. Markers
+                                                                            Fig. 8. Average BER versus SNR. MIMO COST2100 Channel.
+indicate re-training blocks.
+                                                                                                                                                            13
+
+
+
+ [3] L. Dai, R. Jiao, F. Adachi, H. V. Poor, and L. Hanzo, “Deep learning        [29] F. Bayram, B. S. Ahmed, and A. Kassler, “From concept drift to
+     for wireless communications: An emerging interdisciplinary paradigm,”            model degradation: An overview on performance-aware drift detectors,”
+     IEEE Wireless Commun., vol. 27, no. 4, pp. 133–139, 2020.                        Knowledge-Based Systems, vol. 245, p. 108632, 2022.
+ [4] Q. Mao, F. Hu, and Q. Hao, “Deep learning for intelligent wireless          [30] J. Gama, P. Medas, G. Castillo, and P. Rodrigues, “Learning with drift
+     networks: A comprehensive survey,” IEEE Commun. Surveys Tuts.,                   detection,” in Brazilian Symposium on Artificial Intelligence. Springer,
+     vol. 20, no. 4, pp. 2595–2621, 2018.                                             2004, pp. 286–295.
+ [5] W. Tong and G. Y. Li, “Nine challenges in artificial intelligence and       [31] E. S. Page, “Continuous inspection schemes,” Biometrika, vol. 41, no.
+     wireless communications for 6G,” IEEE Wireless Commun., vol. 29,                 1/2, pp. 100–115, 1954.
+     no. 4, pp. 140–145, 2022.                                                   [32] H. Hotelling, “The generalization of student’s ratio,” in Breakthroughs
+ [6] T. Raviv, S. Park, O. Simeone, Y. C. Eldar, and N. Shlezinger, “Adaptive         in statistics: Foundations and basic theory. Springer, 1992, pp. 54–65.
+     and flexible model-based AI for deep receivers in dynamic channels,”        [33] N. Shlezinger, Y. C. Eldar, and S. P. Boyd, “Model-based deep learning:
+     IEEE Wireless Commun., 2024, early access.                                       On the intersection of deep learning and optimization,” IEEE Access,
+ [7] F. A. Aoudia and J. Hoydis, “End-to-end learning for OFDM: From                  vol. 10, pp. 115 384–115 398, 2022.
+     neural receivers to pilotless communication,” IEEE Trans. Wireless          [34] L. Liu, C. Oestges, J. Poutanen, K. Haneda, P. Vainikainen, F. Quitin,
+     Commun., vol. 21, no. 2, pp. 1049–1063, 2021.                                    F. Tufvesson, and P. De Doncker, “The COST 2100 MIMO channel
+ [8] T. O’Shea and J. Hoydis, “An introduction to deep learning for the               model,” IEEE Wireless Commun., vol. 19, no. 6, pp. 92–99, 2012.
+     physical layer,” IEEE Trans. on Cogn. Commun. Netw., vol. 3, no. 4,         [35] A. Balatsoukas-Stimming and C. Studer, “Deep unfolding for commu-
+     pp. 563–575, 2017.                                                               nications systems: A survey and some new directions,” arXiv preprint
+                                                                                      arXiv:1906.05774, 2019.
+ [9] M. Honkala, D. Korpi, and J. M. Huttunen, “DeepRx: Fully convolu-
+                                                                                 [36] T. Van Luong, N. Shlezinger, C. Xu, T. M. Hoang, Y. C. Eldar, and
+     tional deep learning receiver,” IEEE Trans. Wireless Commun., vol. 20,
+                                                                                      L. Hanzo, “Deep learning based successive interference cancellation
+     no. 6, pp. 3925–3940, 2021.
+                                                                                      for the non-orthogonal downlink,” IEEE Trans. Veh. Technol., vol. 71,
+[10] M. Goutay, F. A. Aoudia, J. Hoydis, and J.-M. Gorce, “Machine learning           no. 11, pp. 11 876–11 888, 2022.
+     for MU-MIMO receive processing in OFDM systems,” IEEE J. Sel.               [37] S. Aminikhanghahi and D. J. Cook, “A survey of methods for time series
+     Areas Commun., vol. 39, no. 8, pp. 2318–2332, 2021.                              change point detection,” Knowledge and information systems, vol. 51,
+[11] T. Raviv, N. Raviv, and Y. Be’ery, “Data-driven ensembles for deep and           no. 2, pp. 339–367, 2017.
+     hard-decision hybrid decoding,” in Proc. IEEE ISIT, 2020, pp. 321–326.      [38] N. Shlezinger, N. Farsad, Y. C. Eldar, and A. J. Goldsmith, “Learned
+[12] M. Goutay, F. A. Aoudia, and J. Hoydis, “Deep hypernetwork-based                 factor graphs for inference from stationary time sequences,” IEEE Trans.
+     MIMO detection,” in Proc. IEEE SPAWC, 2020.                                      Signal Process., vol. 70, pp. 366–380, 2021.
+[13] G. Liu, Z. Hu, L. Wang, H. Zhang, J. Xue, and M. Matthaiou, “A              [39] M. Peligrad, “On the central limit theorem for ρ-mixing sequences of
+     hypernetwork based framework for non-stationary channel prediction,”             random variables,” The Annals of Probability, vol. 15, no. 4, pp. 1387–
+     IEEE Trans. Veh. Technol., 2024, early access.                                   1394, 1987.
+[14] N. Shlezinger, N. Farsad, Y. C. Eldar, and A. Goldsmith, “Viterbinet:       [40] E. Nachmani, E. Marciano, L. Lugosch, W. J. Gross, D. Burshtein, and
+     A deep learning based Viterbi algorithm for symbol detection,” IEEE              Y. Be’ery, “Deep learning methods for improved decoding of linear
+     Trans. Wireless Commun., vol. 19, no. 5, pp. 3319–3331, 2020.                    codes,” IEEE J. Sel. Topics Signal Process., vol. 12, no. 1, pp. 119–131,
+[15] N. Shlezinger, R. Fu, and Y. C. Eldar, “DeepSIC: Deep soft interference          2018.
+     cancellation for multiuser MIMO detection,” IEEE Trans. Wireless            [41] R. Zadeh, H. Li, B. He, M. Lublin, and Y. Perez, “CME 323: Distributed
+     Commun., vol. 20, no. 2, pp. 1349–1362, 2021.                                    algorithms and optimization [lecutre notes],” Stanford University, 2015.
+[16] T. Raviv, S. Park, O. Simeone, Y. C. Eldar, and N. Shlezinger, “Online      [42] A. Almahairi, S. Rajeshwar, A. Sordoni, P. Bachman, and A. Courville,
+     meta-learning for hybrid model-based deep receivers,” IEEE Trans.                “Augmented CycleGAN: Learning many-to-many mappings from un-
+     Wireless Commun., vol. 22, no. 10, pp. 6415–6431, 2023.                          paired data,” in International Conference on Machine Learning. PMLR,
+[17] S. Park, H. Jang, O. Simeone, and J. Kang, “Learning to demodulate               2018, pp. 195–204.
+     from few pilots via offline and online meta-learning,” IEEE Trans. Signal
+     Process., vol. 69, pp. 226 – 239, 2020.
+[18] M. Zecchin, S. Park, O. Simeone, M. Kountouris, and D. Gesbert,
+     “Robust Bayesian learning for reliable wireless AI: Framework and
+     applications,” IEEE Trans. on Cogn. Commun. Netw., vol. 9, no. 4, pp.
+     897–912, 2023.
+[19] K. M. Cohen, S. Park, O. Simeone, and S. Shamai, “Bayesian active
+     meta-learning for reliable and efficient AI-based demodulation,” IEEE
+     Trans. Signal Process., vol. 70, pp. 5366–5380, 2022.
+[20] T. Raviv, S. Park, O. Simeone, and N. Shlezinger, “Uncertainty-aware
+     and reliable neural MIMO receivers via modular Bayesian deep learn-
+     ing,” arXiv preprint arXiv:2302.02436, 2023.
+[21] T. Raviv and N. Shlezinger, “Data augmentation for deep receivers,”
+     IEEE Trans. Wireless Commun., vol. 22, no. 11, pp. 8259–8274, 2023.
+[22] M. B. Fischer, S. Dörner, S. Cammerer, T. Shimizu, H. Lu, and
+     S. Ten Brink, “Adaptive neural network-based OFDM receivers,” in
+     Proc. IEEE SPAWC, 2022.
+[23] N. Shlezinger, J. Whang, Y. C. Eldar, and A. G. Dimakis, “Model-based
+     deep learning,” Proc. IEEE, vol. 111, no. 5, pp. 465–499, 2023.
+[24] N. Shlezinger, N. Farsad, Y. C. Eldar, and A. J. Goldsmith,
+     “Model-based machine learning for communications,” arXiv preprint
+     arXiv:2101.04726, 2021.
+[25] N. Farsad, N. Shlezinger, A. J. Goldsmith, and Y. C. Eldar, “Data-driven
+     symbol detection via model-based machine learning,” in IEEE Statistical
+     Signal Processing Workshop (SSP), 2021, pp. 571–575.
+[26] A. Zappone, M. Di Renzo, and M. Debbah, “Wireless networks design
+     in the era of deep learning: Model-based, AI-based, or both?” IEEE
+     Trans. Commun., vol. 67, no. 10, pp. 7331–7376, 2019.
+[27] N. Farsad and A. Goldsmith, “Neural network detection of data se-
+     quences in communication systems,” IEEE Trans. Signal Process.,
+     vol. 66, no. 21, pp. 5663–5678, 2018.
+[28] J. Lu, A. Liu, F. Dong, F. Gu, J. Gama, and G. Zhang, “Learning under
+     concept drift: A review,” IEEE Trans. Knowl. Data Eng., vol. 31, no. 12,
+     pp. 2346–2363, 2018.
+

@@ -1,0 +1,341 @@
+IEEE WIRELESS COMMUNICATIONS LETTERS, VOL. XX, NO. X, MONTH 2026                                                                              1
+
+
+
+
+     P-FTNet: Pilot-Conditioned and Feature-Augmented Transformer
+               Network for Equalization Under Extreme Delay Spread
+                       Yeqing Zhang, Xiaoling Hu, Member, IEEE, Chenxi Liu, Senior Member, IEEE,
+                                             and Mugen Peng, Fellow, IEEE
+
+
+
+   Abstract—In dense urban environments, severe multipath                      Memory (LSTM) as CNN-LSTM structure for improved signal
+propagation and high delay spread create long-range temporal                   recovery. Recently, attention mechanisms have emerged as
+dependencies that conventional equalizers and existing deep                    a focal point to combat long-range interference and high
+learning models often struggle to capture. To address these chal-
+lenges, we propose a Pilot-aided Feature-augmented Transformer                 delay spread. Notably, [5] and [6] leveraged self-attention and
+Network (P-FTNet) for robust equalization under such extreme                   sparse attention to enhance 5G reception, while Transformer-
+conditions. By integrating a pilot-aided module with multi-                    based pilot-free networks in [7] achieved robust equalization
+dimensional feature extraction module, the proposed architecture               in time-varying channels. While the aforementioned meth-
+explicitly leverages reference information to enhance global                   ods demonstrate effective performance under low-to-moderate
+sequence modeling. Experimental results demonstrate that P-
+FTNet significantly outperforms state-of-the-art methods, partic-              delay spread conditions, they fail to adequately address the
+ularly in pilot-constrained scenarios, while exhibiting exceptional            extreme challenges posed by severe multipath propagation and
+robustness to variations channel conditions.                                   high delay spread.
+   Index Terms—channel equalization, high delay spread, pilot-                    To bridge this gap, this paper proposes the Pilot-aided
+aided, deep learning, transformer                                              Feature-augmented Transformer Network (P-FTNet) for robust
+                                                                               equalization under severe delay spreads. The primary contri-
+                                                                               butions of this paper are twofold: First, we propose a novel
+                          I. I NTRODUCTION                                     pilot-aided conditioning mechanism that explicitly guides the
+       IGH-SPEED single-carrier communications in urban                        equalization process, integrated with a multidimensional fea-
+H      scenarios face severe temporal dispersion due to dense
+multipath propagation. The resulting deep inter-symbol in-
+                                                                               ture fusion strategy for robust representation learning. Second,
+                                                                               extensive experiments under severe delay spreads demonstrate
+terference (ISI) spans multiple symbol durations as the de-                    that the proposed P-FTNet yields a substantial performance
+lay spread exceeds the symbol interval. Accompanied by                         gain, achieving a 4 dB improvement at an SER of 10−3 level
+frequency-selective fading, these long-range temporal depen-                   over current state-of-the-art (SOTA) methods for 20-symbol
+dencies and signal fluctuations constitute a major physical                    delay spreads.
+bottleneck, limiting transmission reliability.
+   Traditional adaptive equalization, spanning Linear Equalizer                                       II. S YSTEM M ODEL
+(LE) and Decision Feedback Equalizer (DFE), Least Mean                         A. Transmitted Signal Representation
+Squares (LMS) and Recursive Least Squares (RLS) algo-
+                                                                                  We consider a single-input single-output (SISO) system
+rithms, has long been the standard for addressing signal distor-
+                                                                               employing single-carrier (SC) modulation. The source bit
+tion. Despite their established utility, these methods struggle
+                                                                               sequence b[n] is channel-encoded and mapped onto a payload
+with the deep ISI inherent in high-delay-spread channels.
+                                                                               sequence s[n] of length L via M -ary digital modulation.
+LMS-based schemes fail to maintain convergence under long-
+                                                                               To acquire essential channel state information (CSI), a pilot
+range interference, while RLS-based approaches suffer from
+                                                                               sequence p[n] of length Lp is concatenated with the payload,
+prohibitive computational scaling and numerical risks.
+                                                                               forming a transmission frame z[n] with a total length of
+   In recent years, deep learning (DL) has revolutionized phys-
+                                                                               Lf = L + Lp .
+ical layer design by leveraging superior non-linear modeling
+and hierarchical feature extraction. Specifically, the end-to-end
+autoencoder framework in [1] established the theoretical foun-                 B. Received Signal Representation
+dation for DL-based communications. Subsequent research                           After pulse-shaping and transmission over a frequency-
+transitioned toward modular replacement, with architectures                    selective multipath fading channel, the discrete-time received
+like DenseNet-based DeepReceiver in [2] and CNN-based                          signal y[k] at the sampling level can be modeled as:
+schemes in [3] demonstrating high robustness against mul-
+                                                                                                      N −1
+tipath fading. To enhance sequential modeling, [4] integrated                                         X
+                                                                                             y[k] =          hi [k]x[k − ni ] + w[k],       (1)
+Convolutional Neural Network (CNN) and Long Short-Term
+                                                                                                      i=0
+
+   The corresponding author is Xiaoling Hu (e-mail: xiaolinghu@bupt.edu.cn).   where x[k] is the oversampled version of z[n] after root-raised-
+   The authors are with the State Key Laboratory of Networking and Switch-     cosine (RRC) filtering, and hi [k] denotes the complex gain
+ing Technology, Beijing University of Posts and Telecommunications, Bei-
+jing 100876, China (e-mail: 2025140270@bupt.cn; xiaolinghu@bupt.edu.cn;        of the i-th discrete channel tap with a corresponding sample
+chenxi.liu@bupt.edu.cn; pmg@bupt.edu.cn).                                      delay ni . N represents the total number of resolvable multipath
+2                                                                 ZHANG et al.: P-FTNET: PILOT-CONDITIONED AND FEATURE-AUGMENTED TRANSFORMER NETWORK
+
+                                                                                                          2´ Lp
+                                                                                          X p , Yp Î                                                                                                            128´ L
+                               2´ Lp                                                                                                                                                             Yinput Î
+                X p , Yp Î                YÎ     2´ L
+                                                                                          Concatenet
+                                                                                                                  4´ Lp                                                                               Input
+                    PilotNet             Input Layer                                               PÎ
+                                                                                           Conv+Act
+                                                                                                                                                                                   Conv3+Act
+                                                 (128, L)                                              (64, Lp )
+                                                                                           Conv+Act                                                                                                Conv7+Act
+                                            MFE              ×4                                                                                                               (32, L)
+                    (g , b ) ´ 4                                                                   FÎ
+                                                                                                                  128´ Lp
+                                                                                                                                                                                                 (32, L)
+                                                                                                                                                                                                                           Conv11+Act
+                                                 (128, L)                                   Permute                                                                                              Concat+Conv                         (32, L)
+                                                                                                                                                                                                                         32´ L
+                                           Project
+                                                                                                     ( Lp ,128)                                                                                              Fms Î
+
+                                                                                        Self-Attention                                                                         (g , b )               FiLM
+                                                 (256, L)                                            ( Lp ,128)
+                                                                                                                                                                                                                32´ L
+                                                                                                                                                                                                    Fmod Î
+                                       Position Encoder                                        Add                                                         U-net                                                                               ECA
+                                                                                                                                                                                   Conv+Act                                  Avg_pool
+                                                                                                     ( Lp ,128)                                                                    (32, L / 2)                                       (32,1)
+                                                 (256, L)
+                                                                                            Permute                                                                  Conv+Act                                                Conv+Act
+
+                                           Permute                                                   (128, Lp )                                                      (32, L / 4)                                                     (128,1)
+                                                                                                                                                          Conv+Act                                                           Conv+Act
+                                                                                           Avg_pool
+                                                 ( L, 256)                                                         128´1                                      (32, L / 8)                                                            (128,1)
+                                                                                                     VÎ
+                                                                                                                                                         Upconv+Act                                                          Conv+Act
+                                         Transformer         ×4                                                                                                      (32, L / 4)                                                     (32,1)
+                                                                  Linear+Act     Linear+Act                Linear+Act               Linear+Act
+                                                                                                                                                                  Upconv+Act                                                      Sigmod
+                                                 ( L, 256)
+                                                                       (128,1)         (128,1)                            (128,1)        (128,1)                                   (32, L / 2)                                       (32,1)
+                                         Linear Layer                                                                                                                          Upconv+Act                                          Gate
+                                                                  Linear+Act     Linear+Act                Linear+Act               Linear+Act
+                                                                                                                                                                               (32, L)                                               (32, L)
+                                                  ( L, M )              (64,1)          (64,1)                            (64,1)         (64,1)
+                                                                                                                                                                                                 Concat+Conv
+                                                                                                                                                                                                                         128´ L
+                                                                                                                                                                                                            Ffuse Î
+                                           Permute                                            Concat
+                                                                                                                                                                                                       Add
+                                           ( M , L)                                 {(g i , bi )}i4=1 Ì       32´1
+                                                                                                                                                                                                     (128, L)
+
+
+                             (a) P-FTNet                                            (b) PilotNet                                                     (c) Multidimensional Feature Extraction (MFE)
+Fig. 1. The architecture of the proposed P-FTNet, along with detailed structures of the PilotNet and Multidimensional Feature Extraction (MFE) modules.
+components, and w[k] is the complex additive white Gaussian                                                                         data flow of P-FTNet, followed by a detailed elucidation of
+noise (AWGN).                                                                                                                       PilotNet’s parameter generation process and multidimensional
+    At the receiver, the sequence y[k] is processed by a matched                                                                    feature extraction (MFE) module.
+filter and subsequently downsampled to the symbol rate. The
+resulting symbol-level sequence z̃[n] is then fed into the                                                                          A. Overall Architecture of P-FTNet
+equalization module to mitigate ISI and recover the transmitted                                                                        As illustrated in Fig. 1a, the architecture first employs
+symbols.                                                                                                                            a pilot network (PilotNet) to characterize the instantaneous
+                                                                                                                                    channel state with known pilot Xp ∈ R2×Lp and received
+C. Problem Formulation                                                                                                              pilot Yp ∈ R2×Lp . This module generates scaling and shifting
+   The core challenge in the considered system arises from                                                                          factors γ, β ∈ R32×1 for FiLM in MFE module.
+the significant delay spread of the multipath fading channel.                                                                          Simultaneously, the received data signal Y ∈ R2×L is
+When the maximum delay spread τmax = max(τi ) is much                                                                               projected into a 128-dimensional feature space R128×L via an
+larger than the symbol period T , the channel exhibits a long-                                                                      initial input layer. This is followed by four multidimensional
+tail impulse response, inducing severe and long-range inter-                                                                        feature extraction (MFE) modules, which are dynamically
+symbol interference (ISI).                                                                                                          conditioned on the factors γ and β to adaptively refine local
+   To mitigate these distortions, our objective is to identify                                                                      features based on specific channel impairments.
+an optimal equalization mapping F ∗ belonging to a specific                                                                            Subsequently, a projection layer expands the feature depth
+functional space H (e.g., the space of non-linear neural ar-                                                                        to R256×L . The resulting feature tensor is augmented with
+chitectures or adaptive filtering structures), characterized by                                                                     positional encoding and permuted to RL×256 to serve as the
+a parameter set Θ∗ . This mapping aims to robustly recover                                                                          sequence input for a four-layer Transformer encoder [9]. The
+the transmitted symbols ŝ[n] from the corrupted observation                                                                        Transformer captures long-range dependencies, with the final
+sequence z̃[n]:                                                                                                                     equalization decisions yielded through a linear layer that maps
+                     ŝ[n] = F ∗ (z[n]; Θ∗ ).                (2)                                                                    the features back to the complex symbol space RM ×L .
+
+   Upon obtaining the equalized symbols ŝ[n], the sequence                                                                         B. Pilot Network (The Conditioning Branch)
+is processed by the demodulator to extract coded bits or                                                                               By concatenating the known pilot Xp with received pilot
+soft-decision log-likelihood ratios (LLRs). Finally, the channel                                                                    Yp along the channel dimension, the network constructs a
+decoder performs error correction to reconstruct the estimated                                                                      composite input tensor P ∈ R4×Lp . A convolutional encoder,
+source bit sequence b̂[n].                                                                                                          comprising two successive Conv+Act layers, transforms the
+                                                                                                                                    input into a high-dimensional latent space.
+    III. P-FTN ET: A DAPTIVE E QUALIZATION FOR S EVERE                                                                                 Following the initial encoding, the refined features F ∈
+                 D ELAY S PREAD C HANNELS                                                                                           R128×Lp are permuted to RLp ×128 to treat the pilot positions
+   To effectively mitigate time-varying channel impairments                                                                         as a sequence for global contextual awareness via a Self-
+while capturing complex signal dependencies, we propose the                                                                         Attention mechanism [9]. The output of the attention mech-
+P-FTNet equalizer as F ∗ and find the optimal parameters Θ∗ .                                                                       anism is integrated with the original input RLp ×128 of the
+The core design philosophy centers on a dual-path synergetic                                                                        self-attention layer via a residual add operation to preserve
+architecture: a conditioning branch (PilotNet) that extracts                                                                        primary channel features and permuted back to R128×Lp .
+instantaneous channel descriptors, and a processing backbone                                                                           The resulting feature map is subsequently aggregated along
+that fuses multi-scale local features with global sequential                                                                        the temporal dimension using global average pooling, yielding
+context. The bridge between these paths is a Feature-wise                                                                           a global feature vector V ∈ R128×1 . Then this global vector is
+Linear Modulation (FiLM) [8] mechanism, which enables                                                                               passed through four parallel projection branches, compressing
+the receiver to dynamically re-calibrate its feature extraction                                                                     the 128-dimensional vector into a 32-dimensional representa-
+layers. In the following, we first delineate the end-to-end                                                                         tion. These decoupled heads independently compute the FiLM
+IEEE WIRELESS COMMUNICATIONS LETTERS, VOL. XX, NO. X, MONTH 2026                                                                                                         3
+
+
+
+
+                                                                                                 10−1
+          10−1
+        SER
+
+
+
+
+                                                                                              SER
+                                                                                                 10−2
+                     DFE+LMS                                                                                DFE+LMS
+          10−2       DFE+RLS                                                                                DFE+RLS
+                     CNN-LSTM                                                                               CNN-LSTM
+                     DPENet                                                                                 DPENet
+                     FTNet                                                                       10−3       FTNet
+                     P-FTNET                                                                                P-FTNET
+                 −10.0 −7.5     −5.0   −2.5     0.0      2.5   5.0   7.5   10.0                         −10.0 −7.5     −5.0   −2.5     0.0      2.5   5.0   7.5   10.0
+                                              SNR (dB)                                                                               SNR (dB)
+                                  (a) rayleigh channel                                                                    (b) rician channel
+Fig. 2. The symbol error rate (SER) performance of different methods under (a) Rayleigh fading channel and (b) Rician fading channel.
+parameter sets {(γi , βi )}4i=1 ⊂ R32×1 , where each pair is                               For a comprehensive performance evaluation, the proposed
+used for layer-specific calibration of the subsequent feature                           P-FTNet is benchmarked against a diverse set of baselines,
+extraction blocks.                                                                      ranging from DFE utilizing LMS and RLS algorithms as con-
+                                                                                        ventional techniques, to hybrid CNN-LSTM [4] and DPENet
+                                                                                        [6] as SOTA deep learning methods. To rigorously evaluate
+C. Multidimensional Feature Extraction (MFE) Module
+                                                                                        the individual contributions of the MFE and PilotNet, we
+   Initially, the input feature map Yinput ∈ R128×L undergoes a                         developed and trained both the proposed P-FTNet and its
+cascaded extraction process using three parallel convolutional                          variant FTNet, with the distinction being the presence or
+branches with different kernel size. The resulting features from                        absence of the PilotNet. Based on the utilization of channel
+these branches are concatenated and fused via a convolution                             priors, the benchmark models CNN-LSTM, DPENet, and
+to form a unified multi-scale representation Fms ∈ R32×L .                              FTNet are categorized as non-pilot-aided methods. In contrast,
+   Given the scaling factor γi and shifting factor βi ∈ R32×1                           DFE-LMS, DFE-RLS, and the proposed P-FTNet are pilot-
+generated by the PilotNet (where i denotes the i-th MFE                                 aided architectures that actively leverage pilot information.
+block), these parameters are expanded to match the 32 chan-
+nels of the MFE module. The modulated feature Fmod is then                              B. Performance
+calculated as:                                                                             1) Robustness to Diverse Channel Conditions: Figure. 2a
+                     Fmod = (1 + γi ) ⊙ Fms + βi ,                                (3)   and Figure. 2b illustrate the symbol error rate (SER) per-
+                                                                                        formance of various algorithms under Rayleigh and Rician
+where ⊙ denotes the element-wise multiplication across the                              channels. The proposed FTNet and P-FTNet achieve the lowest
+channel dimension.                                                                      SER across the entire SNR range. Specifically, traditional
+   Building upon the modulated feature Fmod , the architecture                          techniques such as DFE-LMS and DFE-RLS suffer from
+employs a dual-branch framework to concurrently refine data                             performance bottlenecks, with the former exhibiting a no-
+across the temporal and channel dimensions. The temporal                                ticeable error floor at high SNRs. While the CNN-LSTM
+branch utilizes a 1D U-net [10] for hierarchical encoding,                              and DPENet benchmarks offer substantial improvements over
+while the channel branch adopts an efficient channel attention                          these conventional methods, they still fall short of our pro-
+mechanism [11] to recalibrate the importance of different                               posed architectures. Among all evaluated schemes, P-FTNet
+feature maps. Finally, the outputs from both branches are fused                         consistently delivers the superior performance. At an SER
+to produce the integrated feature map Ffuse . To maintain struc-                        of 10−3 level, the proposed P-FTNet achieves a performance
+tural integrity and enhance gradient flow, Ffuse is aggregated                          gain of 2.5 dB and 4 dB over the DPENet in Rayleigh and
+with the initial input through a global residual connection.                            Rician channels respectively. This underscores the efficacy
+                                                                                        of integrating pilot-aided refinement, multidimensional feature
+                       IV. S IMULATION R ESULT                                          extraction, and self-attention mechanisms, which collectively
+                                                                                        ensure robust channel equalization in complex fading envi-
+A. Experiment Setting                                                                   ronments. In addition, the consistent gap between P-FTNet
+   The P-FTNet is evaluated in a SISO-SC framework using                                and FTNet quantifies the performance uplift provided by the
+BPSK modulation and a rate-1/2 LDPC code. Each frame                                    PilotNet-based conditioning, confirming that explicit channel
+consists of L = 400 payload symbols and Lp = 60 pilot sym-                              priors significantly sharpen the decision boundaries of MFE.
+bols. Following 3GPP specifications [12], we employ Rayleigh                               2) Resilience to Multipath Delay Spread: To evaluate the
+(NLOS) and Rician (LOS) fading models with maximum                                      generalization capability of the proposed models under chan-
+delay spreads of {20, 30, 40} and 20 symbols, respectively. To                          nel mismatch conditions, the deep learning-based architectures
+enhance generalization, path delays are randomly scaled within                          were trained under a channel condition with a maximum
+[80%, 120%] during training. The architecture is implemented                            delay spread of 20 symbols and subsequently tested across
+in PyTorch and optimized using AdamW with a cross-entropy                               varying delay spreads at a fixed SNR of 10dB. As illustrated
+loss function and a batch size of 256. The 30-epoch training                            in Figure. 3, the proposed P-FTNet and its variant FTNet
+procedure includes a 5-epoch linear warm-up followed by 25                              consistently attain superior performance across all tested con-
+epochs with an initial learning rate of 2 × 10−3 .                                      figurations. In regimes with relatively small delay spreads,
+4                                                                          ZHANG et al.: P-FTNET: PILOT-CONDITIONED AND FEATURE-AUGMENTED TRANSFORMER NETWORK
+
+
+                                                                                                                          TABLE I
+             10−1                                                                                      M ODEL COMPLEXITY AND PERFORMANCE COMPARISON .
+
+                                                                                                               Method             Parameters         Flops
+                                                                                                              CNN-LSTM             1.407M           0.194G
+          SER
+             10−2
+                                                                                                               DPENet              1.138M           0.402G
+                                                                            DFE+LMS
+                                                                            DFE+RLS                             FTNet              0.893M           0.300G
+                                                                            CNN-LSTM
+             10−3
+                                                                            DPENet                             P-FTNet             1.117M           0.308G
+                                                                            FTNet
+                                                                            P-FTNET
+                    10        15         20            25             30          35           number of parameters for P-FTNet is 1.117M, which is lower
+                                         time spread
+                                                                                               than that of CNN-LSTM and DPENet, while representing a
+Fig. 3. The performance of different methods under different max time spread
+of rayleigh channel.
+                                                                                               moderate increase over its variant FTNet. In terms of com-
+                                                                                               putational complexity, the FLOPs of P-FTNet are recorded at
+                                                                                               0.308G. This value represents a marginal increment compared
+             10−1
+                                                                                               to FTNet and is significantly lower than that of DPENet. Al-
+                                                                            DFE+LMS            though it is higher than the CNN-LSTM model, the substantial
+                                                                            DFE+RLS
+                                                                            CNN-LSTM           gain in equalization accuracy justifies this additional cost.
+          SER
+
+
+
+
+                                                                            DPENet
+                                                                            FTNet
+                                                                            P-FTNET
+                                                                                                                          V. C ONCLUSION
+             10−2
+                                                                                                  This paper proposes a P-FTNet equalizer to address the
+                    40   45        50   55       60         65   70        75     80           challenges of severe ISI and long-range temporal dependencies
+                                             pilot length
+                                                                                               in dense urban wireless channels. By integrating PilotNet with
+Fig. 4. The impact of pilot length on different methods.                                       MFE, the proposed architecture effectively leverages limited
+deep learning-based methods exhibit a significant advantage                                    reference signals to enhance the global sequence modeling
+over conventional equalization algorithms. However, as the                                     capabilities of the Transformer. Experimental results under
+delay spread increases, owing to its ability to leverage pilot                                 different channel conditions demonstrate the proposed P-
+information, the DFE-RLS algorithm surpasses the CNN-                                          FTNet significantly outperforms traditional adaptive equalizers
+LSTM model. Notably, architectures utilizing Transformer-                                      and SOTA deep learning benchmarks.
+based backbones (P-FTNet, FTNet, and DPENet) maintain
+a significant performance margin, showcasing their efficacy                                                                 R EFERENCES
+in modeling long-range ISI. Among these, P-FTNet preserves                                      [1] T. OŚhea and J. Hoydis, “An introduction to deep learning for the
+its lead over FTNet and DPENet, further validating the im-                                          physical layer,” IEEE Trans. Cogn. Commun. Netw., vol. 3, no. 4, pp.
+portance of its pilot-aided conditioning branch in providing                                        563–575, Oct. 2017.
+                                                                                                [2] S. Zheng, S. Chen, and X. Yang, “DeepReceiver: A deep learning-based
+instantaneous channel awareness.                                                                    intelligent receiver for wireless communications in the physical layer,”
+   3) Spectral Efficiency and Pilot Sensitivity: Fig. 4 illus-                                      IEEE Trans. Cogn. Commun. Netw., vol. 7, no. 1, pp. 5–20, Aug. 2020.
+trates the performance trajectory of various equalizers as a                                    [3] R. Mei, Z. Wang, and W. Hu, “Robust blind equalization algorithm using
+                                                                                                    convolutional neural network,” IEEE Signal Process. Lett., vol. 29, pp.
+function of pilot length. To rigorously test the models, they                                       1569–1573, Jul. 2022.
+were trained under 20-symbol delay spread and evaluated un-                                     [4] Y. Li, M. Chen, Y. Yang, M.-T. Zhou, and C. Wang, “Convolutional
+der a mismatched, more severe 30-symbol condition. For deep                                         recurrent neural network-based channel equalization: An experimental
+                                                                                                    study,” in 2017 23rd Asia-Pacific Conf. Commun. (APCC), 2017, pp.
+learning-based benchmarks such as CNN-LSTM, DPENet, and                                             1–6.
+FTNet, their SER performance is virtually invariant to pilot                                    [5] Z. Wu, S. Zhang, S. Gong, A. Paul, and X. Yang, “Aider: Artificial
+length since these architectures do not utilize pilot during                                        intelligent-based deep receiver for wireless communication systems,”
+                                                                                                    IEEE Wireless Commun. Lett., vol. 13, no. 5, pp. 1290–1294, Feb. 2024.
+inference. In contrast, the performance of DFE-LMS, DFE-                                        [6] Z. Wu, T. Zhang, Y. Wan, and A. Paul, “DARNet: Deep Attention
+RLS, and P-FTNet improves as the pilot length increases, with                                       Receiver Network for 5G,” IEEE Commun. Lett., vol. 30, pp. 572–576,
+P-FTNet maintaining a consistent and significant advantage                                          Dec. 2025.
+                                                                                                [7] R. Zeng, Z. Lu, J. Tan, J. Wang, and J. Wang, “Robust Deep Pilot-Free
+across all configurations. Crucially, P-FTNet achieves a high                                       Equalization Network Under Time-Varying Channels,” IEEE Commun.
+level of reliability even with a minimal pilot length of 40.                                        Lett., vol. 29, no. 5, pp. 893–897, Feb. 2025.
+This represents a low training overhead of only 9.09% rela-                                     [8] E. Perez, F. Strub, H. De Vries, V. Dumoulin, and A. Courville, “Film:
+                                                                                                    Visual reasoning with a general conditioning layer,” in Proc. AAAI Conf.
+tive to the total frame length, outperforming all competitors                                       Artif. Intell., vol. 32, no. 1, 2018.
+and thereby maximizing spectral efficiency under resource-                                      [9] A. Vaswani, N. Shazeer, N. Parmar et al., “Attention is all you need,”
+constrained scenarios.                                                                              in Adv. Neural Inf. Process. Syst., vol. 30, 2017.
+                                                                                               [10] O. Ronneberger, P. Fischer, and T. Brox, “U-net: Convolutional networks
+   4) Complexity and Performance Trade-off: Regarding the                                           for biomedical image segmentation,” in Int. Conf. Med. Image Comput.
+analysis of model complexity and parameter efficiency, we                                           Comput.-Assist. Intervent., 2015, pp. 234–241.
+focus on the four deep learning-based architectures, as the                                    [11] Q. Wang, B. Wu, P. Zhu, P. Li, W. Zuo, and Q. Hu, “ECA-Net: Efficient
+                                                                                                    channel attention for deep convolutional neural networks,” in Proc.
+performance of conventional methods under high-delay spread                                         IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2020, pp. 11 534–
+conditions is insufficient for practical requirements. Among                                        11 542.
+these, the proposed P-FTNet achieves the most superior per-                                    [12] 3rd Generation Partnership Project (3GPP), “Study on Channel Model
+                                                                                                    for Frequencies from 0.5 to 100 GHz,” 3GPP, Tech. Rep. 38.901, 2022.
+formance while maintaining a highly competitive overhead.
+Detailed metrics are summarized in Table I. Specifically, the
+

@@ -16,7 +16,7 @@
   ],
   "level": "B",
   "main_level": "B",
-  "aggregation_role": "main",
+  "aggregation_role": "diagnostic",
   "max_delay_seconds": 0.0116,
   "sample_rate_hz": 10000.0,
   "symbol_rate_hz": 10000.0,
@@ -24,23 +24,52 @@
   "frame_len": 1024,
   "frame_duration_seconds": 0.1024,
   "max_delay": 116,
-  "main_delays": [116],
-  "main_snrs": [0, 5, 10, 15],
-  "snrs_main": [0, 5, 10, 15],
-  "snrs_pressure": [0, 5, 10, 15],
+  "main_delays": [
+    116
+  ],
+  "main_snrs": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "snrs_main": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "snrs_pressure": [
+    0,
+    5,
+    10,
+    15
+  ],
   "pilot_layout": "prefix",
   "pilot_total": 256,
   "reward_pilot_total": 32,
-  "pilot_sweep_totals": [64, 96, 128, 160, 256],
-  "strong_path_count": [12, 24],
-  "diffuse_energy_ratio": [0.2, 0.35],
+  "pilot_sweep_totals": [
+    64,
+    96,
+    128,
+    160,
+    256
+  ],
+  "strong_path_count": [
+    19,
+    24
+  ],
+  "diffuse_energy_ratio": [
+    0.29,
+    0.35
+  ],
   "coherence_time_seconds": 1200.0,
   "acquisition_to_data_gap_seconds": 0.0,
   "rho_frame": 0.999914670307452,
   "rho": 0.999914670307452,
   "include_anomalous_scatterer": false,
   "eme_physical_fields_passthrough": "implemented",
-  "impairment_profile": "cfo_phase_tiny",
+  "impairment_profile": "phase_light",
   "residual_cfo_limit": 0.0012,
   "acquisition_cfo_limit": 0.004,
   "traditional_methods": [
@@ -58,8 +87,11 @@
   "model_validation_sequence_state": true,
   "training_tail_mode": "online_soft",
   "tail_update_alpha": 0.5,
-  "online_adaptation_groups": ["phase"],
-  "online_adaptation_algorithm": "rls",
+  "online_adaptation_groups": [
+    "phase",
+    "head"
+  ],
+  "online_adaptation_algorithm": "sgd",
   "online_rls_forgetting_factor": 0.995,
   "online_rls_ridge": 10.0,
   "online_rls_warmup_symbols": 116,
@@ -67,49 +99,77 @@
   "online_rls_max_total_delta_norm": 0.5,
   "online_rls_condition_source": "pilot_cir_phase",
   "online_condition_source": "pilot_cir_phase",
-  "online_adaptation_learning_rate": 0.0004,
-  "online_adaptation_steps": 1,
-  "online_adaptation_max_delta_norm": 1.0,
-  "online_adaptation_proximal_weight": 0.1,
-  "online_hard_example_weighting": false,
+  "online_adaptation_learning_rate": 0.001,
+  "online_adaptation_steps": 4,
+  "online_adaptation_max_delta_norm": 0.02,
+  "online_adaptation_proximal_weight": 0.02,
+  "online_hard_example_weighting": true,
   "online_hard_example_temperature": 0.5,
   "online_adaptation_freeze_below_snr_db": 5.0,
-  "online_adaptation_min_reward_improvement": 0.0005,
-  "online_bandit_action_cost": 0.000001,
+  "online_adaptation_min_reward_improvement": 0.0,
+  "online_bandit_action_cost": 1e-06,
   "online_reward_windows": 2,
-  "online_cross_frame_rollback_tolerance": 0.00001,
+  "online_cross_frame_rollback_tolerance": 1e-05,
   "online_phase_tracking_smoothing": 0.5,
   "online_phase_tracking_min_confidence": 0.5,
   "online_phase_tracking_cfo_limit": 0.0012,
-  "online_adaptation_candidates": [
-    {
-      "name": "lora_conservative",
-      "groups": ["phase"],
-      "learning_rate_scale": 0.5,
-      "steps": 1,
-      "max_delta_scale": 0.5
-    }
-  ],
+  "online_adaptation_candidates": null,
   "offline_state_split": "offline_train",
   "offline_loss": "bce_all",
   "online_state_splits": {
     "offline_train": {
-      "strong_path_count": [12, 18],
-      "diffuse_energy_ratio": [0.20, 0.28],
-      "cfo_abs_range": [0.0002, 0.0006],
-      "phase_noise_std_range": [0.0002, 0.0006]
+      "strong_path_count": [
+        12,
+        18
+      ],
+      "diffuse_energy_ratio": [
+        0.2,
+        0.28
+      ],
+      "cfo_abs_range": [
+        0.0002,
+        0.0006
+      ],
+      "phase_noise_std_range": [
+        0.0002,
+        0.0006
+      ]
     },
     "heldout_edge": {
-      "strong_path_count": [19, 24],
-      "diffuse_energy_ratio": [0.29, 0.35],
-      "cfo_abs_range": [0.0006, 0.0008],
-      "phase_noise_std_range": [0.0006, 0.0008]
+      "strong_path_count": [
+        19,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.29,
+        0.35
+      ],
+      "cfo_abs_range": [
+        0.0006,
+        0.0008
+      ],
+      "phase_noise_std_range": [
+        0.0006,
+        0.0008
+      ]
     },
     "drift": {
-      "strong_path_count": [12, 24],
-      "diffuse_energy_ratio": [0.20, 0.35],
-      "cfo_abs_range": [0.0002, 0.0008],
-      "phase_noise_std_range": [0.0002, 0.0008]
+      "strong_path_count": [
+        12,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.2,
+        0.35
+      ],
+      "cfo_abs_range": [
+        0.0002,
+        0.0008
+      ],
+      "phase_noise_std_range": [
+        0.0002,
+        0.0008
+      ]
     }
   },
   "model": {
@@ -129,5 +189,15 @@
     "physics_warm_start_iterations": 8,
     "physics_warm_start_scale": 1.0,
     "neural_residual_scale": 0.1
-  }
+  },
+  "profile_prior": {
+    "candidate_id": "B-heldout-phase-light-diagnostic",
+    "residual_cfo_limit": 0.0012,
+    "acquisition_cfo_limit": 0.004,
+    "aggregation_role": "diagnostic"
+  },
+  "diagnostic_only": true,
+  "main_aggregation_allowed": false,
+  "parent_frozen_profile": "eme_long_memory_v2/cfo_phase_tiny",
+  "online_adaptation_relative_min_reward_improvement": 0.0
 }

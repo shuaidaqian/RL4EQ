@@ -1,0 +1,400 @@
+                                                  Machine Learning-Based Adaptive Receive
+                                               Filtering: Proof-of-Concept on an SDR Platform
+                                           Matthias Mehlhose∗ , Daniyal Amir Awan† , Renato L. G. Cavalcante∗† , Martin Kurras∗ and Slawomir Stanczak∗†
+                                                                    ∗ Fraunhofer Institute for Telecommunications, Heinrich Hertz Institute (HHI)
+
+                                                         Department of Wireless Communications and Networks, Einsteinufer 37, 10587 Berlin, Germany
+                                                           {matthias.mehlhose, renato.cavalcante, martin.kurras, slawomir.stanczak}@hhi.fraunhofer.de
+                                                            † Technical University Of Berlin, Faculty IV - Electrical Engineering and Computer Science
+
+                                                                Department of Telecommunication Systems, Einsteinufer 27, 10587 Berlin, Germany
+                                                                       {daniyal.a.awan, renato.cavalcante, slawomir.stanczak}@tu-berlin.de
+
+
+                                              Abstract—Conventional multiuser detection techniques either      receiver are required to achieve a good performance using
+                                           require a large number of antennas at the receiver for a            linear techniques. Furthermore, it is well known that massive
+arXiv:1911.04291v1 [eess.SP] 11 Nov 2019
+
+
+
+
+                                           desired performance, or they are too complex for practical          antenna systems suffer from various problems such as pilot
+                                           implementation. Moreover, many of these techniques, such as
+                                           successive interference cancellation (SIC), suffer from errors in   contamination [11]. Therefore, the assumption that the number
+                                           parameter estimation (user channels, covariance matrix, noise       of antennas at the BS will be larger than the number of
+                                           variance, etc.) that is performed before detection of user data     users may not be realistic. In this case, nonlinear detection
+                                           symbols. As an alternative to conventional methods, this paper      methods have to be considered. In this study, we demonstrate a
+                                           proposes and demonstrates a low-complexity practical Machine        promising machine learning based nonlinear multiuser receiver
+                                           Learning (ML) based receiver that achieves similar (and at times
+                                           better) performance to the SIC receiver. The proposed receiver      (see [12]) that does not require explicit knowledge of desired
+                                           does not require parameter estimation; instead it uses supervised   or interfering user channels or powers. Furthermore, all users
+                                           learning to detect the user modulation symbols directly. We         are detected in parallel and independently, and the technique
+                                           perform comparisons with minimum mean square error (MMSE)           has a relatively low complexity.
+                                           and SIC receivers in terms of symbol error rate (SER) and
+                                           complexity.
+                                              Index Terms—NOMA, 5G, machine learning, MMSE, mul-
+                                           tiuser detection
+                                                                                                               A. The Motivation for a Machine Learning Receiver
+
+                                                                                                                  As mentioned above, it is known that the optimal detector
+                                                                 I. I NTRODUCTION
+                                                                                                               is the (nonlinear) maximum a-posteriori (MAP) detector [13].
+                                              To fulfill the requirement of massive connectivity in 5th        Unfortunately, the MAP detector requires exact knowledge of
+                                           Generation (5G) mobile networks, highly efficient and flexible      user channels, their transmit powers and variance of system
+                                           use of time and frequency resources is necessary. Current           noise. Estimation of these parameters adds considerable com-
+                                           mobile networks mostly employ orthogonal multiple access            plexity to the receiver design and their estimation is subject
+                                           (OMA) radio access techniques such as orthogonal frequency-         to errors. As a compromise, suboptimal nonlinear receivers
+                                           division multiple access (OFDMA). In these systems, at each         such as the SIC receiver and those based on neural networks
+                                           base station (BS), a scheduler allocates resources to each user     have been proposed [13]–[15]. However, these receivers also
+                                           so as to avoid strong interference from other users. However,       require a good estimation of the above mentioned parameters
+                                           the massive connectivity requirement in 5G means that the           and their complexity becomes impractical for a large number
+                                           number of simultaneously transmitting devices in the uplink         of users. Due to these issues with conventional receiver design,
+                                           is expected to exceed the number of available orthogonal            [12] proposed a ML based technique that simplifies receiver
+                                           resources. Therefore, recently a significant body of research       design by using supervised learning to detect the desired user
+                                           has proposed non-orthogonal multiple access (NOMA) [1]–             symbols directly without any intermediate parameter estima-
+                                           [9]. In these systems, users are allowed to share resources         tion. It has been shown in [12] through simulations that this
+                                           (and thus interfere) and multiuser detection techniques [10]        technique outperforms the MMSE-SIC receiver (even in the
+                                           are employed to perform reliable detection of user symbols in       case of exact parameter knowledge) when the number of users
+                                           the uplink. It is well-known that, though the optimal multiuser     exceeds the number of antennas at the BS. Furthermore, this
+                                           receiver (in terms of bit error rate (BER)) is nonlinear [10], if   technique works with a relatively small training set which is
+                                           the number of antennas at the BS receiver exceeds the number        an important requirement (especially, in the physical layer) in
+                                           of users, then low-complexity linear receivers (e.g., the MMSE      dynamic wireless environments. In the following, we present
+                                           receiver) often show a good performance. However, in massive        the multiuser receive filtering model of [12] that we implement
+                                           connectivity scenarios, a very large number of antennas at the      and demonstrate in the study.
+B. Multiuser Receive Filtering Model                                    signal processing. In Section III, we present our results and
+   In the uplink setup, K ∈ N symbol-synchronized users                 perform comparisons with conventional techniques. Section IV
+transmit to the BS equipped with M ∈ N antennas at the same             concludes this study.
+frequency. Assuming a non-dispersive channel and symbol-
+time sampling at time t ∈ N, we can write the received                                     II. E XPERIMENT S ETUP
+baseband signal as
+                                                                          This section provides the technical details of the hardware
+                  K p
+                  X                                                     and software components being used for our NOMA enabled
+        r (t) =         pk (t)bk (t) hk (t) + n (t) ∈ CM         (1)
+                                                                        Software-Defined Radio (SDR) hardware-in-the-loop setup.
+                  k=1
+
+where hk (t) ∈ CM , bk (t) ∈ CM , and pk (t) ∈ CM is
+the channel, the information-bearing symbol, and the transmit
+power, respectively, of the kth user, and where n (t) ∈ CM
+denotes additive noise plus interference from unknown trans-
+missions. The job of baseband receive-filtering is to detect the
+modulation symbol bk (t) of each desired user given r (t).
+    The online adaptive filtering algorithm of [12] performs the                               1
+receive filtering for each desired user independently in parallel.
+In more detail, data communication is preceded by a training                                           2
+phase in which desired users transmit sequences (∀k ∈ 1, K)
+(bk )t∈1,Tlength , where Tlength denotes training time, to the BS.
+                                                                                                              3
+Suppose we are detecting user k = 1, then the algorithm has
+access to the training data (b1 (t), r (t))t∈1,Tlength . The training
+is performed by an adaptive projection subgradient method
+(APSM) [16] based algorithm. Since this algorithm operates in
+a reproducing kernel Hilbert space (RKHS) Hsum , consisting
+of weighted linear and nonlinear functions, most operations                                Fig. 1: BS WLAN UPA Array
+required by APSM training are carried out via inner products.
+Therefore, the algorithm has a low complexity. During training
+                                                                                                   1
+Tlength , and for the kth user, the algorithm learns a nonlinear                       2
+filter f ∈ Hsum such that
+                                                                                           6                  3
+                  (∀t ∈ N) |f (r(t)) − bk (t)| ≤ ,              (2)
+                                                                                 5                                        4
+where  > 0 is a sufficiently small (typically  = 0.01 −
+0.1) design parameter tuned such that correct hard-detection
+of bk (t) is possible. For sufficiently large training symbols
+Tlength , and under certain assumptions [16], [17], the algorithm
+obtains a good estimate of an f ∗ ∈ Hsum satisfying (2). For
+more details, see [12].
+C. Contribution and Paper Structure
+                                                                                               Fig. 2: Demo Setup
+   We summarize the contributions of this study in the follow-
+ing:
+   1) In our hardware-in-the-loop setup, we demonstrate our             A. Equipment
+       proposed ML based multiuser receiver that is a sim-                 1) Software-Defined Radio: On the digital side of our SDR
+       pler yet powerful alternative to conventional multiuser          a Xilinx Zynq XC7Z045 system on chip (SoC) module is
+       receivers.                                                       mounted. This SoC combines both a Linux running dual
+   2) We compare the performance of our receiver with the               ARM Cortex-A9 core pack and field-programmable gate array
+       linear MMSE and the nonlinear MMSE-SIC receivers.                (FPGA), well equipped to handle both the control and the
+       We show that our receiver outperforms MMSE and it                signal processing tasks. On the analog side, four independent
+       shows comparable (and at times better) performance               Analog Devices AD9361 are used, each containing an inte-
+       to MMSE-SIC. Furthermore, we demonstrate that this               grated two transceiver path 12-bit analog-to-digital converter
+       receiver has a low complexity.                                   (ADC) and digital-to-analog converter (DAC) solution. Each
+   The remainder of the study is organized as follows. In Sec-          SDR module [18] has eight antenna connections for the
+tion II, we present our receiver design including the hardware          transmission and reception direction, respectively. All SDR
+equipment that we employ during the demonstration and the               modules are able to share a 10 MHz reference clock.
+   2) Base Station: The array antenna, shown in Figure 1,             extract the superimposed received signals corresponding to the
+is equipped with 32 equidistant cross-polarized patch antenna         training and data sequences from each user. Both sequences
+elements arranged in 4 rows and 8 columns on a planar printed         are then filtered with a raised cosine receive filter and sub-
+circuit board. Each patch element of this array operates at a         sampled by a factor of 16. The first part of this filter output
+center frequency of 2.442 GHz, which correspond to Wireless           is used to train the ML algorithm and the second part is
+Local Area Network (WLAN) channel 7. The element spacing              used to detect the BPSK symbols. Finally, we compare the
+is λ/2, where λ = 12.28 cm refers to the wavelength at                bit sequence in the binary sink with the bit sequence from the
+resonant frequency f = 2.442 GHz, and the length and width            binary source to calculate the SER for each user. Note that we
+of each quadratic patch element is λ/4. Each antenna housing          can only measure the SER over the length of the SDR buffer.
+has space for up to four SDR modules. The BS parameters
+are summarized in table I.                                                  TABLE II: Proof-of-Concept System Parameters
+
+                   TABLE I: BS Parameters                                    parameter             value                 comment
+                                                                         carrier frequency      2.442 GHz       WiFi Band 7 (tune able)
+                parameter              value     comment                system bandwidth        30.72 MHz
+           resonant frequency       2.442 GHz                           NOMA bandwidth           1.92 MHz    oversampling by a factor of 16
+             element spacing         6.14 cm λ/2 at 2.442 GHz           NOMA waveform              BPSK     Single-Carrier Modulation (SCM)
+        element length and width     3.07 cm λ/4 at 2.442 GHz                BS height           ≈ 1.5 m
+             number of rows              4                            number of rx antennas          3                 see Figure 1
+           number of columns             8                            number of tx antennas         ≤6           see fig. 2 (active users)
+               polarization          H and V vertical is used          user transmit power −15 to 0 dBm difference of 3 dB between users
+        number of SDR modules         up to 4                         user height distribution 0.8 to 1.8 m
+     number of module antenna ports      8      4x AD9361             distance BS and users 2.6 to 4.0 m
+                                                                         training symbols          ≤ 685               default: 500
+                                                                           data symbols           ≤ 3840               default: 3000
+  3) User Equipment: Each of the six user equipments (UEs),
+shown in Figure 2, is equipped with a commercial off-the-shelf
+(COTS) WLAN antenna which is connected to one of eight                                 III. D EMONSTRATION R ESULTS
+SDR module transmitter ports. According to the datasheet                 In this section, we present the performance of our hardware-
+of the manufacturer, the measured antenna gain is 5 dBi at            in-the-loop demonstrator. We compare the performance of the
+2.5 GHz and up to 7 dBi at 5.7 GHz and the polarization is            ML-based multiuser receive filtering (see Section I-B), which
+vertical.                                                             we denote by Non-Linear (NL)-ML in the following, with:
+                                                                         • the linear MMSE receive filtering in which each user is
+B. Signal Processing
+                                                                            detected in parallel, and
+   In the demonstration, we use an SDR based transceiver                 • the nonlinear MMSE-SIC receiver. In MMSE-SIC, each
+connected to a subset of patch antennas arranged as a uniform               user is first detected using MMSE filtering and then its
+planar antenna (UPA) array with four rows and eight columns                 contribution is subtracted from the received signal (1)
+at the receive side. On the transmit side we use a single                   before the next user in the SIC-chain is detected.
+SDR connected to all users. Each transmit port is connected
+to a single-antenna user. Table II sums up the demonstration          A. Demonstration Setting
+system parameters. The raw time data IQ-buffers from each                As mentioned in Section I-B the data communication is
+SDR are transmitted and received over a 1 Gbit Ethernet               preceded by a training phase of length Tlength complex signals.
+interface on each SDR module. Transmit signal creation for            This training sequence is used to train the NL-ML algorithm
+the users and received signal processing is done on a standard        and also to perform channel and covariance matrix estimation
+desktop personal computer (PC). The system architecture of            for MMSE filtering. We use Algorithm 1 in [12] to perform
+the transmit and receive path is shown in Figure 3.                   training for each user in parallel. The important parameters
+   1) Transmit Signal Chain: On the transmit side binary              are shown in Table III and other parameters were chosen as in
+phase-shift keying (BPSK) symbols at each user are filtered           [12]. There are K = 6 desired users in the system and we use
+by a raised cosine transmit filter with an oversampling factor        M = 3 antennas at the BS. In order to multiplex the users in
+of 16 to avoid excessive multipath transmissions. The training        the power domain, as required in power-domain NOMA, each
+sequence (bk )t∈1,Tlength and the data sequence (bk )t>Tlength (see   successive user transmits with 3 dB less power.
+Section I-B) are separated by a Frank-Zadoff-Chu sequence
+that is used for time synchronization on the receive side.                             TABLE III: NL-ML Parameters
+   2) Receive Signal Chain: On the receive side, we receive an
+                                                                                User       wL       wG        Tlength    Dlength
+IQ buffer twice the size of the transmit buffer size. During each                1        60%       40%         10       3000
+run of the hardware-in-the-loop experiment, the filled receive                   2        60%       40%         70       3000
+buffer contains a full radio frame of training, synchronization,                 3        60%       40%         40       3000
+and data sequences and parts of the preceding and following                      4        60%       40%         40       3000
+                                                                                 5        60%       40%        685       3000
+radio frames. We perform a cross-correlation based time-                         6        60%       40%        685       3000
+synchronization to find the position of a complete frame and
+                                                                          Digital-
+        Binary             BPSK              Raised cosine                                                    RF
+                                                                         to-analog
+        sources           modulation         transmit filter                                               front end
+                                                                        converting
+
+
+                        Synchronization      IIO Transmit              IIO Transmit
+                           sequence                                                                      Transmit LO
+                                           IQ Buffer (HOST)          IQ Buffer (SDR)
+
+                                                                                                                                            Wireless channel
+
+                             Time             IIO Receive              IIO Receive
+                        synchronization                                                                  Receive LO
+                                           IQ Buffer (HOST)          IQ Buffer (SDR)
+
+
+                      NOMA training and                                   Analog-
+        Binary                               Raised cosine                                                    RF
+                       user equalization                                 to-digital
+         sink                                receive filter                                                front end
+                      BPSK demodulation                                 converting
+
+                           Host PC                                                     NAMC SDR                                                    MIMO channel
+
+                                                               Fig. 3: System Model
+
+B. Comparison with MMSE and MMSE-SIC                                       has a low complexity.
+                                                                              In conclusion, the simulation results demonstrate that the
+   In this section we compare the SER and complexity perfor-
+                                                                           NL-ML receiver is capable of achieving the SER performance
+mance of NL-ML with that of the MMSE and MMSE-SIC.
+                                                                           of nonlinear techniques, while it has a complexity comparable
+As mentioned above, users are separated in the power domain
+                                                                           to that of linear techniques.
+where user 1 is the “strongest” user and user 6 is the “weakest”
+user in the system. In terms of the SER, we observed that all                                                    IV. C ONCLUSIONS
+3 techniques showed a comparable near-perfect performance
+for the first 4 users, i.e., SER ≈ 0 over the observable test                 We demonstrated a nonlinear ML based multiuser receiver
+sample set (which was restricted to a size of 3000 symbols).               that can achieve the performance of nonlinear receivers and
+Therefore, we omit the results for these users.                            it has the complexity comparable to linear receivers. The
+   In the following, we show the performance for the 5th                   proposed receiver does not require parameter estimation (user
+and the 6th users (which can be thought of as weak users)                  channels, powers, noise variance, etc.) as in conventional
+in terms of the SER and complexity of detection (that we                   receivers which is subject to errors. We compared the perfor-
+measure in terms of the processing delay). Note that, due to               mance with the standard linear MMSE receiver and also with
+the limited size of the SDR buffer, we can only observe the
+                                                                                                                       Symbol Error Rate
+detection errors for 3000 symbols. Therefore, the minimum                             10
+                                                                                           0
+
+observable non-zero SER is 3.33 × 10−4 . Additionally, we
+show the performance of the overall system in terms of the                             -1
+                                                                                      10
+average SER and average complexity/delay.
+   Figure 4 and Figure 5, show the SER results for the 5th                             -2
+                                                                                SER
+
+
+
+
+                                                                                      10
+and the 6th user, respectively. We see that the MMSE shows a
+poor performance in both cases because these users are linearly                        -3
+                                                                                      10
+inseparable and they suffer from excessive interference from                                   min. observable SER
+                                                                                                                                                machine learning algorithm
+
+other users. In contrast, the MMSE-SIC and NL-ML show a                                -4
+                                                                                      10
+                                                                                                                                                MMSE
+                                                                                                                                                MMSE SIC
+good and comparable performance in this case. Figure 8 shows                                      20       40     60      80        100   120      140     160    180        200
+the average SER of the system. We see that both MMSE-SIC                                                           measurement time index
+and NL-ML show a good performance, where NL-ML slightly                               Fig. 4: User 5: ωL = 0.6 and ωG = 0.4 with Tlength = 685
+outperforms MMSE-SIC.                                                                                                  Symbol Error Rate
+                                                                                           0
+   Figure 6 and Figure 7, show the complexity (measured                               10
+
+in terms of detection delay) results for the 5th and the 6th                           -1
+user, respectively. We see that the MMSE has low complexity                           10
+
+because it is a linear technique. Even though NL-ML is a                               -2
+                                                                                SER
+
+
+
+
+nonlinear technique, one of its strengths is that it involves                         10
+
+robust linear processing and all users are detected in parallel
+                                                                                       -3
+independently. We see that the complexity of NL-ML is                                 10
+                                                                                               min. observable SER
+comparable to that of the MMSE technique. As expected,                                                 machine learning algorithm
+                                                                                                       MMSE
+                                                                                       -4
+the nonlinear MMSE-SIC has a higher complexity than both                              10               MMSE SIC
+
+MMSE and NL-ML. Figure 9 shows the average complexity of                                          20       40     60      80        100   120      140     160    180        200
+the system where we observe once again that NL-ML receiver                                                         measurement time index
+                                                                                      Fig. 5: User 6: ωL = 0.6 and ωG = 0.4 with Tlength = 685
+the nonlinear MMSE-SIC in a hardware-in-the-loop system.                                                                                      ACKNOWLEDGMENTS
+The results show that the proposed ML based multiuser is                                                                 The work is supported by the European commission and
+simpler yet powerful alternative to conventional nonlinear                                                            5G Infrastructure Public Private Partnership (5G-PPP) and re-
+receivers.                                                                                                            ceived funding from the EC H2020/5G-PPP program ONE5G
+                                                                                                                      (ICT-760809) project [19].
+                                                      Detailed Processing Time
+                         2000
+
+
+                                                                                                                                                   R EFERENCES
+  detection delay [µs]
+
+
+
+
+                         1500
+                                                                                   machine learning algorithm          [1] “Study on Non-Orthogonal Multiple Access (NOMA) for NR,” 3rd
+                                                                                   MMSE
+                                                                                   MMSE SIC                                Generation Partnership Project, Tech. Rep. 38.812, Dec. 2018.
+                         1000                                                                                          [2] K. Slavakis, S. Theodoridis, and I. Yamada, “Adaptive constrained
+                                                                                                                           learning in reproducing kernel hilbert spaces: The robust beamforming
+                                                                                                                           case,” IEEE Transactions on Signal Processing, vol. 57, no. 12, pp.
+                         500                                                                                               4744–4764, Dec 2009.
+                                                                                                                       [3] M. Yukawa, “Adaptive learning in cartesian product of reproducing
+                                                                                                                           kernel hilbert spaces,” IEEE Transactions on Signal Processing, vol. 63,
+                              0                                                                                            no. 22, pp. 6037–6048, Nov 2015.
+                                     20       40     60      80        100   120      140     160    180        200
+                                                                                                                       [4] A. Benjebbour and Y. Kishiyama, “Combination of noma and mimo:
+                                                      measurement time index                                               Concept and experimental trials,” in 2018 25th International Conference
+                         Fig. 6: User 5: ωL = 0.6 and ωG = 0.4 with Tlength = 685                                          on Telecommunications (ICT), June 2018, pp. 433–438.
+                                                                                                                       [5] U. S. S. S. Arachchillage, D. N. K. Jayakody, S. K. Biswash, and
+                                                      Detailed Processing Time
+                         2500                                                                                              R. Dinis, “Recent advances and future research challenges in non-
+                                                                                                                           orthogonal multiple access for 5g networks,” in 2018 IEEE 87th Ve-
+                                                                                                                           hicular Technology Conference (VTC Spring), June 2018, pp. 1–6.
+                         2000
+                                                                                                                       [6] Z. Ding, X. Lei, G. K. Karagiannidis, R. Schober, J. Yuan, and V. K.
+  detection delay [µs]
+
+
+
+
+                                                                                                                           Bhargava, “A survey on non-orthogonal multiple access for 5g networks:
+                         1500                                                                                              Research challenges and future trends,” IEEE Journal on Selected Areas
+                                                                                                                           in Communications, vol. 35, no. 10, pp. 2181–2195, Oct 2017.
+                         1000
+                                                                                   machine learning algorithm          [7] W. Cai, C. Chen, L. Bai, Y. Jin, and J. Choi, “Subcarrier and power
+                                                                                   MMSE
+                                                                                   MMSE SIC
+                                                                                                                           allocation scheme for downlink ofdm-noma systems,” IET Signal Pro-
+                                                                                                                           cessing, vol. 11, no. 1, pp. 51–58, 2017.
+                         500                                                                                           [8] Y. Saito, Y. Kishiyama, A. Benjebbour, T. Nakamura, A. Li, and
+                                                                                                                           K. Higuchi, “Non-orthogonal multiple access (noma) for cellular future
+                              0                                                                                            radio access,” in 2013 IEEE 77th Vehicular Technology Conference (VTC
+                                     20       40     60      80        100   120      140     160    180        200        Spring), June 2013, pp. 1–5.
+                                                      measurement time index                                           [9] S. Abeywickrama, L. Liu, Y. Chi, and C. Yuen, “Over-the-air
+                         Fig. 7: User 6: ωL = 0.6 and ωG = 0.4 with Tlength = 685                                          implementation of uplink NOMA,” CoRR, vol. abs/1801.05541, 2018.
+                                                                                                                           [Online]. Available: http://arxiv.org/abs/1801.05541
+                              0
+                                                          Symbol Error Rate                                           [10] S. Verdu, Multiuser Detection, 1st ed. New York, NY, USA: Cambridge
+                          10
+                                                                                                                           University Press, 1998.
+                                                                                                                      [11] O. Elijah, C. Y. Leow, T. A. Rahman, S. Nunoo, and S. Z. Iliya,
+                                                                                                                           “A comprehensive survey of pilot contamination in massive mimo—5g
+                           -2
+                                                                                                                           system,” IEEE Communications Surveys Tutorials, vol. 18, no. 2, pp.
+                         10                                                                                                905–923, Secondquarter 2016.
+       SER
+
+
+
+
+                                                                                                                      [12] D. A. Awan, R. L. G. Cavalcante, M. Yukawa, and S. Stanczak,
+                                                                                                                           “Detection for 5g-noma: An online adaptive machine learning approach,”
+                                                                                                                           in 2018 IEEE International Conference on Communications (ICC), May
+                         10
+                           -4                                                                                              2018, pp. 1–6.
+                                          machine learning algorithm                                                  [13] U. Mitra and H. V. Poor, “Neural network techniques for adaptive
+                                          MMSE
+                                          MMSE SIC
+                                                                                                                           multiuser demodulation,” IEEE Journal on Selected Areas in Commu-
+                                                                                                                           nications, vol. 12, no. 9, pp. 1460–1470, Dec 1994.
+                                     20       40     60      80        100   120      140     160    180        200   [14] Y. Isik and T. Necmi, “Multiuser detection with neural network and pic
+                                                      measurement time index                                               in cdma systems for awgn and rayleigh fading asynchronous channels,”
+                                  Fig. 8: Mean over all users: ωL = 0.6 and ωG = 0.4                                       Wireless Personal Communications, vol. 43, no. 4, pp. 1185–1194, Dec
+                                                                                                                           2007. [Online]. Available: https://doi.org/10.1007/s11277-007-9293-0
+                         1200
+                                                      Detailed Processing Time                                        [15] B. Aazhang, B. . Paris, and G. C. Orsak, “Neural networks for mul-
+                                                                                                                           tiuser detection in code-division multiple-access communications,” IEEE
+                         1000                                                                                              Transactions on Communications, vol. 40, no. 7, pp. 1212–1222, July
+                                                                                                                           1992.
+  detection delay [µs]
+
+
+
+
+                         800                                                       machine learning algorithm         [16] I. Yamada and N. Ogura, “Adaptive projected subgradient method
+                                                                                   MMSE                                    for asymptotic minimization of sequence of nonnegative convex
+                                                                                   MMSE SIC
+                         600                                                                                               functions,” Numerical Functional Analysis and Optimization, vol. 25,
+                                                                                                                           no. 7-8, pp. 593–617, 2005. [Online]. Available: https://doi.org/10.
+                         400                                                                                               1081/NFA-200045806
+                                                                                                                      [17] S. Chouvardas, K. Slavakis, S. Theodoridis, and I. Yamada, “Stochastic
+                         200                                                                                               analysis of hyperslab-based adaptive projected subgradient method under
+                                                                                                                           bounded noise,” IEEE Signal Processing Letters, vol. 20, no. 7, pp. 729–
+                              0                                                                                            732, July 2013.
+                                     20       40     60      80        100   120      140     160    180        200   [18] N.A.T. GmbH NAMC-SDR. [Online]. Available: http://www.nateurope.
+                                                      measurement time index                                               com/products/NAMC-SDR.html
+                                  Fig. 9: Mean over all users: ωL = 0.6 and ωG = 0.4                                  [19] 5G-PPP ONE5G. [Online]. Available: https://5g-ppp.eu/one5g/
+

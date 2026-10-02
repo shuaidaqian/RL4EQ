@@ -77,6 +77,8 @@ def _run_spec(
         "--pilot-total", str(args.pilot_total),
         "--reward-pilot-total", str(args.reward_pilot_total),
         "--pilot-layout", args.pilot_layout,
+        "--impairment-profile", args.impairment_profile,
+        "--state-split", args.state_split,
         "--update-interval", str(args.update_interval),
         "--scheduler", "fixed",
         "--cir-update", spec.cir_update,
@@ -163,6 +165,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--pilot-total", type=int, default=256)
     parser.add_argument("--reward-pilot-total", type=int, default=32)
     parser.add_argument("--pilot-layout", default="prefix")
+    parser.add_argument("--impairment-profile", default="cfo_phase_tiny")
+    parser.add_argument("--state-split", default="drift")
     parser.add_argument("--update-interval", type=int, default=4)
     parser.add_argument("--device", default="cuda")
     return parser.parse_args()

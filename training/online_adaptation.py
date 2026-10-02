@@ -26,6 +26,264 @@ class OnlineAdaptationResult:
     adapt_loss_after: float
     parameter_delta_norm: float
     data_labels_used_online: bool
+    weighted_adapt_loss_before: float = 0.0
+    weighted_adapt_loss_after: float = 0.0
+    hard_example_weighting: bool = False
+    hard_example_temperature: float = 0.5
+
+
+@dataclass(frozen=True)
+class OnlineRLSAdaptationResult:
+    """一帧 Pilot 驱动 RLS 残差更新的可审计结果。"""
+
+    accepted: bool
+    adapt_pilot_count: int
+    adapt_loss_before: float
+    adapt_loss_after: float
+    pilot_mse_before: float
+    pilot_mse_after: float
+    parameter_delta_norm: float
+    data_labels_used_online: bool
+    cumulative_delta_norm: float = 0.0
+    max_total_delta_norm: float = 0.0
+
+
+class PilotResidualRLSAdapter:
+    """只用有效前缀 Pilot 递推更新零初始化神经 logit 残差。
+
+    离线均衡器主干和 head 保持冻结。RLS 的回归目标是目标符号 logit
+    与冻结离线输出之间的残差，因此该更新器只改变动态挂载的 Adapter。
+    """
+
+    def __init__(
+        self,
+        model: UnfoldedEqualizer,
+        forgetting_factor: float = 0.99,
+        ridge: float = 1.0,
+        warmup_symbols: int = 0,
+        target_logit: float = 2.0,
+        max_delta_norm: float = 1.0,
+        max_total_delta_norm: float | None = None,
+    ) -> None:
+        self.model = model
+        self.forgetting_factor = float(forgetting_factor)
+        self.ridge = float(ridge)
+        self.warmup_symbols = int(warmup_symbols)
+        self.target_logit = float(target_logit)
+        self.max_delta_norm = float(max_delta_norm)
+        self.max_total_delta_norm = float(
+            self.max_delta_norm
+            if max_total_delta_norm is None
+            else max_total_delta_norm
+        )
+        if not 0.0 < self.forgetting_factor <= 1.0:
+            raise ValueError("forgetting_factor 必须位于 (0, 1]。")
+        if self.ridge <= 0.0:
+            raise ValueError("ridge 必须为正数。")
+        if self.warmup_symbols < 0:
+            raise ValueError("warmup_symbols 不能为负数。")
+        if (
+            self.target_logit <= 0.0
+            or self.max_delta_norm <= 0.0
+            or self.max_total_delta_norm <= 0.0
+        ):
+            raise ValueError("target_logit 和参数变化上限必须为正数。")
+        self.module = self.model.attach_online_residual_adapter()
+        self.anchor_weight = self.module.linear.weight.detach().clone()
+        self.anchor_bias = self.module.linear.bias.detach().clone()
+        self.parameter_delta_norm = 0.0
+        self.cumulative_delta_norm = 0.0
+        self.covariance = self._initial_covariance()
+
+    def _initial_covariance(self) -> torch.Tensor:
+        dimension = self.model.config.d_model + 1
+        parameter = next(self.model.parameters())
+        return torch.eye(
+            dimension,
+            device=parameter.device,
+            dtype=torch.float32,
+        ) / self.ridge
+
+    def _effective_mask(self, frame, device: torch.device) -> torch.Tensor:
+        mask = frame.adapt_mask.to(device=device, dtype=torch.bool).reshape(-1)
+        if self.warmup_symbols <= 0:
+            return mask
+        positions = torch.arange(mask.numel(), device=device)
+        return mask & (positions >= self.warmup_symbols)
+
+    def adapt(
+        self,
+        frame,
+        condition: CIRCondition,
+        soft_tail: torch.Tensor,
+    ) -> OnlineRLSAdaptationResult:
+        """使用当前帧有效 Adapt Pilot 更新残差 Adapter。"""
+
+        device = next(self.model.parameters()).device
+        mask = self._effective_mask(frame, device)
+        pilot_count = int(mask.sum().item())
+        if pilot_count == 0:
+            return OnlineRLSAdaptationResult(False, 0, 0.0, 0.0, 0.0, 0.0, 0.0, False)
+
+        if hasattr(frame, "receiver_view"):
+            receiver_view = frame.receiver_view()
+            adapt_symbols = receiver_view.adapt_symbols
+        else:
+            adapt_symbols = torch.zeros_like(frame.tx_symbols)
+            full_mask = frame.adapt_mask.to(torch.bool)
+            adapt_symbols[full_mask] = frame.tx_symbols[full_mask]
+        rx = receiver_view.rx_symbols if hasattr(frame, "receiver_view") else frame.rx_symbols
+        rx = rx.to(device)
+        adapt_symbols = adapt_symbols.to(device).to(torch.complex64)
+        rx_iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0).float()
+        region_ids = frame.model_region_ids.to(device).unsqueeze(0).long()
+        pilot_symbols = adapt_symbols.unsqueeze(0)
+        full_adapt_mask = frame.adapt_mask.to(device=device, dtype=torch.bool).reshape(1, -1)
+        condition = _condition_to_device(condition, device)
+        tail = soft_tail.to(device).to(torch.complex64)
+        if tail.ndim == 1:
+            tail = tail.unsqueeze(0)
+
+        was_training = self.model.training
+        self.model.eval()
+        old_weight = self.module.linear.weight.detach().clone()
+        old_bias = self.module.linear.bias.detach().clone()
+        old_covariance = self.covariance.detach().clone()
+        try:
+            with torch.no_grad():
+                logits_before, _ = self.model(
+                    rx_iq,
+                    condition,
+                    region_ids,
+                    tail,
+                    adapt_symbols=pilot_symbols,
+                    adapt_mask=full_adapt_mask,
+                )
+                features = self.model.online_residual_features
+                if features is None:
+                    raise RuntimeError("模型未产生在线残差 Adapter 所需的隐藏特征。")
+                features = features[0].float()
+                logits_before = logits_before[0].float()
+                current_residual = self.module(features).squeeze(-1).float()
+                frozen_logits = logits_before - current_residual
+                target = (adapt_symbols.real > 0.0).float()
+                design = torch.cat(
+                    [features[mask], torch.ones(pilot_count, 1, device=device)],
+                    dim=1,
+                )
+                signed_target = 2.0 * target[mask] - 1.0
+                # 正确样本保留离线输出，只对错误样本施加有限幅度的纠正目标。
+                # 这样 RLS 学习的是当前帧残差，而不是重写已经正确的离线判决。
+                correct = frozen_logits[mask] * signed_target > 0.0
+                desired_logits = torch.where(
+                    correct,
+                    frozen_logits[mask],
+                    self.target_logit * signed_target,
+                )
+                target_residual = desired_logits - frozen_logits[mask]
+                initial_prediction = design @ torch.cat(
+                    [old_weight.reshape(-1).float(), old_bias.reshape(-1).float()]
+                )
+                mse_before = torch.mean((initial_prediction - target_residual) ** 2)
+                parameters = torch.cat(
+                    [old_weight.reshape(-1).float(), old_bias.reshape(-1).float()]
+                )
+                covariance = old_covariance
+                for row, target_value in zip(design, target_residual):
+                    covariance_row = covariance @ row
+                    denominator = self.forgetting_factor + row @ covariance_row
+                    gain = covariance_row / denominator.clamp_min(1e-8)
+                    error = target_value - row @ parameters
+                    parameters = parameters + gain * error
+                    covariance = (
+                        covariance - torch.outer(gain, row @ covariance)
+                    ) / self.forgetting_factor
+                covariance = 0.5 * (covariance + covariance.transpose(0, 1))
+                if not torch.isfinite(parameters).all() or not torch.isfinite(covariance).all():
+                    accepted = False
+                else:
+                    self.module.linear.weight.copy_(parameters[:-1].reshape_as(old_weight))
+                    self.module.linear.bias.copy_(parameters[-1:].reshape_as(old_bias))
+                    delta = parameters - torch.cat(
+                        [old_weight.reshape(-1).float(), old_bias.reshape(-1).float()]
+                    )
+                    delta_norm = float(torch.linalg.vector_norm(delta).cpu())
+                    anchor = torch.cat(
+                        [
+                            self.anchor_weight.reshape(-1).float(),
+                            self.anchor_bias.reshape(-1).float(),
+                        ]
+                    )
+                    cumulative_delta_norm = float(
+                        torch.linalg.vector_norm(parameters - anchor).cpu()
+                    )
+                    # 零增量不算真实在线参数更新，避免浮点噪声被审计为 PEFT 成功。
+                    accepted = bool(
+                        1e-12 < delta_norm <= self.max_delta_norm
+                        and cumulative_delta_norm <= self.max_total_delta_norm
+                    )
+                if not accepted:
+                    self.module.linear.weight.copy_(old_weight)
+                    self.module.linear.bias.copy_(old_bias)
+                    self.covariance = old_covariance
+                    self.parameter_delta_norm = 0.0
+                    delta_norm = 0.0
+                    current = torch.cat(
+                        [
+                            old_weight.reshape(-1).float(),
+                            old_bias.reshape(-1).float(),
+                        ]
+                    )
+                    anchor = torch.cat(
+                        [
+                            self.anchor_weight.reshape(-1).float(),
+                            self.anchor_bias.reshape(-1).float(),
+                        ]
+                    )
+                    self.cumulative_delta_norm = float(
+                        torch.linalg.vector_norm(current - anchor).cpu()
+                    )
+                else:
+                    self.covariance = covariance
+                    self.parameter_delta_norm = delta_norm
+                    self.cumulative_delta_norm = cumulative_delta_norm
+
+                logits_after, _ = self.model(
+                    rx_iq,
+                    condition,
+                    region_ids,
+                    tail,
+                    adapt_symbols=pilot_symbols,
+                    adapt_mask=full_adapt_mask,
+                )
+                logits_after = logits_after[0].float()
+                prediction_after = design @ torch.cat(
+                    [
+                        self.module.linear.weight.reshape(-1).float(),
+                        self.module.linear.bias.reshape(-1).float(),
+                    ]
+                )
+                mse_after = torch.mean((prediction_after - target_residual) ** 2)
+                loss_before = F.binary_cross_entropy_with_logits(
+                    logits_before[mask], target[mask]
+                )
+                loss_after = F.binary_cross_entropy_with_logits(
+                    logits_after[mask], target[mask]
+                )
+            return OnlineRLSAdaptationResult(
+                accepted,
+                pilot_count,
+                float(loss_before.cpu()),
+                float(loss_after.cpu()),
+                float(mse_before.cpu()),
+                float(mse_after.cpu()),
+                float(self.parameter_delta_norm),
+                False,
+                float(self.cumulative_delta_norm),
+                float(self.max_total_delta_norm),
+            )
+        finally:
+            self.model.train(was_training)
 
 
 class PilotDrivenOnlineAdapter:
@@ -43,6 +301,8 @@ class PilotDrivenOnlineAdapter:
         steps: int = 1,
         max_delta_norm: float = 0.5,
         proximal_weight: float = 0.0,
+        hard_example_weighting: bool = False,
+        hard_example_temperature: float = 0.5,
     ) -> None:
         self.model = model
         self.groups = set(groups or {"head"})
@@ -50,12 +310,16 @@ class PilotDrivenOnlineAdapter:
         self.steps = max(1, int(steps))
         self.max_delta_norm = float(max_delta_norm)
         self.proximal_weight = float(proximal_weight)
+        self.hard_example_weighting = bool(hard_example_weighting)
+        self.hard_example_temperature = float(hard_example_temperature)
         if self.learning_rate <= 0.0:
             raise ValueError("learning_rate 必须为正数。")
         if self.max_delta_norm <= 0.0:
             raise ValueError("max_delta_norm 必须为正数。")
         if self.proximal_weight < 0.0:
             raise ValueError("proximal_weight 不能为负数。")
+        if self.hard_example_temperature <= 0.0:
+            raise ValueError("hard_example_temperature 必须为正数。")
 
     def adapt(
         self,
@@ -68,6 +332,8 @@ class PilotDrivenOnlineAdapter:
         steps: int | None = None,
         max_delta_norm: float | None = None,
         proximal_weight: float | None = None,
+        hard_example_weighting: bool | None = None,
+        hard_example_temperature: float | None = None,
     ) -> OnlineAdaptationResult:
         """使用当前帧 Adapt Pilot 做一次受限在线更新。"""
 
@@ -76,10 +342,22 @@ class PilotDrivenOnlineAdapter:
         selected_steps = self.steps if steps is None else max(1, int(steps))
         selected_max_delta_norm = self.max_delta_norm if max_delta_norm is None else float(max_delta_norm)
         selected_proximal_weight = self.proximal_weight if proximal_weight is None else float(proximal_weight)
+        selected_hard_example_weighting = (
+            self.hard_example_weighting
+            if hard_example_weighting is None
+            else bool(hard_example_weighting)
+        )
+        selected_hard_example_temperature = (
+            self.hard_example_temperature
+            if hard_example_temperature is None
+            else float(hard_example_temperature)
+        )
         if selected_learning_rate <= 0.0 or selected_max_delta_norm <= 0.0:
             raise ValueError("在线动作覆盖的学习率和更新范数上限必须为正数。")
         if selected_proximal_weight < 0.0:
             raise ValueError("在线动作覆盖的 proximal_weight 不能为负数。")
+        if selected_hard_example_temperature <= 0.0:
+            raise ValueError("在线动作覆盖的 hard_example_temperature 必须为正数。")
         mask = frame.adapt_mask.to(torch.bool)
         pilot_count = int(mask.sum().item())
         if pilot_count == 0:
@@ -132,8 +410,16 @@ class PilotDrivenOnlineAdapter:
                     adapt_symbols=adapt_symbols,
                     adapt_mask=mask.unsqueeze(0),
                 )
+                before_selected = before_logits[0, mask]
+                target_selected = target[mask]
                 loss_before = F.binary_cross_entropy_with_logits(
-                    before_logits[0, mask], target[mask]
+                    before_selected, target_selected
+                )
+                weighted_loss_before = _weighted_adapt_loss(
+                    before_selected,
+                    target_selected,
+                    selected_hard_example_weighting,
+                    selected_hard_example_temperature,
                 )
             for _ in range(selected_steps):
                 logits, _ = self.model(
@@ -144,7 +430,13 @@ class PilotDrivenOnlineAdapter:
                     adapt_symbols=adapt_symbols,
                     adapt_mask=mask.unsqueeze(0),
                 )
-                loss = F.binary_cross_entropy_with_logits(logits[0, mask], target[mask])
+                selected_logits = logits[0, mask]
+                loss = _weighted_adapt_loss(
+                    selected_logits,
+                    target[mask],
+                    selected_hard_example_weighting,
+                    selected_hard_example_temperature,
+                )
                 if selected_proximal_weight > 0.0:
                     loss = loss + selected_proximal_weight * _normalized_proximal_penalty(
                         trainable_items,
@@ -163,11 +455,22 @@ class PilotDrivenOnlineAdapter:
                     adapt_symbols=adapt_symbols,
                     adapt_mask=mask.unsqueeze(0),
                 )
+                after_selected = after_logits[0, mask]
+                target_selected = target[mask]
                 loss_after = F.binary_cross_entropy_with_logits(
-                    after_logits[0, mask], target[mask]
+                    after_selected, target_selected
+                )
+                weighted_loss_after = _weighted_adapt_loss(
+                    after_selected,
+                    target_selected,
+                    selected_hard_example_weighting,
+                    selected_hard_example_temperature,
                 )
             delta_norm = _delta_norm(self.model, snapshot)
-            accepted = bool(torch.isfinite(loss_after).item()) and delta_norm <= selected_max_delta_norm
+            accepted = (
+                bool(torch.isfinite(loss_after).item())
+                and 1e-12 < delta_norm <= selected_max_delta_norm
+            )
             if not accepted:
                 _restore_groups(self.model, snapshot)
                 delta_norm = 0.0
@@ -178,6 +481,10 @@ class PilotDrivenOnlineAdapter:
                 float(loss_after.cpu()),
                 float(delta_norm),
                 False,
+                float(weighted_loss_before.cpu()),
+                float(weighted_loss_after.cpu()),
+                selected_hard_example_weighting,
+                selected_hard_example_temperature,
             )
         finally:
             self.model.eval()
@@ -204,6 +511,41 @@ def _normalized_proximal_penalty(
     if total is None:
         return torch.zeros((), dtype=torch.float32)
     return total / max(1, element_count)
+
+
+def hard_example_weights(
+    logits: torch.Tensor,
+    temperature: float = 0.5,
+) -> torch.Tensor:
+    """返回边界样本更高、且有界的 Adapt Pilot 权重。
+
+    logits 绝对值越小表示模型越不确定，权重越接近 2；高置信度样本的
+    权重逐渐接近 1。权重对 logits 停止梯度，避免训练目标通过权重本身
+    产生额外的梯度路径。
+    """
+
+    temperature = float(temperature)
+    if temperature <= 0.0:
+        raise ValueError("temperature 必须为正数。")
+    return 1.0 + torch.exp(-logits.detach().abs() / temperature)
+
+
+def _weighted_adapt_loss(
+    logits: torch.Tensor,
+    target: torch.Tensor,
+    enabled: bool,
+    temperature: float,
+) -> torch.Tensor:
+    """计算原始或 hard-example 加权的 Adapt Pilot BCE。"""
+
+    per_example = F.binary_cross_entropy_with_logits(
+        logits,
+        target,
+        reduction="none",
+    )
+    if not enabled:
+        return per_example.mean()
+    return (per_example * hard_example_weights(logits, temperature)).mean()
 
 
 def run_pilot_driven_online(
@@ -263,6 +605,10 @@ def run_pilot_driven_online(
                     steps=int(config.get("online_adaptation_steps", 1)),
                     max_delta_norm=float(config.get("online_adaptation_max_delta_norm", 0.5)),
                     proximal_weight=float(config.get("online_adaptation_proximal_weight", 0.0)),
+                    hard_example_weighting=bool(config.get("online_hard_example_weighting", False)),
+                    hard_example_temperature=float(
+                        config.get("online_hard_example_temperature", 0.5)
+                    ),
                 )
                 bandit = SafeContextualBandit(seed=90_000 + int(seed)) if scheduler == "bandit" else None
                 allowed_bandit_actions = (
@@ -485,6 +831,18 @@ def run_pilot_driven_online(
                                 if adaptation is not None
                                 else adapt_loss_before.detach().cpu()
                             ),
+                            "weighted_adapt_loss_before": float(
+                                adaptation.weighted_adapt_loss_before
+                                if adaptation is not None
+                                else adapt_loss_before.detach().cpu()
+                            ),
+                            "weighted_adapt_loss_after": float(
+                                adaptation.weighted_adapt_loss_after
+                                if adaptation is not None
+                                else adapt_loss_before.detach().cpu()
+                            ),
+                            "hard_example_weighting": bool(adapter.hard_example_weighting),
+                            "hard_example_temperature": float(adapter.hard_example_temperature),
                             "online_update_source": "adapt_pilot_only",
                             "adaptation_accepted": bool(accepted),
                             "update_applied": bool(update_applied),

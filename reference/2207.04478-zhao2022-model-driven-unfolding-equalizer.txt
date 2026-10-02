@@ -1,0 +1,796 @@
+                                            Model-Driven Based Deep Unfolding Equalizer for
+                                             Underwater Acoustic OFDM Communications
+                                                                                Hao Zhao, Cui Yang, Yalu Xu, Fei Ji, Member, IEEE,
+                                                                               Miaowen Wen, Senior Member, IEEE, and Yankun Chen
+
+
+                                              Abstract—It is challenging to design an equalizer for the                 in dealing with the long-delay multipath UWA channels [7].
+                                           complex time-frequency doubly-selective channel. In this paper,              Meanwhile, it has shown robustness against underwater inter-
+                                           we employ the deep unfolding approach to establish an equal-                 symbol interference (ISI) [8]. However, a practical issue is that
+                                           izer for the underwater acoustic (UWA) orthogonal frequency
+                                                                                                                        doubly-selective channels will cause inter-carrier interference
+arXiv:2207.04478v2 [eess.SP] 15 Apr 2023
+
+
+
+
+                                           division multiplexing (OFDM) system, namely UDNet. Each
+                                           layer of UDNet is designed according to the classical minimum                (ICI) [9]. The ICI degrades OFDM performance, especially
+                                           mean square error (MMSE) equalizer. Moreover, we consider                    for the system employing a large number of sub-carriers in a
+                                           the QPSK equalization as a four-classification task and adopt                limited bandwidth or high-order constellation modulations. On
+                                           minimum Kullback-Leibler (KL) to achieve a smaller symbol                    the one hand, the UWA channel is wideband due to the small
+                                           error rate (SER) with the one-hot coding instead of the MMSE
+                                           criterion. In addition, we introduce a sliding structure based on            ratio of the carrier frequency to the signal bandwidth, which
+                                           the banded approximation of the channel matrix to reduce the                 makes the communication system more sensitive to carrier
+                                           network size and aid UDNet to perform well for different-length              frequency offset caused by Doppler shifts. On the other hand,
+                                           signals without changing the network structure. Furthermore, we              the non-uniform doppler also poses a significant challenge for
+                                           apply the measured at-sea doubly-selective UWA channel and                   the equalizer design. The non-uniform ICI reduction renders
+                                           offshore background noise to evaluate the proposed equalizer.
+                                           Experimental results show that the proposed UDNet performs                   existing equalizers ineffective [10]. The classical interference
+                                           better with low computational complexity. Concretely, the SER                cancellation methods, such as zero-forcing (ZF) and minimum
+                                           of UDNet is nearly an order of magnitude lower than that of                  mean squared error (MMSE) equalizers, are usually based on
+                                           MMSE.                                                                        the assumption that all sub-carriers experience the same ICI.
+                                              Index Terms—Unfolding-based equalizer, OFDM, deep learn-                  The ICI between each sub-carrier is non-uniform, which makes
+                                           ing, doubly-selective, underwater acoustic communication
+                                                                                                                        the frequency-domain channel matrix irregular banded and
+                                                                                                                        very hard to model. Meanwhile, it brings enormous difficulty
+                                                                    I. I NTRODUCTION
+                                                                                                                        to channel equalization and symbol detection. Significantly
+                                              Underwater acoustic (UWA) communications is one of the                    when channel estimation is imperfect, the performance of the
+                                           most effective ways to achieve underwater information ex-                    classical equalizer degrades sharply. Besides, plenty of pre-
+                                           change because of its low attenuation characteristic compared                coded OFDM systems are gradually emerging to improve the
+                                           to the electromagnetic wave and light wave [1]. However,                     quality of underwater information transmission, e.g., vector-
+                                           UWA communications face more severe difficulties than wire-                  OFDM [11], orthogonal signal division multiplexing (OSDM)
+                                           less communications, i.e., the frequency-dependent attenu-                   [12]–[14], and orthogonal time frequency space (OTFS) [15].
+                                           ation, the time-varying multipath, and the severe Doppler                    In literature, the MMSE equalizer performs as an extremely
+                                           effect [2], [3]. Moreover, the underwater scenario has rich                  fundamental and essential function in the corresponding equal-
+                                           interference, which also brings obstacles to the UWA commu-                  ization procedure, which strikes a good tradeoff between
+                                           nications, including the noise from sonar operations, marine                 the bit error rate (BER) performance and the computational
+                                           mammals, shrimp snapping noise, and malicious jamming [4]                    complexity.
+                                           [5]. It is generally recognized as one of the most challenging                  In recent years, deep learning (DL) methods have achieved
+                                           communication tasks [6]. Fortunately, orthogonal frequency                   several excellent results in communications. In particular, DL
+                                           division multiplexing (OFDM) as a multi-carrier modulation                   has different applications, such as signal estimation, modula-
+                                           technique has been proven to be a viable option for achieving                tion recognition, and equalization. Li et al. first attempted to
+                                           high data-rate communications. It has a good performance                     utilize an end-to-end OFDM receiver as a fully connected deep
+                                                                                                                        neural network (FC-DNN) that replaces channel estimation,
+                                              Hao Zhao, Cui Yang, Yalu Xu, Fei Ji, and Miaowen Wen are with
+                                           School of Electronic and Information Engineering, South China Uni-           signal detection, and demodulation modules jointly based
+                                           versity of Technology, Guangzhou, 510640, China, and also with key           on the DNN network [16]. The drawback of FC-DNN is
+                                           Laboratory of Marine Environmental Survey Technology and Applica-            that DL-receiver treats itself as a black box, which makes
+                                           tion, Ministry of Natural Resources, Guangzhou, 510300, China (e-mail:
+                                           ctzhaohao@mail.scut.edu.cn, yangcui@scut.edu.cn, eexyl@mail.scut.edu.cn, ,   the data-driven method unexplainable and unpredictable. To
+                                           eefeiji@scut.edu.cn, eemwwen@scut.edu.cn).                                   solve these issues, a model-driven DL-receiver called Com-
+                                              Yankun Chen is with Key Laboratory of Marine Environmental Survey         Net was proposed, which combines expert knowledge of
+                                           Technology and Application, Ministry of Natural Resources, Guangzhou,
+                                           510300, China (e-mail:easiechen@qq.com).                                     communication algorithms and exhibits higher data recovery
+                                                                                                                        accuracy than FC-DNN [17]. In the field of UWA signal
+processing, a DL-based receiver was designed for single-            Input
+                                                                                                                     s (n)
+                                                                     Bits                 Sk
+carrier communications over time-varying UWA channels. It                     QPSK
+                                                                                                S/P           IFFT           Add CP
+                                                                             Modulation
+works with online training and test modes for accommodating
+the time variability of UWA channels [18]. Aiming to improve                                                                                       UWA
+the OFDM communication performance over UWA doubly-                                                                                               Channel
+selective channels, a convolutional neural network (CNN)
+                                                                                                                                                            Noise
+based architecture was proposed to compose an encoder and                                                                                             +
+a decode [19]. The drawback of the integrated design is             Output
+that the DL receiver is sensitive to the data. It has a strong       Bits               De      Sˆk          DL-                             Remove
+                                                                             P/S                                               FFT
+                                                                                     modulation            equalizer                           CP
+requirement for data matching. The training dataset and the
+test dataset should be similar or the same. Therefore, to
+maintain the stability of the communication system, some                                                 Unfolding layer
+researchers replace the specific signal processing module with                       Output                                             Input
+
+a DL network in the communication system. For example, the
+channel estimator was replaced by a super-resolution network
+                                                                                                        ...
+to improve the accuracy of channel estimation [20]. Moreover,
+
+
+
+
+                                                                                                 ...
+
+
+
+
+                                                                                                               ...
+
+
+
+                                                                                                                             ...
+                                                                                                 ...
+
+
+
+
+                                                                                                               ...
+
+
+
+                                                                                                                             ...
+integration DNNs into the Viterbi algorithm was proposed
+to improve symbol detection performance [21]. Recently, the
+unfolding algorithm is becoming a promising approach to                                        The Mst layer The mst layer   The 1st layer
+
+design a DL-based module according to the existing complex          Fig. 1: UWA-OFDM system with DL based signal equalization.
+algorithms [22]. Based on the current maximum likelihood
+(ML) algorithm model and deep unfolding method, a detector
+called DetNet, was constructed for multi-input-multi-output             proposed UDNet. Experiment show that UDNet obtains
+(MIMO) detection [23]. In this work, the learning begined               better accuracy than the classical ones, i.e., the semidefi-
+with the existing algorithm as an initial starting point, and           nite relaxation equalizer, the decision feedback equalizer,
+a soft decision output method was proposed. Further, a slid-            the DetNet detector, and the SCN detector. Meanwhile,
+ing cascaded network, dubbed SCN, was designed for large                the UDNet consumes the minimum computing time under
+Doppler frequency shift channels [24]. The deep unfolding               the same computing equipment.
+method generally achieves better signal equalization perfor-
+                                                                      The structure of the rest of this paper is as follows. Section
+mance than the existing traditional methods, i.e., DetNet and
+                                                                   II establishes the doubly-selective UWA channel models, and
+SCN. Unfortunately, both of them still follow the regression
+                                                                   both perfect channel state information (CSI) and imperfect CSI
+idea and use MMSE as the criterion for optimizing network
+                                                                   are considered. In Section III, the proposed equalizer network
+parameters. Moreover, constellation classification has already
+                                                                   structure is introduced in detail. In Section IV, we provide
+been studied based on DL [25], [26]. Motivated by this,
+                                                                   the experimental parameters of the network training and the
+a novel unfolding-based equalizer using the conception of
+                                                                   performance of the proposed network in different channel
+classification is proposed in this paper. Compared with existing
+                                                                   models. Moreover, our network is tested with the real offshore
+works, our main contributions are summarized as follows:
+                                                                   background noise. The final section concludes the paper.
+  • We propose a DL equalizer based on an unfolding al-               Notation: In this paper, we define the normal distribution
+    gorithm called UDNet, to improve the frequency domain          whose mean value is u and standard deviation is σ as N (u, σ).
+    equalization performance in complex UWA-OFDM sys-              We utilize uppercase letters to represent variables in the
+    tems. The classification idea is considered for the equal-     frequency domain and we use lowercase letters to represent
+    ization task. Specifically, the κ-constellation recognition    variables in the time domain. Meanwhile, we employ boldface
+    is regarded as a κ-category issue instead of a regression      letters to represent matrices and vectors. The superscript (·)T
+    problem. To evaluate the gap between the label and             means the transpose. The i-th element of the vector s is
+    predictions, we employ the minimum KL criterion. The           denoted as si . The R(·) represents the real part, and the I(·)
+    residual connection is employed to accelerate the training     represents the imaginary part when considering a complex
+    convergence. Moreover, we apply a sliding structure that       vector or matrix.
+    assists UDNet in adapting some length signals without
+                                                                                          II. SYSTEM MODEL
+    modifying the network architecture. The sliding structure
+    enables UDNet to handle received signals of different          A. UWA-OFDM System
+    sub-carriers, which is more practical.                            This section considers a basic single-input single-output
+  • To make experiments more convincing, we adapted the            (SISO) UWA-OFDM system. Fig. 1 describes the system
+    measured at-sea UWA channel impulse response and               architecture with the proposed DL-based equalizer. The DL-
+    the additive offshore noise measured in Nanpeng island,        based equalizer employs an unfolding algorithm. The essence
+    Yangjiang, China, to evaluate the performance of the           of the unfolding-based equalizer is to stack multi-layer neural,
+and each layer connection is designed according to a specific
+classical algorithm.
+   At the transmitter, the input bits are mapped into a modu-
+lated symbol to obtain Sk where k represents the transmitted
+signal on the k-th subcarrier. Then, the transmitted symbol Sk
+is converted to the time domain after the N -point inverse fast
+Fourier transform (IFFT). The corresponding process can be
+expressed as                                                                        (a)                               (b)
+                               N −1
+                            1  X         2π                          Fig. 2: Heatmap of baseband equivalent channel matrix with
+                   s(n) =         Sk e−j N nk ,                (1)
+                            N n=0                                    subcarrier number N = 512 in the frequency domain: a) quasi-
+                                                                     static channel heatmap b) doubly-spread channel heatmap.
+where s(n) means the n-th time sample in a OFDM symbol.
+   Later, s(n) is arranged into blocks by a parallel-to-serial
+(P/S) converter, and a cyclic prefix (CP) is employed. Then,         receiver to get the predicted constellation. Then, the output bits
+the modulated signal is converted to a passband and sent over        can be gained through the demodulation and decision modules.
+UWA channels. In general, the length of CP is longer than               For a better understanding, we show the frequency domain
+the channel maximum delay, and the ISI can be eliminated.            channel matrix using channel heatmap in Fig. 2. In detail,
+However, the doubly-selective channel makes the OFDM                 the quasi-static channel heatmap is shown in Fig. 2(a), whose
+symbol suffer serve ICI [27]. Correspondingly, the received          energy is concentrated on the frequency matrix’s diagonal. On
+signal y(n), that is the transmitted signal s(n) is transmitted      the contrary, for a doubly-selective channel, the energy of the
+over the channel h(n, l), can be expressed as                        channel matrix, shown in Fig. 2(b), is distributed around the
+                     N L−1
+                                                                     diagonal smoothly. The banded area is irregular but can be
+                     X X                                             recognized as an approximate banded matrix.
+            y(n) =             h(n, l)s(n − l) + z(n),         (2)
+                     n=0 l=0                                         B. Imperfect CSI
+where h(n, l) means the doubly-selective complex gain of the            Actually, it is challenging to obtain perfect CSI, especially
+l-th path at the n-th moment, L represents the total number of       the underwater scenario. We assume that imperfect CSI Ĥ is
+signal transmission paths, and z(n) represents additive white        used to make a recovery. In order to evaluate the robustness
+Gaussian noise (AWGN).                                               of the proposed network in practice, we define a random
+   At the receiver, the CP of the received signal should be          error variable ϑ to simulate imperfect CSI. The time domain
+removed, and the serial-to-parallel (S/P) conversion is follows.     imperfect CSI can be expressed as:
+After that, the received signal is processed by discrete Fourier
+                                                                                               ĥ = h + ϑ.                         (5)
+transform (DFT). The vector Y = F (y) represents the
+received signal in the frequency domain. The time-varying            According to (4), the ZF equalized symbol can be expressed
+doubly-selective channel h can be converted into the frequency       in the frequency domain,
+domain by a two-dimensional DFT (2D-DFT) H = 2DF (h).
+                                                                                              Ŝ = Ĥ −1 Y .                       (6)
+The frequency domain channel matrix can be expressed as,
+                                                                     The frequency domain imperfect CSI Ĥ = F (ĥ) can be
+          H00      H(N −1)1     ···    H2(N −2)     H1(N −1)
+                                                                
+                                                                     expressed as:
+          H10       H01         ···    H3(N −2)     H2(N −1)
+                                                               
+                                                               
+  
+           ..         ..                  ..           ..
+                                                                
+                                                                                         Ĥ = H + Θ,                    (7)
+                                ..
+                                                               
+H=                                                             .
+                                                               
+            .          .           .       .            .
+                                                                     where Θ = F (ϑ̂) means the random error in the frequency
+                                                               
+                                                               
+       H(N −2)0   H(N −3)1     ···    H0(N −2)   H(N −1)(N −1) 
+                                                               
+                                                                     domain. The elements of the random error ϑ have zero mean
+        H(N −1)0   H(N −2)1     ···    H1(N −2)     H0(N −1)
+                                                      (3)            value, and the standard deviation of σ generated from the
+where H ∈ EN ×N reflects the mutual interference between             normal distribution N (0, σ 2 I). When the CSI is perfect, ϑ
+subcarriers.                                                         is set to all-zero.
+  The signal transmission process can be modeled as                           III. UNDERWATER DEEP NETWORK
+                        Y = HS + Z,                            (4)      In this section, we elaborate on the UDNet equalizer frame-
+                                                                     work. In general, the deep unfolding approach is used to unfold
+where the received vector Y = F (y) represents the received          the iteration of a specific algorithm into a single layer. Then,
+signal in the frequency domain with Y ∈ EN , transmitted vec-        we stacked M layers to form a deeper equalizer. Fig. 4 shows
+tor S = F (s) means the transmitted signal in the frequency          a specific layer of the UDNet. The deep unfolding technique
+domain with S ∈ CN , and noise vector Z = F (z) means the            is employed to reference the MMSE algorithm for the design
+noise in the frequency domain with size N . The frequency            of DL-equalizer architecture. Compared with the black-box-
+domain received symbol Y can be equalized with the DL                designed method, the unfolding-based algorithms can be well
+                        2
+                                                                                          constellation points. For example, the QPSK is a four-category
+                                                                                          problem, intuitively.
+                      1.5
+
+
+                        1                                                                 B. Fully Connected Layer
+                                                                                             The ML equalizer involves an exhaustive search and is the
+         Quadrature
+
+                      0.5
+
+
+                        0
+                                                                                          optimal equalizer in the minimum joint probability of error
+                                                                                          for detecting all the symbols simultaneously [23]. The ML
+                      -0.5
+                                                                                          algorithm can be expressed as
+                       -1
+
+                                                                                                            Ŝ = arg min kY − HSk.                      (11)
+                      -1.5
+                                                                                                                     S∈Ĉ2N
+                       -2
+                         -2      -1.5   -1   -0.5      0       0.5   1   1.5   2          Unfortunately, the computational complexity of ML will in-
+                                                    In-Phase                              crease exponentially with the increase of sub-carriers N .
+                             Fig. 3: Constellation diagrams of QPSK.                      Especially since the sub-carriers number of OFDM in the
+                                                                                          UWA conditions is relatively large, the ML algorithm is highly
+                                                                                          complicated. Besides, ML is sensitive to channel estimation,
+explained and interpreted, which is more intuitive. Therefore,                            which makes engineering applications difficult. In practice,
+we utilize the unfolding approach and construct UDNet based                               ML is usually replaced by sub-optimal MMSE equalizers.
+on the MMSE structure to improve equalization performance.                                Hence, we take the fundamental MMSE as a reference and
+The details of the procedure can be described into three parts,                           unfold the MMSE to improve the equalizer performance.
+including data pre-processing, layer framework design, and                                   According to (4), (8) and (9), the corresponding relationship
+optimization criteria.                                                                    between pre-processed Ŷ and Ĥ can be defined as follows,
+A. Data Pre-processing                                                                                      Ḣ T Ẏ = Ḣ T Ḣ Ṡ + Ḣ T Ż.             (12)
+   1) Input pre-processing: Considering the input of the gen-
+eral neural network must be a real number, we first need to                                  The flowchart of the m-th layer of UDNet is shown in
+convert the complex signal into real form. Concretely, the input                          Fig. 4. Further, the gradient steepest descent method calculates
+complex signals of UDNet can be rewritten as follows,                                     the global minimum point. Therefore, the unfolding iterative
+                                                                                      algorithm of the network can be formulated as
+                      R(Y )              R(Ŝ)
+              Ẏ =              , Ṡ =           ,           (8)                                                  
+                                                                                                                            Sm
+                                                                                                                                              
+                      I(Y )              I(Ŝ)
+                                                                                          vm = ρTanh wm1  λm1 H T Y               + bm1  , (13)
+                R(Z)                 R(H) −I(H)                                                                               T
+                                                                                                                      λm2 H HSm
+        Ż =             , Ḣ =                         ,    (9)
+                 I(Z)                I(H) R(H)
+                                                                                                         q̂m = ρSoftmax (wm2 vm + bm2 ) ,               (14)
+where Ẏ ∈ E2N , Ḣ ∈ E2N ×2N , Ż ∈ Z2N , and Ṡ ∈ Ĉ2N
+are pre-processed received signal, CSI, noise and transmitted                             where vm a temporary variable of each layer, Ṡm is the m-
+signal in the frequency domain, respectively.                                             th iteration value, Wm means the weight matrix of the m-th
+   2) Output pre-processing: The constellation diagram is                                 layer, nm means the bias term of the m-th layer, and λm1
+widely used in digital communications. The classical equalizer                            and λm2 represent the step size parameters of the m-th layer,
+is designed according to the MMSE criterion. We pre-process                               respectively. Meanwhile, the initial value of Ṡ0 is assigned
+the form of the output data to treat the signal equalization as                           by ZF equalization to increase the convergence rate during
+a classification task instead of a regression task. We perform                            training. We employ two nonlinear functions for the m-th layer
+one-hot encoding of the reparameterized          discrete modulated                       to eliminate the channel distortion. Because of the universal
+                               
+signal constellation C = c1 , . . . , ci , . . . , c|κ| . The digital                     approximation theorem [28], any two nonlinear functions can
+modulation then can be specified as a κ-classes problem.                                  fit any function. The learnable parameters of the m-th layer is
+   For each possible ci , we arrange a unit vector pi ∈ E|Ĉ| . We                        Ξm = {wm1 , bm1 , wm2 , bm2 }. The whole network learnable
+define the mapping function c = εo (p), where ci = εo (pi ) for                           parameters are included in Ψ = {Ξ1 , . . . , Ξm , . . . , ΞM }. The
+i = 1, . . . , |Ĉ|. For example, the quadrature phase shift keying                       first activation function is ρTanh with parameters {wm1 , nm1 }
+(QPSK) constellations after the one-hot encoding function can                             in order to map the output within [−1, 1], which is consis-
+be expressed as                                                                           tent with the constellation. The second activation function
+                                                                                          is ρSoftmax with parameters {wm2 , nm2 }, which maps the
+                                  c1 = [1, 1] → p1 = [1, 0, 0, 0]                         estimated symbol into one-hot format. Then, the QPSK de-
+                                c2 = [−1, 1] → p2 = [0, 1, 0, 0]                          mapping function ε is used, which converts one-hot coding to
+                                                                  .                (10)
+                              c3 = [−1, −1] → p3 = [0, 0, 1, 0]                           the QPSK symbol to ensure the input of the following layer
+                              c4 = −[−1, 1] → p4 = [0, 0, 0, 1]                           is still constellation information. Via a mapping function, we
+   Fig. 3 shows the QPSK constellation diagrams. The constel-                             obtain Ŝm+1 = εo (q̂m ). Then, Ŝm+1 is used as the input of
+lation diagram can display the position and distribution of the                           the (m + 1)-th layer.
+                   m1
+        H TY               ×
+                                             wm1     bm1                wm 2 bm 2
+                                                                                           Soft
+         Sm                ×        Con         ×      +      Tanh          ×      +                           qˆ m       0                S m 1
+                                                                       vm                  max
+
+                                                                      The m-th layer
+            T
+                    m 2
+        H H
+                                   Fig. 4: A flowchart of the m-th layer of UDNet with classification structure.
+
+
+   Moreover, we employ cross-layer residual connections to
+avoid the proposed network’s vanishing gradient problem. The
+specific framework is shown in Fig. 5. Specifically, we connect
+the m-th and the (m + 1)-th output of T anh. In the same
+way, we also connect the m-th and the (m + 1)-th output of                                                                      Tanh layer
+Sof tmax. The cross-layer residual connections solve the van-
+ishing gradient problem and accelerate the training procedure.                                                                  Softmax layer
+
+                                                                                                                                Residual connection
+C. KL Criterion
+   We use classification ideas to optimize the equalizer. The
+equalizer based on the MMSE is not achieving the minimum                      The m-th layer              The (m+1)-th layer
+symbol error rate (SER) performance. Unlike the minimum
+                                                                                        Fig. 5: The structure of residual connection.
+MSE, we pursue the distribution of the prediction constellation
+diagram closest to the true distribution. In this way, the
+SER performance can be improved. Hence, the minimum KL                      constant is zero. Therefore, cross-entropy can be directly used
+criterion is employed to evaluate the gap between the true label            to train a model. That is to say, minimizing KL divergence is
+and estimated predictions. We perform one-hot encoding with                 equivalent to minimizing cross entropy, and the calculation of
+a constellation diagram to utilize the position and distribution            cross entropy is more straightforward.
+information. The QPSK constellation points are regarded as
+the label, and the corresponding estimated symbol is the pre-               D. Sliding Structure of OFDM Signal
+diction value. The KL divergence is a nonsymmetric measure                      Let the matrix H be split into sliding blocks represented as
+of the difference between two probability distributions P , and                                  
+                                                                                                    φ1
+                                                                                                                          
+Q. The loss function can be expressed as:                                                                 φ2             
+                                                                                             H=                          ,            (16)
+                                                                                                                         
+                                                                                                                 ..
+ DKL (S; Ŝ (Y , H; Ψ))
+                                                                                                                   .     
+   M P N                                                                                                                       φJ
+   P                     Pm (Sk )
+ =          Pm (Sk ) log Q
+     m=1 k=1
+                            (Ŝ )
+                               m    k                                       where J means the number of sliding blocks, and φj repre-
+     PM P N                                                                 sents the j-th sliding block of H. Meanwhile, the received
+ =              (Pm (Sk ) log(Pm (Sk )) − Pm (Sk ) log(Qm (Ŝk )))          signal y, the estimated value of the transmitted signal Ŝ can
+     m=1 n=1
+     PM                                                                     be expressed as
+ =      (H(Pm (S)) − H(Pm (S), Qm (Ŝ)))                                                                               
+     m=1                                                                                    Y = Γ1 Γ2 · · · ΓJ ,                      (17)
+       M
+       P
+ =−         H(Pm (S), Qm (Ŝ)),
+      m=1                                                                                                                          
+                                                          (15)                                 Ŝ =       Υ1      Υ2   ···     ΥJ       ,            (18)
+where Pm (S) represents the true distribution. The mea-
+                                                                            where Γj and Υj represents the j-th sliding block of Y and
+sured Qm (Ŝ) typically represents a predicted distribution.
+                                                                            Ŝ, respectively. Block-like segmented sliding processing is
+DKL (S; Ŝ (Y , H; Φ)) denotes the KL divergence, where Φ
+                                                                            performed on the input signals H, Y , and Ŝ, thereby reducing
+represents the training parameters in the network, Y and H
+                                                                            the problem of insufficient computing resources and memory.
+are the input of the network.
+                                                                            Therefore, we get the network output with sliding blocks as
+   Moreover, in the training stage, the information entropy of                                                         
+a given dataset is a fixed constant, and the derivative of the                               q̂ = Ω1 Ω2 · · · ΩJ ,                    (19)
+                   (a) NOF                                      (b) NCS                                       (c) SIM
+
+                              Fig. 6: Time-varying impulse response of three kinds of UWA scenarios.
+
+
+         TABLE I: Summary of System Parameters                                 TABLE II: Parameters of Test Conditions
+                 Parameters            Value                                  Parameters       NOF         NCS          SIM
+                Modulations             QPSK                                 Environment        Fjord      Shelf       Default
+                 Subcarriers       512/1,024/2,048                              Range           750m       540m     500m-8,000m
+               Channel length          120 taps                              Water depth        10m        80m          100m
+                 Sliding size           32*32                              Transmitter depl    Bottom     Bottom     Suspended
+               Training SNR              25dB                               Receiver depl      Bottom     Bottom     Suspended
+                Testing SNR      10/15/20/25/30/35dB                       Doppler coverage    7.8Hz      31.4Hz    Uncalculated
+                  Optimizer             Adam                                    Type          Measured   Measured     Simulated
+               Layer number               22                                   Quantity       216,180     15,480       61,440
+                Learning rate           0.001
+                  Batch size            2,000
+                   Epochs                 200
+                     CIRs               20,000
+                                                                     MMSE: The classical MMSE algorithm of equalizers.
+                                                                     DFE: The decision feedback equalizer (DFE) algorithm.
+                                                                     SDR: A decoder based on semidefinite relaxation using effi-
+where Ωj represents the j-th sliding block of q̂.                    cient interior point solver in [29].
+                                                                     DetNet: The detector architecture based DL proposed in [23],
+               IV. E XPERIMENTAL RESULTS                             but modified to render it suitable for time-varying channel.
+A. Training Parameter Settings                                       SCN: Proposed method in [24], which is a novel equalizer
+                                                                     method, combining deep unfolding and sliding structure.
+   In this section, we introduce the detailed parameters of the
+                                                                     UDNet: The equalizer network architecture proposed in this
+network. We utilize TensorFlow architecture and python3.6 for
+                                                                     paper.
+training. Table I lists the system parameters of UDNet training.
+Meanwhile, the network is trained using the adaptive moment
+                                                                     B. Training and Testing Dataset
+estimation (Adam) gradient descent method. In detail, the total
+layer number of UDNet is set to M = 22. The initial learning            Table II shows the parameters of the UWA doubly-selective
+rate is set to 0.001, and the training batch is set to 2, 000. The   channel impulse response (CIR) dataset. Our dataset con-
+total training epoch is 200 for each epoch. Further, the number      tains simulated and measured UWA CIRs, which are used
+of CIRs we used in the training procedure is 45 × 6000. The          in short-distance and shallow-water communication scenarios.
+channel length is set to 120 taps. The channel matrix is divided     Fig. 6 shows the CIRs of three underwater channels. The
+into 32 × 32 size of sliding block and input to the UDNet. In        raw CIRs were measured at Norway—Oslofjord (NOF) and
+the training stage, the SNR is fixed at 25dB. It should be noted     Norway—Continental Shelf (NCS) [30]. Moreover, we created
+that we explored the comparison experiment of complexity on          a part of data by BELLHOP (SIM-B), which is a well-known
+NVIDIA GeForce RTX 3090.                                             UWA channel simulation method [31]. The dataset generated
+   The number of sub-carriers of the selected OFDM signal is         by NOF of 75% is used for offline training of UDNet, and
+N =512 by default. Due to the large sub-carrier of the UWA           the remaining 25% is employed for online testing. It is worth
+signal and the computer memory limitation, the algorithms            mentioning that the UDN only needs to train once over the
+we compared are all processed with sliding structures. The           NOF channel, and it can work over NCS and SIM channels,
+signal modulation method is QPSK. When we compare the                which shows its generalization. Besides, other CIRs measured
+performance of different algorithms, we will use the following       under different environments are considered for online testing.
+naming convention:                                                   The corresponding dataset can be founded in [32].
+        10-1
+
+
+
+
+                                                                                   10-1
+        10-2
+  SER
+
+
+
+
+                                                                             SER
+                      MMSE                                                                  MMSE
+                      DFE                                                                   DFE
+        10-3          SDR                                                                   SDR
+                      DetNet                                                                DetNet
+                      SCN                                                                   SCN
+                      UDNet                                                                 UDNet
+                                                                                   10-2
+           10         15            20             25        30    35                 10    15         20             25   30        35
+                                         SNR(dB)                                                            SNR(dB)
+
+Fig. 7: SER curves of UDNet and competing methods over the quasi-          Fig. 9: SER curves of UDNet and competing methods over the time-
+static NOF channel.                                                        varying NCS channel.
+
+
+
+                                                                                   10-1
+
+
+
+
+        10-1
+  SER
+
+
+
+
+                                                                             SER
+
+
+
+
+                      MMSE                                                                  MMSE
+                      DFE                                                                   DFE
+                      SDR                                                                   SDR
+        10-2          DetNet                                                       10-2     DetNet
+                      SCN                                                                   SCN
+                      UDNet                                                                 UDNet
+
+               5     10        15          20           25    30   35                 10    15         20             25   30        35
+                                         SNR(dB)                                                            SNR(dB)
+Fig. 8: SER curves of UDNet and competing methods over the time-           Fig. 10: SER curves of UDNet and competing methods over the time-
+varying NOF channel.                                                       varying SIM channel.
+
+
+C. SER Performance under Different Conditions                              matrix H only has a non-zero value on the diagonal. The ICI
+  We are very concerned about the SER performance of the                   influence caused by the Doppler effect of H can be ignored.
+proposed equalizer. In the following experiments of different              Fig. 7 shows the SER curves of UDNet and competing
+conditions, we test the mild quasi-static conditions and the               methods over the quasi-static NOF channel. We can find that
+tough doubly-selective conditions with perfect CSI.                        the DetNet is not suitable for quasi-static channels, and the
+  1) Quasi-Static Channel: In the quasi-static scenario, the               DFE performs the best SER performance. Further, the SCN
+UWA channel is constant within an OFDM symbol. In this                     and the proposed UDNet perform similarly to the classical
+case, (2) can be simplified as                                             approaches, i.e., MMSE and SDR. The sliding approach
+                                                                           increases the amount of training data with the same number
+                            N L−1
+                            X X                                            of channels. Overall, the advantages of complex networks are
+                   y(n) =                h(l)s(n − l) + z(n),       (20)   not highlighted in simple quasi-state scenarios, but classical
+                            n=0 l=0
+                                                                           methods perform well. More notably, the UWA channel is
+where the channel gain h(l), and z(n) AWGN have nothing                    rarely quasi-static.
+to do with the time. Meanwhile, frequency domain channel                      2) Doubly-selective Channel: In general, the channel varies
+                                                                              100
+                                                                                                                     Measured
+                                                                                                                     Alpha-stable
+                                                                                                                     Gaussian
+                                                                              10-1
+
+
+
+
+                                                                    Density
+                                                                              10-2
+
+
+
+
+                                                                              10-3
+
+
+
+
+Fig. 11: Bottom-mounted submersible offshore noise acquisition                10-4
+                                                                                 -10        -5           0           5              10
+system off Nanpeng island, Yangjiang, China.
+                                                                                                  Amplitude
+
+                                                                  Fig. 12: Comparison of the collected noise, alpha noise and Guassian
+within an OFDM symbol. Hence, we pay attention to the             noise.
+doubly-selective scenario, also dubbed time-varying. Fig. 8
+shows SER curves of UDNet and competing methods over the
+time-varying NOF channel. It can be seen that the performance                 10-1
+
+of UDNet is better than other methods between a wide range
+of SNR. However, when SNR is high, the downward trend of
+the UDNet curve slows down, and the wrong platform appears.
+It is due to when the sliding is performed. We ignore some
+non-zero values. The channel matrix is regarded as a quasi-
+band, and we lost part of CSI. It results in some performance
+                                                                    SER
+
+
+
+
+penalties under high SNR.                                                     10-2
+
+                                                                                       MMSE
+D. Generalizations of Different Equalizers                                             DFE
+                                                                                       SDR
+   The scene of the UWA channel is diverse, and the DL                                 DetNet
+method is sensitive to data changes. The generalization is                             SCN
+highly concerned. We compare the experimental over the other                           UDNet
+two kinds of channels, and it is marked NCS channel is the
+                                                                              10-3
+most complicated. From Fig. 9 and Fig. 10, we show the gen-                       10   15        20             25       30         35
+eralization of UDNet and competing equalizers over different                                          SNR(dB)
+channels, i.e., NCS and SIM. The DL-equalizers, i.e., DetNet,     Fig. 13: Comparison of anti-noise performance of different algorithms
+SCN, and UDN, are all trained over NOF channels. They can         over NOF channel.
+perform well over NCS and SIM. It illustrates that unfolding-
+based equalizers have strong generalizations. Specifically, un-
+der a challenging condition, that is, NCS channels, UDNet         ing performance and stability of UDNet. Simultaneously, it
+consistently outperforms other algorithms in the SNR range        is elaborated that UDNet shows superior performance over
+of 0 − 35dB. UDNet performs better than other algorithms          complex channels, and the other algorithms have a weaker
+in high SNR for the mild SIM channel, but its performance         ability to deal with complex channels.
+is not as good as the traditional DFE in the SNR range of
+0 − 20dB. Further, we use a comprehensive view to compare         E. SER Performance under Collected Offshore Background
+Fig. 9 and Fig. 10. We can find that the SER performance          Noise
+ranking of equalizers is unstable. In Fig. 9, the ranking of        In this part, we first present a measured offshore background
+SER from the smallest to the largest in the SNR range of          noise to provide the experiment more realistic. The marine
+20 − 30dB is UDNet<DetNet<SDR<SCN<DFE<MMSE.                       noise of the UWA channel is a non-white Gaussian noise
+Relatively, In Fig. 10, the ranking of SER in the SNR range       composed of sounds from turbulence, shipping, wind and
+of 20 − 30dB is UDNet<SCN<DFE<SDR<DetNet<MMSE.                    waves, and thermal noise. Fig. 11 shows the noise collecting
+It is because the proposed UDNet employs the KL criterion to      system, which adopts a bottom-mounted diving subsurface
+design an equalizer. The KL criterion maintains the outstand-     buoy. We used a self-contained acoustic recorder to collect
+                                                      MMSE                                                              MMSE
+         10-1                                                               10-1
+                                                      SDR                                                               SDR
+                                                      DetNet                                                            DetNet
+                                                      SCN                                                               SCN
+                                                      UDNet                                                             UDNet
+   SER
+
+
+
+
+                                                                      SER
+         10-2
+                                                                            10-2
+            10    15        20         25        30            35               10   15        20         25       30            35
+                             SNR(dB)                                                            SNR(dB)
+                                 (a)                                                                (b)
+
+Fig. 14: SER curves of UDNet and competing equalizers over the time-varying NOF channel with imperfect CSI: a) σ = 0.003.
+b) σ = 0.005.
+
+
+offshore background noise, and the collection experiment            resources. Therefore, to get closer to the real conditions, we
+lasted for two days in an offshore wind farm at Nanpeng             validate the robustness of these equalization algorithms with
+Island, Yangjiang, China. In detail, the subsurface buoy arrays     imperfect CSI. Fig. 14 shows SER curves of UDNet and
+are placed in the shallow layer 3 meters below the water            competing equalizers over the time-varying NOF channel with
+surface, the middle layer is located 12 meters below the water      imperfect CSI. According to (7), we add error e to the perfect
+surface, and the bottom layer is installed 15 meters below          CSI h to simulate the imperfect CSI ĥ. The mean value of
+the water surface, respectively. The floating ball keeps the        ϑ is zero. Furthermore, the σ of error is set to 0.001 and
+subsurface buoy suspended, and a weight is added to the             0.003, respectively. The σ controls the inaccuracy degree of
+bottom of the device to keep the whole device vertical. The         h. The bigger σ is, the more blurry ĥ is. It is shown that as
+collected noise is filtered by a band-pass filter to obtain the     ĥ deviates more, CSI is more imperfect, and the performance
+processed noise in the frequency between 10 and 18 kHz.             of all equalizer algorithms decreases. However, UDNet still
+   Fig. 12 shows the measured noise probability density dis-        performs better than other methods in the varying procedure
+tributions. Meanwhile, to descript the type of noise, we add        of imperfect CSI. It is because traditional algorithms rely
+Gaussian and alpha-stable Noise as benchmarks. It is evident        more on correct channel estimation, but imperfect CSI will
+that the measured noise is a non-zero mean value, and its           affect its accuracy. Furthermore, the DL-based methods have
+probability distribution curve is more slender than the AWGN        better robustness and accuracy, especially when they utilize
+distribution curve. It goes to the alpha-stable distribution. It    probability as the output of soft information, i.e., UDNet.
+is because there is a lot of impulse noise during recording.
+Moreover, we use the measured noise as the background noise         G. Impact of Clipping and Filtering Distortion
+of the UWA signal for the anti-noise experiment of UDNet.              Fig. 15 compares UDNet and other algorithms under clip-
+Fig. 13 shows the experimental result of the anti-noise perfor-     ping and filtering distortion. In the UWA OFDM system, there
+mance of different algorithms over the NOF channel. We can          are random interference factors, such as the attenuation of
+see that the SER performance of UDNet is better than other          information energy and waveform distortion caused by the
+algorithms in the range of 0-35dB SNR. It clearly shows that        system’s nonlinearity channel [33]. Therefore, a significant
+UDNet has a more stable anti-noise performance. Concretely,         shortcoming of OFDM, the high peak-to-average power ratio
+it not only can deal with the additive white gaussian noise but     (PAPR), is fatal for the UWA OFDM communications because
+also the measured impulse noise. In summary, the proposed           of clipping. The clipping will introduce nonlinear noise, and
+UDNet is more robust to fix the truly offshore background           the received data may be badly distorted. Concretely, the
+noise. Moreover, the result further illustrates the advantages      clipped signal can be expressed as,
+of UDNet in the underwater environment.                                                  
+                                                                                            c(n),        if |c(n)| ≤ A
+                                                                                c(n) =                                 ,     (21)
+F. SER Performance under Imperfect CSI                                                      Aejφ(n) , otherwise
+ Actually, it is challenging to acquire perfect CSI in the          where A is the limiting threshold, c(n) is the received signal,
+UWA communication system because of the limited bandwidth           and φ(n) is the phase of c(n).
+                                                                                                100
+                                                                                                                                              MMSE
+             -1                                                                                                                               DFE
+        10
+                                                                                                                                              SDR
+                                                                                                                                              DetNet
+                                                                                                10-1                                          SDN
+                                                                                                                                              UDNet
+
+
+
+
+                                                                                      Time(s)
+  SER
+
+
+
+
+                           MMSE
+                           DFE                                                                  10-2
+                           SDR
+        10-2               DetNet
+                           SCN
+                           UDNet
+                                                                                                10-3
+              10           15        20             25          30         35                              512             1024          2048
+                                          SNR(dB)                                                                   Carrier Number
+
+Fig. 15: Comparison of different algorithms under clipping over NOF                 Fig. 16: Comparison of the calculation time of different algorithms.
+channels.
+
+TABLE III: Complexity Comparison of DL-Based Equalizers
+  Name             Flops     Paras   Memory         Multiplications and Additions               10-1
+
+ DetNet            0.96M    0.47M    2.1MB                     22,752
+  SCN              0.39M    0.20M    0.85MB                     9,344
+ UDNet             0.65M    0.33M    1.5MB                     15,520
+                                                                                      SER
+
+
+
+
+  We set the clipping ratio to the OFDM signal as 1. As we
+can observe, all methods have a decay with SER performance                                                  SCN, N=512
+under the clipping noise setting. Simultaneously, it almost                                          -2     UDNet, N=512
+                                                                                                10
+                                                                                                            SCN, N=1024
+covers 10 − 35dB SNR. It is shown that the UDNet method
+                                                                                                            UDNet, N=1024
+outperforms the other methods. This result proves that the
+                                                                                                            SCN, N=2048
+UDNet method is more robust with the nonlinear clipping                                                     UDNet, N=2048
+noise.
+                                                                                                      10     15      20             25   30            35
+H. Complexity Analysis                                                                                                    SNR(dB)
+   1) Model Size: Table III compares the complexities of                            Fig. 17: Comparison of SER performance of SCN and UDNet over
+the equalizers based on deep unfolding parameters, including                        NOF channel with different subcarrier numbers.
+the amount of floating-point multiplication adds (FLOPs),
+the number of model parameters, the model size, and the
+multiplication and addition times of single-layer iterative net-                    of different numbers of sub-carriers. The experimental results
+works. The comparison result shows that the model complexity                        tell that the computational complexity of UDNet is less than
+of UDNet is between DetNet and SCN. It is because each                              that of other algorithms except for SCN. The outcome is
+layer of UDNet has fewer learning parameters than DetNet,                           consistent with the result in Table III. Moreover, we can find
+which reduces the amount of calculation. Furthermore, our                           that when the subcarrier number increases, the computation
+network is compared with SCNet. It induces more residual                            time exponentially rises for classical equalizers. It is because
+connection structures and a classification structure to improve                     the classical algorithms involve inverse or division operations,
+network performance. Therefore, these added functional struc-                       which brings a significant computational performance over-
+tures make UDNet more complex than SCN.                                             head. DL equalizers only deal with multiplication and addition,
+   2) Computation time: In general, the computation time                            so that there is no such problem. In conclusion, DL equalizers
+is used to compare the complexity of DL algorithms [17],                            have a smaller time overhead than classical equalizers when
+[20], [34]. To further explore the complexity of different                          using the same computing equipment.
+algorithms, we conduct the following experiments by chang-                             Moreover, Fig. 17 shows that the SER performance of
+ing the number of sub-carriers. Fig. 16 shows the average                           UDNet is better than SCN when the number of sub-carriers
+calculation time required by various algorithms in the face                         is N = 512, N = 1024, and N = 2048. The difference is
+because, with the carrier number increase in a fixed bandwidth,                  [14] J. Han, S. Ma, Y. Wang and G. Leus, “Low-Complexity Equalization of
+the data rate rises, and it makes ICI serve and SER decrease.                         MIMO-OSDM,” IEEE Trans. Veh. Technol., vol. 69, no. 2, pp. 2301-
+                                                                                      2305, Feb. 2020.
+Therefore, it can be concluded that UDNet achieves a balance                     [15] G. D. Surabhi and A. Chockalingam, “Low-Complexity Linear Equal-
+of computation time and accuracy.                                                     ization for OTFS Modulation,” IEEE Commun. Lett., vol. 24, no. 2, pp.
+                                                                                      330-334, Feb. 2020.
+                           V. C ONCUSIONS                                        [16] H. Ye, G. Y. Li and B. Juang, “Power of Deep Learning for Channel
+                                                                                      Estimation and Signal Detection in OFDM Systems,” IEEE Wireless
+   In this paper, we proposed an unfolding-based UDNet                                Commun. Lett., vol. 7, no. 1, pp. 114-117, Feb. 2018.
+                                                                                 [17] X. Gao, S. Jin, C. Wen and G. Y. Li, “ComNet: Combination of Deep
+to equalize OFDM signal transmitted over UWA doubly-                                  Learning and Expert Knowledge in OFDM Receivers,” IEEE Commun.
+selective channel. A classification structure and cross-layer                         Lett., vol. 22, no. 12, pp. 2627-2630, Dec. 2018.
+residual connections were employed for the equalizer. We                         [18] Y. Zhang et al., “Deep Learning Based Single Carrier Communications
+                                                                                      Over Time-Varying Underwater Acoustic Channel,” IEEE Access, vol.
+built several UWA experiment channels that are as realistic                           7, pp. 38420-38430, 2019.
+as possible. Experimental results indicated that the proposed                    [19] J. Liu, F. Ji, H. Zhao, J. Li and M. Wen, “CNN-Based Underwater
+UDNet outperforms classical equalization algorithms and deep                          Acoustic OFDM Communications over Doubly-Selective Channels,” in
+                                                                                      Proc. IEEE 94th Veh. Technol. Conf., 2021, pp. 01-06.
+unfolding equalizers, i.e., DetNet and SCN, with outstanding                     [20] H. Huang, J. Yang, H. Huang, Y. Song and G. Gui, “Deep Learning
+computation time. Moreover, our network has a specific gen-                           for Super-Resolution Channel Estimation and DOA Estimation Based
+eralization in these experiment channels. Meanwhile, UDNet                            Massive MIMO System,” IEEE Trans. Veh. Technol., vol. 67, no. 9, pp.
+                                                                                      8549-8560, Sept. 2018.
+possessed comparatively better robustness against perfect or                     [21] N. Shlezinger, N. Farsad, Y. C. Eldar and A. J. Goldsmith, “ViterbiNet:
+imperfect CSI. Apart from this, we proved that the proposed                           A Deep Learning Based Viterbi Algorithm for Symbol Detection,” IEEE
+network performs better under realistic underwater conditions                         Trans. Wireless Commun., vol. 19, no. 5, pp. 3319-3331, May 2020.
+                                                                                 [22] Hershey J R, Roux J L and Weninger F. “Deep Unfolding: Model-Based
+with offshore background noise and measured channel impulse                           Inspiration of Novel Deep Architectures. Computer Sci., 2014.
+response.                                                                        [23] N. Samuel, T. Diskin and A. Wiesel, “Learning to Detect,” IEEE Trans.
+                                                                                      Signal Process., vol. 67, no. 10, pp. 2554-2564, May. 2019.
+                              R EFERENCES                                        [24] Q. Huang, C. Zhao, M. Jiang, X. Li and J. Liang, “A Novel OFDM
+                                                                                      Equalizer for Large Doppler Shift Channel through Deep Learning,” in
+ [1] I. F. Akyildiz, P. Wang and Z. Sun, “Realizing Underwater Communica-             Proc. IEEE 90th Veh. Technol. Conf., pp. 1-5, 2019.
+     tion Through Magnetic Induction,” IEEE Commun. Mag., vol. 53, no.           [25] Y. Kumar, M. Sheoran, G. Jajoo and S. K. Yadav, “Automatic Modula-
+     11, pp. 42-48, November 2015.                                                    tion Classification based on Constellation Density using Deep Learning,”
+ [2] J. Catipovic, A. Baggeroer, K. V on der Heydt, and D. Koelsch, “Design           IEEE Commun. Lett., vol. 24, no. 6, pp. 1275-1278, June 2020.
+     and Performance Analysis of a Digital Acoustic Telemetry System for         [26] V.-S. Doan, T. Huynh-The, C.-H. Hua, Q.-V. Pham and D.-S. Kim,
+     the Short Range Underwater Channel,” IEEE J. Oceanic Eng., vol. 9,               “Learning Constellation Map with Deep CNN for Accurate Modulation
+     no. 4, pp. 242–252, Oct. 1984.                                                   Recognition,” in Proc. IEEE Global Commun. Conf., pp. 1-6, 2020.
+ [3] M. Stojanovic and J. Preisig, “Underwater Acoustic Communication            [27] T. Ebihara and K. Mizutani, “Underwater Acoustic Communication With
+     Channels: Propagation Models and Statistical Characterization,” IEEE             an Orthogonal Signal Division Multiplexing Scheme in Doubly Spread
+     Commun. Mag., vol. 47, no. 1, pp. 84-89, Jan. 2009.                              Channels,” IEEE J. Oceanic Eng., vol. 39, no. 1, pp. 47-58, Jan. 2014.
+ [4] J. Catipovic, M. Johnson, and D. Adam, “Noise Cancelling Performance        [28] K. Hornik, M. Stinchcombe and H White, “Multilayer Feedforward
+     of an Adaptive Receiver for Underwater Communications,” in Proc.                 Networks are Universal Approximators,” Neural networks, vol. 2, no. 5,
+     Symp. Auton. Underwater Veh. Technol., Jul. 1994, pp. 171–178.                   pp. 359-366, 1989.
+ [5] D. B. Kilfoyle and A. B. Baggeroer, ”The State of the Art in Underwater     [29] Z. Q. Luo, W. K. Ma, A. M. So, Y . Y e, and S. Zhang, “Semidefinite
+     Acoustic Telemetry,” IEEE J. Oceanic Eng., vol. 25, no. 1, pp. 4-27, Jan.        Relaxation of Quadratic Optimization Problems,” IEEE Signal Process.
+     2000.                                                                            Mag., vol. 27, no. 3, pp. 20–34, May. 2010.
+ [6] J. Tao, ”DFT-Precoded MIMO OFDM Underwater Acoustic Communi-                [30] P. A. van Walree, F. Socheleau, R. Otnes and T. Jenserud, “The
+     cations,” IEEE J. Oceanic Eng., vol. 43, no. 3, pp. 805-819, July 2018.          Watermark Benchmark for Underwater Acoustic Modulation Schemes,”
+ [7] M. T. Altabbaa, “Double Focusing: A New Sparse Channel Estima-                   IEEE J. Oceanic Eng., vol. 42, no. 4, pp. 1007-1018, Oct. 2017.
+     tion Algorithm for Doubly Selective SFBC-OFDM-Based Underwater              [31] P. Qarabaqi and M. Stojanovic, “Statistical Characterization and Com-
+     Acoustic Systems,” IEEE Wireless Commun. Lett., vol. 9, no. 12, pp.              putationally Efficient Modeling of a Class of Underwater Acoustic
+     2040-2044, Dec. 2020.                                                            Communication Channels,” IEEE J. Oceanic Eng., vol. 38, no. 4, pp.
+ [8] E. Panayirci, M. T. Altabbaa and H. V. Poor, “Channel Estimation and             701-717, Oct. 2013.
+     Equalization for Alamouti SF-Coded OFDM-UWA Communications,”                [32] H. Zhao, F. Ji, M. Wen, H. Yu and Q. Guan, “Multi-Task Learning
+     IEEE Trans. Veh. Technol., vol. 70, no. 2, pp. 1709-1723, Feb. 2021.             Based Underwater Acoustic OFDM Communications,” in Proc. IEEE
+ [9] Z. An, J. Wang and S. Huang, “MMSE-Based Equalization and ICI                    Int. Conf. Signal Process. Commun. Comput., 2021, pp. 1-5.
+     Mitigation Scheme for OFDM System Over Doubly Selective Channels,”          [33] P. K. Rajasekaran, N. Satyanarayana and M. D. Srinath, “Optimum
+     IEEE Int. Symp. Broadband Multimedia Syst. Broadcast., 2014, pp. 1-4.            Linear Estimation of Stochastic Signals in the Presence of Multiplicative
+[10] B. Li, S. Zhou, M. Stojanovic, L. Freitag and P. Willett, “Multicarrier          Noise,” IEEE Trans. Aerosp. Electron. Syst., vol. AES-7, no. 3, pp. 462-
+     Communication over Underwater Acoustic Channels with Nonuniform                  468, May. 1971.
+     Doppler Shifts,” IEEE J. Oceanic Eng., vol. 33, no. 2, pp. 198-209,         [34] Q. Hu, Y. Cai, Q. Shi, K. Xu, G. Yu and Z. Ding, “Iterative Algorithm
+     April 2008.                                                                      Induced Deep-Unfolding Neural Networks: Precoding Design for Mul-
+[11] Y. Li, I. Ngebani, X.-G. Xia and A. Host-Madsen, “On Performance of              tiuser MIMO Systems,” IEEE Trans. Wireless Commun., vol. 20, no. 2,
+     Vector OFDM with Linear Receivers,” IEEE Trans. Signal Process.,                 pp. 1394-1410, Feb. 2021.
+     vol. 60, no. 10, pp. 5268-5280, Oct. 2012.
+[12] X. Qin, F. Qu and Y. R. Zheng, “Block Soft Decision Feedback Turbo
+     Equalization for Orthogonal Signal-Division Multiplexing Underwater
+     Acoustic Communications,” in Proc. MTS/IEEE OCEANS, Seattle, 2019,
+     pp. 1-5.
+[13] J. Han, L. Zhang, Q. Zhang and G. Leus, “Low-Complexity Equalization
+     of Orthogonal Signal-Division Multiplexing in Doubly-Selective Chan-
+     nels,” IEEE Trans. Signal Process., vol. 67, no. 4, pp. 915-929, 15 Feb
+     2019.
+

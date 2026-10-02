@@ -1,0 +1,898 @@
+                                                                                                                                                                                   1
+
+
+
+
+                                                 Online Learning of Trellis Diagram Using Neural
+                                                   Network for Robust Detection and Decoding
+                                                    Jie Yang, Student Member, IEEE,               Qinghe Du, Student Member, IEEE,            Yi Jiang, Member, IEEE,
+
+
+
+                                             1
+                                                 Abstract—This paper studies machine learning-assisted              problem of symbol detection with incomplete CSI [16]–[19].
+                                           maximum likelihood (ML) and maximum a posteriori (MAP)                   The aforementioned works, however, attempt to substitute a
+                                           receivers for a communication system with memory, which                  whole communication system by an ANN, which requires
+arXiv:2202.10635v1 [eess.SP] 22 Feb 2022
+
+
+
+
+                                           can be modelled by a trellis diagram. The prerequisite of the
+                                           ML/MAP receiver is to obtain the likelihood of the received              a large amount of training data (a lengthy pilot sequences
+                                           samples under different state transitions of the trellis diagram,        of tens of thousand samples or more), way too much to be
+                                           which relies on the channel state information (CSI) and the              practically feasible. The notion of the model-driven method,
+                                           distribution of the channel noise. We propose to learn the trellis       which combines machine learning techniques and model-
+                                           diagram real-time using an artificial neural network (ANN)               based expert knowledge, is introduced in [20] to better in-
+                                           trained by a pilot sequence. This approach, termed as the online
+                                           learning of trellis diagram (OLTD), requires neither the CSI nor         corporate machine learning techniques into a communication
+                                           statistics of the noise, and can be incorporated into the classic        system. The efficacy of this type of model-driven methods is
+                                           Viterbi and the BCJR algorithm. It is shown to significantly             demonstrated in [21], [22].
+                                           outperform the model-based methods in non-Gaussian channels.                The recent works by Shlezinger et. al. [23], [24] advocate
+                                           It requires much less training overhead than the state-of-the-art
+                                           methods, and hence is more feasible for real implementations.            to use a (relatively simple) neural network to substitute
+                                           As an illustrative example, the OLTD-based BCJR is applied to            only the channel-dependent part of the Viterbi [25] and the
+                                           a Bluetooth low energy (BLE) receiver trained only by a 256-             BCJR receiver [26]. The resultant algorithms, the so-termed
+                                           sample pilot sequence. Moreover, the OLTD-based BCJR can                 ViterbiNet and BCJRNet, train a neural network to learn the a
+                                           accommodate for turbo equalization, while the state-of-the-art           posteriori probability (APP) of the state transitions given the
+                                           BCJRNet/ViterbiNet cannot. As an interesting by-product, we
+                                           propose an enhancement to the BLE standard by introducing a              received samples and use the finite mixture model (FMM)
+                                           bit interleaver to its physical layer; the resultant improvement of      [27] to estimate the marginal probability density of the
+                                           the receiver sensitivity can make it a better fit for some Internet      channel output, assuming that the channel noise is Gaussian.
+                                           of Things (IoT) communications.                                          Therefore, the ViterbiNet and BCJRNet require only several
+                                              Index Terms—Neural Network; BCJR algorithm; Viterbi                   thousand training samples, which are significantly less than
+                                           algorithm; turbo equalization; Bluetooth                                 that in [16], [17], but may still be too much to be practically
+                                                                                                                    competitive compared with the conventional model-based
+                                                                   I. I NTRODUCTION                                 method.
+                                              Reliable detection and decoding is essential for any com-                In this paper, we first consider the same problem as
+                                           munication systems. For a single-carrier system in an inter-             addressed in [23], [24]. We adopt the notion of integrating
+                                           symbol interference (ISI) channel, which can be modeled by               a simple neural network into a communication system as
+                                           a finite-state trellis diagram, the classic design of a maximum          advocated by Shlezinger et. al. and propose a new method,
+                                           likelihood (ML) receiver relies on the likelihood function of            termed as the online learning of trellis diagram (OLTD), that
+                                           the state transitions in the trellis diagram [1]. In this paper,         can also be integrated into the Viterbi algorithm [25] and the
+                                           we propose to learn the likelihood function using an artificial          BCJR algorithm [26]. The resultant OLTD-based Viterbi and
+                                           neural network (ANN) based on a pilot sequence of moderate               OLTD-based BCJR differ from the ViterbiNet and BCJRNet
+                                           length, requiring neither the channel state information (CSI)            in that the ANN is used to learn the likelihoods of the
+                                           nor the statistics of the noise.                                         received samples under different state transitions, rather than
+                                              As related works, machine learning-assisted wireless com-             the APPs. Therefore, we do not need to assume the channel
+                                           munications have attracted broad attentions in recent years              noise to be Gaussian nor to estimate the marginal distribution
+                                           [2]–[6], such as machine learning-assisted channel decod-                of the channel output; thus, our proposed method is simpler,
+                                           ing [7]–[11] and symbol detection in a multi-input multi-                robuster, and requires a substantially shorter pilot sequence.
+                                           output (MIMO) system [12]–[15]. Deep learning algorithms                    To show the practical feasibility of the proposed OLTD
+                                           are found to be more effective in addressing the difficult               method, we apply it to the physical layer (PHY) of the
+                                                                                                                    Bluetooth Low Energy (BLE) protocol [28]. A BLE system
+                                              1 The work was supported by National Natural Science Foundation of
+                                                                                                                    adopts the coded Gaussian frequency shift keying (GFSK)
+                                           China Grant No. 61771005. Partial material of this paper was published
+                                           in IEEE/CIC International Conference on Communications (ICCC) 2021,      modulation, which belongs to the family of continuous phase
+                                           Xiamen, China. (Corresponding author: Yi Jiang)                          modulation (CPM) [29]. By modeling the GFSK modulation
+                                              J. Yang, Q. Du, and Y. Jiang are with Key Laboratory for Informa-     process with a trellis diagram, we employ the OLTD method
+                                           tion Science of Electromagnetic Waves (MoE), School of Information
+                                           Science and Technology, Fudan University, Shanghai, China (E-mails:      to learn the likelihoods of the state transition associated with
+                                           jieyang19@fudan.edu.cn, qhdu20@fudan.edu.cn, yijiang@fudan.edu.cn).      each received sample based on the 256-sample pilot sequence
+                                                                                                                                   2
+
+
+
+as regulated in the BLE protocol [30, Ch. 6, PartB], and then     based BCJR/Viterbi and OLTD-based turbo algorithm. The
+use the conventional Viterbi or BCJR algorithm to recover         conclusion is given in Section VI.
+the information bits. This study shows that our proposed
+neural network assisted receiver can work for a real wireless
+                                                                           II. S YSTEM M ODEL AND P RELIMINARIES
+protocol.
+   We further introduce a bit-interleaver to the coded GFSK       A. An ISI Channel Model
+system, for which we combine seamlessly the OLTD method
+                                                                    The received signal in an ISI channel can be expressed as
+with turbo equalization [31]–[33] to achieve significantly
+improved receiver sensitivity than the conventional Bluetooth.                       L−1
+                                                                                     X
+Unlike the previous neural network based methods that unfold                 yk =          hl xk−l + zk , k = 1, 2, . . . , N,   (1)
+each iteration with one layer of the neural network [9],                             l=0
+[11], the OLTD-based method obtains the likelihood of each        where L is the channel length, hl , 0 = 1, · · · , L − 1 are the
+connected branch in the trellis diagram only once through         channel coefficients, and zk denotes the i.i.d additive noise,
+the whole iterative process. In contrast, the BCJRNet [24]        which is not necessarily Gaussian.
+assumes that all the coded bits have equal probability and          The ISI channel can be modeled as a tapped delay line
+therefore is not suitable for turbo equalization as explained     as shown in Fig. 1. Owing to the shift register structure, the
+in Section IV-B.                                                  channel can be modelled by a trellis diagram [1].
+   The contributions of this paper are summarized as follows:
+  • We show that what a neural network needs to learn about
+                                                                                     xk          x           xk 2
+    the trellis diagram is the normalized likelihoods of the
+    received sample, rather than the a posteriori probabilities
+                                                                                            z 1 k 1 z 1
+    of state transitions as adopted in the BCJRNet/ViterbiNet                   h0             h1           h2
+    [23], [24]. Owing to this insight, our proposed OLTD
+    method is computationally simpler, robuster, and more
+    versatile than the state-of-the-art methods. We also show
+    that adopting an ANN with only one hidden-layer is
+    sufficient for the OLTD.                                      Fig. 1: The tapped delay line model for an ISI channel with
+  • In contrast to the BCJRNet and ViterbiNet [23], [24],         length L = 3.
+    our proposed OLTD does not need to compute the
+    marginal distribution of received samples, nor does it           As the transmitted symbols are drawn from a set of X ,
+    assumes the statistics of the channel noise or the a priori   the ISI channel modeled in (1) can be represented by a
+    probabilities of the transmitted symbols; thus, the OLTD      trellis diagram consisting of a set S of the states with
+    is computationally much simpler and robuster.                 cardinality |S| = |X |L−1 . Denote the state set at time
+  • The OLTD-based BCJR method can be seamlessly incor-
+                                                                  k as sk , which corresponds to the combination of L − 1
+    porated into a turbo equalizer for significantly improved
+    performance. But the BCJRNet method cannot, as sim-                                                     PL−1 sk → sk+1 is
+                                                                  symbols xk−L+1 , ..., xk−1 . The state transitions
+                                                                  associated with the output signal vk = l=0 hl xk−l . As an
+    ulated and analyzed in Section IV-B. In this sense, our       illustrative example, consider an ISI channel with coefficients
+    proposed method is more versatile.                            h0 = 0.407, h1 = 0.815, and h2 = 0.407 and the binary
+  • Based on a pilot sequence of a practical length, our
+                                                                  phase shift key (BPSK) signal as the input. The trellis consists
+    neural network-based method can outperform the model-         of |S| = 4 states, with r0 = (−1, −1), r1 = (+1, −1),
+    based approaches in channels with non-Gaussian noise          r2 = (−1, +1), r3 = (+1, +1), as shown in Fig. 2. The
+    or interference, as illustrated by the numerical simula-      numbers on the branches represent uk and vk . Take the state
+    tions.                                                        r0 for example: if the input symbol uk = −1, the branch
+  • As an interesting by-product, this study indicates a possi-
+                                                                  output vk = −h0 − h1 − h2 = −1.629; if uk = +1,
+    ble enhancement to the BLE standard, i.e., to introduce a     vk = h0 − h1 − h2 = −0.815.
+    bit interleaver between the convolutional encoder and the
+    GFSK modulator for much improved reliability, which
+    can make BLE a better candidate for some Internet of          B. The GFSK Modulation
+    Things (IoT) communications [34].
+                                                                     The trellis diagram can also be used to model a modulation
+   The remainder of this paper is organized as follows: Section   with memory. As an example, we review the GFSK, which
+II introduces the system model and briefly review the BCJR        is used in the PHY of Bluetooth [28]. The GFSK with
+algorithm and Viterbi algorithm. Section III explains how to      bandwidth 1/T sampled at t = nT is
+train the OLTD and how the OLTD-based BCJR/Viterbi algo-
+rithm works online. Section IV introduces the OLTD-based                             xn = ejφn , n = 1, 2 · · · , N,             (2)
+turbo equalization and its application to a bit-interleaved
+coded GFSK system. In Section V, the simulation results           where
+                                                                                               n−1
+are given to verify the effectiveness of OLTD-based method                                     X
+                                                                                 φn = πh             Im + 2πhIn q(T ).           (3)
+and show the superior performance of the proposed OLTD-                                       m=1
+                                                                                                                                                                    3
+
+
+
+                                                                                                                       𝜃𝑛                          𝜃𝑛+1
+                                            1/ 1.629
+                             r0             1
+                                                 /                                                           𝑟0       0                             0
+                                                      0.8
+                                                         15
+
+
+
+
+                                                          1
+                                                                                                              𝑟1      π/2                           π/2
+
+
+
+
+                                                        00
+                                                      0.
+                             r1                                  15
+
+
+
+
+                                                 /
+                                                             0.8
+                                                          /
+
+
+
+                                            1
+                                                        1                                                   𝑟2                                     π
+                                                            1/                                                        π
+                                                                 0.8
+
+
+                                                     1
+                                                                    15
+
+
+                                                       /
+                             r2                                                                               𝑟3     -π/2                           -π/2
+
+                                                          0.
+                                                            00
+                                                              1
+                                                        15
+                                                 /   0.8
+                                            1
+                                               1/  1.629                                         Fig. 4: The phase transition of the θn . The dash line means
+                             r3
+                                                                                                   the input In = −1(bn = 0), solid line means In = 1(bn = 1).
+                                   sk                                  sk 1
+Fig. 2: The trellis diagram of the ISI channel with length                                         where we have used the fact that q(T ) = 41 .
+L = 3 and the BPSK input; the solid line represents uk = 1,                                           If the input to the ISI channel (1) is an GFSK signal, we can
+the dashed line represents uk = 0.                                                                 combine the GFSK modulation and the multi-path channels
+                                                                                                   into a (larger) trellis diagram.
+
+Here In ∈ {0, 1} is the information bits, h is the modulation
+index, and the pulse shaping function                                                              C. Primer of The Viterbi and BCJR Algorithms
+              Rt         τ− T
+                                       
+                                              τ+ T
+                                                                                                     Based on the trellis diagram, the receiver can use the
+               0
+                 Q   2πB  √ 2
+                            ln 2
+                                   −  Q   2πB √ 2
+                                               ln 2
+                                                      dτ                                           Viterbi algorithm or the BCJR algorithm for optimal symbol
+       q(t) =                                             (4)
+                                   2T                                                              detection. We briefly review them to make this paper self-
+                  R ∞ −τ 2                                                                         contained.
+with Q(x) = √12π x e 2 dτ .                                                                           The Viterbi algorithm is for maximum likelihood (ML)
+  If h = 0.5 (as specified in [28]), (3) becomes                                                   detection. By exploiting the Markovian structure of the finite-
+                    φn = θn + πIn q(T ),                (5)                                        memory channel, it computes the likelihood of each branch,
+                Pn−1     π                                                                         i.e., the conditional probability density function (PDF) of the
+where θn =         m=1 Im . Here we set the frequency-time
+                         2                                                                         channel output given the inputs
+product BT = 0.5 (also as specified in [28]). As shown in
+                                                                                                                                   N
+Fig. 3, q(t) = 0 for t ≤ 0, and q(t) ≈ 0.5 for t ≥ 2T .                                                                            Y
+                                                                                                                    p(y1:N |x) =         p(yk |xkk−L+1 ),        (7)
+                                                                                                                                   k=1
+              0.5
+                                                                                                   where xk = 0, k < 0. For a given channel output y, we
+             0.45
+                                                                                                   should have
+              0.4
+                                                                                                          arg max p(y1:N |x) = arg min − log p(y1:N |x).         (8)
+             0.35
+                                                                                                            xk ∈X                      xk ∈X
+              0.3
+                                                                                                   Combining (8) and (7), we can rewrite (7) as:
+      q(t)
+
+
+
+
+             0.25
+
+              0.2                                                                                                    arg min − log p(y1:N |x)
+                                                                                                                      xk ∈X
+             0.15
+                                                                                                                                 N
+                                                                                                                                 X                               (9)
+              0.1
+                                                                                                                   = arg min −         log p(yk |sk , sk+1 )
+             0.05                                                                                                     xk ∈X
+                                                                                                                                 k=1
+               0
+                    0        0.5        1              1.5         2           2.5       3         where p(yk |sk , sk+1 ) is the likelihood of yk associated with
+                                                       t/T
+                                                                                                   the state transition from sk to sk+1 . The Viterbi algorithm
+Fig. 3: the pulse-shaping function of the GFSK signal with                                         can solve (9) efficiently by searching for the shortest path
+BT = 0.5.                                                                                          across the trellis diagram.
+                                                                                                      The BCJR algorithm [26] is for maximum a posteriori
+   We can model the continuous phase modulation as a                                               probability (MAP) detection. It computes the a posteriori log-
+process of finite state transition based on the phase transition                                   likelihood ratio (LLR) of bits {uk }
+(it is θn not φn ) as shown in Fig. 4. Denote (ri , rj ) as the                                                          p(uk = 1|y)            p(uk = 1, y)
+state transition from ri ∈ S at time nT to rj ∈ S at time                                              L(uk |y) = log                    = log
+                                                                                                                         p(uk = 0|y)            p(uk = 0, y)
+(n + 1)T driven by In . Here S stands for the set of the states                                                          P                                      (10)
+of the trellis. The dash branches correspond to In = −1,                                                                   (sk ,sk+1 )∈S + p(sk , sk+1 , y)
+                                                                                                                   = log P                                  ,
+the solid branches correspond to In = 1, and the associated                                                                (sk ,sk+1 )∈S − p(sk , sk+1 , y)
+signal is
+                                                                                                   where S + , S − are the set of the ordered pairs (sk , sk+1 ) cor-
+                                   j(θn +πIn q(T ))               j(θn + π
+                                                                         4 In )
+                        xn = e                                =e                     ,       (6)   responding to all states transitions driven by uk = 1 and uk =
+                                                                                                                                             4
+
+
+
+0, respectively. The sequence y in p(sk , sk+1 , y) can be writ-             A. Stage One: Train ANN to Learn The Trellis Diagram
+ten as p(sk , sk+1 , (y1 , · · · , yk−1 ), yk , (yk+1 , · · · , yN )). Ap-      As shown in Fig. 5, we construct a fully connected and
+plying the chain rule for joint probabilities, we can decom-                 one hidden-layered ANN [35], whose input is the real and
+pose p(sk , sk+1 , y) into:                                                  imaginary part of the received sample yk and the output nodes
+                                                                             correspond to all the state transitions in the trellis diagram.
+    p(sk , sk+1 , y) = αk (sk )γk (sk , sk+1 )βk+1 (sk+1 ),          (11)
+                                                                             For example, we can use a network with 8 output nodes to
+where αk (sk )       ,   p(sk , y1:k−1 ), γk (sk , sk+1 )    ,               learn the trellis diagram in Fig. 4, which has 8 state transi-
+p(yk , sk+1 |sk ), and βk+1 (sk+1 ) , p(yk+1:N |sk+1 ).                      tions. The hidden-layer nodes adopt the Sigmoid activation
+They can be recursively computed as                                          function, while the output layer employs the Softmax activate
+                                                                             function. The reason of using the softmax function is to be
+                   X
+        αk (sk ) =    αk−1 (sk−1 )γk−1 (sk−1 , sk ),      (12a)              explained in Section III-D.
+                     sk−1
+
+                     X                                                                                                   p1
+        βk (sk ) =          βk+1 (sk+1 )γk+1 (sk , sk+1 ),         (12b)
+                     sk+1                                                                                                p2
+                                                                                            real ( yk )      .
+       γk (sk , sk+1 ) = p(sk+1 |sk ) · p(yk |sk , sk+1 ),         (12c)                                     .          
+                                                                                            imag ( yk )      .           p||L 1
+with the initialization α0 (s0 ) = 1 and βN (sN ) = 1.
+  Driven by uk , the probability of the state transition is                                                              p| |L
+                   
+                    p(uk = 1), (sk , sk+1 ) ∈ S + ,
+   p(sk+1 |sk ) =      p(uk = 0), (sk , sk+1 ) ∈ S − ,      (13)             Fig. 5: The one-hidden layer ANN for learning the normalized
+                            0,       otherwise.
+                   
+                                                                             likelihoods corresponding to the state transitions of the trellis
+                                                                             diagram.
+D. About the Likelihood Function                                                Given the pilot sequence {yk , k = 1, . . . , P }, we know the
+   Examining (9) and (12), we see that the likelihood                        true transition sk → sk+1 corresponding to each yk and thus
+p(yk |sk , sk+1 ) plays a key role in both Viterbi and BCJR                  label the normalized likelihood p(yk |sk , sk+1 ) corresponding
+algorithms. Indeed, the Viterbi algorithm depends solely on                  to the true transition to be 1 and all the others to be 0; this
+the likelihood, while the BCJR also exploits the a priori                    is the so-called one-hot encoding. The ANN is optimized
+information on the state transition probability p(sk+1 |sk ),                according to the minimum cross-entropy criterion. Note that
+which is independent of the CSI [cf. (12c) and (13)]. Hence,                 the OLTD method requires neither the CSI nor the noise
+p(yk |sk , sk+1 ) is the only CSI-dependent component for both               statistics, which is its main advantage over the model-based
+algorithms.                                                                  method.
+   The conventional method calculates p(yk |sk , sk+1 ) assum-
+                                                                             B. Stage Two: Feed the Payload into the ANN
+ing known CSI and that the channel noise is zero-mean
+Gaussian with variance σ 2 . Hence the likelihood can be                        After the ANN is trained, the payload signals {yi , i = P +
+computed to be                                                               1, . . . , P + Q} are then fed into the network; for each yi
+                                                                             the ANN will yield the normalized likelihoods p(yi |si , si+1 )
+                                       −|yk − vk |2
+                                                   
+                             1                                               for all the 2|S| state transitions. The numerical examples in
+      p(yk |sk , sk+1 ) = √      exp                  ,     (14)
+                             2πσ           2σ 2                              Section V indicates that the likelihoods yielded by the ANN
+                PL−1                                                         is sufficiently accurate when it is trained with a pilot with
+where vk = l=0 hl xk−l is the channel output associated                      length P no more than a few hundred.
+with the state transition from sk to sk+1 (cf. Fig. 2).
+   But when the CSI is unknown or the distribution of the                    C. Stage Three: Feed the Likelihoods into the Viterbi or BCJR
+noise is unknown owing to non-Gaussian co-channel inter-                     Algorithm
+ference, the model-based likelihood (14) will be erroneous,                     Given the likelihoods p(yi |si , si+1 )’s per received sample
+causing severe degradation to the performance of Viterbi or                  of the payload, the Viterbi (or BCJR) algorithm can then be
+BCJR. To address this issue, we propose to use an ANN                        directly applied to obtain the ML (or MAP) detection.
+to learn online the likelihood function p(yk |sk , sk+1 ) of the                Taking the BCJR algorithm for example, given the sample
+trellis diagram based on a pilot sequence, assuming no CSI                   yk ’s associated likelihoods p(yk |sk , sk+1 )’s, the BCJR algo-
+nor the noise statistics.                                                    rithm can calculate γk according to (12c) and further compute
+                                                                             the forward recursion (12a) and the backward recursion (12b)
+                                                                             to obtain the LLR L(uk |y) by (11) and (10). The combination
+        III. T HE OLTD- BASED V ITERBI AND BCJR
+                                                                             of the OLTD method and the BCJR algorithm is termed
+   This section explains how the OLTD-based Viterbi and                      as the OLTD-based BCJR. The OLTD-based Viterbi is even
+BCJR algorithms work. Both algorithms consist of three                       simpler: it just needs to search the most likelihood trellis path
+stages as explained in the following.                                        according to (9).
+                                                                                                                                                5
+
+
+
+D. Discussions
+                                                                          uk       FEC        an                    bn                     xn
+   Observe from (9) that to multiply p(yk |sk , sk+1 )’s by a                                         Interleaver           Modulator
+                                                                                 encoder
+common positive factor does not affect the output result of
+the Viterbi algorithm, neither does it affect the BCJR as can
+be seen from (10) and (12). Hence, instead of learning the
+                                                                      Fig. 6: A bit-interleaved coded GFSK transmitter, which may
+original likelihoods, which can be anywhere in [0, ∞), the
+                                                                      be a potential enhancement to the PHY of BLE 5.0.
+ANN can simply learn the normalized likelihoods
+
+                     p(yk |sk , sk+1 )
+         P                                         ∈ [0, 1],          A. OLTD-Based Turbo Equalization
+            (sk ,sk+1 )∈S − ∪S + p(yk |sk , sk+1 )
+                                                                         The whole procedure of turbo equalization is as shown
+which is why we can adopt the softmax as the activation               in Fig. 7, where BCJR equalization and BCJR decoding are
+function of the output layer even though the actual likelihood        conducted iteratively 2 .
+value may be out of the range [0, 1]. The above insight is the           On the equalization side, the BCJR algorithm takes the
+underlying reason why our method is significantly simpler             a priori probabilities of bn ’s to calculate the state transition
+than the state-of-the-art method [24], which has to compute           probabilities as
+the marginal distribution p(yk ) besides using a deep neural                           (
+network to learn the conditional probability p(sk , sk+1 |yk )                          p(bn = 0), if bn = 0 drives sn → sn+1
+                                                                       p(sn+1 |sn ) =
+[24, Fig. 3].                                                                           p(bn = 1), if bn = 1 drives sn → sn+1 ,
+   We can gain more insights into the OLTD method by                                                                               (16)
+drawing its analogy to the classic least square (LS) fitting          takes the normalized likelihoods from the OLTD algorithm,
+method. An LS method optimizes the parameters of a signal             and then calculate (12) and (11) to calculate L(bn |y) in (10).
+model to fit the true signal; the OLTD method trains the                 Note that the a posteriori LLR of {bn } can also be
+ANN to approximate the ground truth of the normalized                 computed as
+likelihoods, which is a one-hot vector in absence of the                                          P
+                                                                                                              p(b, y)
+channel noise. The LS method uses the LS criteria; the OLTD                       L(bn |y) = log P∀b:bn =1
+                                                                                                              p(b, y)
+adopts the minimum cross-entropy criterion. The LS method                                         P∀b:bn =0
+does not assume knowledge of the noise statistics, neither                                                    p(y|b)p(b)           (17)
+                                                                                           = log P∀b:bn =1                .
+does the OLTD, which is why the OLTD is robust against                                               ∀b:bn =0 p(y|b)p(b)
+non-Gaussian noise as shown in Section IV.
+   Last but not least, our proposed OLTD-based BCJR al-
+gorithm can be readily applied for turbo equalization [36],           Since the bit interleaver decorrelates
+                                                                                                 QN          the neighboring coded
+which is an important advantage over the BCJRNet [23] as              bits, it holds that p(b) = n=1 p(bn ); thus, L(bn |y) can be
+we will explain in the next.                                          decomposed into
+                                                                                      L(bn |y) = Lext (bn |y) + L(bn ),                     (18)
+  IV. T HE OLTD-BASED T URBO E QUALIZATION FOR A                      where
+               C ODED GFSK S YSTEM                                                            P                      QN
+                                                                                                   ∀b:bn =1 p(y|b)       i=1:i6=n p(bi )
+   In this section, we apply the OLTD method for turbo equal-            Lext (bn |y) = log P                        QN                     (19)
+                                                                                                   ∀b:bn =0 p(y|b)       i=1:i6=n p(bi )
+ization, for which a bit interleaver is inserted between the
+forward error correction (FEC) encoder and the modulator,             is the extrinsic information about bn contained in y, and
+as shown in Fig. 6. This section serves for two purposes: i)
+                                                                                                            p(bn = 1)
+the OLTD method is shown to be able to be incorporated                                     L(bn ) = log                                     (20)
+seamlessly into a turbo equalizer for superb performance;                                                   p(bn = 0)
+ii) we advocate a potential enhancement to the current BLE            is called the intrinsic information. Hence, it follows from (18)
+standard for significantly better receiver sensitivity, as an         that
+interesting byproduct of this study.
+                                                                         Lext (bn |y) = L(bn |y) − L(bn ), n = 1, 2, . . . , N.             (21)
+   Consider that the FEC encoder in Fig. 6 is the convolutional
+code whose generator polynomials are                                     On the decoding side, after deinterleaving Lext (bn |y) into
+                                                                      Lext (an |y), the BCJR decoder takes the extrinsic information
+                  G0 (x) = 1 + x + x2 + x3 ,
+                                                               (15)   as the “received signal”, i.e., ỹ , Lext (an |y) to update the a
+                  G1 (x) = 1 + x2 + x3 ,                              posteriori LLR of the coded bits L(an |ỹ) based on the trellis
+                                                                      diagram associated with the FEC (15). As another input into
+which is actually the convolutional code adopted in the BLE
+                                                                      the BCJR decoder, the uncoded bits {uk , k = 1, . . . , K} are
+standard [30], and the modulation is the GFSK (as explained
+                                                                      assumed to satisfy P (uk = 1) = P (uk = 0) = 1/2.
+in Section II-B). The information bits are denoted as {uk },
+the coded bits {an }, and the interleaved bits {bn }, which will        2 Readers unfamiliar with turbo equalization may refer to [36] for an
+be modulated into symbols {xn }.                                      excellent tutorial.
+                                                                                                                                                           6
+
+
+
+    Note from (18) that we can update the intrinsic LLRs                            In the BCJRNet, a neural network is trained to obtain the
+                                                                                  a posteriori probability p(sn , sn+1 |yn ). Then by Bayes’ rule
+                    L(an ) = L(an |ỹ) − Lext (an |y),                     (22)   3
+
+ which can be fed into the BCJR equalizer after being inter-                                                           p(sn , sn+1 |yn )p(yn )
+                                                                                              p(yn |sn , sn+1 ) =                              .     (26)
+ leaved into L(bn ). Using the relationship [cf. (20)]                                                                     p(sn+1 , sn )
+                                                                                      Combining (26) and (12c), we obtain
+                        (
+                              1
+                              L(bn ) , if bn = 0,
+               p(bn ) = 1+e eL(bn )
+                                                       (23)
+                                     , if bn = 1                                                                    p(sn , sn+1 |yn )p(yn )
+                          1+eL(bn )                                                            γn (sn , sn+1 ) =                            .        (27)
+                                                                                                                            p(sn )
+ and (16), we can obtain the state-transition probabilities
+ p(sn+1 |sn )’s, which are needed for the next round of BCJR                          According to (10) and (11), we have
+ equalization.                                                                        L(bn |y)
+                                                                                             P
+                                                                                                 (sn ,sn+1 )∈S + αn (sn )γn (sn , sn+1 )βn+1 (sn+1 )
+                                             y                                        = log P                                                          .
+                                                                                                 (sn ,sn+1 )∈S − αn (sn )γn (sn , sn+1 )βn+1 (sn+1 )
+                                 OLTD algorithm                                                                                                      (28)
+                                                                                      Substituting (27) into (28) yields
+                             normalized               Turbo
+                           𝑝(𝒚|𝑠𝑛 , 𝑠𝑛+1 )          equalization                      L(bn |y)
+                                                                                             P                    p(sn ,sn+1 |yn )p(yn )
+                                                       𝐿(𝑏𝑛 |𝒚)                                 (sn ,sn+1 )∈S + αn ·      p(sn )         · βn+1
+                                 BCJR-Equalizer                                       = log P                     p(sn ,sn+1 |yn )p(yn )
+                                                                                                                                                 ,
+                                                            -                                (sn ,sn+1 )∈S − αn ·         p(sn )         · β n+1     (29)
+           𝐿(𝑏𝑛 )                                                                           P                     p(sn ,sn+1 |yn )
+                                                                                                             α
+                                                                                             (sn ,sn+1 )∈S + n  ·     p(sn )       · βn+1
+                                                     𝐿𝑒𝑥𝑡 (𝑏𝑛 |𝒚)
+                                                                                      = log P                          p(sn ,sn+1 |yn )
+                                                                                                                                                 ,
+             Interleaver
+                                                                                               (sn ,sn+1 )∈S − αn ·        p(sn )       · βn+1
+                                                          Deinterleaver
+           𝐿(𝑎𝑛 )                                                                    Given the a posteriori probability p(sn , sn+1 |yn ) learned
+                                                                                  by the BCJRNet, one can update p(sn ) through the forward
+                                                    𝐿𝑒𝑥𝑡 (𝑎𝑛 |𝒚)
+                                                                                  recursion
+                      -                                                                                  X
+                     𝐿(𝑎𝑛 |𝐲)                                                                 p(sn ) =        p(sn |sn−1 )p(sn−1 ),          (30)
+                                   BCJR-Decoder
+                                                                                                           sn−1 ∈S
+
+                                      u~k    p(uk  0)  p(uk  1)  0.5          where p(sn |sn−1 ) can be obtained according to (16) and (23).
+                                                                                  Due to this recursion, the BCJR-based turbo equalization is
+                                                                                  cumbersome.
+ Fig. 7: Overview of turbo equalization. The OLTD-based                             More important, this method actually does not work as
+ turbo equalization differs from the the model-based one only                     shown by the simulation example in Section V-B. Indeed,
+ in that the normalized likelihood is obtained using the OLTD                     the a posteriori probability p(sn , sn+1 |yn ) is not the suitable
+ algorithm.                                                                       metric to learn, because
+
+     After a prescribed number of iterations, we calculate                               p(sn , sn+1 |yn ) ∝ p(yn |sn , sn+1 )p(sn , sn+1 )          (31)
+ γ̃k (ri , rj ) as [36, eq.(22)]                                                  relies on the a priori information p(sn , sn+1 ); thus, it is
+γ̃
+(k (ri , rj ) =                                                                   impossible to infer p(sn , sn+1 |yn ) from yn itself unless
+   p(uk ) · p(a1,i,j |y) · p(a2,i,j |y), if (sn , sn+1 ) ∈ S + ∪ S − ,            p(sn , sn+1 ) is a constant, which is usually untrue. In contrast,
+   0,                                                    / S + ∪ S −,
+                                         if (sn , sn+1 ) ∈                        the likelihood p(yn |sn , sn+1 ) relies solely on the distribution
+                                                                  (24)            of the channel noise and the CSI, and is independent of the
+  for k = 1, 2, · · · , K, and the decoder will calculate the LLRs                channel coding; thus, it can be learned from yn itself.
+  of information bits uk , and make a final decision
+                            (                                                                         V. S IMULATION R ESULTS
+                              0, if L(uk |ỹ) < 0,
+                      ũk =                                       (25)               In this section, we present simulation examples to validate
+                              1, if L(uk |ỹ) ≥ 0.                                the feasibility and superior performance of the OLTD method
+    Hence, the only difference between the OLTD-based turbo                       applied to the Viterbi algorithm, the BCJR algorithm, and the
+ equalization and a standard model-based one is how the likeli-                   turbo equalization.
+ hoods p(y|sn , sn+1 ) are obtained, while the whole procedure                       We adopt a fully-connected neural network with a single
+ in the dotted-line box is the same for both methods.                             hidden layer as shown in Fig. 5 for the OLTD. The hidden
+                                                                                  layer has 100 neurons and employs the Sigmoid activate
+ B. Apply BCJRNet to Turbo Equalization?                                          function. The number of neurons in the output layer is
+    One may attempt to apply the BCJRNet to turbo equaliza-                       the same as the number of state transitions in the trellis
+ tion, but will come across a major issue as explained in the                       3 To obtain p(y |s , s
+                                                                                                   n n n+1 ), the BCJRNet algorithm actually assumes that
+ next.                                                                            p(sn+1 , sn ) = |S|−L is a constant [23, eq. (13)].
+                                                                                                                                                           7
+
+
+
+diagram. The likelihood of each state transition is normalized                        100
+by the Softmax to approximate the ground truth, i.e., the                                                                       Model-based Viterbi
+                                                                                                                                Model-based BCJR
+one hot vector. The network is trained using the Adamax                                                                         OLTD-based BCJR
+optimizer [37] to minimize the cross-entropy based on a pilot                         10-1
+                                                                                                                                OLTD-based Viterbi
+
+sequence. The optimizer divides the pilot into mini-batches of
+16 samples and the initial learning rate is set to be 0.01. The
+settings of our training conditions are summarized in Table I.
+
+
+
+
+                                                                                BER
+                                                                                      10-2
+               TABLE I: The Simulation Setting
+       NN Toolkit                Keras using Tensorflow backend
+   Training Processor                 Inter(R) i7-6700 CPU                            10-3
+  Training Batch Size                            16
+    Training Epoch                              200
+  No. of Hidden Layer                    1 (100 neurons)
+       Optimizer                             Adamax
+                                                                                      10-4
+   Activate Function                    Sigmoid—Softmax                                   -2    0     2       4         6       8        10           12
+     Loss Function                        Cross Entropy                                                       SNR [dB]
+      Pilot Length         500 in QPSK and OOK, 256 in GFSK cases
+                                                                           Fig. 8: The BER performance of the model-based and OLTD-
+   Three types of signals are simulated: i) uncoded Quadrature             based receiver for uncoded QPSK.
+Phase Shift Keying (QPSK) transmitted over an ISI channel,
+ii) bit-interleaved On-Off Keying (OOK) in a Poisson chan-                            100
+nel, and iii) coded GFSK as adopted in the PHY of the BLE
+– all can be represented by a trellis diagram. 4 .                                                                              OLTD-based Viterbi
+                                                                                                                                Model-based Viterbi
+
+
+A. Uncoded QPSK in an ISI Channel with Additive Noise
+                                                                                     10-1
+   We first simulate an ISI channel as modelled in (1),
+where the input signal is uncoded QPSK, the noise is
+                                                                               BER
+
+
+
+
+complex-valued
+          q        Gaussian, and channel coefficients are given
+                e−γ·l
+by hl , PL−1         −γ·l
+                          for γ > 0. We set the channel memory                       10-2
+               l=0 e
+length L = 2; thus, the trellis diagram is fully-connected
+with 4 states and 16 branches (state transitions). Fig. 8
+compares the bit error rate (BER) performance of model-
+based BCJR/Viterbi algorithm and OLTD-based BCJR/Viterbi                             10-3
+algorithm. The model-based method is simulated based on
+perfect CSI, while the OLTD is trained based on a 500-sample                                0   0.5       1       1.5       2           2.5            3
+                                                                                                              log10( )
+pilot. The simulation results are obtained by averaging over
+10, 000 Monte-Carlo simulations, where the channel coeffi-                 Fig. 9: The BER performance of model-based Viterbi receiver
+cients are generated with γ being draw at random in the range              OLTD-Viterbi receiver.
+[0.1, 1]. Fig. 8 shows that OLTD-based method can achieve
+performance very close to the model-based benchmark. The
+Viterbi algorithm performs the same as the BCJR algorithm,
+                                                                              We also simulate the ISI channel scenario where the QPSK
+since here the bits are generated 0 or 1 evenly.
+                                                                           signal is interfered by a random 4-ary Pulse Amplitude
+   We then simulate the channel noise as complex Cauchy
+                                                                           Modulation (4-PAM) source. The received power of the
+with the PDF
+                                                                           interference is the same as the QPSK signal, i.e., the signal-
+                 1                   λ2                                    to-interference ratio (SIR) is 0 dB. As shown in Fig. 10,
+      f (zk ) = 2 ·                                   ,    (32)
+                π (<{zk }2 + λ2 ) · (={zk }2 + λ2 )                        the model-based Viterbi method based on the assumption of
+where <{·} and ={·} stand for the real and imaginary parts,                Gaussian noise fails. The striking advantage of the OLTD-
+respectively. The Cauchy’s PDF has much heavier tails than                 based approach indicates that the neural network somehow
+the Gaussian’s.                                                            learned the “structure” of the non-Gaussian interference and
+   In the Cauchy noise case, the SNR is undefined since                    hence suppressed it effectively.
+the variance of Cauchy is unbounded. We simulate the BER                      To demonstrate the influence of training pilot length on
+performance by changing the value of γ. Fig. 9 shows that the              reception performance, we simulate the BER performance
+OLTD-BCJR outperforms the model-based BCJR algorithm                       of the OLTD-based approach when trained using the pilots
+in this non-Gaussian case, which is not surprising since the               length of {0.5, 1, 2, 5, 10, 20} × 102 as shown in Fig. 11.
+OLTD requires no a priori knowledge on the statistics of the               We set SNR = 10 dB under Gaussian channel, and the
+noise.                                                                     performance of the OLTD-based method, as the training pilots
+  4 The MatlabTM codes used for generating the simulation results can be   length increases, gradually approaches that of the model-
+found: https://github.com/JayYang-Fdu/OLTD-code.                           based method under perfect CSI. A pilot of length a few
+                                                                                                                                                                                                               8
+
+
+
+
+            100
+                                                                                                      Hence, the OLTD uses a neural network with 4 outputs.
+                                                                                                      Fig. 12 shows that using no iterations the OLTD-based
+                                                                                                      method and the BCJRNet have identical performance. The
+                                                                                                      BCJRNet applied for turbo equalization, however, leads to
+                                                                                                      failed decoding as explained in Section IV-B. In contrast,
+            10-1
+                                                                                                      the OLTD-based turbo equalization can achieve significantly
+                                                                                                      improved performance.
+      BER
+
+
+
+
+                                                                                                                    100
+
+
+
+
+            10-2
+                              OLTD-based Viterbi                                                                  10-1
+                              Model-based Viterbi
+
+                   8          10          12            14            16          18           20
+                                                    SNR [dB]
+
+
+
+
+                                                                                                            BER
+                                                                                                                  10-2
+
+Fig. 10: The BER performance of the OLTD-based Viterbi
+compared to the model-based method with co-channel inter-
+ference.                                                                                                          10-3
+                                                                                                                                   OLTD-based turbo 0 iter
+                                                                                                                                   OLTD-based turbo 1 iter
+                                                                                                                                   OLTD-based turbo 2 iter
+                                                                                                                                   BCJRNet-based turbo 0 iter
+                                                       OLTD-based Viterbi Cauchy noise                                             BCJRNet-based turbo 1 iter
+                                                       Model-based Viterbi Cauchy noise                           10-4
+                                                       OLTD-based Viterbi Gaussian noise                                      11        12     13      14          15         16       17       18   19   20
+                                                       Model-based Viterbi Gaussian noise                                                                   SNR(dB)
+            100
+                                                       OLTD-based Viterbi co-channel inteference
+                                                       Model-based Viterbi co-channel inteference
+
+                                                                                  = 0.1
+                                                                                                      Fig. 12: The BER performance of the OLTD-based turbo
+                                                                              Cauchy channel          equalization compared to the BCJRNet-based turbo in Pois-
+            10-1
+      BER
+
+
+
+
+                                                                                                      son channel.
+                                                          SNR=16dB
+                                                       co-channel inteference
+
+
+            10-2
+                                                                                                      C. A BLE System and Its Enhancement
+                         SNR=10dB
+                       Gaussian channel
+            10-3                                                                                                    100
+                   0    200    400    600      800     1000    1200    1400    1600    1800    2000
+                                                    pilot length
+                                                                                                                    10-1
+
+
+                                                                                                                    10-2
+Fig. 11: The BER performance versus the length of pilots in
+the SNR value 10dB.                                                                                                 10-3
+                                                                                                              BER
+
+
+
+
+                                                                                                                    10-4
+
+
+hundred is sufficient for all the three cases. Fig. 11 illustrates                                                  10-5       OLTD-based turbo 0 iter
+from a different perspective that the OLTD-based method can                                                                    OLTD-based turbo 1 iter
+                                                                                                                               OLTD-based turbo 2 iter
+                                                                                                                         -6
+                                                                                                                    10
+outperform the model-based method in the two cases of non-                                                                     Model-based turbo 0 iter
+                                                                                                                               Model-based turbo 1 iter
+
+Gaussian noise.                                                                                                     10-7
+                                                                                                                               Model-based turbo 2 iter
+                                                                                                                               Model-based conventional receiver
+                                                                                                                               OLTD-based conventional receiver
+                                                                                                                               GFSK Shannon Limit
+                                                                                                                    10-8
+                                                                                                                        -4    -3         -2       -1        0             1        2        3        4    5
+B. Bit-interleaved Coded OOK in a Poisson Channel                                                                                                               SNR(dB)
+
+
+   In addition to the additive noise channel, we also simulate                                        Fig. 13: The performances of the model-based and OLTD-
+the Poisson channel as previously considered in [23]. But                                             based BLE receiver in an AWGN channel versus the perfor-
+here we consider a bit-interleaved system as shown in Fig. 6,                                         mance of the enhanced BLE system with bit-interleaving.
+where the information bits are FEC encoded, bit-interleaved,
+and then modulated by OOK before being transmitted over                                                  We simulate in an AWGN channel a BLE system with bit
+a Poisson channel. The channel output yk is of Poisson                                                rate 500 Kbps with a pilot of length 256 as specified in the
+distribution, i.e.,                                                                                   protocol [30]. A model-based receiver consists of a BCJR
+                                   (v + 1)yk −(v+1)                                                   demodulator and a Viterbi decoder. It assumes perfect CSI.
+  p(yk |sk , sk+1 ) =                       e       , yk = 0, 1, 2, . . . (33)
+                                      yk !                                                            The OLTD-based receiver differs from the model-based one
+                       PL−1                                                                           only in that the likelihoods p(yk |sk , sk+1 ) [cf. (12c)] used in
+where v =
+q                 l=0 hl xk−l with xk−l ∈ {0, 1} and hl ,                                             the BCJR algorithm is produced by a neural network trained
+    e−γ·l
+  PL−1     −γ·l
+                for γ being draw at random in the range[0.1, 1].                                      by the 256-sample pilot sequence. According to Fig. 4, the
+     l=0 e
+  For L = 2, the Poisson channel can be represented by                                                GFSK modulation can be represented by a trellis diagram
+a fully-connected two-state trellis diagram with 4 branches.                                          with 8 state transitions; thus, the neural network for the OLTD
+                                                                                                                                                  9
+
+
+
+has 8 neurons in the output layer. The BER is averaged over                                       VI. C ONCLUSIONS
+10, 000 Monte Carlo trails of the channel coefficients h(θ) =               This paper introduced a method named online learning
+ejθ , with θ being drawn at random in the range [0, 2π]. In Fig.         of trellis diagram (OLTD), which uses a single hidden-
+13, the dot dash line with marker 4 corresponds to the model-            layer artificial neural network (ANN) to learn the likelihoods
+based method, while the dot dash line with marker  is the               of the received samples under different state transitions. It
+OLTD-based one. They essentially overlap, which suggests                 can be applied to replace only the channel state-dependent
+that the neural network assisted receiver can be practically             part of the Viterbi algorithm and the BCJR algorithm. We
+feasible at least performance-wise.                                      applied the OLTD-based Viterbi/BCJR algorithms to a coded
+   We also present Shannon limit of the BER performance                  QPSK/GFSK system, and the simulation results show that us-
+of the GFSK signal obtained using the numerical method                   ing a pilot sequence of length only a few hundred samples the
+in [38], [39]. The large gap between Shannon limit and                   OLTD based methods can perform similarly to their model-
+the achieved performance of the BLE system motivated us                  based counterpart given perfect channel state information
+to consider introducing a bit interleaver at the transmitter             (CSI) and Gaussian noise. In contrast to the model-based
+between encoder and GFSK modulator (cf. Fig. 6). Given the               approaches, the OLTD-based approach assumes neither CSI
+bit-interleaver, the receiver can apply the turbo equalization.          nor statistics of the noise, which makes it robust against
+Fig. 13 also illustrates the BER performance of the turbo                non-Gaussian interferences. In contrast to the state-of-the-
+receiver with no iteration, and with 1 and 2 iterations. The             art machine learning assisted methods, such as the BCJRNet
+three dash lines show the model-based turbo equalization                 and ViterbiNet, the proposed method does not assume the a
+under the perfect CSI and the other three sold lines with                priori probabilities of the coded bits, which makes it readily
+markers correspond to the OLTD-based turbo algorithm with                applicable to turbo equalization. The OLTD-based algorithms
+pilot length of 256. It can be seen that introducing the bit-            can be applied to the standard Bluetooth system and the
+interleaver and using the turbo equalization in the receiver can         enhanced one with bit-interleaving, because they require only
+yield 4 ∼ 5dB gain compared with the conventional receiver.              some pilot of moderate length. Introducing bit-interleaving
+Hence, to introduce bit-interleaving may be an interesting               can be a beneficial enhancement to the BLE standard as an
+enhancement to the existing BLE protocol for significantly               interesting by-product of this study.
+enhanced performance, which can make it more competitive
+for IoT communications.                                                                               R EFERENCES
+   In the last example, we consider the BLE system in a ISI
+                                                                          [1] J. G. Proakis and M. Salehi, Digital communications. McGraw-Hill.,
+channel with memory L = 2. The ISI channel is described                       2008.
+as h0 δ(n) + h1 δ(n − 1), where the channel coefficients are              [2] T. O’Shea and J. Hoydis, “An Introduction to Deep Learning for the
+normalized. The combination of the GFSK modulation and                        Physical Layer,” IEEE Transactions on Cognitive Communications and
+                                                                              Networking, vol. 3, no. 4, pp. 563–575, 2017.
+the ISI channel can be modeled by a trellis diagram with 16               [3] Q. Mao, F. Hu, and Q. Hao, “Deep Learning for Intelligent Wireless
+states. Then we can also apply turbo equalization based on                    Networks: A Comprehensive Survey,” IEEE Communications Surveys
+the OLTD method except that here the output layer of the                      and Tutorials, vol. 20, no. 4, pp. 2595–2621, 2018.
+                                                                          [4] D. Gunduz, P. de Kerret, N. D. Sidiropoulos, D. Gesbert, C. R. Murthy,
+neural network has 16 neurons. The BER performance of the                     and M. van der Schaar, “Machine learning in the air,” IEEE Journal
+model-based turbo receiver with known perfect CSI and the                     on Selected Areas in Communications, vol. 37, no. 10, pp. 2184–2199,
+OLTD-based turbo receiver in the ISI channel is compared in                   2019.
+                                                                          [5] N. H. Tran, W. Bao, A. Zomaya, N. H. N. Minh, and C. S. Hong,
+Fig. 14. It can be seen that the OLTD-based turbo equalization                “Federated Learning over Wireless Networks: Optimization Model
+algorithm trained based on a same 256-sample pilot sequence                   Design and Analysis,” in IEEE INFOCOM 2019 - IEEE Conference
+has about 0.5dB loss compared with the model-based method                     on Computer Communications, pp. 1387–1395, 2019.
+                                                                          [6] S. Park, O. Simeone, and J. Kang, “Meta-Learning to Communicate:
+with perfect CSI.                                                             Fast End-to-End Training for Fading Channels,” in ICASSP 2020 -
+                                                                              2020 IEEE International Conference on Acoustics, Speech and Signal
+            100
+                                                                              Processing (ICASSP), pp. 5075–5079, 2020.
+                                          OLTD-based turbo 0 iter         [7] E. Nachmani, Y. Be’ery, and D. Burshtein, “Learning to decode linear
+                                          OLTD-based turbo 1 iter
+                 -1                       OLTD-based turbo 2 iter
+                                                                              codes using Deep Learning,” in 2016 54th Annual Allerton Conference
+            10
+                                          Model-based turbo 0 iter            on Communication, Control, and Computing (Allerton), pp. 341–346,
+                                          Model-based turbo 1 iter            2016.
+            10-2                          Model-based turbo 2 iter
+                                          GFSK Shannon Limit
+                                                                          [8] A. Bennatan, Y. Choukroun, and P. Kisilev, “Deep Learning for Decod-
+                                                                              ing of Linear Codes - A Syndrome-Based Approach,” in 2018 IEEE
+            10-3                                                              International Symposium on Information Theory (ISIT), pp. 1595–1599,
+      BER
+
+
+
+
+                                                                              2018.
+            10-4                                                          [9] F. Liang, C. Shen, and F. Wu, “An Iterative BP-CNN Architecture
+                                                                              for Channel Decoding,” IEEE Journal of Selected Topics in Signal
+            10-5                                                              Processing, vol. 12, no. 1, pp. 144–159, 2018.
+                                                                         [10] E. Nachmani, E. Marciano, L. Lugosch, W. J. Gross, D. Burshtein, and
+            10-6
+                                                                              Y. Be’ery, “Deep Learning Methods for Improved Decoding of Linear
+                                                                              Codes,” IEEE Journal of Selected Topics in Signal Processing, vol. 12,
+                                                                              no. 1, pp. 119–131, 2018.
+            10-7
+                -6    -4   -2      0      2           4              6   [11] T. Gruber, S. Cammerer, J. Hoydis, and S. ten Brink, “On deep
+                                SNR(dB)                                       learning-based channel decoding,” in 2017 51st Annual Conference on
+                                                                              Information Sciences and Systems (CISS), pp. 1–6, 2017.
+Fig. 14: The BER performance of the OLTD-based turbo                     [12] N. Samuel, T. Diskin, and A. Wiesel, “Deep MIMO detection,” in 2017
+                                                                              IEEE 18th International Workshop on Signal Processing Advances in
+equalization in ISI channel with channel length L = 2.                        Wireless Communications (SPAWC), pp. 1–5, 2017.
+                                                                                                                                             10
+
+
+
+[13] N. Samuel, T. Diskin, and A. Wiesel, “Learning to Detect,” IEEE            With Memory,” IEEE Transactions on Information Theory, vol. 52,
+     Transactions on Signal Processing, vol. 67, no. 10, pp. 2554–2564,         no. 8, pp. 3498–3508, 2006.
+     2019.
+[14] J. Li, Q. Zhang, X. Xin, Y. Tao, Q. Tian, F. Tian, D. Chen, Y. Shen,
+     G. Cao, Z. Gao, and J. Qian, “Deep learning-based massive MIMO
+     CSI feedback,” in 2019 18th International Conference on Optical
+     Communications and Networks (ICOCN), pp. 1–3, 2019.
+[15] T. J. O’Shea, T. Erpek, and T. C. Clancy, “Deep Learning Based MIMO
+     Communications.,” arXiv preprint arXiv:1707.07980, 2017.
+[16] Y. Liao, N. Farsad, N. Shlezinger, Y. C. Eldar, and A. J. Gold-
+     smith, “Deep Neural Network Symbol Detection for Millimeter Wave
+     Communications,” in 2019 IEEE Global Communications Conference
+     (GLOBECOM), pp. 1–6, 2019.
+[17] N. Farsad and A. Goldsmith, “Neural Network Detection of Data
+     Sequences in Communication Systems,” IEEE Transactions on Signal
+     Processing, vol. 66, no. 21, pp. 5663–5678, 2018.
+[18] F. A. Aoudia and J. Hoydis, “End-to-End Learning of Communications
+     Systems Without a Channel Model,” in 2018 52nd Asilomar Conference
+     on Signals, Systems, and Computers, pp. 298–303, 2018.
+[19] H. Ye, L. Liang, G. Y. Li, and B.-H. Juang, “Deep Learning-Based End-
+     to-End Wireless Communication Systems With Conditional GANs as
+     Unknown Channels,” IEEE Transactions on Wireless Communications,
+     vol. 19, no. 5, pp. 3133–3143, 2020.
+[20] H. He, S. Jin, C.-K. Wen, F. Gao, G. Y. Li, and Z. Xu, “Model-Driven
+     Deep Learning for Physical Layer Communications,” IEEE Wireless
+     Communications, vol. 26, no. 5, pp. 77–83, 2019.
+[21] X. Gao, S. Jin, C.-K. Wen, and G. Y. Li, “ComNet: Combination
+     of deep learning and expert knowledge in OFDM receivers,” IEEE
+     Communications Letters, vol. 22, no. 12, pp. 2627–2630, 2018.
+[22] J. Liao, J. Zhao, F. Gao, and G. Y. Li, “A Model-Driven Deep Learning
+     Method for Massive MIMO Detection,” IEEE Communications Letters,
+     vol. 24, no. 8, pp. 1724–1728, 2020.
+[23] N. Shlezinger, N. Farsad, Y. C. Eldar, and A. J. Goldsmith, “Data-
+     Driven Factor Graphs for Deep Symbol Detection,” in 2020 IEEE
+     International Symposium on Information Theory (ISIT), pp. 2682–2687,
+     2020.
+[24] N. Shlezinger, N. Farsad, Y. C. Eldar, and A. J. Goldsmith, “ViterbiNet:
+     A Deep Learning Based Viterbi Algorithm for Symbol Detection,”
+     IEEE Transactions on Wireless Communications, vol. 19, no. 5,
+     pp. 3319–3331, 2020.
+[25] J. G. Forney, “The Viterbi algorithm,” Proceedings of the IEEE, vol. 61,
+     no. 3, pp. 268–278, 1973.
+[26] L. R. Bahl, “Optimal decoding of linear codes for minimizing symbol
+     error rate,” IEEE Transactions on Information Theory, vol. 20, pp. 284–
+     287, 1974.
+[27] G. Mclachlan and D. Peel, “Finite Mixture Model,” Partha Deb, vol. 44,
+     01 2000.
+[28] E. Au, “Bluetooth 5.0 and Beyond [Standards],” IEEE Vehicular
+     Technology Magazine, vol. 14, no. 2, pp. 119–120, 2019.
+[29] C.-E. Sundberg, “Continuous phase modulation,” IEEE Communica-
+     tions Magazine, vol. 24, no. 4, pp. 25–38, 1986.
+[30] “Bluetooth Core Specification, version 5.0.” Available: https://www.
+     bluetooth.com/zh-cn/specifications/specs/core-specification-5/.
+[31] T. Okada and Y. Iwanami, “Turbo Equalization of GMSK Signals Using
+     Noncoherent Frequency Detection,” IEICE Transactions on Electronics,
+     vol. 85, no. 3, pp. 473–479, 2002.
+[32] X. Wang and Z. Yang, “Turbo equalization for GMSK signaling
+     over multipath channels,” in 2001 IEEE International Conference
+     on Acoustics, Speech, and Signal Processing. Proceedings (Cat.
+     No.01CH37221), vol. 4, pp. 2641–2644, 2001.
+[33] T. Okada and Y. Iwanami, “TURBO EQUALIZATION OF GMSK
+     SIGNALS USING LIMITER-DISCRIMINATOR,” Proc. ISSSE, 2001.
+[34] L. Atzori, A. Iera, and G. Morabito, “The Internet of Things: A survey,”
+     Computer Networks, vol. 54, no. 15, pp. 2787–2805, 2010.
+[35] Y. LeCun, Y. Bengio, and G. Hinton, “Deep learning,” Nature, vol. 521,
+     no. 7553, pp. 436–444, 2015.
+[36] R. Koetter, A. Singer, and M. Tuchler, “Turbo Equalization,” IEEE
+     Signal Processing Magazine, 2004.
+[37] D. P. Kingma and J. L. Ba, “Adam: A Method for Stochastic Op-
+     timization,” in ICLR 2015 : International Conference on Learning
+     Representations 2015, 2015.
+[38] L. I. Bing, F. Wei, B. M. Bai, and M. A. Xiao, “Fundamental
+     performance limits of CPM coded modulation system,” Journal on
+     Communications, 2014.
+[39] D. M. Arnold, H. . Loeliger, P. O. Vontobel, A. Kavcic, and W. Zeng,
+     “Simulation-Based Computation of Information Rates for Channels
+

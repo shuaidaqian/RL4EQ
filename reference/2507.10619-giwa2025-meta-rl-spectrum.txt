@@ -1,0 +1,396 @@
+                                                                                                                                                                                    1
+
+
+
+
+                                              Meta-Reinforcement Learning for Fast and Data-Efficient Spectrum
+                                                         Allocation in Dynamic Wireless Networks
+                                         Oluwaseyi Giwa , Tobi Awodunmila , Muhammad Ahmed Mohsin , Ahsan Bilal , Muhammad Ali Jamshed
+
+                                           Abstract—The dynamic allocation of spectrum in 5G / 6G                      adding penalties to the reward function. This approach can
+                                         networks is critical to efficient resource utilization. However,              be inefficient, as the agent must first experience and be
+                                         applying traditional deep reinforcement learning (DRL) is                     penalized for numerous unsafe actions before learning to
+                                         often infeasible due to its immense sample complexity
+                                         and the safety risks associated with unguided exploration,                    avoid them. More formal methods like Constrained Markov
+                                         which can cause severe network interference. To address                       Decision Processes (CMDP) [6] exist, but do not inherently
+                                         these challenges, we propose a meta-learning framework                        solve the sample complexity issue.
+                                         that enables agents to learn a robust initial policy and                         Proactive constraints like control barrier functions (CBFs)
+                                         rapidly adapt to new wireless scenarios with minimal data.                    can balance safety and performance in robotics [7], but
+                                         We implement three meta-learning architectures—model-
+arXiv:2507.10619v1 [cs.LG] 13 Jul 2025
+
+
+
+
+                                         agnostic meta-learning (MAML), recurrent neural network                       adapting CBFs to wireless networks’ stochastic, high-
+                                         (RNN), and an attention-enhanced RNN—and evaluate them                        dimensional states is not straightforward. Other approaches,
+                                         against a non-meta-learning DRL algorithm, proximal policy                    like constraint-aware policy optimization, have been pro-
+                                         optimization (PPO) baseline, in a simulated dynamic inte-                     posed [8], but can be sensitive to the inherent noise and
+                                         grated access/backhaul (IAB) environment. Our results show                    rapidly changing channel dynamics in wireless environments,
+                                         a clear performance gap. The attention-based meta-learning
+                                         agent reaches a peak mean network throughput of ≈ 48                          hindering their reliability. While addressing safety, these
+                                         Mbps, while the PPO baseline decreased drastically to 10                      methods do not fundamentally reduce the millions of samples
+                                         Mbps. Furthermore, our method reduces SINR and latency                        required for the agent to learn the underlying network
+                                         violations by more than 50% compared to PPO. It also shows                    dynamics.
+                                         quick adaptation, with a fairness index ≥ 0.7, showing better                    To address both sample inefficiency and safety, we pro-
+                                         resource allocation. This work proves that meta-learning is
+                                         a very effective and safer option for intelligent control in                  pose a meta-learning framework. The core benefit of meta-
+                                         complex wireless systems.                                                     learning is its ability to “learn to learn," improving sample
+                                                                                                                       efficiency and generalization across diverse environments [9].
+                                            Index Terms—Meta-learning, spectrum allocation, deep re-
+                                         inforcement learning, sample complexity, and fast adapta-                     This paradigm has gained momentum in various domains,
+                                         tion.                                                                         including multi-agent systems and large language models
+                                                                                                                       [10]. For RL, model-agnostic meta-learning (MAML) provides
+                                                               I. Introduction                                         a powerful approach by optimizing for a shared parameter
+                                                                                                                       initialization that can be rapidly fine-tuned via gradient
+                                         T    HE emergence of fifth generation (5G) and sixth genera-
+                                              tion (6G) networks and integrated access/backhaul (IAB)
+                                         architectures creates highly dynamic wireless environments
+                                                                                                                       descent [11]. We extend this concept by exploring three
+                                                                                                                       architectures: a standard MAML implementation, a variant
+                                                                                                                       of the recurrent neural network (RNN) to capture tempo-
+                                         where spectrum resources must be allocated in real-time to
+                                                                                                                       ral dependencies [12], and an advanced RNN with a self-
+                                         meet fluctuating user demands and interference conditions
+                                                                                                                       attention mechanism designed to better model the complex
+                                         [1, 2]. Deep reinforcement learning (DRL) is a powerful
+                                                                                                                       interplay of states in the wireless network. We evaluate
+                                         paradigm for this complex decision-making process [3]. How-
+                                                                                                                       these against proximal policy optimization (PPO), a non-
+                                         ever, its primary drawback is high sample complexity; DRL
+                                                                                                                       meta-learning baseline to demonstrate their effectiveness.
+                                         agents often require millions of interactions to converge [4].
+                                         In a wireless network, this translates to an unacceptably long                        II. System Model and Problem Formulation
+                                         period of suboptimal performance, leading to dropped calls,
+                                         high latency, and inefficient resource utilization during the                    The challenge of dynamic spectrum allocation in 5G/6G
+                                         extensive training phase.                                                     networks can be formulated as a CMDP. We aim to find
+                                            Unguided DRL exploration endangers wireless safety: a                      an optimal policy (𝜋) that maximizes network utility while
+                                         high-power probe on an occupied band can interfere with                       adhering to critical safety and Quality-of-Service (QoS) con-
+                                         nearby cells, breach SLAs, and destabilize the network. While                 straints. The CMDP is defined by the tuple (S, A, 𝑝, 𝑅, C, 𝛾),
+                                         generic safe RL frameworks exist [5], they often rely on                      where each component is modeled to represent the dynamic
+                                                                                                                       wireless environment.
+                                           Oluwaseyi Giwa and Tobi Awodunmila are with the African Institute for
+                                         Mathematical Sciences, Muizenberg, 7945, South Africa (e-mail: {oluwaseyi,
+                                         tobi}@aims.ac.za).
+                                                                                                                       A. State and Action Spaces
+                                         Muhammad Ahmed Mohsin is with Stanford University, Stanford, CA 94305,          We define the state of the wireless system at time step 𝑡
+                                         USA (e-mail: muahmed@stanford.edu).
+                                         Ahsan Bilal is with the School of Computer Science, University of Oklahoma,
+                                                                                                                       as a tuple 𝑠𝑡
+                                         Norman, OK 73019, USA (e-mail: ahsan.bilal-1@ou.edu).                                                                          
+                                         Muhammad Ali Jamshed is with the College of Science and Engineer-                           𝑠𝑡 = 𝐶𝑡 , 𝐼𝑡 , 𝑄𝑡 , 𝐴𝑡 −1, 𝑃𝑡 −1, 𝑡 ∈ S,  (1)
+                                         ing, University of Glasgow, Glasgow G12 8QQ, UK (e-mail: muham-
+                                         madali.jamshed@glasgow.ac.uk).                                                where 𝐶𝑡 ∈ R𝑁𝑈 𝐸 ×𝑁𝐵𝑆 is the matrix of the channel gains
+                                         codebase: https://github.com/OluwaseyiWater/meta_learnedRL.                   between the number of base stations (BS), 𝑁𝐵𝑆 and the
+                                                                                                                                                                2
+
+
+
+number of user equipments (UE), 𝑁𝑈 𝐸 . These gains are based            where 𝑔(·) is a function converting channel gain values to a
+on a standard log-distance path loss model with additive                linear scale, and 𝑁 0 is the thermal noise power.
+Gaussian noise. The deterministic component 𝐿 is given by:                 The interference map update 𝐼𝑡 +1 is another key compo-
+                                                                        nent of the system dynamics that is updated based on the
+                      𝐿 = 𝐾ref − 10𝜂 log10 𝑑,                     (2)
+                                                                        actions taken. The interference experienced at BS 𝑖 ′ s location
+where 𝐾ref is a reference path loss constant at 1 meter, 𝜂 is           on band 𝑗 is modeled as the sum of signals from all other
+the path loss exponent, and 𝑑 is the distance between the               base stations transmitting on that band:
+transmitter and receiver. The final channel gain matrix is                                             ∑︁
+                                                                                        𝐼𝑡 +1 (𝑖, 𝑗) =    𝑃𝑡 (𝑘, 𝑗) · ℎ(𝑑𝑖,𝑘 ),       (7)
+then,
+                                                                                                           𝑘≠𝑖
+                      𝐶𝑡 = 𝐿 + N (0, 𝜎 2 ),               (3)
+                                                                        where ℎ(𝑑𝑖,𝑘 ) is a path loss function dependent on the
+with 𝜎 2 representing the noise variance.                               distance 𝑑𝑖,𝑘 between base stations 𝑖 and 𝑘. This updated map
+   𝐼𝑡 ∈ R𝑁𝐵𝑆 ×𝑁𝐵 is the interference map, detailing inference           is used for the safety masking in the next step. Finally, QoS
+level on each of the number of frequency bands, 𝑁𝐵 at each              metrics 𝑄𝑡 are updated based on the power levels selected
+BS. 𝑄𝑡 ∈ R𝑁𝑈 𝐸 ×2 represents the QoS metrics, containing                by action 𝑎𝑡 .
+the current latency and throughput for each UE. 𝐴𝑡 −1 and
+𝑃𝑡 −1 are the spectrum allocation decisions and corresponding
+                                                                        C. Reward Formulation
+power levels from the previous time step, used to model costs
+associated with switching.                                                The objective is to learn a policy (𝜋 (𝑎𝑡 |𝑠𝑡 )) that maximizes
+   The agent’s action at each step, 𝑎𝑡 ∈ A, is a discrete               the expected discounted cumulative reward. The reward
+allocation vector 𝑎𝑡 ∈ {0, 1, . . . , 𝐾 − 1}𝑁𝐵𝑆 ×𝑁𝐵 . Each element      function 𝑅(𝑠𝑡 , 𝑎𝑡 ) is designed to balance multiple competing
+𝑎𝑡 (𝑖, 𝑗) corresponds to one of 𝐾 discrete power levels for the         objectives:
+𝑗−th band at the 𝑖−th band BS. The environment enforces
+an action mask based on the current interference map 𝐼𝑡                   𝑟𝑡 =     𝜔 1 𝑇 (𝑠𝑡 , 𝑎𝑡 ) + 𝜔 2 𝐹 (𝑠𝑡 , 𝑎𝑡 ) −          𝜔 3 Cost(𝑠𝑡 , 𝑎𝑡 )      −
+                                                                                   | {z }             | {z }                      |     {z        }
+to ensure network safety. For any selected action 𝑎𝑡 , the                       Throughput Reward      Fairness Bonus         Power and Switching Cost
+environment computes the resulting transmit powers 𝑃𝑡 and                                                                        𝜔 4 Penalty(𝑠𝑡 , 𝑎𝑡 )        (8)
+applies a safety filter to produce the executed action, 𝑎𝑡safe .
+                                                                                                                                 |       {z         }
+                                                                                                                                     Safety Penalty
+The power level for each link (𝑖, 𝑗) is set to zero if it violates
+the maximum permissible interference threshold 𝐼 max :                  where 𝑇 (𝑠𝑡 , 𝑎𝑡 ) is the total network throughput for all active
+                          (                                             BS-band pairs, calculated using the Shannon-Hartley theo-
+               safe        𝑃𝑡 (𝑖, 𝑗) if 𝐼𝑡 (𝑖, 𝑗) < 𝐼 max               rem.
+              𝑃𝑡 (𝑖, 𝑗) =                                       (4)
+                            0           otherwise                                             𝑁𝐵𝑆 ∑︁
+                                                                                              ∑︁  𝑁𝐵
+                                                                             𝑇 (𝑠𝑡 , 𝑎𝑡 ) =             𝐵 log2 (1 + SINR𝑖,𝑗 ) · I(𝑃𝑖,𝑗 > 0),                  (9)
+where 𝑃𝑡 (𝑖, 𝑗) is the power corresponding to the selected                                    𝑖=1 𝑗=1
+action 𝑎𝑡 (𝑖, 𝑗). This hard constraint prevents catastrophically
+disruptive transmissions.                                               where 𝐵 is the channel bandwidth, SINR𝑖,𝑗 is the SINR for
+                                                                        the 𝑖, 𝑗−th link, and I(𝑃𝑖 𝑗 > 0) is an indicator function
+                                                                        that is 1 if the power 𝑃𝑖,𝑗 or that link is non-zero, and 0
+B. System Dynamics and Channel Model
+                                                                        otherwise. 𝐹 (𝑠𝑡 , 𝑎𝑡 ) is the fairness parameter which ensures
+   The system transitions from state 𝑠𝑡 to 𝑠𝑡 +1 according to           equitable resource distribution among active links; we used
+the transition probability function 𝑝 (𝑠𝑡 +1 |𝑠𝑡 , 𝑎𝑡 ). This encap-    Jain’s Fairness index. It is calculated over the throughputs 𝑥𝑘
+sulates the stochastic nature of the wireless environment,              of the 𝑀 active links (where 𝑥𝑘 = 𝐵 log2 (1 + SINR𝑘 )):
+including channel fading dynamics, where channel gains                                                       P      2
+evolve according to a first-order autoregressive fading model                                                  𝑀
+                                                                                                                  𝑥
+                                                                                                               𝑘=1 𝑘
+to simulate temporal correlations:                                                            𝐹 (𝑠𝑡 , 𝑎𝑡 ) =   P𝑀 2 ,              (10)
+                             √                                                                               𝑀 𝑘=1 𝑥𝑘
+               𝐶𝑡 +1 = 𝜅𝐶𝑡 + 1 − 𝜅 2 N (0, 𝜎 𝑓2 ),                (5)
+                                                                        This index ranges from 1/𝑀 (worst case) to 1 (perfect fairness,
+where 𝜅 is the fading coherence factor and 𝜎 𝑓2 is the variance         where all active links have the same throughput). Cost(𝑎𝑡 )
+of the fading process.                                                  is the cost term that penalizes total power consumption and
+   Another component of our environment is the Signal-to-               the magnitude of changes in power allocation between time
+Interference-plus-Noise Ratio (SINR). For each active link (BS          steps, which can be disruptive to the hardware. It is defined
+𝑖 on band 𝑗), the signal power at the intended receiver is              as:
+a function of the transmit power 𝑃𝑡 (𝑖, 𝑗), and channel gain                                    ∑︁                ∑︁
+                                                                           Cost(𝑠𝑡 , 𝑎𝑡 ) = 𝑐 𝑝    𝑃𝑡 (𝑖, 𝑗) + 𝑐𝑠    𝑃𝑡 (𝑖, 𝑗) − 𝑃𝑡 −1 (𝑖, 𝑗) ,
+𝐶𝑡 (𝑢, 𝑖) for the intended user 𝑢. The interference is the sum
+                                                                                                 𝑖,𝑗                     𝑖,𝑗
+of powers from all other base stations using the same band,                                                                          (11)
+scaled by their respective cross-channel gains. The SINR is             where 𝑃𝑡 (𝑖, 𝑗) is the power on the current step, 𝑃𝑡 −1 (𝑖, 𝑗) is
+therefore:                                                              the power from the previous step, and 𝑐 𝑝 and 𝑐𝑠 are the cost
+                                                    
+                            𝑃𝑡 (𝑖, 𝑗) · 𝑔 𝐶𝑡 (𝑢, 𝑖)                     coefficients for power and switching, respectively. Penalty
+            SINR𝑖,𝑗 = P                                  ,  (6)        term incorporates costs for violating critical operational
+                        𝑘≠𝑖 𝑃𝑡 (𝑘, 𝑗) · 𝑔 𝐶𝑡 (𝑢, 𝑘) + 𝑁 0
+                                                                                                                                                      3
+
+
+
+
+          Offline meta-training phase                                        Online adaptation phase
+
+             Distribution of scenarios                                         Live dynamic wireless environment
+                                                                                                                         Few shot gradient updates
+
+                                                     DRL objective, Eq. 8
+              Meta-training (Algorithm 1)
+
+                inner/outer loop, Fig. 2               Action masking
+                                                                                                   RAN
+
+
+
+                                                                                                                              Adapted policy
+               Pre-trained meta-policy
+
+
+
+Fig. 1: Overview of the proposed framework, divided into two distinct phases. In the Offline Meta-Training Phase (left), the
+agent learns from a diverse distribution of simulated scenarios. It leverages a DRL objective (Eq. 8) and safety constraints to
+produce a single, robust pre-trained meta-policy (𝜋𝜃 ) that is optimized for rapid adaptation (see Fig. 2 for process detail). In
+the Online Adaptation Phase (right), this pre-trained policy is deployed into a new, live wireless environment. It initializes
+the local agent and performs a few-shot fine-tuning update to generate a specialized, high-performance policy (𝜋𝜃 ′ ) tailored
+to the specific, real-time conditions.
+
+
+constraints. This includes failing to meet a minimum SINR                              The outer loop then updates the meta parameters 𝜃 by
+threshold (SINRmin ) on active links and exceeding a maximum                           minimizing the expected loss of the adapted policies 𝜋𝜃𝑖′ over
+user latency threshold (𝐿max ):                                                        the distribution of all tasks:
+                                                                                                ∑︁                      ∑︁
+                                                                                                      L T𝑖 (𝜃 ′ ) = min
+                                                                                                                                                 
+                                                                                                                           L T𝑖 𝜃 − 𝛼∇𝜃 L T𝑖 (𝜃 ) ,
+                        ∑︁
+  𝑃 (𝑠𝑡 , 𝑎𝑡 ) = 𝑝 sinr    I(SINR𝑖,𝑗 < SINRmin ) +                                        min
+                                                                                             𝜃                            𝜃
+                      𝑖,𝑗                                                                        T𝑖 ∼𝑝 ( T )                   T𝑖 ∼𝑝 ( T )
+                                                    𝑁
+                                                                                                                                                 (14)
+                                                     𝑈𝐸
+                                                    ∑︁       (lat)                     This process is formalized in Algorithm 1, enabling the
+                                            𝑝 lat         I(𝑄𝑡,𝑘 > 𝐿max ),    (12)
+                                                                                       agent to acquire a broad, generalizable understanding of
+                                                    𝑘=1
+                                                                                       wireless dynamics, ensuring both fast and safe adaptation
+where I(·) is the indicator function, 𝑝 sinr and 𝑝 lat are                             during the online phase. Safety is further enhanced by an
+penalty coefficients. The weights, 𝜔𝑛 , for 𝑛 ∈ [1, . . . , 4] in                      environment-level action mask that prevents transmissions
+Eq. 8 balances the trade-offs between these four objectives.                           violating a maximum interference threshold, 𝐼𝑚𝑎𝑥 , and by
+𝑐 𝑝 , 𝑐𝑠 𝑝 sinr, 𝑝 lat are hyperparameters that are absorbed into                      reward penalties for softer QoS constraint violations.
+the weights, 𝜔 3 and 𝜔 4 .
+                                                                                          Here, 𝛼 and 𝛽 denote the inner and meta-learning rates,
+                                                                                       respectively. The loss L T𝑖 is calculated using the DRL ob-
+                    III. Proposed Framework                                            jective, which includes the aforementioned reward function
+   To overcome the challenges of sample inefficiency and                               Eq. 8 and incorporates the safety penalty to discourage unsafe
+unsafe exploration, our proposed framework leverages meta-                             actions.
+learning to train agents that can rapidly adapt to novel
+wireless network conditions. As illustrated in Fig. 1, the over-
+all architecture consists of two sequential phases: an offline
+                                                                                                                   IV. Experimental Setup
+meta-training phase, where the agent learns a robust initial
+policy across a wide distribution of simulated scenarios, and
+an online adaptation phase, where the pre-trained agent is                             A. Simulation Environment
+deployed and quickly fine-tunes its policy to the specific,
+                                                                                          To evaluate our proposed framework, we developed a high-
+live environment. The core of the offline meta-training phase
+                                                                                       fidelity simulation of a dynamic 5G/6G wireless network
+is a two-level optimization process, depicted in detail in
+                                                                                       featuring an Integrated Access and Backhaul (IAB) architec-
+Fig. 2. This approach is “model-agnostic" in the sense that
+                                                                                       ture. The environment is configured with 𝑁𝐵𝑆 = 3, 𝑁𝑈 𝐸 =
+it can be applied to various policy network architectures. We
+                                                                                       10, 𝑁𝐵 = 5, with agents selecting from 𝐾 = 4 discrete power
+implement this framework with three distinct architectures:
+                                                                                       levels. The system dynamics are stochastic, incorporating key
+a standard feed-forward network, MAML, an RNN, and an
+                                                                                       real-world phenomena: channel gains evolve according to
+advanced RNN with a self-attention mechanism. For any of
+                                                                                       a temporal fading model in Eq. 5 with a coherence factor
+these architectures, the meta-learning objective is to find a
+                                                                                       (𝜅 = 0.9), and task variations are introduced by sampling
+single set of initial parameters 𝜃 that serves as an effective
+                                                                                       different path loss scenarios (𝐿 in Eq. 3) and interference
+starting point for rapid adaptation. In the inner loop of the
+                                                                                       maps 𝐼 0 at the start of each episode. This setup creates a rich
+framework, a task-specific policy is formed by taking a few
+                                                                                       and realistic distribution of tasks, providing a challenging
+gradient steps on data from a new task T𝑖 :
+                                                                                       testbed for evaluating the adaptation capabilities of the meta-
+                            𝜃 𝑖′ = 𝜃 − 𝛼∇𝜃 L T𝑖 (𝜃 )                          (13)     learning algorithms.
+                                                                                                                                                                                 4
+
+
+
+                          Outer Loop                    Inner Loop
+                                                        Start adaptation using
+                                Meta parameters         meta-policy
+
+
+                                                                                                                                 Compute adapted
+                                                          Sample batch of tasks
+                                                                                                                                   parameters
+         Meta-optimizer         For each task in
+            update                  meta-batch
+
+
+
+                                                                                     Collect pre-adaptation   Compute gradient                         Collect post adaptation
+                             Aggregate meta gradients                                                                                              trajectory    using policy
+                                                                                 trajectory    using policy
+
+
+
+Fig. 2: An overview of the two-level optimization process in our meta-learning framework. The outer loop updates the shared
+meta parameters 𝜃 by aggregating gradients from a batch of tasks. For each task, the inner loop performs a fast adaptation
+by taking the current meta parameters 𝜃 , collecting a support set of trajectories, and computing adapted parameters 𝜃 𝑖′ via
+one or more gradient steps. The performance of this adapted policy 𝜋𝜃𝑖′ on a query set provides the learning signal for the
+outer loop, enabling the agent to “learn how to adapt."
+
+
+Algorithm 1 Meta-Training Framework for Adaptive Poli-                                              2. Mean Network Throughput: To measure the primary
+cies                                                                                                   objective of network utility, we calculate the total
+  1: Input: Task distribution 𝑝 (T ), inner learning rate 𝛼,                                           throughput achieved during an episode. This is given
+     meta-learning rate 𝛽                                                                              by Eq. 9. We report the average total throughput per
+  2: Initialize meta parameters 𝜃 for a chosen policy/value                                            episode.
+     architecture (MAML, RNN, or RNN+Attention).                                                    3. Mean Latency Violations: This metric evaluates the
+  3: Initialize meta-optimizer state 𝜙.                                                                agent’s ability to maintain Quality of Service (QoS)
+  4: for iteration = 1, 2, . . . , 𝑁𝑚𝑒𝑡𝑎_𝑖𝑡𝑒𝑟𝑠 do                                                      for users. A latency violation is counted for each user
+  5:    Sample a meta-batch of 𝐵 tasks T1, T2, . . . , T𝐵 from the                                     whose accumulated service delay exceeds a maximum
+        task distribution 𝑝 (T )                                                                       threshold, 𝐿max , as defined in the penalty term of Eq. 12.
+  6:    for each task T𝑖 in the meta-batch do                                                       4. Fairness Index: To assess how equitably the agent dis-
+  7:       Collect trajectory D𝑖 = {(𝑠𝑡 , 𝑎𝑡 , 𝑟𝑡 , 𝑠𝑡 +1 )}                                           tributes resources, we employ Jain’s Fairness Index,
+  8:       Compute the task-specific loss L T𝑖 (𝜃 ) on D𝑖 .                                            formally defined in Eq. 10. The index ranges from a
+  9:       Compute the inner-loop gradient: 𝑔𝑖 ← ∇𝜃 L T𝑖 (𝜃 )                                          value near zero (highly unfair allocation) to a maximum
+ 10:       Adapt parameters for task: 𝜃 𝑖′ ← 𝜃 − 𝛼𝑔𝑖 (Eq. 13)                                          of 1 (perfect fairness, where all users receive the same
+ 11:       Collect trajectory D𝑖′                                                                      throughput).
+ 12:       Compute the post-adaptation loss: L T𝑖 (𝜃 𝑖′ ) on D𝑖′ .                                These four metrics allow for a direct comparison of the meta-
+ 13:    end for                                                                                   learning approaches against the non-meta-learning PPO
+ 14:    Define the meta-objective       over the batch:                                           baseline in terms of both their ability to learn an effective
+                                    L T𝑖 (𝜃 𝑖′ ) = 𝐵1 𝑖=1
+                            P𝐵                           P𝐵
+ 15:    Lmeta (𝜃 ) = 𝐵1 𝑖=1                                  L T𝑖 (𝜃 −                            control policy and their capacity to operate within critical
+        𝛼∇𝜃 L T𝑖 (𝜃 )) (Eq.14)                                                                    network constraints.
+ 16:    Compute aggregated meta-gradient: ∇meta                     ←
+        ∇𝜃 Lmeta (𝜃 )                                                                                             V. Results and Discussions
+ 17:    Update the global meta parameters:                                                           To evaluate the effectiveness of our proposed meta-
+ 18:    (𝜃, 𝜙) ← Meta-optimizer update(∇meta, 𝜙, 𝜃 )                                              learning framework, we conducted a comparative analysis
+ 19: end for
+                                                                                                  of three meta-learning algorithms against a standard, non-
+ 20: return Optimized meta parameters 𝜃
+                                                                                                  meta-learning baseline. The algorithms implemented were
+                                                                                                  MAML (orange dashed lines), RNN (yellow dotted lines), and
+                                                                                                  a more advanced RNN variant (blue solid line), incorporating
+B. Performance Metrics                                                                            a self-attention mechanism (RNN + Attention Mechanism).
+                                                                                                  These were compared to PPO (purple dash-dotted lines),
+  To provide a comprehensive evaluation of the algorithms,                                        a popular DRL algorithm. The evaluation took place over
+we assess their performance based on four key metrics that                                        1200 episodes. It focused on four main performance metrics:
+capture both network efficiency and safety:                                                       the average number of SINR violations, latency violations,
+ 1. Mean SINR Violations: To specifically evaluate the                                            network throughput, and the fairness index.
+    agent’s ability to adhere to safety and QoS constraints,                                         The results demonstrate a clear performance gap between
+    we measure the average number of SINR violations                                              the meta-learning approaches and the PPO baseline across
+    per episode. A violation occurs whenever an active                                            all metrics. As shown in Fig. 3b, the meta-learning agents
+    communication link’s SINR falls below a predefined                                            achieve substantial network throughput, with the RNN +
+    minimum threshold, SINRmin . A lower value for this                                           Attention variant reaching the highest peak. Conversely, the
+    metric signifies a safer and more reliable policy.                                            PPO agent fails to learn an effective transmission strategy,
+                                                                                                                                 5
+
+
+
+                                                                   causing far fewer SINR and latency violations. The agent
+                                                                   that combined recurrence and self-attention was the most
+                                                                   effective, highlighting the benefit of using advanced architec-
+                                                                   tural designs. Our results indicate that meta-learning offers
+                                                                   a practical way to create data-efficient agents that are not
+                                                                   only high-performing but also safer. This makes them better
+                                                                   suited for complex wireless systems in the real world. Future
+   (a) Mean SINR violations.    (b) Network throughput (Mbps).     work will focus on adding more formal safety measures and
+                                                                   testing this framework on hardware platforms.
+
+                                                                                            References
+                                                                    [1] Pronaya Bhattacharya, Farnazbanu Patel, Abdulatif Al-
+                                                                        abdulatif, Rajesh Gupta, Sudeep Tanwar, Neeraj Kumar,
+                                                                        and Ravi Sharma. A deep-q learning scheme for secure
+                                                                        spectrum allocation and resource management in 6g
+                                                                        environment. IEEE Transactions on Network and Service
+     (c) Latency violations.           (d) Fairness index.              Management, 19(4):4989–5005, 2022.
+                                                                    [2] Fang DongFeng, Qian Yi, and Qingyang Hu Rose. In-
+Fig. 3: Comparative performance of the four algorithms on               troduction to 5G wireless systems. Wiley online library,
+all four performance metrics.                                           2023.
+                                                                    [3] Sutton Richard and Barto Andrew. Reinforcement Learn-
+                                                                        ing: An Introduction. MIT Press, 1998.
+resulting in a very low throughput for the duration of the          [4] Volodymyr Mnih, Koray Kavukcuoglu, and et. al.
+training. This indicates that the meta-learning agents are              Human-level control through deep reinforcement learn-
+significantly more sample-efficient at discovering policies             ing. nature, 2015.
+that maximize network utility.                                      [5] Javier Garcia Fernando Fernandez. A comprehensive
+   This performance advantage extends to safety and Qual-               survey on safe reinforcement learning. Journal of
+ity of Service. The SINR and latency violation results                  Machine Learning Research 16, 2015.
+(Figs. 3a, 3c) show that while the PPO agent consistently           [6] Eitan Altman. Constrained Markov Decision Processes.
+violates constraints, all meta-learning agents quickly learn to         Taylor & Francis Group, 1999.
+operate safely. The recurrent models prove most adept, lever-       [7] Fatemeh Jabbari, Reza Samsami, and Mohammad Mehdi
+aging their temporal memory to achieve the lowest and most              Arefi. A novel online safe reinforcement learning
+stable violation rates. Furthermore, the meta-learning agents           with control barrier function technique for autonomous
+also demonstrate superior resource allocation, achieving a              vehicles. In 2024 10th International Conference on Con-
+high degree of fairness as measured by the Jain’s Fairness              trol, Instrumentation and Automation (ICCIA), pages 1–6,
+Index (Fig. 3d), whereas PPO’s inability to establish a useful          2024.
+policy results in poor fairness.                                    [8] Dai Juntao, Yang Yaodong, Zheng Qian, and Pan
+   In summary, the experiments confirm that meta-learning               Gang. Safe reinforcement learning using finite-horizon
+provides a robust framework for developing agents that                  gradient-based estimation. 2024.
+simultaneously learn to improve network utility and adhere          [9] Deekshitha Kosaraju. How meta learning enhances re-
+to critical operational rules, far exceeding the capabilities of        inforcement learning in ai. Galore International Journal
+a standard DRL baseline in this complex, dynamic wireless               of Applied Sciences and Humanities, 2021.
+environment.                                                       [10] Ahsan Bilal, Muhammad Ahmed Mohsin, Muhammad
+                                                                        Umer, Muhammad Awais Khan Bangash, and Muham-
+                                                                        mad Ali Jamshed. Meta-thinking in llms via multi-
+                        VI. Conclusion                                  agent reinforcement learning: A survey. arXiv preprint
+   Dynamic 5G/6G spectrum use is hampered by traditional                arXiv:2504.14520, 2025.
+DRL’s high sample demands and unsafe exploration, leading          [11] Finn Chelsea, Abbeel Pieter, and Levine Sergey. Model-
+to prolonged performance drops and interference. In this                agnostic meta-learning for fast adaptation of deep net-
+study, we tackled this problem by proposing a meta-learning             works. In Doina Precup and Yee Whye Teh, editors, Pro-
+framework aimed at developing a strong initial policy that              ceedings of the 34th International Conference on Machine
+can quickly and safely adjust to new network conditions.                Learning, volume 70 of Proceedings of Machine Learning
+We implemented and compared three meta-learning archi-                  Research, pages 1126–1135. PMLR, 06–11 Aug 2017.
+tectures: MAML, RNN, and RNN with an attention mecha-              [12] Beck Jacob, Vuorio Risto, Xiong Zheng, and Whiteson
+nism. We tested these against a standard PPO baseline. Our              Shimon. Recurrent hypernetworks are surprisingly
+experimental results showed that all meta-learning agents               strong in meta-reinforcement learning. In 37th Confer-
+significantly outperformed PPO. They achieved much higher               ence on Neural Information Processing Systems (NEURIPS
+network throughput and better resource allocation, while                2023), 2023.
+

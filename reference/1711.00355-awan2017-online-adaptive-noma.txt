@@ -1,0 +1,533 @@
+                                                Detection for 5G-NOMA: An Online Adaptive
+                                                         Machine Learning Approach
+                                                   Daniyal Amir Awan∗ , Renato L.G. Cavalcante∗† , Masahiro Yukawa ‡§ and Slawomir Stanczak∗†
+                                                           ∗ Technical University Of Berlin, Berlin, Germany, Einsteinufer 27, 10587 Berlin, Germany,
+                                                † Fraunhofer Institute for Telecommunications, Heinrich Hertz Institute, Einsteinufer 37, 10587 Berlin, Germany,
+                                                                   ‡ Department of Electronics and Electrical Engineering, Keio University, Japan,
+                                                                              § Center for Advanced Intelligence Project, RIKEN, Japan.
+
+                                            Email: {daniyal.a.awan, slawomir.stanczak}@tu-berlin.de, renato.cavalcante@hhi.fraunhofer.de, yukawa@elec.keio.ac.jp
+arXiv:1711.00355v2 [cs.LG] 11 Jan 2018
+
+
+
+
+                                            Abstract—Non-orthogonal multiple access (NOMA) has                   be superimposed, in principle, on the entire system bandwidth,
+                                         emerged as a promising radio access technique for enabling the          and multiplexing is done in the power (or signal-to-noise
+                                         performance enhancements promised by the fifth-generation (5G)          ratio (SNR)) domain. Therefore, when compared to OMA
+                                         networks in terms of connectivity, latency, and spectrum effi-
+                                         ciency. In the NOMA uplink, successive interference cancellation        systems, a significantly larger number of devices can trans-
+                                         (SIC) based detection with device clustering has been suggested.        mit simultaneously and enjoy the entire system bandwidth.
+                                         In the case of multiple receive antennas, SIC can be combined           Intuitively, NOMA leads to improvements in active device
+                                         with the minimum mean-squared error (MMSE) beamforming.                 density, latency, and spectral efficiency [5]. Indeed, from the
+                                         However, there exists a tradeoff between the NOMA cluster               spectral efficiency point of view, NOMA has been shown to
+                                         size and the incurred SIC error. Larger clusters lead to larger
+                                         errors but they are desirable from the spectrum efficiency and          be theoretically optimal both in the uplink and the downlink
+                                         connectivity point of view. We propose a novel online learning          in a single-cell network [1]. System level experiments have
+                                         based detection for the NOMA uplink. In particular, we design           also shown promising results in terms of cell-throughput [6],
+                                         an online adaptive filter in the sum space of linear and Gaussian       [4].
+                                         reproducing kernel Hilbert spaces (RKHSs). Such a sum space                In the NOMA uplink, demultiplexing of devices is usually
+                                         design is robust against variations of a dynamic wireless network
+                                         that can deteriorate the performance of a purely nonlinear              achieved by means of successive interference cancellation
+                                         adaptive filter. We demonstrate by simulations that the proposed        (SIC) at the base station (BS) [1]. If multiple antennas are
+                                         method outperforms the MMSE-SIC based detection for large               available at the BS, SIC can be combined with minimum
+                                         cluster sizes.                                                          mean-squared error (MMSE) beamforming [7]. To maximize
+                                                                 I. I NTRODUCTION                                the spectral efficiency, all devices should be superimposed
+                                                                                                                 on the entire system bandwidth in a single-cell NOMA with
+                                            Non-orthogonal multiple access (NOMA)1 is being dis-
+                                                                                                                 SIC [1]. The problem is that, for a large number of devices,
+                                         cussed in the context of fifth generation (5G) networks as
+                                                                                                                 cochannel interference seriously degrades the performance of
+                                         one of the key technological enablers for systems such as the
+                                                                                                                 MMSE-SIC in terms of SIC complexity and error propagation
+                                         5G New Radio (5G-NR) and the Internet of things (IoT) [1],
+                                                                                                                 [8], [3], [1]. There is therefore a strong need for an alternate
+                                         [2], [3]. 5G NOMA promises to enable higher user density,
+                                                                                                                 way of implementing the NOMA uplink at the cost of lower
+                                         lower latency, and higher spectrum efficiency when compared
+                                                                                                                 spectral efficiency. A straight forward approach is to cluster de-
+                                         to fourth generation (4G) networks [2]. 5G enabled IoT, for ex-
+                                                                                                                 vices, such that devices belonging to the same cluster transmit
+                                         ample, will comprise massive number of devices transmitting
+                                                                                                                 simultaneously on a set of orthogonal RBs. The sets assigned
+                                         sporadically with diverse latency and data rate requirements.
+                                                                                                                 to each cluster are disjoint to avoid cochannel interference.
+                                         There is a reasonable consensus that massive machine-type-
+                                                                                                                 MMSE-SIC NOMA can then be performed within each cluster.
+                                         communications (mMTC) or IoT systems cannot be supported
+                                                                                                                 However, the size of each cluster is restricted by the fixed
+                                         by the current LTE uplink due to scheduling delays and
+                                                                                                                 number of BS antennas, SIC complexity, and SIC errors. This
+                                         signaling overheads [4]. As a result, NOMA has become a
+                                                                                                                 shows that there is an inherent tradeoff between the cluster
+                                         subject of increasing interest in the wireless communication
+                                                                                                                 size and the incurred SIC error [8], [1], and new interference
+                                         community [5], [1].
+                                                                                                                 cancellation and detection approaches are needed to maximize
+                                            Orthogonal multiple access (OMA) systems, such as
+                                                                                                                 the cluster size while keeping SIC errors to a low level.
+                                         those based on orthogonal frequency-division multiple access
+                                                                                                                    The contribution of this study is a novel detection method
+                                         (OFDMA), can only support a moderate number of active
+                                                                                                                 for the NOMA uplink based on online learning. A similar
+                                         devices simultaneously due to a limited number of orthogonal
+                                                                                                                 approach was taken in [9], [10], where the authors proposed
+                                         frequency-time resource blocks (RBs). In these systems, only a
+                                                                                                                 online learning based beamforming in a reproducing kernel
+                                         fraction of the total system bandwidth is available to the sched-
+                                                                                                                 Hilbert space (RKHS) associated with a Gaussian kernel. The
+                                         uled devices. NOMA, in contrast, allows multiple devices to
+                                                                                                                 strength of this nonlinear filtering technique in an RKHS lies
+                                           1 In this study we use the term NOMA to refer to power-domain NOMA.   in the possibility of mapping spatial signatures of devices
+to a higher dimensional space, where they can be better                   points to obtain the reproducing kernel Hilbert space (RKHS)
+resolved as compared to the original space. Furthermore,                  H uniquely associated with the kernel κ. In this study, we
+the adaptive filtering algorithm requires simple computations.            exploit the following two properties of the RKHS H associated
+Indeed, the authors showed that this high-resolution nonlinear            with κ:
+filter exhibits better interference and noise cancellation ca-             1) (Representation Property) (∀u ∈ U) κ(u, ·) ∈ H.
+pability as compared to a linear filter, especially when the               2) (Reproducing Property) (∀f ∈ H) (∀u ∈ U) f (u) =
+number of antennas at the BS is less than the number of                        hf, κ(u, ·)iH , where the inner product h·, ·iH is the ex-
+active devices. Nonlinear beamformers are however highly                       tension of the inner product h·, ·iHo , defined in (1), to H
+sensitive to variations in the environment and the performance                 consisting of simple kernel evaluations.
+may deteriorate in dynamic networks, such as IoT networks,
+where devices may join the network sporadically. Therefore,                 III. PARTIALLY L INEAR A DAPTIVE F ILTERING M ODEL
+in contrast to the nonlinear beamforming filter proposed in [9],                                FOR NOMA
+[10], we propose a partially linear beamforming filter design in             In this section, we describe the underlying adaptive filtering
+the sum space (RKHS) of a linear and a nonlinear RKHS. This               model for a single-cell NOMA uplink, which is inspired by
+sum space adaptive filter enjoys high resolution and exhibits             the adaptive beamforming filter model in [12]. A number of
+robustness against variations in the environment. Simulations             single antenna devices can transmit their data to a base station
+show that our method outperforms both the MMSE-SIC based                  (BS). Following the approach in recent NOMA studies [8],
+detection and the nonlinear adaptive filtering in a dynamic               [1], devices in the cell can be divided in K-device clusters
+wireless environment.                                                     with K > 1, and each cluster is allocated a set of orthog-
+                                                                          onal resource blocks (RBs). Since the sets assigned to each
+                       II. P RELIMINARIES
+                                                                          cluster are disjoint, there is no inter-cluster interference. In
+   The sets of real numbers, non-negative integers, positive              the remainder of this study, we describe the adaptive filtering
+integers, and complex numbers are denoted by R, Z≥0 , Z>0 ,               model for a single NOMA cluster which can be applied to all
+and C, respectively. We denote by span {V} the set comprising             the clusters in the cell.
+all finite linear combinations of the elements of V. We define               We assume that the BS is equipped with a uniform linear
+N1 , N2 := {N1 , N1 + 1, . . . , N2 }, where N1 , N2 ∈ Z≥0 with           array (ULA)2 consisting of M ∈ Z>0 antennas. We assume a
+N1 ≤ N2 .                                                                 non-dispersive channel so that the received signal (sampled at
+   In this study, we deal with the problem of function esti-              a fixed symbol rate) is given by [12], ∀k ∈ 1, K,
+mation in special function spaces called Reproducing Kernel                                                                    |
+                                                                            Z≥0 → CM : r(t) := [r1 (t), r2 (t), . . . , rM (t)]            (3)
+Hilbert Spaces (RKHSs). In the following we briefly revisit
+                                                                                                      K p
+selected aspects of the RKHS theory [11].                                                             X
+                                                                                                 :=         pk (t)hk (t)bk (t)sk (t) + n(t),
+A. Reproducing Kernel Hilbert Spaces                                                                  k=1
+
+   Given an arbitrary set U ⊆ Rl , a function κ : U × U → R               where hk (t) ∈ C is the channel gain and bk (t) ∈ C is the
+is said to be a kernel if it satisfies the following properties:          modulation symbol (e.g., a BPSK or QAM symbol) for the tth
+                                                                          sample. The vectors sk (t) ∈ CM and n(t) ∈ CM stand for the
+  1) (Symmetry) κ(u, v) = κ(v, u).
+                                                                 N        array spatial signature of device k and additive independent
+  2) (Non-negativity) ∀N ≥ 1, ∀(α    PN1 , α2 , . . . , αN ) ∈ R   and
+                                  N
+                                           P  N                           circularly-symmetric noise, respectively.
+      ∀(u1 , u2 , . . . , uN ) ∈ U , i=1 j=1 αi αj κ(ui , uj ) ≥
+                                                                             In this study, the objective is to design an online adaptive
+      0.
+                                                                          (beamforming) filter g k : CM → C for each device k ∈ 1, K,
+In the remainder of this study, κ is either the linear kernel             such that (∀t ∈ Z≥0 ) g k (r(t)) − bk (t) ≤ , where  > 0 is
+denoted by κL and defined as κL (u, v) := uT v or the                     a small predefined noise tolerance. In the following we omit
+Gaussian        denoted by κG and defined as κG (u, v) :=
+            kernel                                                        the index k for notational simplicity.
+       ku−vk2R
+     
+exp      2σ 2     . Given a kernel κ, consider the linear space
+H0 of functions given by f ∈ span {κ(u, ·) : u ∈ U}. Let the              A. Adaptive Filtering In Sum Space RKHS
+scalar multiplication and function addition       in H0 be defined in        The beamformer is typically a linear spatial filter of the form
+                                             PN
+the usual way. For two functions f := n=1 an κ(un , ·) and                g(r(t)) = wH r(t), where w ∈ CM is chosen in such a way
+      PM
+g := m=1 bm κ(vm , ·), where am , bm ∈ R and un , vm ∈ U,                 that the antenna beam is focused in the direction of the device
+we define the inner product to be                                         of interest and the interference from other devices/directions
+                               XN XM                                      is suppressed. A prominent example of a linear filter is the
+              hf, giH0 :=            an bm κ(un , vm ),             (1)   minimum mean-square error (MMSE) beamformer. It is well-
+                           n=1 m=1                                        known that such a linear filter has only M − 1 degrees of
+with the induced norm given by                                            freedom (DOF) and it can typically resolve K ≤ M devices
+                            2                                             with sufficiently diverse spatial signatures [13]. Therefore, in
+                        kf kHo = hf, f iHo .                       (2)
+The space Ho equipped with the above inner product is a pre-                2 We consider a ULA for simplicity, but the proposed method can be
+Hilbert space. We complete this space by including all limit              extended to other configurations.
+                                                                                                         |
+a massive connectivity scenario, a system designer is currently      r2 (t) := [=(r(t))| − <(r(t))| ] ∈ R2M which enables
+forced to increase the number of antenna array elements M            processing in real Hilbert spaces as considered in [15], [12].
+to support a large number of concurrent devices. In contrast,        Similarly, the training modulation symbols are converted to
+                                                                                    |                      |
+nonlinear filters offer additional DOFs as well as enhanced          [b1 (t) b2 (t)] := [<(b(t)) =(b(t))] ∈ R2 . The proposed
+                                                                                    2M
+interference and noise cancellation capabilities. In [12], the       filter f : R       → R operates on r1 (t) and r2 (t) separately
+problem of nonlinear beamforming is addressed by employing           (as depicted in Fig. 1). The relation between f and the
+the powerful RKHS framework associated with a Gaussian               complex valued filter g described in Section III-A is given
+kernel. In more detail, the authors first show that there exists     by (∀t ∈ Z≥0 ) C 3 g(r(t)) = f (r1 (t)) + if (r2 (t)), where i
+a bijection between complex and real vectors such that the task      is the solution to the equation i2 = −1. To simplify indexing,
+of designing the filter g : CM → C can be transformed to the         we define a new time index n := 2t + l − 1, rn = r2t+l−1 :=
+task of designing a filter f : R2M → R. The filter is then           rl (t) and bn = b2t+l−1 := bl (t), ∀t ∈ Z≥0 , ∀l ∈ 1, 2.
+assumed to belong to a real infinite dimensional RKHS asso-          Henceforth,
+                                                                                    we denote the input space of received signals by
+ciated with a Gaussian kernel. The computational advantage of        U := rn ∈ R2M : n ∈ Z≥0 .
+this approach is that the nonlinear filtering task in the original       We now turn our attention to the design of an adaptive filter
+space becomes a linear filtering task in an infinite dimensional     f such that (∀n ∈ Z≥0 ) |f (rn ) − bn | ≤ , where the precision
+RKHS. The inner products are computed by simple kernel               is controlled by the design parameter  > 0. We assume that
+evaluations by the reproducing property. Furthermore, spatial        f ∈ H and a training sample (rn , bn ) ∈ U × R is available
+signatures of devices can be better resolved when mapped to          ∀n ∈ Z≥0 . Then, a closed and convex set of functions in H
+a higher dimensional space by the representation property.           consistent with the training sample at time n is given by
+Indeed, it was shown in [12] that this high resolution filter                  Cn := {f ∈ H : | hf, κ(rn , ·)iH − bn | ≤ } .       (5)
+exhibits superior performance when K > M as compared to
+                                                                        In the online learning setting considered here, the training
+a linear filter. On the other hand, nonlinear spatial filters are
+                                                                     samples arrive sequentially and each sample defines a set of the
+highly sensitive to variations in the environment. For example,                                                             ∗
+                                                                     form (5). Ideally, the objective is to find a filter f T ∈ H such
+unlike linear filters, the filter response for a particular device
+                                                                     that f ∗ is a member of all these sets, i.e., f ∗ ∈ n∈Z≥0 Cn
+k ∈ 1, K in a NOMA cluster may deteriorate if one of
+                                                                     . However, since it is challenging to find a low-complexity
+the other devices j 6= k becomes inactive. This behavior
+                                                                     algorithm to solve this problem, we allow a finite number
+is clearly not desirable in dynamic wireless systems where
+                                                                     of sets not to share a common intersection and consider a
+devices transmit sporadically as, for example, in Internet of
+                                                                     simplified problem:
+things (IoT) systems.                                                                                  \
+    To exploit the benefits of both linear and nonlinear spatial                            find f ∗ ∈      Cn ,                    (6)
+filters, we propose a partially linear filter in the sum space                                        n≥no
+                                                                                                                      T
+of the linear and the Gaussian RKHSs. In more detail, we             for some no ∈ Z≥0 , under the assumption that n≥no Cn 6= ∅.
+denote by HL and HG the real RKHSs associated with the               The advantage of (6) is that we can find an f ∈ H that
+linear and the Gaussian kernel, respectively. The partially          is arbitrarily close to the intersection in (6) by means of
+linear filter is defined as an element of the real RKHS              the adaptive projected subgradient method (APSM) [15], [9]
+H := HL + HG := {wL fL + wG fG : fL ∈ HL , fG ∈ HG },                which we describe below.
+where wL , wG > 0 are some weights for the linear and the               As in [12], [9], given an index set Jn , and starting from
+Gaussian part, respectively. In this RKHS, the reproducing           f0 = 0, we construct a sequence of filter estimates in the sum
+kernel and the inner product of H can be computed as follows:        space RKHS H (which stands in contrast to [12], [9]) given
+Fact 1 (Reproducing kernel of the weighted sum space [14]).          as                                                      
+Assume that the input space U ⊆ Rl has a nonempty interior.                                          X
+                                                                        (∀n ∈ Z≥ 0) fn+1 = fn +           qjn PCj (fn ) − fn  , (7)
+Then, given any wL , wG > 0 and u, v ∈ U, κ(u, v) :=
+                                                                                                      j∈Jn
+wL κL (u, v) + wG κG (u, v) is the reproducing kernel of the
+sum space H equipped with the inner product                          where PCj (fn ) := arg minf ∈Cj kfn − f kH is the orthogonal
+                                                                                                                         n
+                   −1                 −1                             projection of fPn onto the set Cj , weighted by qj ≥ 0, ∀j ∈
+       hf, giH := wL  hfL , gL iHL + wG  hfG , gG iHG .       (4)                             n
+                                                                     Jn such that      j∈Jn qj = 1. The index set Jn allows for
+                                                                     a subset of sets C1 , C2 . . . , Cn to be processed concurrently
+  We demonstrate in Section V that we are able to enjoy the          to improve the performance and the weights qjn can be used
+robustness of a linear design and the resolution of a nonlinear      to adaptively prioritize the sets. The computational advantage
+design by operating in the sum space of HL and HG . We               of this algorithm is that the projection PCj (fn ) only requires
+assume wL = wG = 1 in the remainder of this section and              simple inner product operations [9].
+Section IV.                                                             Under certain assumptions, the sequence of estimates
+                                                                     (fn )n∈Z≥0 converges to a point f ∈ H arbitrarily close to
+B. The Online Adaptive Learning Problem                              the intersection in (6) [15]. However, there are two practical
+  First, we convert the complex vector r(t) ∈ CM into                issues with regards to the general form in (7). The first
+                                               |
+two real vectors r1 (t) := [<(r(t))| =(r(t))| ] ∈ R2M and            one is a low-complexity construction of an index set Jn ,
+                                                                           instead of adding the most recent κL (rn , ·) and κG (rn , ·)
+                                                                           directly to the estimate fn , we perform an admission control.
+                                                                           The admission control checks if κL (rn , ·) and κG (rn , ·) can
+                                                                           be approximated by a linear combination of kernel elements
+                                                                           already admitted up to time n−1. The newly arriving elements
+                                                                           are only added to the expansion fn if such an approximation
+                                                                           is not possible. These so-called novel admitted elements, also
+                                                                           known as a dictionary, are kept in the memory and only their
+                                                                           coefficients are updated in Adaptive Learning Step based on
+                                                                           iteration (7).
+                                                                              1) Dictionary for the linear part: Since the RKHS HL
+                                                                           is the Euclidean space U ⊆ R2M , every new element
+                                                                           κL (rnP, ·) can be written in terms of a linear combina-
+                                                                                     2M
+Fig. 1. Adaptive beamforming/filtering model for a single cluster with K   tion      m=1 [rn ]m κL (em , ·) of the Euclidean basis DL :=
+devices and a ULA with M antennas                                          {κL (e1 , ·), κL (e2 , ·), . . . , κL (e2M , ·)}, where em ∈ R2M is
+                                                                           a vector having a one at the mth index and zeros elsewhere,
+                                                                           and [rn ]m is the mth entry of rn . As a result, it can be verified
+whereas the second issue is the computational complexity of                                                    P2M (L,n)
+                                                                           that (∀n ∈ Z≥0 ) fL,n = m=1 γm κL (em , ·) consists of
+iteration (7). In more detail, it can be shown that the filter                                                                (L,n)
+                                                                           only 2M basis kernels with coefficients γm               adapted at each
+estimate generated by iteration (7) is given by the kernel
+                                        Pn−1 (n)                           iteration of the Adaptive Learning Step.
+series expansion (∀n ∈ Z>0 ) fn =         i=0 γi κ(ri , ·) [9].
+                                                                              2) Dictionary for the Gaussian part: The dictionary DG,n
+Therefore to keep track of fn , the training samples ri up to
+                                                                           for the Gaussian part is adapted at each n ∈ Z≥0 by the
+time n − 1 have to be kept in the memory. Furthermore, the
+               (n)                                                         following procedure [16], [10]:
+coefficients γi are determined at each n by the projection
+PCj (fn ) in (7). Therefore, the memory requirements and the                1) If n = 0, the element κG (r0 , ·) is added, so that DG,0 :=
+computational complexity may become prohibitive for large                      κG (r0 , ·).
+n. In the next section we provide low-complexity techniques                 2) If n > 0, the dictionary DG,n−1 is updated by κG (rn , ·)
+to address these issues.                                                       only if κG (rn , ·) is sufficiently novel in the sense ex-
+                                                                               plained below.
+      IV. O NLINE A DAPTIVE F ILTERING A LGORITHM                             We denote by HG,n−1 := span{DG,n−1 } a closed
+   In this section we describe the steps of the proposed adaptive          subspace of HG . The novelty of the element κG (rn , ·)
+learning algorithm shown in Algorithm 1. The Sample Update                 can be estimated based on its (approximate) linear in-
+Step and the Dictionary Update Step of Algorithm 1 address                 dependence, measured by a design parameter α > 0,
+the two issues discussed above. The Adaptive Learning Step                 from DG,n−1 . The distance of κG (rn , ·) from DG,n−1
+                                                                                                                                      2
+is based on iteration (7).                                                 is given by dn := κG (rn , ·) − PHG,n−1 (κG (rn , ·)) H ,
+                                                                           where PHG,n−1 (κG (rn , ·)) is the orthogonal projection of
+A. Sample Update Step
+                                                                           κG (rn , ·) ∈ HG onto HG,n−1 . If dn > α, the dictionary
+  We assume that at time n ∈ Z≥0 a training set {(rj , bj ) :              is updated by κG (rn , ·), i.e., DG,n := DG,n−1 ∪ κG (rn , ·),
+j ∈ Jn , rj ∈ U, bj ∈ R} is available at the BS. A natural                 otherwise there is no update and we have DG,n := DG,n−1 .
+choice for Jn in a dynamic online setting is a small window                The quantities PHG,n−1 (κG (rn , ·)) and dn are well defined
+W ∈ Z>0 of the most recent samples. To be more precise, we                 and calculated as in Appendix A.
+define Jn as Jn := n − W + 1, n if n ≥ W − 1, otherwise                       In the following, we denote by Hn := HL + HG,n ,
+Jn := 0, n. The window size W is a design parameter chosen                 where HL := span{DL } and HG,n := span{DG,n }, closed
+based on the available computational power. Larger sizes                   subspaces of the sum space H. Note that HG,n−1 ⊆ HG,n
+typically improve the performance at the cost of increased                 and Hn−1 ⊆ Hn .
+computational power.
+                                                                           Remark 1 (Dictionary Pruning). In an online setting, a
+B. Dictionary Update Step                                                  common approach to memory management is to restrict the
+                                                                           overall dictionary size to some number S ∈ Z>0 by simply
+  Recall that the filter estimate generated by (7) is given
+           Pn−1 (n)                                                        discarding outdated dictionary elements. In Section V we
+by fn :=      i=0 γ i κ(ri , ·). This can be   written as fn :=
+                                                                           provide a pruning approach which is a natural candidate for a
+                   P  n−1 (n)              Pn−1 (n)
+fL,n + fG,n =         i=0 γi κL (ri , ·) +    i=0 γi κG (ri , ·),          dynamic wireless network.
+where fL,n ∈ HL and fG,n ∈ HG . By reducing the number of
+kernel terms in fL,n and fG,n whose coefficients need to be
+                                                                           C. Adaptive Learning Step
+updated at each iteration, the complexity of (7) can be reduced.
+Besides reducing the complexity, this online sparsification also              After the admission control in the Dictionary Update
+improves the predictive ability of the filter [16]. To this end,           Step, the projection PCj (fn ) in (7) is given by the quantity
+Algorithm 1 Online Adaptive Filtering Algorithm                                                         TABLE I
+ Initialization: Fix  > 0, training block length T ∈ Z>0 , W ∈                                     PARAMETER VALUES
+ Z>0 , α > 0, DG,−1 := ∅, and f0 = 0.
+                                                                        Parameter                      Symbol    Value
+ At n ≥ 0:                                                              Number of BS Antennas          M         3
+ 1) Sample Update: The training samples {(rj , bj ) : j ∈ Jn } are      Cluster Sizes                  K         5\4\3
+    available. Set qjn = 1/|Jn |, ∀j ∈ Jn , where |Jn | is the          Device SNR                     SNR       0, 5, 10, 15, 20 dB
+                                                                        Device Spatial Location        θ         30◦ , 60◦ , 90◦ , 120◦ , 150◦
+    cardinality of Jn .                                                 Mobility(Coherence Time)       Tc        3-20km/h(5-15ms) @2GHz See [18]
+ 2) Dictionary Update: Follow the procedure in Section IV-B to          Coherence Bandwidth            Bc        1 MHz
+    update the dictionary.                                              Modulation                     b(t)      QAM [±1 ± i1]
+ 3) Adaptive Learning: Follow the procedure in Section IV-C to          Prob. of Active Devices        ρ         1\0.75\0.60
+                                                                        Training Block Size            T         500
+    calculate fn+1 .                                                    Dictionary Novelty             α         0.1
+ If n = 2T − 1 stop, otherwise go to Step 1.                            Window Size                    W         50
+                                                                        Precision                               0.01
+                                                                        Gaussian/Linear Weight         wG , wL   0.8, 0.2
+
+
+βjn PHn (κ(rj , ·)) + fn . The online learning iteration is given
+as, ∀n ∈ Z≥0 ,                                                                              Average Cluster (Gray Coded) BER
+                               X                                                                                              5-PLAF
+        Hn 3 fn+1 := fn +           qjn βjn PHn (κ(rj , ·)),   (8)                                                            5-MMSE-SIC
+                                                                                                                              4-PLAF
+                               j∈Jn                                                          Start Of New Training Block      4-MMSE-SIC
+                                                                                0.1                                           3-PLAF
+                  n
+         P
+where       j∈Jn qj       =     1 and PHn (κ(rj , ·))          =                                                              3-MMSE-SIC
+P2M
+  m=1 [rj ]m κL (em , ·) + PHG,n (κ(rj , ·)) [14]. The quantities
+                                                                               0.05
+PHG,n (κ(rj , ·)) and βjn are calculated as in Appendix B and
+Appendix C, respectively.
+Remark 2 (Complexity of Algorithm 1). The complexity of                           0
+the Adaptive Learning Step is linear in the dictionary size.                          0          500         1000          1500      2000
+The Dictionary Update Step is the main computational load                                                Training Time
+of Algorithm 1. However, this complexity is upper bounded             Fig. 2. Average BER for PLAF and MMSE-SIC for K = 5\4\3, ρ = 0.75.
+by O(S 2 ), where the constant S is the upper bound on the
+size of the dictionary (See Remark 1).
+                                                                                          Average Symbol Root Mean Square Error
+               V. S IMULATED P ERFORMANCE                                                                                     5-PLAF
+                                                                                                                              5-MMSE-SIC
+                                                                                                                              4-PLAF
+    In this section we demonstrate the performance of our                         1          Start Of New Training Block      4-MMSE-SIC
+partially linear adaptive filter (PLAF) design by comparing                     0.8
+                                                                                                                              3-PLAF
+                                                                                                                              3-MMSE-SIC
+its performance with a MMSE-SIC receiver and the purely
+nonlinear adaptive filter (NLAF) (see the discussion in Section                 0.6
+
+III-A). For simplicity, we only consider intra-cluster (intra-                  0.4
+cell) interference but Algorithm 1 is also able to handle
+                                                                                0.2
+additional inter-cell interference. This is because adaptive
+                                                                                      0          500         1000          1500      2000
+filtering is performed independently for each device, using
+                                                                                                         TrainingTime
+only its training samples, so that the origin of interference to be
+canceled does not matter. We present the average performance          Fig. 3. Average cluster RMSE for PLAF and MMSE-SIC for K = 5\4\3,
+of a single cluster. We assume perfect channel estimation for         ρ = 0.75.
+the MMSE-SIC receiver. On the other hand, the PLAF and
+NLAF do not have channel knowledge and the channel is
+learned implicitly during the training period. Note that it is        A. Pruning Strategy
+important that devices are separated well in the SNR domain
+at the BS for proper function of the MMSE-SIC. The SNR                   The maximum size of the Gaussian dictionary is chosen to
+values and other simulation parameters are provided in Table          be 3T . During training block T in Algorithm 1, the size of the
+1. The coherence block length Tb ≤ Tc Bc , where Tc is the            dictionary can at most grow by 2T . We start with DG,−1 = ∅.
+coherence time and Bc is the coherence bandwidth, is the              At the end of each training block, we only keep the most
+number of (complex) symbols a BS can receive before the               recent T elements and drop the rest to maintain the size Sn :=
+channel changes to a new independent random value (under the          |DG,n | ≤ 3T . At the start of the next training, DG,−1 contains
+typical assumption of Rayleigh block fading) [17]. All devices        the last T elements from the previous block. This strategy is
+in the cluster transmit their training samples simultaneously         reasonable since the change in channel conditions and device
+to the BS. We train the filter for T complex samples (2T real         activity at the start of each training block makes the old filter
+samples) using Algorithm 1 so there are Tb − T complex data           coefficients less relevant, so we can discard these to admit new
+symbols for data transmission.                                        samples in the next block.
+                    Average Cluster (Gray Coded) BER                    superior performance. This behavior is met because MMSE-
+                                                           1-PLAF
+                                                           1-NLAF
+                                                                        SIC suffers from too much interference and errors in detection
+                    Start Of New Training Block            0.75-PLAF    are propagated through the SIC chain.
+                                                           0.75-NLAF
+        0.4                                                0.60-PLAF       In Figures 4 and 5 we compare the performance of the
+        0.3
+                                                           0.60-NLAF    proposed PLAF and NLAF for ρ = 1, ρ = 0.75, and ρ = 0.60.
+                                                                        We fix the cluster size to K = 5. We observe that a change
+        0.2
+                                                                        in the channel conditions and active device distribution causes
+        0.1                                                             much deterioration in the performance of NLAF which is very
+       0.05
+          0                                                             sensitive to changes in environment. The PLAF on the other
+              0          500         1000           1500         2000   hand, shows robustness against these variations.
+                                Training Time
+                                                                                            ACKNOWLEDGMENT
+Fig. 4. Average BER for PLAF and NLAF for K = 5, ρ = 1\0.75\0.60.          This work has been performed in the framework of the Hori-
+                                                                        zon 2020 project ONE5G (ICT-760809) receiving funds from
+                  Average Symbol Root Mean Square Error                 the European Union. The authors would like to acknowledge
+                                                           1-PLAF
+                                                           1-NLAF
+                                                                        the contributions of their colleagues in the project, although
+                                                           0.75-PLAF    the views expressed in this contribution are those of the authors
+                                                           0.75-NLAF
+        1.5           Start Of New Training Block                       and do not necessarily represent the project. This research was
+                                                           0.60-PLAF
+                                                           0.60-NLAF    also supported by Grant STA 864/9-1 from German Research
+                                                                        Foundation (DFG) and JSPS Grants-in-Aid (15K06081).
+          1
+                                                                                                  A PPENDIX
+        0.5                                                             A. Calculation of PHG,n−1 (κG (rn , ·)) and dn
+              0          500         1000           1500         2000     PHG,n−1 (κG (rn , ·)) is defined as [10]
+                                Training Time                                                                     Sn−1
+                                                                                                                  X
+Fig. 5. Average cluster RMSE for PLAF and NLAF for K = 5, ρ =                       PHG,n−1 (κ(rn , ·)) :=               ζ nrn ,l Ψn−1
+                                                                                                                                   l   ,     (9)
+1\0.75\0.60.                                                                                                      l=1
+                                                                        where Sn−1 := |DG,n−1 | is the cardinality of DG,n−1 ,
+                                                                        RSn−1 3 ζ nrn = K−1        n
+                                                                                             n−1 ξ rn and Ψl
+                                                                                                               n−1
+                                                                                                                      ∈ DG,n−1 is the lth
+B. Results                                                              element of the Gaussian dictionary up to time n − 1. With
+   We compare the performance of PLAF, NLAF and MMSE-                   K−1                     −1
+                                                                          0 := 1/κ(r0 , r0 ),Kn is given by the recursion
+                                                                                                          ζn     n t
+                                                                                                                          ζn
+                                                                                                                              
+SIC in terms of average gray coded bit error rate (BER)                                          −1        rn (ζ rn )      rn
+                                                                                              K  n−1  +        2        −   2
+and root mean-square error (RMSE) for 4 successive training                        K−1
+                                                                                     n :=
+                                                                                             
+                                                                                                       (ζ n )t
+                                                                                                              dn          dn 
+                                                                                                                          1
+blocks using Algorithm 1. Each block is T = 500 symbols                                              − drn2              d2
+                                                                                                              n                  n
+long. SIC is performed on the symbol level, i.e., each mod-                                                          −1
+                                                                        if κG (rn , ·) ∈ DG,n , otherwise K−1 n := Kn−1 , and
+ulated symbol from the interfering device is detected and
+                                                                                              κG (rn , ·), Ψn−1
+                                                                                                                   
+then canceled without decoding. This technique is known                                                     1    HG
+                                                                                                         ..
+                                                                                  ξ nrn :=                               Sn−1
+                                                                                                                   
+as symbol level interference cancellation (SLIC) which has                                                .      E ∈R
+                                                                                                                    
+                                                                                           D
+a lower implementation complexity compared to the code
+                                                                                             κG (rn , ·), Ψn−1
+                                                                                                            Sn−1
+level SIC [19]. For simulation, at the start of each training                                                            HG
+block/period (marked by a dashed vertical line) the Rayleigh              The distance dn is given by dn := κG (rn , rn ) − (ξ nrn )t ζ nrn
+fading channel is changed to a new random independent value             [10].
+and a new set of active devices is selected randomly. The
+                                                                        B. Calculation of PHG,n (κ(rj , ·))
+scenario models the dynamic environment of, for example, 5G
+IoT systems. The learning model is validated in intervals of               First consider j = n. If κG (rn , ·) ∈ DG,n ,
+100 training symbols. We used 300 test data points to calculate         PHG,n (κG (rn , ·))          =          κG (rn , ·).   Otherwise
+the average gray coded bit error rate (BER) by hard-decision            PHG,n (κG (rn , ·))        =        PHG,n−1 (κG (rn , ·)).   But
+detection and the RMSE. All results are a uniform average of            PHG,n−1 (κG (rj , ·)) is available to us by the Dictionary
+100 experiments.                                                        Update Step. Since HG,n−1 ⊆ HG,n for each n, it follows
+   In Figures 2 and 3 we compare the performance of the                 that PHG,n (κG (rj , ·)) is available to us ∀j ∈ Jn .
+proposed PLAF and MMSE-SIC based detection for cluster                  C. Calculation of βjn
+sizes K = 3, K = 4, and K = 5. For this experiment we                     For each j ∈ Jn , [12]
+fix the probability of all devices transmitting in a coherence
+                                                                              ( bj −hfn ,κ(rj ,·)iH − ,      if hfn , κ(rj , ·)iH − bj < −
+block at ρ = 0.75. We notice that with increased cluster sizes                           κ(rj ,rj )
+of K > M the performance of MMSE-SIC despite of perfect                 βjn :=               0,                if | hfn , κ(rj , ·)iH − bj | ≤ 
+                                                                                   bj −hfn ,κ(rj ,·)iH +
+channel information deteriorates while PLAF shows a robust                               κ(rj ,rj )       ,    if hfn , κ(rj , ·)iH − bj > 
+where  is a design parameter.
+                               R EFERENCES
+ [1] W. Shin, M. Vaezi, B. Lee, D. J. Love, J. Lee, and H. V.
+     Poor, “Non-orthogonal multiple access in multi-cell networks: Theory,
+     performance, and practical challenges,” CoRR, vol. abs/1611.01607,
+     2016. [Online]. Available: http://arxiv.org/abs/1611.01607
+ [2] Y. Wang, B. Ren, S. Sun, S. Kang, and X. Yue, “Analysis of non-
+     orthogonal multiple access for 5g,” China Communications, vol. 13, no.
+     Supplement2, pp. 52–66, N 2016.
+ [3] Z. Ding, X. Lei, G. K. Karagiannidis, R. Schober, J. Yuan, and V. K.
+     Bhargava, “A survey on non-orthogonal multiple access for 5g networks:
+     Research challenges and future trends,” CoRR, vol. abs/1706.05347,
+     2017. [Online]. Available: http://arxiv.org/abs/1706.05347
+ [4] R.-. N. DOCOMO, “Initial views and evaluation results on non-
+     orthogonal multiple access for NR uplink,” 3GPP, Tech. Rep., 2016.
+ [5] S. M. R. Islam, M. Zeng, and O. A. Dobre, “NOMA
+     in 5g systems: Exciting possibilities for enhancing spectral
+     efficiency,” CoRR, vol. abs/1706.08215, 2017. [Online]. Available:
+     http://arxiv.org/abs/1706.08215
+ [6] A. Benjebbour, K. Saito, A. Li, Y. Kishiyama, and T. Nakamura, “Non-
+     orthogonal multiple access (noma): Concept, performance evaluation
+     and experimental trials,” in 2015 International Conference on Wireless
+     Networks and Mobile Communications (WINCOM), Oct 2015, pp. 1–6.
+ [7] K. Higuchi and A. Benjebbour, “Non-orthogonal multiple access (noma)
+     with successive interference cancellation for future radio access,” IEICE
+     Transactions on Communications, vol. E98.B, no. 3, pp. 403–414, 2015.
+ [8] H. Tabassum, M. S. Ali, E. Hossain, M. J. Hossain, and D. I. Kim, “Non-
+     orthogonal multiple access (NOMA) in cellular uplink and downlink:
+     Challenges and enabling techniques,” CoRR, vol. abs/1608.05783, 2016.
+     [Online]. Available: http://arxiv.org/abs/1608.05783
+ [9] S. Theodoridis, K. Slavakis, and I. Yamada, “Adaptive learning in a
+     world of projections,” IEEE Signal Processing Magazine, vol. 28, no. 1,
+     pp. 97–123, Jan 2011.
+[10] K. Slavakis and S. Theodoridis, “Sliding window generalized kernel
+     affine projection algorithm using projection mappings,” EURASIP
+     Journal on Advances in Signal Processing, vol. 2008, no. 1, p. 735351,
+     Apr 2008. [Online]. Available: https://doi.org/10.1155/2008/735351
+[11] B. Scholkopf and A. J. Smola, Learning with Kernels: Support Vector
+     Machines, Regularization, Optimization, and Beyond. Cambridge, MA,
+     USA: MIT Press, 2001.
+[12] K. Slavakis, S. Theodoridis, and I. Yamada, “Adaptive constrained
+     learning in reproducing kernel Hilbert spaces: The robust beamforming
+     case,” IEEE Transactions on Signal Processing, vol. 57, no. 12, pp.
+     4744–4764, Dec 2009.
+[13] H. L. Van Trees, Detection, Estimation, and Modulation Theory, Part
+     IV, Optimum Array Processing. New York: Wiley, 2002, vol. 1.
+[14] M. Yukawa, “Adaptive learning in cartesian product of reproducing
+     kernel Hilbert spaces,” IEEE Transactions on Signal Processing, vol. 63,
+     no. 22, pp. 6037–6048, Nov 2015.
+[15] I. Yamada and N. Ogura, “Adaptive projected subgradient method and
+     its applications to set theoretic adaptive filtering,” in The Thrity-Seventh
+     Asilomar Conference on Signals, Systems Computers, 2003, vol. 1, Nov
+     2003, pp. 600–606 Vol.1.
+[16] Y. Engel, S. Mannor, and R. Meir, “The kernel recursive least-squares
+     algorithm,” IEEE Transactions on Signal Processing, vol. 52, no. 8, pp.
+     2275–2285, Aug 2004.
+[17] J. Du and R. A. Valenzuela, “How much spectrum is too much in
+     millimeter wave wireless access,” IEEE Journal on Selected Areas in
+     Communications, vol. 35, no. 7, pp. 1444–1458, July 2017.
+[18] S. Sesia, I. Toufik, and M. Baker, LTE, The UMTS Long Term Evolution:
+     From Theory to Practice. Wiley Publishing, 2011.
+[19] K. Saito, A. Benjebbour, A. Harada, Y. Kishiyama, and T. Nakamura,
+     “Link-level performance of downlink noma with sic receiver considering
+     error vector magnitude,” in 2015 IEEE 81st Vehicular Technology
+     Conference (VTC Spring), May 2015, pp. 1–5.
+

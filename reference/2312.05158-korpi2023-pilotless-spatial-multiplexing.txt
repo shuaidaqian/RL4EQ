@@ -1,0 +1,428 @@
+                                           Deep Learning-Based Pilotless Spatial Multiplexing
+                                                                                    Dani Korpi, Mikko Honkala, and Janne M.J. Huttunen
+                                                                                                                Nokia Bell Labs
+                                                                                                                Espoo, Finland
+
+                                             Abstract—This paper investigates the feasibility of machine                    there are no prior works considering end-to-end learning of
+                                          learning (ML)-based pilotless spatial multiplexing in multiple-                   MIMO links to achieve pilotless transmissions.
+                                          input and multiple-output (MIMO) communication systems.
+                                          Especially, it is shown that by training the transmitter and receiver                      II. S YSTEM M ODEL AND P ROPOSED S CHEME
+                                          jointly, the transmitter can learn such constellation shapes for
+                                          the spatial streams which facilitate completely blind separation
+                                                                                                                               A high-level depiction of the considered system model is
+                                          and detection by the simultaneously learned receiver. To the                      presented in Fig. 1. In particular, we consider an orthogonal
+arXiv:2312.05158v1 [eess.SP] 8 Dec 2023
+
+
+
+
+                                          best of our knowledge, this is the first time ML-based spatial                    frequency-division multiplexing (OFDM) system, where a
+                                          multiplexing without channel estimation pilots is demonstrated.                   learned constellation shape is utilized to facilitate fully blind
+                                          The results show that the learned pilotless scheme can outperform                 MIMO detection at the receiver side using a DeepRx-type
+                                          a conventional pilot-based system by as much as 15–20% in terms
+                                          of spectral efficiency, depending on the modulation order and
+                                                                                                                            convolutional neural network (CNN)-based receiver [1]. The
+                                          signal-to-noise ratio.                                                            detailed architecture of the considered ML-based receiver
+                                                                                                                            follows the MIMO DeepRx presented in [5], using the fully
+                                                                     I. I NTRODUCTION                                       learned multiplicative transformation. In particular, the ML
+                                             Using artificial intelligence (AI) for designing and learning                  receiver takes in the Fourier transformed received MIMO signal
+                                          more efficient physical layer solutions is an emerging concept in                 and outputs the log-likelihood ratios (LLRs) for each received
+                                          the field of wireless communications [1]. It is even envisioned                   spatial stream. With this, the input signal to the receiver can
+                                          that future 6G networks could rely on a fully AI-native air                       be expressed as:
+                                          interface where deep learning is an integral part of the physical                                            yij = Hij xij + nij ,                            (1)
+                                          layer of the radio system [2]. In the most extreme scenario, this
+                                          could mean that both the transmit waveform and the receiver                       where Hij ∈ C NR ×NT is the MIMO channel matrix for the
+                                          algorithm are learned from data. Such an approach is typically                    ith subcarrier and jth OFDM symbol, NR is the number of
+                                          referred to as end-to-end learning.                                               receive antennas, NT is the number of transmitted spatial
+                                             In this work, we propose one approach for enhancing the                        streams, xij ∈ C NT ×1 is the transmitted symbol vector, and
+                                          physical layer with deep learning techniques, showing clear                       nij ∈ C NR ×1 is the additive noise signal.
+                                          throughput gains. In particular, we train multiple-input and                      A. Learning MIMO Constellations
+                                          multiple-output (MIMO) transmitter and receiver end-to-end
+                                          to communicate without any channel estimation pilots. This                           In order to achieve pilotless spatial multiplexing, the transmit
+                                          means that the link can perform spatial multiplexing without                      constellations are parametrized and learned jointly with DeepRx.
+                                          wasting any resources for pilot overhead, thereby improving the                   This means that, in the transmitter, the elements of xij are
+                                          spectral efficiency. In practice, this is achieved by considering                 selected from learned constellation points:
+                                                                                                                                                                Qm
+                                          the transmitter and receiver as part of a single model, connected                      xij ∈ M(θ) = {x ∈ C 2               ×NT
+                                                                                                                                                                           : x = Nθ (qQAM )},           (2)
+                                          by a differentiable wireless channel. Such a system can be
+                                          learned in a supervised manner by treating the channel and                        where Qm is the modulation order. In other words, the learned
+                                          any required conventional functions as fixed layers, which are                    constellations are given by a neural network Nθ transforming
+                                          not modified during the training.                                                 the standard QAM-constellation points qQAM to NT different
+                                             Machine learning (ML)-based pilotless systems have earlier                     variations. Indeed, pilotless spatial multiplexing is facilitated
+                                          been shown to be feasible for single-input and single-output                      by learning separate constellations for each MIMO layer.
+                                          (SISO) systems, where no spatial multiplexing is performed                          The more detailed procedure for generating the transformed
+                                          [3]. As for MIMO communications, the work in [4] shows a                          constellations involves layer-wise neural network models,
+                                          model-based deep learning approach for training an accurate                       which are used as follows to provide the per-layer learned
+                                          MIMO detector. In [5], on the other hand, a fully learned                         constellation:
+                                          MIMO receiver is proposed, and it is shown to outperform                                                 C
+                                                                                                                                                   X                                            Qm
+                                          conventional linear minimum mean square error (LMMSE)                                 Nθ,l (qQAM ) =           Wθ,l,c (qQAM )Qθ,c (qQAM ) ∈ C 2            , (3)
+                                          receivers. Moreover, [6] also proposes a fully learned ML-                                               c=1
+
+                                          based MIMO receiver, which is shown to be able to handle                          where C is a hyperparameter identifying the number of
+                                          a varying number of users while achieving state-of-the-art                        independent learned transformations of the regular QAM
+                                          demodulation accuracy. Additional ML-based MIMO detectors                         constellation, Qθ,c (qQAM ) is a neural network producing the
+                                          are proposed in [7], [8]. However, to the best of our knowledge,                  cth transformation of the QAM constellation, and Wθ,l,c (qQAM )
+
+
+
+                                          ©2023 IEEE. Personal use of this material is permitted. Permission from IEEE must be obtained for all other uses, in any current or future media, including
+                                          reprinting/republishing this material for advertising or promotional purposes, creating new collective works, for resale or redistribution to servers or lists, or
+                                                                                         reuse of any copyrighted component of this work in other works.
+ Bits       Channel      Bit-to-symbol                                  MIMO
+     Bits      Channel
+            encoder          Bit-to-symbol IFFT
+                            mapping
+                                                    Add CP             channel           Remove                             Channel         Bit estim-
+                                               IFFT    Add CP                                         FFT       DeepRx
+               encoder          mapping                                                    CP                               decoder         ates
+
+                           Learned
+                               Learned
+                         constellation
+                            constellation
+
+
+                                       Fig. 1. The considered system model for the ML-based pilotless scheme.
+
+
+
+is a neural network which provides the weight factors of the using [9]). In this work, the training is done similar to [1] by
+learned transformations for each layer. In other words, the using the binary cross entropy (BCE) between the detected
+learned constellations for each layer are formed as a linear and transmitted bits as the loss function. With this, the BCE
+combination of learned transformations of the initial QAM loss term can be written as follows:
+constellation. Moreover, non-zero mean is removed from the                                          Wq −1
+learned constellations and they are normalized to have unit                                    1 X                    
+                                                                        BCEq (θ) = −                          biq log b̂iq
+energy, which ensures that the ML-based scheme has the same                                   Wq i=0
+overall transmit energy as a conventional OFDM transmitter                                                                                  
+(assuming uniformly distributed transmit bits).                                                             +   (1 − b iq ) log   1 −  b̂ iq    , (4)
+   The neural network for producing the transformation, de-
+                                                                    where q is the sample index within the batch, biq is the
+noted by Qθ,c (qQAM ), consists of four fully-connected hidden
+                                                                    transmitted bit, b̂iq is the bit probability estimate at the DeepRx
+layers with hyperbolic tangent activations and 16–32 neurons
+                                                                    output (after applying the Sigmoid function to convert LLRs
+per layer, while the output layer has a linear activation function.
+                                                                    to probabilities [1]), and Wq is the total number of transmitted
+The input of the neural network consists of the amplitude
+                                                                    bits within the slot.
+and angle of the original QAM constellation point, while the
+output represents the amplitude and angle of the transformed           In addition to the BCE loss, an additional term is introduced
+constellation point (the conversion from the amplitude-angle-       to  improve the convergence of the training process with larger
+domain to complex domain is trivial and is omitted from             constellation      sizes. In particular, it turns out that the end-to-
+the notation for brevity). The neural network model for pro-        end   trained    system    often ends up trying to transmit only some
+ducing the weight factors, denoted by Wθ,l,c (qQAM ), follows       of   the  bits   within    each     symbol. This is due to tendency to
+a similar architecture, i.e., it is a fully-connected network       learn   clusters    of  constellation      points such that points in each
+with four hidden layers. However, the number of neurons is          cluster    are  very   tightly   spaced.     Such a constellation is a local
+somewhat smaller, ranging from 8 to 16 per layer, while the         minima      from   which     it is  often  difficult  to escape. For instance,
+activation functions of the hidden layers are rectified linear      if the   transmitter     learns    to divide   the  constellation     points only
+units. Moreover, the output layer uses the softmax activation       into   four   clusters,   it  can   transmit   2 bits   per  symbol      with high
+function to output C values which have a sum of 1. This makes       accuracy      but  whenever       it tries  to split  the  clusters    to transmit
+them suitable to be used as weighting factors for the linear        more    bits,  the  accuracy       will  temporarily     decrease.     To  remove
+combination. In our experiments, we observed best performance       the   possibility    of   such    a  naive   solution,    we  introduce      a loss
+with C = 3 and used this value in all the results.                  term    which     penalizes      for   very   closely    spaced   constellation
+                                                                    points as follows:
+B. Pilotless DeepRx Receiver and End-to-End Training
+                                                                                                                 NT                !         !
+   The input of the DeepRx is formed by collecting the received                                             1 X        dl,max (θ)
+                                                                        Dq (θ) = ReLu log                                                  −b       (5)
+signal samples over one slot, consisting of NF subcarriers and                                            NT           dl,min (θ)
+                                                                                                                l=0
+NS OFDM symbols. Therefore, the input array can be written
+as Y ∈ C NF ×NT ×NR . As mentioned above, this input is fed to where dl,max (θ) and dl,min (θ) are the maximum and minimum
+a MIMO DeepRx model utilizing a fully learned multiplicative distances between two constellation points for the lth layer,
+transformation, as described in [5]. However, now there is no respectively, b is a predefined bias term, and ReLu is the
+separate input for the raw channel estimate as there are no rectified linear unit activation function. The purpose of the ReLu
+pilots being transmitted. Moreover, the model size is somewhat function, together with the bias b, is to render all sufficiently
+larger, with the number of convolutional filters for each ResNet small loss terms to zero, which effectively means that this loss
+block ranging from 512 to 2048. The output of the pilotless term impacts the training only at the beginning phase. In our
+MIMO DeepRx model consists again of the log-likelihood work, a value of b = 4.5 is used with 16-point constellations,
+ratios (LLRs), which are fed to the low-density parity check and b = 7.5 with 64-point constellations.
+(LDPC) decoder for extracting the information bits.                    The overall loss term for a single sample is
+   The system can be trained end-to-end assuming that we
+have a differentiable implementation of the radio link (e.g.,                   Lq (θ) = log (1 + snr) BCEq (θ) + λDq (θ) ,                         (6)
+                           TABLE I                                                     100
+   S IMULATION PARAMETERS FOR TRAINING AND VALIDATION . T HE
+PARAMETERS WITH MORE THAN ONE VALUE ARE RANDOMIZED USING A
+                  UNIFORM DISTRIBUTION .
+
+                Parameter                  Training              Validation
+Carrier frequency                                      3.5 GHz                        10−1
+
+
+
+
+                                                                               BLER
+Channel model                              CDL-A, CDL-B          CDL-C
+Signal-to-noise ratio (SNR)                            0–30 dB
+RMS delay spread                                 10 ns – 300 ns
+Velocity                                          0 m/s – 5 m/s
+Number of subcarriers                                     72                          10−2
+                                                                                                  K-Best with DMRS
+Subcarrier spacing                                      30 kHz                                    K-Best with perfect CSI
+Slot length                                    14 OFDM symbols                                    ML-based pilotless scheme
+MCS                                                   See Table II
+Number of RX antennas                                      4
+                                                                                             0   2        4        6     8        10         12     14
+Number of TX streams                                       2                                                       SNR (dB)
+Pilot configuration (DMRS baseline only)        2 DMRSs per slot
+                                                                              Fig. 2. BLER performance of the different solutions with 4 bits per symbol
+                                                                              (MCS index 2).
+                           TABLE II
+C ONSIDERED MCS VALUES , REPRESENTING REASONABLE MODULATION
+    ORDER AND CODE RATE COMBINATIONS FOR 16- AND 64- POINT                             100
+                      CONSTELLATIONS .
+
+                MCS index Bits per symbol Code rate
+                1             4 (16-QAM)         0.37
+                2             4 (16-QAM)         0.42
+                                                                                      10−1
+                3             4 (16-QAM)         0.48
+                                                                               BLER
+
+
+
+
+                4             4 (16-QAM)         0.54
+                5             4 (16-QAM)         0.60
+                6             4 (16-QAM)         0.64
+                7             6 (64-QAM)         0.46
+                                                                                      10−2
+                8             6 (64-QAM)         0.50                                             K-Best with DMRS
+                                                                                                  K-Best with perfect CSI
+                9             6 (64-QAM)         0.55
+                                                                                                  ML-based pilotless scheme
+                10            6 (64-QAM)         0.60
+                11            6 (64-QAM)         0.65                                        0       5           10      15             20          25
+                12            6 (64-QAM)         0.70                                                             SNR (dB)
+                13            6 (64-QAM)         0.75
+                14            6 (64-QAM)         0.80                         Fig. 3. BLER performance of the different solutions with 6 bits per symbol
+                15            6 (64-QAM)         0.85                         (MCS index 8).
+
+
+
+where snr is the signal-to-noise ratio (SNR) on a linear scale while the considered modulation and coding schemes (MCSs),
+and λ is the weight factor of the distance-based loss term. A chosen similar to 5G NR MCS index table 2 [10], are shown
+value of λ is experimentally chosen to be λ = 0.1 for 16- in Table II. In particular, the proposed approach is trained
+point constellations and λ = 0.05 for 64-point constellations. with both 16 and 64 point constellations, resulting in 4 and 6
+The training is done using the ADAM optimizer, with a bits per symbol, respectively. Different channels models are
+batch size of 10 and learning rate of 5 · 10−4 . When the employed for the training and validation to avoid overfitting to
+transmitter and DeepRx are trained jointly using the above the selected channel models. For training, each training sample
+loss function, DeepRx will learn to utilize the simultaneously is generated either from CDL-A and CDL-B channel profiles
+learned constellations for detecting the data signals without (selected randomly for each training sample), while CDL-C is
+any pilots.                                                      used for validation [11]. The proposed learned pilotless scheme
+                                                                 is compared to a conventional QAM-OFDM waveform and a
+                  III. S IMULATION R ESULTS                      nonlinear K-Best detector using either perfect channel state
+   In order to demonstrate the effectiveness of the proposed information (CSI) or a demodulation reference signal (DMRS)
+approach in improving spectral efficiency, single-user MIMO based channel estimate. The former represents essentially the
+(SU-MIMO) simulations were performed using the Sionna highest achievable performance under the considered simulation
+library [9]. The simulation parameters are presented in Table I, scenario, while the latter utilizes a DMRS pattern consisting
+                             4 bits per symbol, Spatial Stream 1                                         4 bits per symbol, Spatial Stream 2
+
+
+                        2
+
+                                                                                                                                                     1011
+                                                 1010
+                                                                       1011                                           1010
+
+                        1                                                                                                                           1001
+                                                                          1001
+       Imaginary (Q)
+
+
+
+
+                                               1000
+                                                                                                                  1000
+
+                                                                0000       0001
+                                                                                                                                       0000 0001
+                        0                                         0010                                                                 0010 0011
+                                                                            0011
+                                          1100        0100      0110                                                                   0110 0111
+
+                                                                         0111                                                     0100            0101
+                                   1110
+                       −1                                         0101                                                          1100
+                                                                                                                                                    1101
+                                                         1101
+                                                                                                                                                         1111
+                                                                                                                               1110
+                                                 1111
+
+
+
+                       −2
+
+
+                             6 bits per symbol, Spatial Stream 1                                         6 bits per symbol, Spatial Stream 2
+
+
+                        2
+                                                                101110          101111
+                                                 101010
+                                    101011
+                                                                                                                                         101111
+                                                                                                                              101110     101101
+                        1                          101000        101100         101101                                101010 101100
+                                                                                                                                          100101
+                                                                                                                                            100111
+                                      101001                                 100101                                     101000   100100
+                                                                 100100                                        101011                        000111
+       Imaginary (Q)
+
+
+
+
+                                      100001          100000                                                             100000 100110
+                                                                 100110     100111                              101001                         000101
+                                      100011          100010
+                                                                            000111                                         100010 000110        001101
+                                                      000010     000110                                          100001               000100
+                                       000011                    000100    000101                                 100011 000010                   001111
+                                       000001         000000
+                                                                           001101                                             000000 001100         011111
+                                                                                                                    000011
+                        0               001001         001000
+                                                       001010
+                                                                 001100
+                                                                 001110    001111                                    000001
+                                                                                                                               001000 001110
+                                                                                                                                001010 011110
+                                                                                                                                                      011101
+                                                                                                                                                        010101
+                                        001011                             011111                                     001001
+                                                       011010    011110                                                                     011100        010111
+                                        011011
+                                                       011000    011100    011101                                       001011 011010        010100
+                                        011001                             010101                                                  011000                   110111
+                                                       010000    010100                                                  011011                010110         110101
+                                        010001                             010111                                                    010000
+                                                       010010    010110                                                   011001                 110110         111101
+                                        010011                             110111                                                     010010
+                                                       110010    110110                                                    010001                  110100         111111
+                                        110011
+                       −1               110001         110000    110100
+                                                                 111100
+                                                                            110101
+                                                                            111101
+                                                                                                                            010011      110010
+                                                                                                                                         110000      111100
+                                        111001         111000                                                                 110011                   111110
+                                                                 111110    111111                                              110001      111000
+                                        111011         111010
+                                                                                                                                 111001      111010
+                                                                                                                                   111011
+
+
+                       −2
+
+                            −2      −1                   0                        1      2             −2          −1              0                            1          2
+                                                      Real (I)                                                                  Real (I)
+
+                                      Fig. 4. Learned constellation for both spatial streams and both modulation orders.
+
+
+of two pilot-carrying OFDM symbols within the slot, with the                                 nearly matches the performance of the practical pilot-based
+pilots located on the 3rd and 12th OFDM symbols.                                             receiver under the relevant BLER values.
+   Considering first the block error rate (BLER) achieved with                                  To provide some insight into how the ML-based scheme
+4 bits per symbol (MCS index 2), the results are shown in                                    achieves accurate pilotless detection, let us observe the learned
+Fig. 2. It can be observed that the proposed pilotless scheme                                constellations in Fig. 4. It is evident that the learned con-
+essentially matches the practical baseline when the BLER is                                  stellations are asymmetric, which is an obvious requirement
+in the order of 10%, despite resorting to completely blind                                   for blind and pilotless detection. Moreover, when considering
+detection at the receiver side. Since the pilotless scheme can                               the differences in the constellations of the overlapping spatial
+use all resource elements (REs) for data transmission, unlike                                streams, it can be observed that at least one of the overlapping
+the DMRS-based scheme, this of course translates to a spectral                               constellations has some outliers. This is likely an useful feature
+efficiency gain. The same holds also for the case where there                                for the considered DeepRx receiver when it learns to do
+are 6 bits per symbol (MCS index 8), whose BLER results are                                  pilotless separation of the spatial streams, as such differing
+shown in Fig. 3. Again, the proposed learned pilotless scheme                                outliers are more easily detectable. Investigating the necessary
+                                                                                                                           15              based scheme over the conventional DMRS-based scheme.
+                                                                                                                      14                   With SNRs below 15 dB, it achieves typically a gain of 15-
+                                8
+                                                                                                                                           20%, with some exceptions. However, when the SNR goes
+ Spectral efficiency (bps/Hz)
+
+                                                                                                                 13
+                                                                                                                                 15
+                                                                                                    12
+                                                                                                                              14 12        above 15 dB, the performance gain is almost completely lost.
+                                                                                               11                          13 11           Since use of the 64-point constellations is required at these
+                                                                                              10                     12         10         SNRs, the issue is most likely related to the higher-order
+                                6
+                                                                                          9                       9 11                     constellation. It is likely that a larger DeepRx model would
+                                                                                      8                     8    10
+                                                                                  7            7             9                             be required for detecting the high-order modulation symbols
+                                                        6                     6                         8                                  at high SNRs. Another alternative could be to learn SNR-
+                                            5                            5                          7
+                                4                                                                                                          dependent constellation shapes, considering that the current
+                                        4                         4 6
+                                                            3        5                             K-Best with DMRS                        scheme uses a fixed constellation regardless of the SNR.
+                                                                   4                               K-Best with perfect CSI
+                                            2                3
+                                        1       2                                                  ML-based pilotless                                             IV. C ONCLUSION
+                                        1
+                                2                                                                                                             This paper proposed an ML-based approach for learning
+                                                8                10          12       14                    16             18        20
+                                                                                                                                           pilotless spatial multiplexing. In particular, it was shown that
+                                                                                  SNR (dB)
+                                                                                                                                           by learning jointly the constellation shapes used by individual
+                                                                                                                                           spatial streams as well as a convolutional neural network-
+Fig. 5. The spectral efficiency of the considered schemes with BLER of 10%.
+The used MCS indices are also shown.                                                                                                       based receiver, it is possible to transmit several spatial MIMO
+                                                                                                                                           streams successfully without any pilots. This results in as much
+                                                                                                                                           as a 15% to 20% increase in spectral efficiency compared to
+ Spectral efficiency gain (%)
+
+
+
+
+                                                                                                                                           a conventional pilot-based MIMO system. As future work,
+                                                                                                                                           we plan to study in more detail the requirements for the
+                                20                                                                                                         constellation shapes, as well as address the performance
+                                                                                                                                           challenges at high signal-to-noise ratios.
+
+                                    0                                                                                                                        ACKNOWLEDGMENTS
+                                                                                                                                             This work has been partly funded by the European Com-
+                                                                                                                                           mission through the project Hexa-X-II (Grant Agreement no.
+                                                    8             10          12       14                    16             18        20
+                                                                                                                                           101095759).
+                                                                                   SNR (dB)
+                                                                                                                                                                        R EFERENCES
+Fig. 6. The spectral efficiency gain of the ML-based pilotless scheme over                                                                  [1] M. Honkala, D. Korpi, and J. M. J. Huttunen, “DeepRx: Fully con-
+the conventional pilot-based scheme.                                                                                                            volutional deep learning receiver,” IEEE Transactions on Wireless
+                                                                                                                                                Communications, vol. 20, no. 6, pp. 3925–3940, Jun. 2021.
+                                                                                                                                            [2] J. Hoydis, F. A. Aoudia, A. Valcarce, and H. Viswanathan, “Toward a
+                                                                                                                                                6G AI-native air interface,” IEEE Communications Magazine, vol. 59,
+requirements of the constellation shapes further is an important                                                                                no. 5, pp. 76–81, 2021.
+future work item for us.                                                                                                                    [3] F. A. Aoudia and J. Hoydis, “End-to-end learning for OFDM: From
+                                                                                                                                                neural receivers to pilotless communication,” IEEE Transactions on
+   In order to compare the different schemes in terms of the                                                                                    Wireless Communications, vol. 21, no. 2, pp. 1049–1063, Feb. 2022.
+achieved throughput, Fig. 5 shows their spectral efficiencies                                                                               [4] H. He, C.-K. Wen, S. Jin, and G. Y. Li, “Model-driven deep learning
+with respect to the SNR. The spectral efficiency is obtained                                                                                    for MIMO detection,” IEEE Transactions on Signal Processing, vol. 68,
+                                                                                                                                                pp. 1702–1715, Feb. 2020.
+by selecting the highest MCS index from Table II with which                                                                                 [5] D. Korpi, J. Huttunen, and M. Honkala, “DeepRx MIMO: Convolutional
+a BLER target of 10% is achieved with each scheme, and                                                                                          MIMO detection with learned multiplicative transformations,” in Proc.
+then calculating what is the actual throughput that is achieved                                                                                 IEEE International Conference on Communications (ICC), Jun. 2021.
+                                                                                                                                            [6] K. Pratik, B. Rao, and M. Welling, “RE-MIMO: Recurrent and permuta-
+with this MCS, taking into account also the pilot overhead.                                                                                     tion equivariant neural MIMO detection,” IEEE Transactions on Signal
+In addition, also the MCS index utilized by each scheme is                                                                                      Processing, vol. 69, pp. 459–473, Dec. 2020.
+indicated on the plot. It can be observed that at the lower                                                                                 [7] Y.-D. Huang, P. P. Liang, Q. Zhang, and Y.-C. Liang, “A machine learning
+                                                                                                                                                approach to MIMO communications,” in Proc. IEEE International
+SNRs the ML-based pilotless scheme achieves the BLER                                                                                            Conference on Communications (ICC), May 2018.
+target with the same MCS as the pilot-based scheme, which                                                                                   [8] J. Liao, J. Zhao, F. Gao, and G. Y. Li, “A model-driven deep learning
+translates to a higher spectral efficiency. However, when the                                                                                   method for massive MIMO detection,” IEEE Communications Letters,
+                                                                                                                                                vol. 24, no. 8, pp. 1724–1728, Apr. 2020.
+64-point constellation is used (from MCS index 7 upwards), the                                                                              [9] J. Hoydis, S. Cammerer, F. Ait Aoudia, A. Vem, N. Binder, G. Marcus,
+spectral efficiency of the ML-based scheme starts to deteriorate                                                                                and A. Keller, “Sionna: An open-source library for next-generation
+compared to the conventional DMRS-based system. Indeed,                                                                                         physical layer research,” arXiv preprint, Mar. 2022.
+                                                                                                                                           [10] “Technical Specification Group Radio Access Network; NR; Physical
+when the SNR goes above 16 dB, the spectral efficiency of the                                                                                   layer procedures for data (3GPP TS 38.214 version 18.0.0 Release 18),”
+ML-based scheme is slightly lower than that of the DMRS-                                                                                        ETSI, Sophia Antipolis Cedex, France, Sep. 2023.
+based scheme.                                                                                                                              [11] “3rd Generation Partnership Project; Technical Specification Group Radio
+                                                                                                                                                Access Network; Study on channel model for frequencies from 0.5 to
+   This phenomenon can be analyzed more conveniently from                                                                                       100 GHz (3GPP TR 38.901 version 17.0.0 Release 17),” ETSI, Sophia
+Fig. 6 which shows the spectral efficiency gain of the ML-                                                                                      Antipolis Cedex, France, Mar. 2022.
+

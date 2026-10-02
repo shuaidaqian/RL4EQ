@@ -1,0 +1,2420 @@
+                                              Enabling Green Wireless Communications with
+                                                          Neuromorphic Continual Learning
+
+                                                     Yanzhen Liu1 , Zhijin Qin2∗ , Yongxu Zhu3 , and Geoffrey Ye Li1
+arXiv:2502.17168v2 [eess.SP] 16 Jan 2026
+
+
+
+
+                                           1 Department of Electrical and Electronic Engineering, Imperial College London, London & SW7 2AZ, UK.
+
+
+                                                  2 Department of Electronic Engineering, Tsinghua University, Beijing & 100084, China.
+
+
+                                           3 National Mobile Communications Research Laboratory, Southeast University, Nanjing & 210096, China.
+
+
+                                                                ∗ Corresponding author. Email: qinzhijin@tsinghua.edu.cn
+
+
+
+
+                                                   The pursuit of carbon-neutral wireless networks is increasingly constrained by
+                                                the escalating energy demands of deep learning-based signal processing. Here, we
+                                                introduce SpikACom (Spiking Adaptive Communications), a neuromorphic com-
+                                                puting framework that synergizes brain-inspired spiking neural networks (SNNs)
+                                                with wireless signal processing to deliver sustainable intelligence. SpikACom ad-
+                                                vances the paradigm shift from energy-intensive, continuous-valued processing to
+                                                event-driven sparse computation. Moreover, it supports continual learning in dy-
+                                                namic wireless environments via a dual-scale mechanism that integrates channel
+                                                distribution-aware context modulation with a synaptic consolidation rule using
+                                                SNN-specific statistics, mitigating catastrophic forgetting. Evaluations across crit-
+                                                ical wireless communication tasks, including semantic communication, multiple-
+                                                input multiple-output (MIMO) beamforming, and channel estimation demon-
+                                                strate that SpikACom matches full-precision deep learning baselines while achiev-
+                                                ing an order-of-magnitude improvement in computational energy efficiency. Our
+                                                results position SNNs as a promising pathway toward green wireless intelligence,
+                                                providing evidence that neuromorphic computing can empower the sustainability
+
+
+                                                                                           1
+      of modern digital systems.
+
+
+
+
+Introduction
+Wireless networks are evolving to deliver not only connectivity but also ubiquitous intelligence, with
+deep learning (DL) rapidly moving into the physical layer and end-to-end communication stacks (1).
+Over the past decade, DL has been successfully applied to a wide range of wireless communication
+tasks, such as channel estimation (2), channel state information (CSI) feedback (3), symbol detection
+(4), waveform design (5), resource allocation (6), and cross-layer semantic communications (7–10).
+This trend is also reflected in standardization. For example, the 3rd Generation Partnership Project
+(3GPP) has launched projects exploring artificial intelligence (AI) for the fifth generation (5G) air
+interface (11), identifying pilot use cases such as CSI feedback, beam management, and positioning.
+However, although learning-based methods can improve performance under complex channels
+and hardware impairments, they rely on dense floating-point computation, raising concerns that
+computational energy will become a key limiting factor for sustainable wireless systems. This
+concern is particularly acute because the computational cost of signal processing has long been a
+major burden, well before deep learning was introduced into wireless communications (12). With
+radio access networks accounting for more than 70% of total mobile network power consumption
+(13), there is little headroom for computationally heavy processing at the wireless edge, especially
+under stringent carbon-neutrality targets that require the information and communication technology
+(ICT) sector to reduce CO2 emissions by 91% by 2050 relative to 2010 levels (14, 15). This
+tension motivates the search for alternative computing paradigms to deliver wireless intelligence at
+substantially lower energy cost.
+   Spiking neural networks (SNNs) have emerged as a compelling solution for pursuing sustainable
+AI-native wireless communications, marking a fundamental paradigm shift toward event-driven
+communication systems (Fig. 1a). Unlike traditional artificial neural networks (ANNs), SNNs em-
+ulate the biological brain’s information processing (16) by employing biophysical neuron models
+that communicate via discrete events known as spikes (Fig. 1b). This event-driven nature allows
+SNNs to trigger computation primarily when informative events arrive, thereby avoiding redundant
+processing. In addition, the binary nature of spikes converts the power-hungry multiply-accumulate
+
+                                                  2
+(MAC) operations dominant in ANNs into simple accumulations (ACs), significantly reducing
+energy consumption. Beyond computation, the spike representation also offers flexibility in sig-
+nal transmission: spikes can be mapped to pulse-based physical-layer waveforms (e.g. impulse
+radios) (17) or encapsulated into digital bit sequences for seamless integration with existing digital
+communication pipelines (18). Collectively, these elements point to an end-to-end neuromorphic
+wireless communication system, enabling networks to process and exchange high-level semantic
+meaning with brain-inspired efficiency.
+   Driven by this vision, SNNs have attracted increasing attention in the wireless community.
+Recent studies have successfully applied SNNs to domains ranging from distributed neuromorphic
+edge computing (19), federated learning (20, 21), and physical-layer signal processing (22–25)
+to emerging paradigms like task-oriented semantic communication (26–29). Despite these ad-
+vancements, the application of SNNs in communication systems remains at an early stage. Early
+works pioneered neuromorphic joint source-channel coding (26,27), providing important feasibility
+demonstrations, but they primarily focused on constrained tasks such as classifying two digits in
+the MNIST-DVS dataset (30). Subsequently, methods based on ANN-to-SNN conversion (31) were
+introduced, successfully applying SNNs to radio frequency fingerprint identification. However,
+ANN-to-SNN conversion imposes restrictive constraints on neuron models and often requires long
+simulation time, which limits the full exploitation of the energy efficiency of SNNs. The potential
+of SNN-based signal processing was further unlocked by the introduction of surrogate gradient-
+based training (32). This approach has demonstrated empirical success on more realistic tasks,
+such as satellite symbol detection (24) and orthogonal frequency-division multiplexing (OFDM)
+receivers (25). Nevertheless, these works largely reuse well-established computer vision architec-
+tures, with limited incorporation of communication domain priors. Notably, while spike-based
+computation can be highly energy-efficient, SNNs’ representational capacity for complex tasks
+is often lower than that of full-precision ANNs. The capability of SNNs to handle sophisticated,
+domain-specific wireless communication problems remains an open challenge. Beyond these design
+limitations, relatively few studies explicitly address the inherent challenges of deploying SNNs in
+wireless environments. In practice, wireless channels shift on short time scales, requiring continual
+model updates. However, such continual adaptation renders the model susceptible to catastrophic
+forgetting, where new updates overwrite the representations of previously learned channel dis-
+
+
+                                                  3
+tributions. Developing stable adaptation schemes that mitigate this forgetting, while maintaining
+bounded computational and memory overhead, remains largely unexplored in current SNN-based
+solutions.
+   Motivated by these limitations, we introduce SpikACom (Spiking Adaptive Communications),
+a general framework for integrating SNNs into wireless communication systems (Fig. 1c). The
+framework supports continual learning in dynamic wireless environments via a dual-scale adapta-
+tion mechanism that combines (i) a hypernet-based context modulator that controls the backbone
+SNN through channel distribution-aware gating signals and (ii) a synaptic-level consolidation rule
+that regularizes updates using SNN-specific statistics (Fig. 2), effectively mitigating catastrophic
+forgetting with relatively low computational and memory overhead. We evaluate SpikACom on three
+representative wireless communication tasks: neuromorphic semantic communication, multi-user
+multiple-input multiple-output (MIMO) beamforming, and channel estimation in OFDM systems.
+These tasks are aligned with key AI use cases in 3GPP standardization (11), particularly CSI-
+related enhancement and beam management, while also covering emerging cross-layer paradigms.
+We demonstrate that SNNs can move beyond proof-of-concept tasks to tackle sophisticated wire-
+less signal processing problems with inherent physical structures (e.g., MIMO beamforming and
+OFDM channel estimation), showing that incorporating domain knowledge unlocks the capability
+of sparse spike-based computing to capture complex signal dependencies without compromising
+order-of-magnitude energy savings. Overall, our work highlights the potential of neuromorphic
+computing to enable more sustainable, adaptive, and intelligent wireless communication systems,
+motivating energy-efficient SNN-native architectures for the sixth generation (6G) and beyond.
+
+
+
+Results
+
+Continual Learning in Wireless Environments
+
+In real-world deployments, signals propagate through complex and continually changing envi-
+ronments: user mobility, blockage/obstacles, and even weather can induce time-varying channel
+conditions. As a result, models trained offline can degrade rapidly when exposed to distribution
+shifts in the channel. Therefore, learning-based communication systems must detect such changes
+
+
+                                                 4
+         Traditional                                             ANN-based                                      SNN-based
+       Communication                                           Communication                                  Communication
+                                                                                  ANN Encoder                                SNN Encoder
+   100101               Source coding
+   1011..
+      Bits             Channel coding
+                                                                Data
+                                                                                                                Event
+                         Modulation
+                            Channel                                                Channel                                       Channel
+                                                              Activations                                       Spikes
+   Constellation        Equalization
+                        Demodulation
+    100101                                                                                                “Someone
+    1011..                  Decoding                                                                      is running”
+       Bits                                                   Semantics           ANN Decoder                 Meanings       SNN Decoder
+
+
+
+                                                                            (a)
+
+   x RI          Synapse
+Pre-activations
+                   w0
+
+
+
+
+                                      ANN
+                  w1                             y RO                                              Low-speed
+                                               Activations
+                  w2                (Wx + b)
+                                                                             Rainy        Spikes                                  High-speed
+
+
+  1 1 0 1         Synapse
+  Pre-spikes
+                   w0
+
+
+
+
+                                                                                                   Neuromorphic
+                                      SNN
+                                vth                                                                 computing
+                  w1
+                                               0 1 0 1
+                                                 Spikes                                                           Base station
+                  w2                   v
+                                                                                                                                    Indoor
+                                                                                Sunny
+
+
+                                                                                                      Outdoor
+
+                             (b)                                                                        (c)
+
+Figure 1: Illustration of neuromorphic computing empowered wireless systems. (a) Evolution
+of communication paradigms. Left: Traditional communication focuses on bit-level reliability and
+is built upon separate model-driven signal processing blocks, where information is mapped to con-
+stellation symbols for transmission. Middle: ANN-based communication employs dense neural
+networks to replace or augment conventional processing blocks, enabling information processing
+at higher levels of abstraction. The transmitted representations are intermediate continuous-valued
+activations. Right: SNN-based (neuromorphic) communication shifts toward event-driven process-
+ing, where information is encoded and conveyed as sparse binary spikes, enabling energy-efficient
+operation and facilitating semantics-oriented, cognition-inspired communication. (b) Comparison
+between an artificial neuron and a spiking neuron. The spiking neuron communicates via discrete
+binary spikes and inherently operates in the spatio-temporal domain, whereas the artificial neuron
+computes with continuous-valued activations. (c) Neuromorphic computing enabled wireless com-
+munication system illustrating low-power operation and continual adaptation in dynamic wireless
+environments affected by factors such as mobility, weather, and environmental scattering.
+
+
+                                                                            5
+                                                                        Output
+
+
+
+                                                                  Backbone           Domain Knowledge
+
+                                                                                            =  T
+                   Pilots
+                                               Large EMD
+                                            Gate
+                                                                                                     
+                                                       Modulate
+                            Hypernet      Small EMD                                        SRC
+
+   Environments                                                              Input
+
+
+Figure 2: Overview of the SpikACom framework. Left: Pilots collected in different wireless
+conditions are used to identify the environment. Middle: A hypernet-based context modulator
+senses channel distribution shifts (quantified via earth mover’s distance (EMD)) based on the
+pilots and generates binary gates to modulate the backbone SNN. Right: The backbone SNN
+processes the task inputs and supports task-dependent incorporation of domain knowledge to
+enhance performance, while spiking rate consolidation (SRC) regularizes synaptic weights based
+on neuronal activity to mitigate catastrophic forgetting.
+
+
+and adapt continually. In practice, however, many models are deployed on edge devices with limited
+memory and cannot store large amounts of historical data. They must update their parameters using
+only the current observations, a setting commonly referred to as continual learning (33). A central
+difficulty in continual learning is catastrophic forgetting, where adapting to new conditions causes
+the model to overwrite previously acquired knowledge. This phenomenon results in a fundamental
+trade-off between plasticity (learning new information) and stability (retaining past knowledge). Se-
+vere forgetting forces the model to relearn previously encountered scenarios, leading to significant
+computational waste and preventing sustained improvement over time.
+   We propose SpikACom to enable continual learning of SNNs in wireless communication sys-
+tems. The framework is structured as a dual-scale adaptation mechanism (Fig. 2). At the context
+level, SpikACom introduces a lightweight hypernet-based context modulator that conditions the
+backbone SNN on the current channel distribution. This design is motivated by the fact that wire-
+less channels, while varying across environments, are governed by common propagation principles,
+which induce structured correlations among channel distributions. By learning a compact repre-
+sentation of the environment context, the modulator separates learning across different regimes,
+reduces destructive interference, and encourages parameter reuse when environments are simi-
+
+
+                                                   6
+lar. At the synaptic level, SpikACom employs spiking rate consolidation (SRC), a neuromorphic
+regularization strategy inspired by Hebbian principles. SRC uses neuron spiking rate as an SNN-
+specific proxy for parameter importance, selectively stabilizing critical synaptic pathways during
+adaptation. Because it relies on readily available spiking statistics rather than gradient-based in-
+formation, SRC incurs substantially lower computation and memory overhead than conventional
+regularization-based continual learning methods such as elastic weight consolidation (EWC) (34).
+Together, this hierarchical design enables SpikACom to adapt rapidly with remarkably low sample
+requirements and minimal computational overhead, providing a lightweight solution tailored to the
+resource-constrained nature of wireless communication systems.
+   In the following subsections, we evaluate SpikACom on three representative wireless com-
+munication tasks: neuromorphic semantic communication, multi-user MIMO beamforming, and
+channel estimation.
+
+
+Neuromorphic Semantic Communication
+
+Conventional communication systems are designed to reconstruct the transmitted bitstream as accu-
+rately as possible, with performance typically measured by bit-error rate. Recent advances in deep
+learning have made it feasible to extract meaningful semantic information directly from raw data.
+This shift has given rise to semantic communication (7), in which the goal is no longer to recover
+every bit but to convey the task-relevant information. By transmitting only the semantic features that
+influence the final task, semantic communication can eliminate a large portion of redundant data.
+Leveraging deep learning-based joint source-channel coding, this approach significantly reduces
+transmission overhead and improves robustness to channel impairments (35, 36).
+   Despite these advantages, practical semantic communication systems remain constrained by
+the prohibitive computational overhead at the wireless edge. Extracting high-level semantics in
+ANN-based architectures typically involves dense floating-point matrix operations, making such
+approaches difficult to deploy on resource-limited devices. To address this challenge, we introduce
+an SNN-based framework tailored for neuromorphic semantic encoding and transmission. We
+consider a representative distributed neuromorphic sensing scenario (Fig. 3a), mirroring future
+edge applications in which multiple neuromorphic sensors capture and transmit sparse, event-
+
+
+
+                                                  7
+                                                                                                         Gate
+
+                                                                                                                                                                                     Gate         Right hand wave
+                         DVS camera
+                                                                                                                            PDP 1                                                                 Left hand wave
+
+                                                                                                                                                                                                     Air guitar
+                                                                                                     Gate                                                                                                …
+                                                                                                                            PDP 2
+                                                                                                                              ...              AP                                             Right arm clockwise
+
+                                                                                                                                                                                                 Left arm clockwise
+                      DVS camera
+
+                                                                                                                         PDP N
+                                                                                        Encoder                     Wireless channels                                            Decoder
+
+                                                                                                              (a)
+                   1.0                                                                1.0                                                                                1.0
+                   0.8                                                                0.8                                                                                0.8
+                                Env 1                                                           Env 1                                                                              Env 1
+ Test Accuracy
+
+
+
+
+                                                                      Test Accuracy
+
+
+
+
+                                                                                                                                                      Test Accuracy
+                                Env 2                                                           Env 2                                                                              Env 2
+                   0.6          Env 3                                                 0.6       Env 3                                                                    0.6       Env 3
+                                Env 4                                                           Env 4                                                                              Env 4
+                   0.4          Env 5                                                 0.4       Env 5                                                                    0.4       Env 5
+                                Env 6                                                           Env 6                                                                              Env 6
+                   0.2          Env 7                                                 0.2       Env 7                                                                    0.2       Env 7
+                                Env 8                                                           Env 8                                                                              Env 8
+                   0.0 1      2      3    4    5    6     7    8                      0.0 1   2      3         4        5     6     7    8                               0.0 1   2      3    4      5    6        7   8
+                              Number of Learned Environments                                  Number of Learned Environments                                                     Number of Learned Environments
+
+                                         (b)                                                                  (c)                                                                           (d)
+                   1.0                                                             1.0
+                                                                                                                                                                         103
+                                                                                                                                             Energy per Inference ( J)
+
+                   0.8                                                             0.8
+Average Accuracy
+
+
+
+
+                                                                   Test Accuracy
+
+
+
+
+                   0.6                                                             0.6                                                                                   102
+                                                                                                                              SNN                                                               SNN
+                   0.4                                                             0.4                                                                                                          Bi-RNN
+                                                                                                                              Bi-RNN
+                                                                                                                              Bi-LSTM                                    101                    Bi-LSTM
+                   0.2                                                             0.2                                        Transformer                                                       Transformer
+                                                                                                                              LDPC                                                              LDPC
+                   0.0                                                             0.0 20                                                                                10100 200 300 400 500 600 700 800
+                                                                                                                                                                           0
+                               lla te    SRC   SI   EWC C+Gate
+                           Vani Ga                     SR
+                                                                                               15        10         5
+                                                                                                              SNR (dB)
+                                                                                                                            0      5    10
+                                                                                                                                                                                  Number of Hidden Neurons
+
+                                         (e)                                                                  (f)                                                                           (g)
+
+   Figure 3: Performance evaluation of SpikACom on neuromorphic semantic communication.
+   (a) System overview: Event data collected by distributed dynamic vision sensor (DVS) cameras
+   is encoded by SNNs and transmitted over varying wireless channels with different power-delay
+   profiles (PDPs) to the access point (AP). (b)–(d) Evolution of test accuracy versus the number of
+   learned environments. Each curve tracks the test accuracy of a specific environment 𝑖 evaluated after
+   the model has learned up to environment 𝑘 (where 𝑘 ≥ 𝑖). Comparisons include (b) Vanilla fine-
+   tuning, (c) EWC, (d) SpikACom (ours). The environments are arranged in descending SNR, ranging
+   from 8 dB (Env 1) to −20 dB (Env 8). (e) Ablation study of SpikACom. The y-axis represents
+   the average accuracy across all environments after the sequential learning process is completed.
+   (f) Performance comparison of SNN against ANN baselines (Bi-RNN, Bi-LSTM, Transformer)
+   and traditional LDPC coding under different SNRs. (g) Inference energy comparison. The energy
+   consumption of SNN exhibits negligible scaling with the network size compared with ANNs.
+
+
+                                                                                                               8
+driven data. The DVS128 Gesture dataset (37), a widely used event-based recognition benchmark,
+is employed to evaluate semantic encoding, transmission, decoding, and continual adaptation under
+realistic spiking activity.
+    We first examine the stability of SpikACom against catastrophic forgetting. Fig. 3b–3d show the
+performance trajectories of the evaluated schemes. The vanilla fine-tuning approach (Fig. 3b) lacks
+mechanisms to prevent catastrophic forgetting, leading to a sharp decline in inference accuracy when
+exposed to new environments. The classic regularization based method EWC (Fig. 3c), slows down
+this degradation, but the accuracy still decreases as the channel distribution shifts. For example, the
+accuracy in the initial environment falls by about 10% after the model has traversed eight different
+environments. Moreover, the cumulative constraints imposed by EWC progressively restrict the
+parameter space, leading to reduced accuracy in later environments. In contrast, the proposed
+method (Fig. 3d) prevents forgetting while simultaneously maintaining competitive performance in
+new environments. This improvement arises because SpikACom explicitly exploits the relationships
+among channel distributions, enabling more efficient allocation of plasticity while preserving
+stability.
+    Fig. 3e shows the ablation study of the proposed SpikACom. From the figure, both the hypernet-
+based gating mechanism and the SRC module significantly improve the final accuracy compared
+with vanilla fine-tuning. In addition, the SRC method achieves performance very close to gradient-
+based regularization approaches such as EWC and synaptic intelligence (SI), validating that spike-
+based statistics can serve as effective proxies for second-order gradient information. Fig. S1 in the
+Supplementary Materials further compares the spiking rate vector with the principal eigenvector of
+the Fisher information matrix (FIM), revealing a noticeable alignment between the two. However,
+unlike EWC or SI, SRC incurs much lower computational and memory cost, making it more
+practical for wireless communication scenarios. Finally, Combining the context gate with SRC
+yields the best final average accuracy of 0.7849 ± 0.0279, indicating that the method effectively
+mitigates catastrophic forgetting.
+    Fig. 3f compares the SNN with several ANN architectures, including a bidirectional recurrent
+neural network (Bi-RNN) (38), a bidirectional long short-term memory (Bi-LSTM) (39), a Trans-
+former (40), and a conventional bit-level low-density parity-check (LDPC) (41) based scheme. At
+relatively high signal-to-noise ratio (SNR) values (greater than −5 dB), the SNN achieves compara-
+
+
+                                                  9
+ble performance to Bi-RNN, Bi-LSTM, and Transformer. As the SNR decreases to the range of −5
+dB to −16 dB, the SNN shows a small performance gap relative to ANN-based models, reflecting
+the increased difficulty of optimization under strong noise. However, when the SNR drops further,
+the SNN begins to outperform the ANN architectures. This improvement comes from the sparse
+and binary nature of spike-based joint source-channel coding, which provides stronger robustness
+against noise compared with floating-point ANN features. The LDPC-based scheme, which trans-
+mits raw spike data to the access point (AP) and then classifies them using a lightweight SNN,
+suffers a large performance drop around 0 dB and is significantly inferior to deep learning-based
+joint source-channel coding.
+   In terms of energy consumption (Fig. 3g), SNNs consume roughly an order of magnitude less
+energy than Bi-LSTM, Bi-RNN, and Transformer models. Moreover, the inference energy of SNNs
+scales only weakly with network size, because SNNs are event-driven and depend primarily on the
+number of emitted spikes, which is governed by the task’s semantic complexity and the channel
+condition. In contrast, ANN-based models require fixed floating-point operations. Consequently,
+their energy consumption increases rapidly as the model size grows. We also observe that SNN-
+based joint source-channel coding is more energy-efficient than LDPC-based schemes, providing
+further evidence for the high energy efficiency of SNNs.
+   We further investigate the convergence behavior of SpikACom (Fig. S2) in comparison with
+an orthogonal gate modulation baseline (Fig. S3). The results show that although orthogonal gate
+modulation reduces interference by isolating neuron groups, it restricts knowledge transfer across
+environments, leading to slow adaptation. In contrast, SpikACom exploits cross-environment corre-
+lations to provide better initialization, resulting in faster convergence and more reliable performance
+under challenging channel conditions.
+
+
+MIMO Beamforming
+
+Beamforming is a fundamental signal processing function in multi-antenna wireless systems and
+plays a central role in 4G, 5G, and the emerging 6G architectures (42). Its objective is to steer
+the transmitted energy toward the intended user by properly weighting the signals across antennas,
+thereby improving link reliability, extending coverage, and suppressing interference. Early beam-
+
+
+
+                                                  10
+                                                                                                                                               Gate
+
+
+
+
+                                                                                                                                                                               Domain
+                                                                                                                                                                              Knowledge
+
+
+                              BS                                                                                                                                                                                                      ...
+                                                                                                                                                                       Model-driven layer
+                                                                                    Channels                          Conv layer                                                                                            Beamforming matrices
+                                                                                                                                                    FC layer
+                                                                                                                                     SpikingBFNet
+                                                    Wireless environments
+
+                                                                                                                                     (a)
+                            100                                                                            100                                                                                       100
+                             80                                                                             80                                                                                        80
+                                           Env 1                                                                        Env 1                                                                                     Env 1
+   Sum Rate (bps/Hz)
+
+
+
+
+                                                                                       Sum Rate (bps/Hz)
+
+
+
+
+                                                                                                                                                                            Sum Rate (bps/Hz)
+                                           Env 2                                                                        Env 2                                                                                     Env 2
+                             60            Env 3                                                            60          Env 3                                                                         60          Env 3
+                                           Env 4                                                                        Env 4                                                                                     Env 4
+                             40            Env 5                                                            40          Env 5                                                                         40          Env 5
+                                           Env 6                                                                        Env 6                                                                                     Env 6
+                             20            Env 7                                                            20          Env 7                                                                         20          Env 7
+                                           Env 8                                                                        Env 8                                                                                     Env 8
+                              01         2      3     4    5     6      7       8                            01       2      3        4         5         6    7   8                                   01       2      3       4       5       6       7          8
+                                        Number of Learned Environments                                                Number of Learned Environments                                                           Number of Learned Environments
+
+                                                     (b)                                                                             (c)                                                                                     (d)
+                            100                                                                                          SNN+DK                                                                       103                          395.26
+Average Sum Rate (bps/Hz)
+
+
+
+
+                                                                                                           120           ANN+DK                                          Energy per Execution ( J)
+                             80                                                                                          SNN                                                                          102
+                                                                                     Sum Rate (bps/Hz)
+
+
+
+
+                                                                                                           100           WMMSE                                                                                                                     45.47
+                             60                                                                                          RBD                                                                                        20.30
+                                                                                                            80           RZF                                                                          101                                   8.43
+                             40                                                                                          MMSE
+                                                                                                                                                                                                             1.75
+                                                                                                            60                                                                                                                                             1.03
+                             20                                                                                                                                                                       100                   0.46
+                                                                                                            40
+                              0                                                                                                                                                                      10 1
+                                        lla Gate EWC        SI   SRC         te
+                                   Vani                                   +Ga                                    10     5        0         5         10       15   20                                          +DK +DK SNN WMMSE RBD RZF MMSE
+                                                                       SRC                                                           PT (dBW)                                                               SNN ANN
+
+                                                     (e)                                                                             (f)                                                                                     (g)
+
+    Figure 4: Performance evaluation of SpikACom on multi-user MIMO beamforming. (a)
+    System overview: A base station (BS) forms beams serving multiple users located in different
+    wireless environments. The complex-valued channel state information is encoded into spikes for
+    energy-efficient processing, and a model-driven module is integrated to improve beamforming
+    performance. (b)–(d) Sum-rate evolution over sequential environments. Comparisons include (b)
+    Vanilla fine-tuning, (c) EWC, and (d) SpikACom (ours). The channels are generated based on the
+    3D ray-tracing DeepMIMO dataset, where each environment corresponds to a distinct user location
+    distribution. (e) Ablation study. The y-axis shows the average sum rate across all environments
+    after the sequential learning process is completed. (f) Sum-rate performance versus the maximum
+    transmit power 𝑃𝑇 . We compare the proposed SNN + domain knowledge (DK) against ANN
+    + DK, SNN without DK, and traditional beamforming benchmarks (WMMSE, RBD, RZF, and
+    MMSE). (g) Energy consumption comparison of analyzed schemes for beamforming. The energy
+    consumption of SNN+DK is reduced by over 10× compared with the ANN benchmark and is
+    comparable to low-complexity traditional baselines (e.g. MMSE).
+                                                                                                                                     11
+forming methods were mostly model-driven, including matched filtering, zero-forcing (ZF), mini-
+mum mean-squared error (MMSE), block diagonalization (BD) (43), regularized BD (RBD) (44),
+and weighted MMSE (WMMSE) (45). These techniques rely on accurate CSI and form the basis
+of most practical MIMO precoding designs. More recently, data-driven deep learning approaches
+have been applied to beamforming optimization (46–49), leveraging neural networks to improve
+performance and reduce algorithmic complexity, and have demonstrated empirical effectiveness.
+However, these ANN-based algorithms still require massive floating-point matrix operations. In ad-
+dition, efficient mechanism to deploy ANN-based beamforming in dynamic wireless environments
+remain scarce. Therefore, as illustrated in Fig. 4a, we employ the proposed SpikACom framework
+for beamforming in continually changing environments, with the system setting detailed in the Ma-
+terials and Methods section. Moreover, to further enhance the performance and interpretability of
+SNN-based beamforming, we incorporate domain knowledge into the design of the backbone SNN
+(see Materials and Methods), combining the high performance of classical model-driven designs
+with the energy efficiency of SNNs.
+   We first examine the performance of the proposed framework in mitigating catastrophic for-
+getting. From Fig. 4b to Fig. 4d, the forgetting behavior is progressively reduced when moving
+from vanilla fine-tuning to EWC, and from EWC to the proposed SpikACom. The ablation study
+in Fig. 4e shows a trend consistent with the observations in the semantic communication task. In
+addition, we note that in this more complex large-scale matrix optimization problem, SRC exhibits
+more stable performance, achieving an average of 68.52 ± 1.39 bps/Hz compared with 67.61 ± 2.66
+bps/Hz for EWC and 65.09 ± 1.95 bps/Hz for SI. This robustness can be attributed to the numerical
+stability: matrix operations such as inversion often suffer from poor conditioning and can lead
+to gradient explosion during backpropagation, which adversely affects gradient-based regularizers
+like EWC or SI. In contrast, SRC relies on spiking rate naturally bounded between 0 and 1, making
+it less sensitive to numerical issues.
+   Fig. 4f compares SNN+domain knowledge (DK) beamforming with ANN+DK, vanilla SNN
+without the model-driven layer, and several classical model-based methods. Across the entire
+transmit power range from −10 dBW to 20 dBW, SNN+DK achieves a sum-rate performance that
+closely matches ANN+DK. WMMSE performs comparably at low transmit power, but the gap
+widens as the transmit power increases. This occurs because WMMSE relies on block coordinate
+
+
+                                               12
+descent, which may become trapped in local optima under ill-conditioned or unbalanced channel
+realizations. In contrast, data-driven methods handle the non-convex optimization landscape more
+effectively, thus achieving higher performance. Other model-based algorithms, including RBD,
+RZF, and MMSE, show a noticeable performance gap compared to data-driven approaches. The
+vanilla SNN, which lacks guidance from domain knowledge, suffers from significant performance
+degradation and exhibits unstable convergence. This highlights the importance of integrating model
+information into SNN architectures in complex signal processing tasks.
+   Fig. 4g reports the energy consumption of different beamforming algorithms. SNN+DK con-
+sumes only 1.75 𝜇J per execution, which is an order of magnitude lower than the 20.30 𝜇J required
+by ANN+DK and is comparable to the lightweight MMSE baseline (1.03 𝜇J). Pure SNN achieves
+the lowest energy consumption at 0.46 𝜇J. However, its insufficient performance limits its practical
+utility. Therefore, SNN+DK offers a more favorable performance-energy trade-off. RBD and RZF
+consume energy levels similar to ANN+DK. The optimization-based WMMSE method is the most
+expensive algorithm, consuming about 400 𝜇J per execution due to the large number of iterations
+required.
+
+
+Channel Estimation
+
+CSI is indispensable for reliable wireless communications. It serves as the prerequisite for many
+key communication functions, including signal detection, beamforming, and resource allocation.
+Inaccurate CSI leads to mismatched processing and noise enhancement, causing substantial per-
+formance loss in terms of reliability and spectral efficiency. In this work, we focus on channel
+estimation in OFDM systems. OFDM is a foundational physical-layer modulation technology and
+underpins many of the most influential communication standards, including 4G long-term evolution
+(LTE), 5G new radio (NR), and the IEEE 802.11 Wi-Fi family. However, obtaining accurate CSI in
+OFDM systems is a non-trivial problem due to complex environmental scattering and limited pilot
+observations. Traditional channel estimators such as least squares (LS) and MMSE perform well
+under simplified channel models but degrade in the presence of hardware impairments, non-ideal
+propagation, or rich scattering. Recent deep learning-based estimators mitigate some of these is-
+sues by capturing complex channel characteristics directly from data. However, their computational
+
+
+
+                                                13
+                                                                                                                            Gate
+
+
+
+                                                PDP 1
+
+
+
+                                                                                                                      ...
+                                                PDP 2          Received pilots
+                                                 ...
+
+                                                                                                                                                                                                     Estimated channel
+              Transmitted symbols                                                           Conv            Residual conv blocks                                        Upsampling
+                                                                                                                      yres = Ares hˆ p
+                                                                                            Residual connection
+                                                PDP N
+                                                                                                                  SNNResNet
+                                     Wireless environments
+
+                                                                                                    (a)
+                             Env 1                                                          Env 1                                                                                     Env 1
+                             Env 2                                                          Env 2                                                                                     Env 2
+              10 1           Env 3                                           10 1           Env 3                                                                     10 1            Env 3
+                             Env 4                                                          Env 4                                                                                     Env 4
+                             Env 5                                                          Env 5                                                                                     Env 5
+ MSE
+
+
+
+
+                                                                       MSE
+
+
+
+
+                                                                                                                                           MSE
+                             Env 6                                                          Env 6                                                                                     Env 6
+              10 2           Env 7                                           10 2           Env 7                                                                     10 2            Env 7
+                             Env 8                                                          Env 8                                                                                     Env 8
+
+              10 3 1     2       3    4    5      6      7         8         10 3 1     2       3       4   5     6         7      8                                  10 3 1      2       3      4      5    6     7      8
+                         Number of Learned Environments                                 Number of Learned Environments                                                           Number of Learned Environments
+
+                                     (b)                                                            (c)                                                                                         (d)
+              0.05                                                                                                                                                                               2193.00
+                                                                                                                                         Energy per Estimation ( J)
+
+
+                                                                             10 1                                                                                      103
+              0.04
+                                                                                                                                                                       102
+Average MSE
+
+
+
+
+              0.03
+                                                                             10 2
+                                                                       MSE
+
+
+
+
+                                                                                                                                                                       101               5.81
+              0.02                                                                          SNNResNet
+                                                                                            ReEsNet                                                                    100     0.83                                0.63
+              0.01                                                           10 3           ChannelNet                                                                                                      0.31
+                                                                                            LS                                                                        10 1
+              0.00                                                                          LMMSE
+                           lla te C        SI     SRC           te                                                                                                                   t      t        t
+                                                                                                                                                                                 esNe ReEsNe hannelNe LS                  E
+                       Vani Ga EW                       SRC
+                                                             +Ga                    5       0       5
+                                                                                                    SNR (dB)
+                                                                                                             10       15           20
+                                                                                                                                                                             SNNR           C                      LMMS
+
+
+                                     (e)                                                            (f)                                                                                         (g)
+  Figure 5: Performance evaluation of SpikACom on channel estimation in OFDM systems. (a)
+  System overview: Sparse pilots are inserted into the OFDM frequency-time grid and transmitted
+  through dynamic wireless channels. The received pilots are processed by the proposed SNNRes-
+  Net, which uses spike-based residual convolutional blocks for feature extraction and incorporates an
+  end-to-end LMMSE-inspired residual connection to facilitate channel reconstruction. (b)–(d) MSE
+  evolution over sequential environments. Comparisons include (b) Vanilla fine-tuning, (c) EWC, and
+  (d) SpikACom (ours). The WINNER II channel model is adopted, where each environment corre-
+  sponds to a distinct propagation scenario. Lower MSE indicates better estimation performance. (e)
+  Ablation study. The y-axis represents the average MSE, computed using the arithmetic mean, across
+  all environments after the sequential learning process is completed. (f) Performance comparison
+  among SNN-based channel estimation (SNNResNet), ANN-based channel estimation (ChannelNet
+  and ReEsNet), and traditional estimators (LS and LMMSE). (g) Energy consumption comparison.
+  SNN-based scheme is 7× more energy-efficient than lightweight ANN baseline (ReEsNet).
+                                                   14
+cost incurs substantial energy overhead, challenging the sustainability of next-generation wireless
+communication systems. To overcome these challenges, we develop an SNN-based OFDM channel
+estimation method within the SpikACom framework, leveraging the energy-efficient computational
+properties of SNNs while maintaining low estimation error.
+   We consider an OFDM channel estimation task in a sequentially varying environment (Fig. 5a).
+We adopt the WINNER II channel model (50) as the testbed. This channel model encompasses a
+wide range of realistic propagation scenarios, including indoor/outdoor settings, urban/rural areas,
+and line-of-sight (LOS)/non-LOS (NLOS) conditions. Fig. 5b–Fig. 5d illustrate the performance
+trajectories of the compared schemes under the changing environments. In Fig. 5b, the vanilla
+fine-tuning approach exhibits significant performance fluctuations due to substantial shifts in the
+underlying channel distribution. The EWC method (Fig. 5c) alleviates this issue to some extent
+by retaining partial knowledge from past environments. However, it does not explicitly exploit
+the relationships between previous channel distributions and the current one. Consequently, large
+distributional gaps still trigger noticeable degradation. The proposed method (Fig. 5d) more ef-
+fectively leverages the relationships between historical and incoming environments. This guidance
+enables the backbone network to update its parameters in a more informed manner, yielding stable
+performance across environments.
+   Fig. 5e presents the ablation results of the proposed algorithm. The fine-tuning baseline
+performs poorly, yielding a high final mean-squared error (MSE) of 0.049. Introducing the
+hypernet-based gating mechanism substantially improves performance, reducing the MSE to
+0.0133. Regularization-based approaches achieve similar results, with final MSEs of 0.0130 (EWC),
+0.0126 (SI), and 0.0131 (SRC). The best performance is obtained by combining the context gate
+with regularization, which further reduces the MSE to 0.0099.
+   Fig. 5f compares the SNN-based estimator with the traditional LS and linear MMSE (LMMSE)
+estimators, as well as two representative ANN-based OFDM channel estimation networks, Chan-
+nelNet (2) and ReEsNet (51). ChannelNet decomposes channel estimation into a super-resolution
+module followed by a denoising module, whereas ReEsNet adopts a lightweight end-to-end residual
+architecture that serves as a strong ANN baseline. As shown in Fig. 5f, LS performs poorly and its
+MSE curve saturates in the high-SNR region. This occurs because LS does not exploit the struc-
+tural correlation between pilot positions and the whole channel grid, leading to severe degradation,
+
+
+                                                15
+especially when the pilot density is low. LMMSE achieves better performance than LS but still
+exhibits a large gap relative to learning-based approaches. ChannelNet lags behind SNNResNet and
+ReEsNet, mainly because its two-stage design cannot match the optimization benefits of end-to-end
+architectures. ReEsNet and the proposed SNNResNet achieve nearly identical MSE performance
+and clearly outperform other baselines.
+   Fig. 5g summarizes the energy consumption of different estimators. SNNResNet requires only
+0.827 𝜇J per estimation, which is approximately 7× more energy-efficient than ReEsNet and is
+comparable to the LMMSE estimator. ChannelNet is notably energy-intensive, consuming 2.19 mJ
+due to its large network size. LS is the most energy-efficient method, but its estimation accuracy
+is poor. Jointly considering both performance and energy efficiency, the SNN-based estimator
+provides a highly competitive solution for OFDM channel estimation.
+
+
+
+Discussion
+Modern communication systems face intensifying pressure to meet carbon-neutrality goals as
+energy consumption in wireless networks continues to escalate. This challenge is exacerbated by
+the growing reliance on deep learning-based wireless signal processing, which incurs substantial
+computational overhead. To address this issue, we have explored SNNs as a promising low-power
+paradigm for signal processing and proposed SpikACom, a framework designed to enable green,
+adaptive communications. SpikACom tackles the highly dynamic nature of wireless environments
+via a dual-scale mechanism that integrates (i) context-aware modulation, which exploits similarities
+in the channel distributions to improve knowledge reuse and mitigate catastrophic forgetting, and
+(ii) spiking rate consolidation (SRC), a novel mechanism that regularizes the synaptic weights of
+SNNs based on the firing intensity of spiking neurons, achieving effects comparable to those of
+traditional gradient-based regularization methods with significantly lower demands on storage and
+computation.
+   We evaluated SpikACom on several key tasks critical to current and emerging wireless commu-
+nications, including neuromorphic semantic communication, multi-user MIMO beamforming, and
+OFDM channel estimation. Our results show that, with appropriate network architecture design,
+SNNs can match the performance of conventional ANNs while reducing computational energy by
+
+
+                                                16
+approximately an order of magnitude. Compared with classical signal processing methods, SNNs
+exhibit superior performance in all considered settings while maintaining energy consumption
+comparable to low-complexity baselines. Notably, all models were trained directly using backprop-
+agation through time (BPTT) with surrogate gradients, without converting from ANN counterparts,
+indicating that SNNs possess the intrinsic capability to learn complex wireless signal processing
+tasks. Furthermore, our findings underscore that integrating domain knowledge into the backbone
+SNN is essential to fully unlocking this potential. This integration allows the network to capture
+task-specific physical structures, enhancing both performance and interpretability while introducing
+only modest increases in complexity.
+   Overall, our work presents an SNN-based framework for continual learning in dynamic wire-
+less environments and provides evidence that spike-based signal processing can be effective on
+sophisticated physical-layer tasks. By linking adaptability under distribution shift with neuromor-
+phic efficiency, these results advance the case for sustainable communication architectures toward
+6G and beyond. At the same time, translating this promise into robust, real-world deployment
+demands broad community collaboration. We therefore close by outlining the open challenges and
+identifying key future directions.
+
+   1. Theoretical guarantees. Traditional communication methods are model-driven and sup-
+      ported by rigorous theoretical analysis. Although our design incorporates domain knowledge,
+      many SNN-based components are still difficult to analyze and certify compared with classi-
+      cal signal processing blocks. This gap calls for stronger theoretical foundations for SNNs or
+      tighter integration between SNNs and model-based signal processing algorithms.
+
+   2. Hardware implementations. Current deep learning hardware (e.g., CPUs, GPUs) is mainly
+      based on the von Neumann architecture and is not well matched to event-driven computation.
+      Existing neuromorphic chips (e.g., Loihi (52), TrueNorth (53)) demonstrate the benefits
+      of SNNs but may not satisfy the strict latency, reliability, and throughput requirements
+      of communication systems. Fully exploiting the energy advantages of SNNs may require
+      communication-aware neuromorphic accelerators and system-level co-design tailored for
+      wireless systems.
+
+   3. Training efficiency. Although SNNs exhibit high energy efficiency during inference, standard
+
+                                                17
+      SNN training methods that rely on backpropagation through time still incur high memory
+      and computational costs. Thus, more efficient training pipelines that reduce the frequency of
+      weight updates, enable sparse parameter learning, or leverage low-cost biologically inspired
+      local learning rules (54) are needed to reduce training overhead.
+
+   4. Standardization efforts. The reliable use of SNNs in intelligent communication systems
+      depends on unified and well-defined standards. At present, SNN research lacks consistency
+      across neuron models, network architectures, spike-based modulation methods, training pro-
+      tocols, hardware interfaces, and software stacks, leading to fragmented research efforts and
+      duplication of work. A systematic standardization framework is necessary to ensure consis-
+      tent behavior across platforms and vendors, enable large-scale interoperability, and support
+      the integration of SNN-based modules into future communication infrastructures.
+
+
+
+Materials and Methods
+
+Spiking Neuron Model
+
+In this work, we adopt the widely used leaky integrate-and-fire (LIF) neuron model. The dynamics
+of a LIF neuron can be formulated as
+
+                                              1
+                          𝑉¯ [𝑡] = 𝑉 [𝑡 − 1] − (𝑉 [𝑡 − 1] − 𝑉reset ) + 𝑋 [𝑡],                   (1)
+                                              𝜏
+                           𝑆[𝑡] = Θ(𝑉¯ [𝑡] − 𝑉th ),                                             (2)
+
+                          𝑉 [𝑡] = (1 − 𝑆[𝑡])𝑉¯ [𝑡] + 𝑆[𝑡]𝑉reset ,                               (3)
+
+where 𝑉¯ [𝑡] represents the pre-reset membrane potential of the spiking neuron at time step 𝑡, and
+𝜏 is the membrane time constant. 𝑉reset denotes the reset membrane potential, and 𝑋 [𝑡] is the
+input current. When the membrane potential reaches threshold 𝑉th , a spike is generated, denoted
+by 𝑆[𝑡] ∈ {0, 1}. The function Θ(·) is the Heaviside step function. Equation (3) indicates that
+membrane potential 𝑉 [𝑡] is reset to 𝑉reset when a spike is triggered.
+
+
+
+
+                                                  18
+General Training Setup
+
+We train the SNNs using the SpikingJelly framework (55). All SNNs are trained using BPTT with
+the arctangent surrogate gradient (32). Unless otherwise noted, we use a batch size of 64 and a
+learning rate of 1 × 10−3 . We employ the Adam optimizer with a cosine annealing learning rate
+schedule. By default, 15% of the training samples are reserved for validation. All experiments,
+including the benchmark evaluations, are repeated 10 times with different random seeds, and the
+error bars denote the standard deviation across runs.
+
+
+Hypernet-based Context Modulator
+
+We employ a hypernet to exploit the relationships between different wireless environments and
+extract distribution-related information to guide the backbone network. This enables the reuse of
+previously learned knowledge to accelerate adaptation in similar environments. Meanwhile, for
+dissimilar channel distributions, the synaptic weights of the backbone network are separated to
+avoid catastrophic forgetting. This method is primarily inspired by the hybrid modulation network
+(HMN) (56), but we introduce several key improvements. First, whereas HMN modulates neuronal
+firing thresholds via a soft-gating mechanism, we empirically observe that using a binary gate to
+control the on/off states of spiking neurons yields superior performance (57). Second, HMN is
+developed exclusively for the permuted MNIST dataset, which restricts its applicability to other
+continual learning scenarios. In this work, we adopt a general distance measure to quantify the
+discrepancy between varying distributions, making our approach not only more effective but also
+applicable to a broad range of tasks. Moreover, we provide a theoretical analysis of the domain
+generalization bound under the considered distance metric, offering insights into why context
+information is necessary to alleviate catastrophic forgetting (see Supplementary Text).
+
+
+Metric for Channel Distribution Distance
+
+To enable the hypernet to distinguish channel conditions and generate appropriate context-aware
+gating signals, quantifying the distance between different environments is crucial. There are several
+widely used metrics for measuring the distribution distance, including f-divergence, total variation
+distance, and earth mover’s distance (EMD). In this paper, we adopt EMD for its favorable continuity
+
+
+                                                 19
+property, which helps stabilize neural network training (58). Specifically, EMD is defined as the
+minimal cost for transforming one distribution into another:
+                                                 ∫
+                         EMD(𝑄, 𝑃) = inf               𝑑 (𝒙, 𝒚) 𝑑𝛾(𝒙, 𝒚),                              (4)
+                                              𝛾∈Γ(𝑄,𝑃)       X×X
+
+where X is the sample space, Γ(𝑄, 𝑃) denotes the set of all joint distributions whose marginals are
+𝑄 and 𝑃, and 𝑑 (𝒙, 𝒚) represents a distance measure such as the Euclidean norm.
+   However, directly computing the EMD involves solving a computationally demanding optimiza-
+tion problem. To address this issue, we propose the Fréchet channel distance (FCD) inspired by the
+Fréchet Inception distance (FID) (59). Specifically, for two Gaussian distributions N ( 𝝁1 , 𝚺1 ) and
+N ( 𝝁2 , 𝚺2 ), their EMD admits a closed-form expression:
+                                             2                                       1      1 1
+          EMD N ( 𝝁1 , 𝚺1 ), N ( 𝝁2 , 𝚺2 )        = ∥ 𝝁1 − 𝝁2 ∥ 22 + Tr 𝚺1 + 𝚺2 − 2(𝚺12 𝚺2 𝚺12 ) 2 .   (5)
+
+Given two channel distributions H1 and H2 , we map the samples to a new space through a function
+𝑓 and fit two Gaussian distributions for 𝑓 (H1 ) and 𝑓 (H2 ), respectively. Then, the FCD is obtained
+by substituting the fitted parameters into Eq. (5). In short, the FCD is formally defined as
+                                                                       1      1 1
+                   FCD(H1 , H2 ) 2 ≜ ∥ 𝝁1 − 𝝁2 ∥ 22 + Tr 𝚺1 + 𝚺2 − 2(𝚺12 𝚺2 𝚺12 ) 2 ,                  (6)
+
+where 𝝁1 = E 𝒉∼H1 [ 𝑓 (𝒉)], 𝝁2 = E 𝒉∼H2 [ 𝑓 (𝒉)], 𝚺1 = Cov 𝒉∼H1 [ 𝑓 (𝒉)], and 𝚺2 = Cov 𝒉∼H2 [ 𝑓 (𝒉)].
+Notably, we employ the encoder from CsiNet (3) as the function 𝑓 because CsiNet is specifically
+designed for CSI compression, making it more suitable for wireless communication tasks compared
+to the Inception network (60) that is trained on natural images.
+   Moreover, based on physical channel model assumptions, we derive a concise expression for
+the EMD (see Supplementary Text). This inherent domain knowledge provides a solid foundation
+for the hypernet to generalize across diverse channel distributions (Fig. S4), requiring only prior
+statistics instead of raw channel samples. In the purely data-driven regime, where samples are
+required for environment identification, the consistency of the underlying physics still helps lower
+data requirements despite the absence of a closed-form expression (see Figs. S5 and S6).
+
+
+Hypernet Training Loss
+
+We train the hypernet so that its generated binary gate can represent the relationship between
+different environments. To this end, we train the hypernet using a cosine distance loss. Specifically,
+
+                                                        20
+given input samples 𝒉1 ∼ H1 and 𝒉2 ∼ H2 , and denoting the generated gates as 𝒈 1 and 𝒈 2 , the loss
+function is defined as follows:
+                                                                      2
+                                 𝒈⊤ 1 𝒈2
+                                                                              ∑︁
+                                                                                               2
+           L ℎ (𝒉1 , 𝒉2 ) ≜                  − exp −𝛽 FCD(H1 , H2 )      + 𝜆ℎ       ∥ 𝒈𝑖 ∥ 1 − 𝜌 ,   (7)
+                              ∥ 𝒈 1 ∥∥ 𝒈 2 ∥                                  𝑖=1,2
+
+where the exponential function maps the FCD to a similarity score in [0, 1], the last term controls
+the sparsity of the output gate, and 𝛽, 𝜆 ℎ , and 𝜌 are hyperparameters that control the sensitivity
+of the distance mapping, weight the sparsity regularization term, and define the target sparsity,
+respectively.
+
+
+Spiking Rate Consolidation
+
+SRC is a regularization-based method tailored for SNNs that mitigates catastrophic forgetting with
+relatively low complexity. During backbone SNN training, we define the loss function as
+                                                   ∑︁ ∑︁                      2
+                             L ′ (𝜽) = L (𝜽) + 𝜆              𝜔𝑚,𝑘 𝜃 𝑘 − 𝜃¯𝑚,𝑘 ,                     (8)
+                                                    𝑚     𝑘
+
+where L ′ (𝜽) and L (𝜽) denote the total loss and the standard loss for the signal processing task,
+respectively. The vector 𝜽 represents the current model parameters and 𝜃 𝑘 denotes its 𝑘-th element.
+The scalar 𝜃¯𝑚,𝑘 denotes the 𝑘-th element of 𝜽¯ 𝑚 , the parameter vector learned in a previously
+encountered environment 𝑚. The quantity 𝜔𝑚,𝑘 denotes the importance of 𝜃¯𝑚,𝑘 and 𝜆 denotes the
+regularization strength.
+    The core challenge for regularization-based methods lies in how to measure the importance
+𝜔𝑚,𝑘 of previously learned weights. Classic methods, such as EWC, rely on the FIM or its variants.
+Although effective, they incur high computational costs because they require backpropagation
+to compute gradients. Moreover, when using the common diagonal approximation, storing per-
+parameter importance values incurs a memory cost of 𝑂 (|𝜽 |). To address this issue, we exploit the
+spike-based computing properties of SNNs and propose representing importance using the spiking
+rates of neurons.
+    For clarity, we describe SRC for a single full connected (FC) layer in a given environment 𝑚. Let
+𝑁pre and 𝑁post denote the numbers of pre-synaptic and post-synaptic neurons, respectively. Define
+𝝁 𝑚 ∈ R𝑁pre and 𝝂 𝑚 ∈ R𝑁post as the average firing-rate vectors of the pre-synaptic and post-synaptic
+
+
+                                                     21
+layers, with entries
+                                        𝑇                                𝑇
+                                  1 ∑︁ pre                        1 ∑︁ post
+                           𝜇𝑚,𝑖 ≜      𝑆 [𝑡],             𝜈𝑚, 𝑗 ≜      𝑆 [𝑡],                      (9)
+                                  𝑇 𝑡=1 𝑖                         𝑇 𝑡=1 𝑗
+        pre                    post
+where 𝑆𝑖 [𝑡] ∈ {0, 1} and 𝑆 𝑗         [𝑡] ∈ {0, 1} denote the spikes of the 𝑖-th pre-synaptic and 𝑗-th
+post-synaptic neurons at time step 𝑡, respectively, and 𝑇 is the number of simulation time steps. The
+importance matrix is then defined as
+
+                                        𝛀𝑚 ≜ 𝝂 𝑚 𝝁 ⊤
+                                                   𝑚 ∈ R
+                                                         𝑁post ×𝑁pre
+                                                                     ,                           (10)
+
+and 𝝎𝑚 ≜ vec(𝛀𝑚 ) denotes the vectorized form of 𝛀𝑚 , with 𝜔𝑚,𝑘 denoting the 𝑘-th element of 𝝎𝑚 .
+This design aligns with the principles of Hebbian learning, which strengthens synapses based on
+correlated pre- and post-synaptic activity. Here, spiking rates serve as a time-averaged measure of
+such activity. The computational complexity of calculating 𝝁 𝑚 and 𝝂 𝑚 is low since it only involves
+the accumulation of spikes. Moreover, SRC stores only the two firing-rate vectors and forms 𝛀𝑚
+implicitly when needed, yielding a memory cost of 𝑂 (𝑁pre + 𝑁post ), which is significantly lower
+than the 𝑂 (𝑁pre × 𝑁post ) cost of EWC or SI.
+   In our experiments, we determine the SRC regularization strength 𝜆 via grid search. We also
+fine-tune the regularization strengths for EWC and SI. Table 1 summarizes the final values used for
+each evaluated task. The above introduction to SpikACom is presented using FC layers for clarity.
+Details on adapting the proposed SpikACom framework to convolutional architectures are provided
+in the Supplementary Text.
+
+              Table 1: Regularization strength 𝜆 for different signal processing tasks
+
+                  Task                                SRC      EWC           SI     SRC+Gate
+                  Task-oriented communication          1.5      0.5          0.5      0.2
+                  MIMO beamforming                     1.0      20           600      0.08
+                  OFDM channel estimation             0.08      0.1          0.05     0.1
+
+
+
+
+                                                     22
+Neuromorphic Semantic Communication
+
+System Model and Network Architecture
+
+We consider a multi-sensor semantic communication system with 𝐼 = 2 distributed sensors and
+evaluate our algorithms on the DVS128 Gesture dataset (37). Each sample is an event stream
+recorded by a dynamic vision sensor camera. The gesture samples are uniformly divided into 𝐼
+segments, each fed into the semantic encoder of the 𝑖-th sensor. Each semantic encoder consists of 5
+stacked SNN blocks (61). Each block includes a 2D convolutional layer (64 channels, 3 × 3 kernel,
+stride 1), batch normalization, a LIF neuron layer, and 2 × 2 max pooling. Subsequently, a channel
+encoder with two fully connected layers (2,400 and 64 spiking neurons, respectively) processes
+the features. The resulting spiking representations are transmitted over the physical channel using
+on-off keying (OOK) modulation with a block length of 32, to reflect the binary nature of spikes. At
+the receiver, a spiking decoder composed of a 1D convolutional layer (16 channels, kernel size 13),
+two fully connected layers (3,200 and 110 neurons), and a 10-dimensional voting layer recovers the
+final classification output (61).
+   The system does not rely on explicit pilot symbols for equalization; instead, it is trained end-
+to-end based solely on channel statistics (62). Moreover, the semantic encoders are trained under
+noise-free channels and remain fixed during subsequent tests since we focus on time-varying
+channels. Only the channel encoder and channel decoder are updated when the environments
+change.
+
+
+Channel Model and Simulation Settings
+
+We augment the training data using random spatial translations, and the number of simulation time
+steps is set to 𝑇 = 16. We adopt a multipath channel model with 𝐿 = 8 taps (62). Let 𝑥 [𝑛] denote
+the transmitted signal at discrete time index 𝑛. The received signal 𝑦[𝑛] is given by
+                                              𝐿
+                                             ∑︁
+                                    𝑦[𝑛] =         ℎℓ 𝑥 [𝑛 − ℓ] + 𝑤 [𝑛],                            (11)
+                                             ℓ=1
+
+where 𝒉 = [ℎ1 , ℎ2 , . . . , ℎ 𝐿 ] ⊤ denotes the channel impulse response vector and 𝑤 [𝑛] ∼ CN (0, 𝜎 2 )
+is additive white Gaussian noise (AWGN). Assuming that the transmitted signal is wide-sense
+
+
+
+                                                      23
+stationary and independent of the channel, the signal-to-noise ratio (SNR) is defined as
+                                                  ℎℓ 𝑥 [𝑛 − ℓ]| 2 ]
+                                            Í𝐿
+                                        E[| ℓ=1
+                                SNR ≜
+                                               E[|𝑤 [𝑛]| 2 ]
+                                                       𝐿                                            (12)
+                                       E[|𝑥 [𝑛]| 2 ] ∑︁
+                                     =              ·      E[|ℎℓ | 2 ].
+                                            𝜎2        ℓ=1
+
+We fix E[|𝑥 [𝑛]| 2 ]/𝜎 2 at 0 dB and vary the channel gain                      2
+                                                                   Í𝐿
+                                                                     ℓ=1 E[|ℎℓ | ] from 8 dB to −20 dB in
+
+uniform steps of 4 dB.
+
+
+MIMO Beamforming
+
+We consider a downlink MIMO system in which a single base station (BS) serves 𝐾 users simul-
+taneously. We focus on the following sum-rate maximization problem since the primary role of
+beamforming is to boost the system throughput:
+                                                𝐾
+                                               ∑︁
+                                      max            𝛼𝑘 𝑅 𝑘 ,                                      (13a)
+                                      {V 𝑘 }
+                                               𝑘=1
+                                                𝐾
+                                               ∑︁
+                                       s.t.          Tr(V 𝑘 V𝐻
+                                                             𝑘 ) ≤ 𝑃𝑇 ,                            (13b)
+                                               𝑘=1
+
+where V𝑘 ∈ C𝑁𝑡 ×𝑑 is the beamforming matrix for user 𝑘, with 𝑁𝑡 and 𝑑 denoting the number of
+transmit antennas and data streams, respectively. For simplicity, we assume that all users require the
+same number of data streams 𝑑 and have the same number of receive antennas 𝑁𝑟 . The parameters
+𝛼 𝑘 and 𝑃𝑇 denote the weight of user 𝑘 and the total transmit power, respectively. The achievable
+rate of user 𝑘 is given by
+                                                                                    −1
+                                                       ∑︁
+                                                                             2 ª
+                                  ©                                                      ª
+                   𝑅 𝑘 = log det ­­I + H 𝑘 V 𝑘 V𝐻 H
+                                                𝑘 𝑘
+                                                    𝐻©
+                                                     ­     H 𝑘 V 𝑗 V𝐻𝑗 H𝐻
+                                                                        𝑘 + 𝜎𝑘 I®
+                                                                                         ®,
+                                                                                         ®          (14)
+                                  «                  « 𝑗≠𝑘                      ¬        ¬
+where H 𝑘 ∈ C𝑁𝑟 ×𝑁𝑡 represents the channel between the BS and user 𝑘, and 𝜎𝑘2 denotes the noise
+power at user 𝑘.
+
+
+Weighted Minimum Mean-Squared Error (WMMSE) Algorithm
+
+Problem (13) is challenging to solve due to the highly coupled non-convex rate expression (14).
+To tackle this issue, the WMMSE (45) algorithm equivalently reformulates problem (13) into the
+
+                                                         24
+following more tractable form:
+                                                 𝐾
+                                                ∑︁                                    
+                                 min                  𝛼 𝑘 Tr(W 𝑘 E 𝑘 ) − log det(W 𝑘 ) ,                         (15a)
+                             {W 𝑘 ,U 𝑘 ,V 𝑘 }
+                                                𝑘=1
+                                                 𝐾
+                                                ∑︁
+                                        s.t.          Tr(V 𝑘 V𝐻
+                                                              𝑘 ) ≤ 𝑃𝑇 ,                                         (15b)
+                                                𝑘=1
+
+where W 𝑘 ∈ C𝑑×𝑑 is an auxiliary weight matrix for user 𝑘 and
+                                                                   ∑︁
+                                                                                                   2 𝐻
+             E 𝑘 ≜ (I − U𝐻                 𝐻          𝐻
+                         𝑘 H 𝑘 V 𝑘 )(I − U 𝑘 H 𝑘 V 𝑘 ) +                 U𝐻          𝐻 𝐻
+                                                                          𝑘 H 𝑘 V 𝑗 V 𝑗 H 𝑘 U 𝑘 + 𝜎𝑘 U 𝑘 U 𝑘 ,    (16)
+                                                                   𝑗≠𝑘
+
+with U 𝑘 ∈ C𝑁𝑟 ×𝑑 being a virtual receive beamforming matrix for user 𝑘.
+      The WMMSE algorithm uses block coordinate descent to solve problem (15). Specifically, the
+variables W 𝑘 , U 𝑘 , and V𝑘 are optimized in turn, with their optimal solutions given by
+
+                                                U 𝑘 = A−1
+                                                       𝑘 H𝑘 V𝑘 ,                                                  (17)
+
+                                                W 𝑘 = E−1
+                                                       𝑘 ,                                                        (18)
+
+                                                V 𝑘 = 𝛼𝑘 B−1 H𝐻
+                                                              𝑘 U𝑘 W𝑘 ,                                           (19)
+
+respectively, where
+                                       𝜎𝑘2 ∑︁
+                                            𝐾                            𝐾
+                                                                        ∑︁
+                             A𝑘 =                     Tr(V 𝑗 V𝐻𝑗 )I +          H 𝑘 V 𝑗 V𝐻𝑗 H𝐻
+                                                                                            𝑘,                    (20)
+                                       𝑃𝑇 𝑗=1                           𝑗=1
+
+                                                  E 𝑘 = I − U𝐻
+                                                             𝑘 H𝑘 V𝑘 ,                                            (21)
+
+and
+                              𝐾 𝜎2
+                             ∑︁                                      𝐾
+                                                                    ∑︁
+                                 𝑗
+                        B=             Tr(𝛼 𝑗 U 𝑗 W 𝑗 U𝐻𝑗 )I +                𝛼 𝑗 H𝐻𝑗 U 𝑗 W 𝑗 U𝐻𝑗 H 𝑗 .           (22)
+                                𝑃
+                             𝑗=1 𝑇                                      𝑗=1
+
+
+Domain Knowledge Embedded Beamforming Layer
+
+The goal of beamforming is to design the beamforming matrices V𝑘 . However, directly setting
+the network output to V 𝑘 results in poor performance because such a purely black-box structure
+cannot effectively handle the sophisticated beamforming optimization. To address this, we draw
+inspiration from the WMMSE algorithm and incorporate domain knowledge into the design of
+SNN-based beamforming. By reviewing the WMMSE formulation, we observe that a core aspect
+of the algorithm is the introduction of auxiliary variables W 𝑘 and U𝑘 . Therefore, we let the network
+
+                                                              25
+output be W𝑘 and U𝑘 , and compute V𝑘 by substituting them into Eq. (19). This approach offers
+two main benefits. First, the dimensions of W 𝑘 and U𝑘 are significantly smaller than those of V 𝑘 ,
+which reduces the network size and the search space. Second, Eqs. (17)–(19) represent necessary
+conditions for the optimal solution to problem (15) (45), meaning that any optimal V𝑘 must also
+satisfy these equations. Therefore, incorporating Eq. (19) into the network specifies the solution
+structure and embeds the necessary domain knowledge for beamforming (46–49). Denoting the
+network outputs as W̄ 𝑘 and Ū 𝑘 , the model-driven layer is formally expressed as
+
+                                        V 𝑘 = 𝛼𝑘 B−1 H𝐻
+                                                      𝑘 Ū 𝑘 W̄ 𝑘 ,                                  (23)
+
+where
+                            𝐾 𝜎2
+                           ∑︁                                    𝐾
+                                                                ∑︁
+                               𝑗
+                      B=           Tr(𝛼 𝑗 Ū 𝑗 W̄ 𝑗 Ū𝐻𝑗 )I +         𝛼 𝑗 H𝐻𝑗 Ū 𝑗 W̄ 𝑗 Ū𝐻𝑗 H 𝑗 .   (24)
+                              𝑃
+                           𝑗=1 𝑇                                𝑗=1
+
+
+Simulation Settings and Network Architecture
+
+We assume 𝐾 = 6, 𝑁𝑡 = 64, and 𝑁𝑟 = 𝑑 = 4. Moreover, we adopt the DeepMIMO channel, where
+the system configuration is provided in Table S1. To generate different wireless environments,
+we divide the selected region into 4 m × 4 m uniform blocks. An environment is specified by a
+𝐾-dimension index vector, with the 𝑘th element representing the block in which user 𝑘 is located.
+   The backbone network, referred to as SpikingBFNet, consists of a 2D convolutional layer (36
+channels, 3 × 3 kernel, stride 1), a hidden FC layer (3, 000 spiking neurons), and an output FC layer.
+The output is averaged over 𝑇 = 4 simulation time steps and reshaped into W̄ 𝑘 and Ū 𝑘 , which are
+then fed into the model-driven layer.
+
+
+Channel Estimation
+
+We consider a single-input single-output (SISO) communication link. In OFDM systems, the
+input-output relationship at the 𝑖-th subcarrier and the 𝑘-th OFDM symbol is described as:
+
+                                𝑌 [𝑖, 𝑘] = 𝐻 [𝑖, 𝑘] 𝑋 [𝑖, 𝑘] + 𝑍 [𝑖, 𝑘],                             (25)
+
+where 𝐻 [𝑖, 𝑘] denotes the (𝑖, 𝑘)-th element of the overall frequency-time channel response matrix
+H ∈ C𝑁𝑐 ×𝑁𝑠 , with 𝑁𝑐 and 𝑁 𝑠 denoting the number of subcarriers and OFDM symbols, respectively.
+
+
+                                                      26
+𝑋 [𝑖, 𝑘], 𝑌 [𝑖, 𝑘], and 𝑍 [𝑖, 𝑘] denote the transmitted signal, the received signal, and the AWGN,
+respectively.
+
+
+Least Squares (LS) Estimator
+
+The goal of channel estimation is to recover H based on transmitted pilots 𝑋 [ 𝑝] and the received
+pilots 𝑌 [ 𝑝]. Due to limited spectral resources, pilots are sparsely inserted into the frequency-time
+grid. To formalize this, we define the set of all pilot indices as P ⊂ M, where M ≜ {(𝑖, 𝑘) | 1 ≤
+𝑖 ≤ 𝑁𝑐 , 1 ≤ 𝑘 ≤ 𝑁 𝑠 } represents the indices of the entire frequency-time grid. The LS estimator at
+the pilot positions is given by:
+                                                  𝑌 [ 𝑝]
+                                        𝐻ˆ [ 𝑝] =        ,   ∀𝑝 ∈ P.                               (26)
+                                                  𝑋 [ 𝑝]
+The LS estimator minimizes the squared error between the received and transmitted pilot symbols.
+The channel coefficients at the remaining data positions, { 𝐻ˆ [𝑞] | 𝑞 ∈ M \ P}, are typically
+obtained via interpolation. In this work, we employ radial basis function (RBF) interpolation (63)
+as a baseline as it generally provides superior accuracy compared to linear or cubic interpolation
+schemes.
+
+
+Linear Minimum Mean-Squared Error (LMMSE) Estimator
+
+The LMMSE estimator offers improved performance over the LS estimator by exploiting the
+second-order channel statistics and noise power information. Specifically, the LMMSE estimator
+applies a linear filter ALMMSE to the LS estimates at pilot positions, denoted as 𝒉ˆ 𝑝 ∈ C|P | :
+
+                                          𝒉ˆ LMMSE = ALMMSE 𝒉ˆ 𝑝 .                                 (27)
+
+The optimal LMMSE estimator minimizes the MSE between the vectorized true channel 𝒉 and the
+estimated channel:
+                                   min MSE ≜ E[∥ 𝒉 − ALMMSE 𝒉ˆ 𝑝 ∥ 22 ].                           (28)
+                               ALMMSE
+
+The optimal matrix ALMMSE is derived as:
+
+                                    ALMMSE = R 𝒉𝒉 𝑝 (R 𝒉 𝑝 𝒉 𝑝 + 𝜎 2 I) −1 ,                       (29)
+
+where R 𝒉𝒉 𝑝 ≜ E[𝒉𝒉 𝐻𝑝 ] denotes the cross-correlation matrix between the channel response of the
+entire grid and the channel response at pilot positions, with 𝒉 𝑝 representing the vector of true
+
+                                                      27
+channel coefficients at pilot positions. Similarly, R 𝒉 𝑝 𝒉 𝑝 ≜ E[𝒉 𝑝 𝒉 𝐻𝑝 ] denotes the autocorrelation
+matrix of 𝒉 𝑝 , and 𝜎 2 represents the noise variance. In our experiments, these statistics are estimated
+empirically from the training dataset.
+
+
+Simulation Settings and Network Architecture
+
+We define an OFDM frequency-time grid with 𝑁𝑐 = 72 subcarriers and 𝑁 𝑠 = 14 OFDM symbols.
+The number of pilots is set to 𝑁 𝑝 = 48, and pilots are inserted following the pattern described
+in (2). We adopt the WINNER II channel model, with detailed configurations provided in Table S2.
+To ensure diversity, we simulate eight distinct wireless propagation scenarios: A1 (Indoor small
+office)-LOS, A2 (Indoor to outdoor)-NLOS, B2 (Bad urban micro-cell)-NLOS, C1 (Urban macro-
+cell)-NLOS, C2 (Urban macro-cell)-NLOS, C3 (Bad urban macro-cell)-NLOS, C4 (Outdoor to
+indoor macro-cell)-NLOS, and D1 (Rural macro-cell)-LOS. For each scenario, we generate 9, 000
+samples for training and 1, 000 samples for testing.
+   For the backbone network, we adopt an architecture inspired by ReEsNet (51) with two key
+improvements. First, the transposed convolution layer used in ReEsNet for upsampling is replaced
+with an FC layer to enhance the representation capacity. Second, we introduce a residual con-
+nection 𝒚 res = Ares 𝒉ˆ 𝑝 that directly links the input LS estimates to the final output. This residual
+path compensates for potential information loss during the spike conversion process, acting as a
+learned approximation of the LMMSE estimator. Moreover, to mitigate the computational overhead
+associated with the matrix multiplication of Ares , we employ a low-rank factorization:
+
+                                             Ares = A 𝐿 A 𝑅 ,                                       (30)
+
+where A 𝐿 ∈ C𝑁tot ×𝑟 and A 𝑅 ∈ C𝑟×𝑁 𝑝 , with 𝑁tot = 𝑁𝑐 𝑁 𝑠 denoting the total grid size and 𝑟 < 𝑁tot
+being the rank. In our experiments, we set the reduced rank to 𝑟 = 12 𝑁tot .
+
+
+Energy Consumption Modeling
+
+To ensure a unified evaluation across different algorithms, we estimate energy consumption by
+counting operations. Each operation is mapped to physical energy consumption based on a 45 nm
+CMOS process (21), where a MAC operation consumes 𝐸 mac = 3.2 pJ and an AC operation
+
+
+                                                   28
+consumes 𝐸 ac = 0.1 pJ (64). The total energy is given by
+
+                                   𝐸 total = 𝐸 mac 𝑁mac + 𝐸 ac 𝑁ac ,                           (31)
+
+where 𝑁mac and 𝑁ac denote the number of MAC and AC operations, respectively. A comprehensive
+derivation of the operation counts for each algorithm is provided in the Supplementary Text.
+
+
+
+References
+ 1. Z. Qin, H. Ye, G. Y. Li, B.-H. F. Juang, Deep learning in physical layer communications. IEEE
+    Wireless Commun. 26, 93–99 (2019).
+
+ 2. M. Soltani, V. Pourahmadi, A. Mirzaei, H. Sheikhzadeh, Deep learning-based channel estima-
+    tion. IEEE Commun. Lett. 23, 652–655 (2019).
+
+ 3. C.-K. Wen, W.-T. Shih, S. Jin, Deep learning for massive MIMO CSI feedback. IEEE Wireless
+    Commun. Lett. 7, 748–751 (2018).
+
+ 4. H. Ye, G. Y. Li, B.-H. Juang, Power of deep learning for channel estimation and signal detection
+    in OFDM systems. IEEE Wireless Commun. Lett. 7, 114–117 (2018).
+
+ 5. F. Ait Aoudia, J. Hoydis, End-to-end waveform learning through joint optimization of pulse
+    and constellation shaping, in Proc. IEEE Globecom Workshops (GC Wkshps) (2021), pp. 1–6.
+
+ 6. H. Ye, G. Y. Li, B.-H. F. Juang, Deep reinforcement learning based resource allocation for
+    V2V communications. IEEE Trans. Veh. Technol. 68, 3163–3173 (2019).
+
+ 7. D. Gündüz, Z. Qin, I. E. Aguerri, H. S. Dhillon, Z. Yang, A. Yener, K. K. Wong, C.-B. Chae,
+    Beyond transmitting bits: Context, semantics, and task-oriented communications. IEEE J. Sel.
+    Areas Commun. 41, 5–41 (2023).
+
+ 8. F. Jiang, L. Dong, Y. Peng, K. Wang, K. Yang, C. Pan, X. You, Large AI model empowered
+    multimodal semantic communications. IEEE Commun. Mag. 63, 76–82 (2025).
+
+ 9. J. Du, T. Lin, C. Jiang, Q. Yang, C. F. Bader, Z. Han, Distributed foundation models for
+    multi-modal learning in 6G wireless networks. IEEE Wireless Commun. 31, 20–30 (2024).
+
+                                                  29
+10. J. Ying, Z. Qi, Y. Feng, Z. Qin, Z. Han, R. Tafazolli, Y. C. Eldar, Semantic communica-
+    tion enabled holographic video processing and transmission. https://arxiv.org/abs/2510.13408
+    (2025).
+
+11. “Study on Artificial Intelligence (AI)/Machine Learning (ML) for NR air interface” (3GPP TR
+    38.843 V19.0.0, 2025; https://www.3gpp.org/ftp/Specs/archive/38 series/38.843).
+
+12. G. N. Katsaros, R. Tafazolli, K. Nikitopoulos, On the power consumption of massive-MIMO,
+    5G New Radio with software-based PHY processing, in Proc. 2022 IEEE Globecom Workshops
+    (GC Wkshps) (2022), pp. 765–770.
+
+13. T. Hatt, P. Jarich, E. Kolta, “RADAR: The sustainable Telco” (GSMA Intell. Tech. Rep., 2021;
+    https://www.gsmaintelligence.com/research/radar-the-sustainable-telco).
+
+14. “Industry to reduce greenhouse gas emissions by 45 percent by 2030” (ITU Tech.
+    Rep., 2020; https://www.itu.int/en/mediacentre/Pages/PR04-2020-ICT-industry-to-reduce-
+    greenhouse-gas-emissions-by-45-percent-by-2030.aspx).
+
+15. C. Freitag, M. Berners-Lee, K. Widdicks, B. Knowles, G. S. Blair, A. Friday, The real climate
+    and transformative impact of ICT: A critique of estimates, trends, and regulations. Patterns 2,
+    100340 (2021).
+
+16. A. Mehonic, A. J. Kenyon, Brain-inspired computing needs a master plan. Nature 604, 255–260
+    (2022).
+
+17. M. Win, R. Scholtz, Impulse radio: how it works. IEEE Commun. Lett. 2, 36–38 (1998).
+
+18. A. Rácz, A. Veres, P. Hága, T. Borsos, Z. Kenesi, A full-stack neuromorphic prototype ar-
+    chitecture for low-power wireless sensors, in 2022 IEEE Globecom Workshops (GC Wkshps)
+    (2022), pp. 353–358.
+
+19. T. Borsos, M. Condoluci, M. Daoutis, P. Hága, A. Veres, Resilience analysis of distributed
+    wireless spiking neural networks, in Proc. IEEE Wireless Communications and Networking
+    Conference (WCNC) (IEEE) (2022), pp. 2375–2380.
+
+
+
+                                                30
+20. N. Skatchkovsky, H. Jang, O. Simeone, Federated neuromorphic learning of spiking neural
+    networks for low-power edge intelligence, in Proc. IEEE International Conference on Acoustics,
+    Speech, and Signal Processing (ICASSP) (2020), pp. 8524–8528.
+
+21. H. Yang, K.-Y. Lam, L. Xiao, Z. Xiong, H. Hu, D. Niyato, H. Vincent Poor, Lead federated
+    neuromorphic learning for wireless edge artificial intelligence. Nat. Commun. 13, 4269 (2022).
+
+22. J. Chen, N. Skatchkovsky, O. Simeone, Neuromorphic integrated sensing and communications.
+    IEEE Wireless Commun. Lett. 12, 476–480 (2023).
+
+23. Q. Jiang, J. Sha, The use of SNN for ultralow-power RF fingerprinting identification with
+    attention mechanisms in VDES-SAT. IEEE Internet Things J. 10, 15594–15603 (2023).
+
+24. K. Dakic, B. A. Homssi, S. Walia, A. Al-Hourani, Spiking neural networks for detecting
+    satellite-based Internet-of-Things signals. https://arxiv.org/abs/2304.03896 (2023).
+
+25. A. Gupta, O. Dizdar, Y. Chen, S. Wang, SpikingRx: From neural to spiking receiver.
+    https://arxiv.org/abs/2409.05610 (2024).
+
+26. N. Skatchkovsky, H. Jang, O. Simeone, End-to-end learning of neuromorphic wireless systems
+    for low-power edge artificial intelligence, in Proc. 54th Asilomar Conference on Signals,
+    Systems, and Computers (IEEE) (2020), pp. 166–173.
+
+27. J. Chen, N. Skatchkovsky, O. Simeone, Neuromorphic wireless cognition: Event-driven se-
+    mantic communications for remote inference. IEEE Trans. Cogn. Commun. Netw. 9, 252–265
+    (2023).
+
+28. M. Wang, J. Li, M. Ma, X. Fan, Spiking semantic communication for feature transmission with
+    HARQ. IEEE Trans. Veh. Technol. 74, 10035–10040 (2025).
+
+29. D. Wu, J. Chen, B. Rajendran, H. V. Poor, O. Simeone, Neuromorphic wireless split computing
+    with multi-level spikes. IEEE Trans. Mach. Learn. Commun. Netw. 3, 502 – 516 (2025).
+
+30. T. Serrano-Gotarredona, B. Linares-Barranco, Poker-DVS and MNIST-DVS. Their history,
+    how they were made, and other details. Front. Neurosci. 9, 481 (2015).
+
+
+                                               31
+31. C. Stöckl, W. Maass, Optimized spiking neurons can classify images with high accuracy
+    through temporal coding with two spikes. Nat. Mach. Intell. 3, 230–238 (2021).
+
+32. E. O. Neftci, H. Mostafa, F. Zenke, Surrogate gradient learning in spiking neural networks:
+    Bringing the power of gradient-based optimization to spiking neural networks. IEEE Signal
+    Process. Mag. 36, 51–63 (2019).
+
+33. L. Wang, X. Zhang, H. Su, J. Zhu, A comprehensive survey of continual learning: Theory,
+    method and application. IEEE Trans. Pattern Anal. Mach. Intell. 46, 5362–5383 (2024).
+
+34. J. Kirkpatrick, R. Pascanu, N. Rabinowitz, J. Veness, G. Desjardins, A. A. Rusu, K. Milan,
+    J. Quan, T. Ramalho, A. Grabska-Barwinska, et al., Overcoming catastrophic forgetting in
+    neural networks. Proc. Natl. Acad. Sci. 114, 3521–3526 (2017).
+
+35. E. Bourtsoulatze, D. B. Kurka, D. Gündüz, Deep joint source-channel coding for wireless
+    image transmission. IEEE Trans. Cogn. Commun. Netw. 5, 567–579 (2019).
+
+36. H. Xie, Z. Qin, G. Y. Li, B.-H. Juang, Deep learning enabled semantic communication systems.
+    IEEE Trans. Signal Process. 69, 2663–2675 (2021).
+
+37. A. Amir, B. Taba, D. Berg, T. Melano, J. McKinstry, C. Di Nolfo, T. Nayak, A. Andreopoulos,
+    G. Garreau, M. Mendoza, et al., A low power, fully event-based gesture recognition system, in
+    Proc. IEEE Conference on Computer Vision and Pattern Recognition (CVPR) (2017), 7243–
+    7252.
+
+38. M. Schuster, K. K. Paliwal, Bidirectional recurrent neural networks. IEEE Trans. Signal Pro-
+    cess. 45, 2673–2681 (1997).
+
+39. S. Hochreiter, J. Schmidhuber, Long short-term memory. Neural Comput. 9, 1735–1780 (1997).
+
+40. A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, I. Polo-
+    sukhin, Attention is all you need, in Proc. Advances in Neural Information Processing Systems
+    (NIPS), (2017).
+
+41. R. Gallager, Low-density parity-check codes. IRE Trans. Inf. Theory 8, 21–28 (1962).
+
+
+                                               32
+42. L. Lu, G. Y. Li, A. L. Swindlehurst, A. Ashikhmin, R. Zhang, An overview of massive MIMO:
+    Benefits and challenges. IEEE J. Sel. Top. Signal Process. 8, 742–758 (2014).
+
+43. Q. H. Spencer, A. L. Swindlehurst, M. Haardt, Zero-forcing methods for downlink spatial
+    multiplexing in multiuser MIMO channels. IEEE Trans. Signal Process. 52, 461–471 (2004).
+
+44. V. Stankovic, M. Haardt, Generalized design of multi-user MIMO precoding matrices. IEEE
+    Trans. Wireless Commun. 7, 953–961 (2008).
+
+45. Q. Shi, M. Razaviyayn, Z.-Q. Luo, C. He, An iteratively weighted MMSE approach to dis-
+    tributed sum-utility maximization for a MIMO interfering broadcast channel. IEEE Trans.
+    Signal Process. 59, 4331–4340 (2011).
+
+46. W. Xia, G. Zheng, Y. Zhu, J. Zhang, J. Wang, A. P. Petropulu, A deep learning framework for
+    optimization of MISO downlink beamforming. IEEE Trans. Commun. 68, 1866–1880 (2020).
+
+47. M. Zhang, J. Gao, C. Zhong, A deep learning-based framework for low complexity multiuser
+    MIMO precoding design. IEEE Trans. Wireless Commun. 21, 11193–11206 (2022).
+
+48. S. Lu, S. Zhao, Q. Shi, Learning-based massive beamforming, in Proc. IEEE Global Commu-
+    nications Conference (IEEE) (2020), pp. 1–6.
+
+49. Q. Hu, Y. Cai, Q. Shi, K. Xu, G. Yu, Z. Ding, Iterative algorithm induced deep-unfolding neural
+    networks: Precoding design for multiuser MIMO systems. IEEE Trans. Wireless Commun. 20,
+    1394–1410 (2021).
+
+50. J. Meinilä, P. Kyösti, T. Jämsä, L. Hentilä, “WINNER II channel models”. Radio Technologies
+    and Concepts for IMT-Advanced (Wiley, 2009).
+
+51. L. Li, H. Chen, H.-H. Chang, L. Liu, Deep residual learning meets OFDM channel estimation.
+    IEEE Wireless Commun. Lett. 9, 615–618 (2020).
+
+52. M. Davies, A. Wild, G. Orchard, Y. Sandamirskaya, G. A. F. Guerra, P. Joshi, P. Plank, S. R.
+    Risbud, Advancing neuromorphic computing with Loihi: A survey of results and outlook. Proc.
+    IEEE 109, 911–934 (2021).
+
+
+                                                33
+53. P. A. Merolla, J. V. Arthur, R. Alvarez-Icaza, A. S. Cassidy, J. Sawada, F. Akopyan, B. L.
+    Jackson, N. Imam, Y. Guo, Y. Nakamura, . ..., D. S. Modha, A million spiking-neuron integrated
+    circuit with a scalable communication network and interface. Science 345, 668–673 (2014).
+
+54. G. Bi, M. Poo, Synaptic modifications in cultured hippocampal neurons: Dependence on spike
+    timing, synaptic strength, and postsynaptic cell type. J. Neurosci. 18, 10464–10472 (1998).
+
+55. W. Fang, Y. Chen, J. Ding, Z. Yu, T. Masquelier, D. Chen, L. Huang, H. Zhou, G. Li, Y. Tian,
+    Spikingjelly: An open-source machine learning infrastructure platform for spike-based intelli-
+    gence. Sci. Adv. 9, eadi1480 (2023).
+
+56. R. Zhao, Z. Yang, H. Zheng, Y. Wu, F. Liu, Z. Wu, L. Li, F. Chen, S. Song, J. Zhu, et al., A
+    framework for the general design and computation of hybrid neural networks. Nat. Commun.
+    13, 3427 (2022).
+
+57. A. Mallya, D. Davis, S. Lazebnik, Piggyback: Adapting a single network to multiple tasks by
+    learning to mask weights, in Proc. European Conference on Computer Vision (ECCV) (2018),
+    pp. 67–82.
+
+58. M. Arjovsky, S. Chintala, L. Bottou, Wasserstein generative adversarial networks, in Proc.
+    International Conference on Machine Learning (PMLR) (2017), pp. 214–223.
+
+59. M. Heusel, H. Ramsauer, T. Unterthiner, B. Nessler, S. Hochreiter, GANs trained by a two
+    time-scale update rule converge to a local Nash equilibrium, in Proc. Advances in neural
+    information processing systems (NIPS) (2017).
+
+60. C. Szegedy, V. Vanhoucke, S. Ioffe, J. Shlens, Z. Wojna, Rethinking the Inception architecture
+    for computer vision, in Proc. IEEE Conference on Computer Vision and Pattern Recognition
+    (CVPR) (2016), pp. 2818–2826.
+
+61. W. Fang, Z. Yu, Y. Chen, T. Masquelier, T. Huang, Y. Tian, Incorporating learnable membrane
+    time constant to enhance learning of spiking neural networks, in Proc. IEEE/CVF International
+    Conference on Computer Vision (ICCV) (2021), pp. 2661–2671.
+
+
+
+
+                                               34
+62. H. Ye, G. Y. Li, B.-H. Juang, Deep learning based end-to-end wireless communication systems
+    without pilots. IEEE Trans. Cogn. Commun. Netw. 7, 702–714 (2021).
+
+63. G. E. Fasshauer, Meshfree Approximation Methods with MATLAB (World Scientific, 2007).
+
+64. M. Horowitz, 1.1 computing’s energy problem (and what we can do about it), In Proc. IEEE
+    International Solid-State Circuits Conference (ISSCC) (2014), pp. 10–14.
+
+65. A. Alkhateeb, DeepMIMO: A generic deep learning dataset for millimeter wave and massive
+    MIMO applications. https://arxiv.org/abs/1902.06435 (2019).
+
+66. P. Billingsley, Probability and Measure (Wiley, 2017).
+
+67. Y. Mansour, M. Mohri, A. Rostamizadeh, Domain adaptation: Learning bounds and algorithms.
+    https://arxiv.org/abs/0902.3430 (2009).
+
+68. C. Villani, Topics in Optimal Transportation (American Mathematical Society, 2003).
+
+69. A. Krishnamoorthy, D. Menon, Matrix inversion using Cholesky decomposition, in Proc.
+    Signal Processing: Algorithms, Architectures, Arrangements, and Applications (SPA) (2013),
+    pp. 70–72.
+
+70. K. Leboeuf, A. H. Namin, R. Muscedere, H. Wu, M. Ahmadi, High speed VLSI implemen-
+    tation of the hyperbolic tangent sigmoid function, in Proc. Third International Conference on
+    Convergence and Hybrid Information Technology (2008), vol. 1, pp. 1070–1073.
+
+
+
+
+                                               35
+Supplementary Materials
+
+Generalization Bounds under EMD
+
+Continual learning involves sequentially updating a model under a stream of environments with
+limited access to past data, which can cause catastrophic forgetting when the current update degrades
+performance on previously encountered environments. In this setting, a central question is: what
+are the theoretical limits of retaining past knowledge while adapting to new data? To address this,
+we analyze domain generalization bounds, which quantify the performance gap when a model
+trained on one distribution is evaluated on another. These bounds formalize how distribution shift,
+measured by the earth mover’s distance (EMD), governs the inherent trade-off between adaptation
+(learning new environments) and retention (preserving past knowledge).
+    Consider two environments characterized by distributions 𝑄 (source) and 𝑃 (target). A general
+form of the domain generalization bound can be expressed as follows:
+
+                                       𝑅 𝑃 (ℎ, 𝑓 ) ≤ 𝑅𝑄 (ℎ, 𝑓 ) + Δ(𝑄, 𝑃),                                       (32)
+
+where 𝑅 𝑃 (ℎ, 𝑓 ) ≜ E𝑥∼𝑃 [𝐿(ℎ(𝑥), 𝑓 (𝑥))] is the risk on target domain 𝑃, ℎ is the hypothesis, 𝑓 is the
+true labelling function, and 𝐿 is the loss function. Likewise, 𝑅𝑄 (ℎ, 𝑓 ) denotes the risk on source
+domain 𝑄. The term Δ(𝑄, 𝑃) represents a divergence measure between 𝑄 and 𝑃. In this work, we
+employ EMD as the distance measure. For distributions 𝑄 and 𝑃, the EMD is defined by 1
+                                               ∫
+                       EMD(𝑄, 𝑃) = inf               ||𝑥 − 𝑦||𝑑𝛾(𝑥, 𝑦),                                          (33)
+                                                 𝛾∈Γ(𝑄,𝑃)     X×X
+where X denotes the sample space and Γ(𝑄, 𝑃) denotes the set of all joint distributions whose
+marginals are 𝑄 and 𝑃. Under EMD, the domain generalization bound can be written explicitly as
+follows:
+
+Lemma 1 Assume the loss function 𝐿 is 𝑀-Lipschitz continuous and that ℎ and 𝑓 are 𝐵 ℎ - and
+𝐵 𝑓 -Lipschitz continuous, respectively. Then, the following bound holds:
+
+                                  𝑅 𝑃 (ℎ, 𝑓 ) − 𝑅𝑄 (ℎ, 𝑓 ) ≤ 𝐺 · EMD(𝑄, 𝑃),                                      (34)
+   1 We define EMD here as the 1-Wasserstein distance (𝑊 ) because the Kantorovich–Rubinstein duality applies
+                                                        1
+
+directly to 𝑊1 , which is slightly different from the main text, where the closed-form FCD for two Gaussians is
+derived under the 2-Wasserstein distance (𝑊2 ). However, for distributions with finite second moments, the relationship
+𝑊1 (𝑄, 𝑃) ≤ 𝑊2 (𝑄, 𝑃) holds; therefore, the results derived here for 𝑊1 can be easily extended to the 𝑊2 case.
+
+
+                                                         36
+where 𝐺 = 2𝑀 · max(𝐵 ℎ , 𝐵 𝑓 ).
+                                  
+Proof. Define 𝑔(𝑥) ≜ 𝐿 ℎ(𝑥), 𝑓 (𝑥) . Then we have
+
+                                                                             
+                    𝑔(𝑥 1 ) − 𝑔(𝑥2 ) = 𝐿 ℎ(𝑥 1 ), 𝑓 (𝑥1 ) − 𝐿 ℎ(𝑥2 ), 𝑓 (𝑥2 )                    (35a)
+                                        √︁
+                                     ≤ 𝑀 ∥ℎ(𝑥 1 ) − ℎ(𝑥 2 )∥ 2 + ∥ 𝑓 (𝑥 1 ) − 𝑓 (𝑥 2 )∥ 2        (35b)
+                                                                                     
+                                     ≤ 𝑀 ∥ℎ(𝑥1 ) − ℎ(𝑥 2 )∥ + ∥ 𝑓 (𝑥 1 ) − 𝑓 (𝑥 2 )∥             (35c)
+
+                                     ≤ 𝑀 𝐵 ℎ ∥𝑥1 − 𝑥 2 ∥ + 𝑀 𝐵 𝑓 ∥𝑥 1 − 𝑥 2 ∥                    (35d)
+
+                                     ≤ 𝐺 ∥𝑥1 − 𝑥 2 ∥,                                            (35e)
+
+where the first inequality applies the Lipschitz continuity of 𝐿, the second inequality applies the
+triangle inequality, and the third inequality applies the Lipschitz continuity of ℎ and 𝑓 . Hence, 𝑔(𝑥)
+is 𝐺-Lipschitz continuous. Next,
+
+                                                                                    
+               𝑅 𝑃 (ℎ, 𝑓 ) − 𝑅𝑄 (ℎ, 𝑓 ) = E𝑥∼𝑃 [𝐿 ℎ(𝑥), 𝑓 (𝑥) ] − E𝑥∼𝑄 [𝐿 ℎ(𝑥), 𝑓 (𝑥) ]          (36a)
+
+                                       = E𝑥∼𝑃 [𝑔(𝑥)] − E𝑥∼𝑄 [𝑔(𝑥)]                               (36b)
+                                                                      
+                                       ≤ sup E𝑥∼𝑃 [𝜙(𝑥)] − E𝑥∼𝑄 [𝜙(𝑥)]                           (36c)
+                                          ∥𝜙∥ 𝐿 ≤𝐺
+
+                                       = 𝐺 · EMD(𝑄, 𝑃),                                          (36d)
+
+where the last equality uses the Kantorovich–Rubinstein duality (58) This completes the proof.
+     Lemma 1 shows that the change in expected loss between two environments is controlled by their
+distributional distance, implying that sequential updates are less likely to induce forgetting when
+consecutive environments are close in EMD. Then, the following theorem quantifies how much
+𝑅 𝑃 (ℎ, 𝑓 ) may deviate from the performance achieved by training directly on the target distribution
+𝑃.
+
+               ∗ ∈ arg min                     ∗
+Theorem 1 Let ℎ𝑄           ℎ∈H 𝑅𝑄 (ℎ, 𝑓 ) and ℎ 𝑃 ∈ arg min ℎ∈H 𝑅 𝑃 (ℎ, 𝑓 ). Assume the assump-
+
+tions of Lemma 1 hold and that 𝐿 is symmetric and satisfies the triangle inequality. Then we
+have
+               𝑅 𝑃 (ℎ, 𝑓 ) ≤ 𝑅 𝑃 (ℎ∗𝑃 , 𝑓 ) + 𝑅𝑄 (ℎ, ℎ𝑄
+                                                      ∗                           ∗
+                                                        ) + 𝐺 · EMD(𝑄, 𝑃) + 𝑅 𝑃 (ℎ𝑄 , ℎ∗𝑃 ).      (37)
+
+
+
+
+                                                     37
+Proof. By the triangle inequality and Lemma 1, we obtain
+                                       ∗           ∗
+                𝑅 𝑃 (ℎ, 𝑓 ) ≤ 𝑅 𝑃 (ℎ, ℎ𝑄 ) + 𝑅 𝑃 (ℎ𝑄 , ℎ∗𝑃 ) + 𝑅 𝑃 (ℎ∗𝑃 , 𝑓 ),                  (38a)
+                                     ∗                           ∗
+                           ≤ 𝑅𝑄 (ℎ, ℎ𝑄 ) + 𝐺 · EMD(𝑄, 𝑃) + 𝑅 𝑃 (ℎ𝑄 , ℎ∗𝑃 ) + 𝑅 𝑃 (ℎ∗𝑃 , 𝑓 ),    (38b)
+
+where the first inequality follows from the triangle inequality and the second follows from Lemma
+1. This completes the proof.
+   The above theorem is a direct application of Theorem 8 in (67),where the discrepancy distance
+                                          ∗ ) is typically small because the hypothesis ℎ is trained
+is replaced by the EMD. Note that 𝑅𝑄 (ℎ, ℎ𝑄
+                                                                                        ∗ . Moreover,
+on source distribution 𝑄, resulting in performance close to that of optimal hypothesis ℎ𝑄
+                                                                                             ∗ , ℎ∗ ),
+it is reasonable to assume that the average loss between the best in-class hypotheses, 𝐿 𝑃 (ℎ𝑄    𝑃
+
+correlates with the distributional distance EMD(𝑄, 𝑃) (67).Consequently, Theorem 1 indicates that
+the generalization error is primarily bounded by EMD(𝑄, 𝑃). When two consecutive environments
+are sufficiently similar (small EMD(𝑄, 𝑃)), a model adapted to the current environment can retain
+performance on previously encountered ones with limited additional regularization. In contrast,
+large EMD(𝑄, 𝑃) implies a larger unavoidable discrepancy, motivating mechanisms that allocate
+new plasticity or separate parameters to prevent interference.
+   Recall that our SpikACom framework can intelligently control the spiking neurons of the
+backbone network based on distributional distances. For two similar distributions, the hypernet will
+activate a similar subset of spiking neurons, effectively facilitating knowledge sharing. Therefore,
+our algorithm is in line with the above theoretical result, which reduces the need for extensive
+retraining across similar domains and significantly improves efficiency.
+   The following theorem provides a lower bound on the generalization error but relies on more
+stringent assumptions.
+
+Assumption 1 Hypothesis ℎ𝑄 trained on the source domain satisfies
+                1                                   ∗              1
+            −     ln 𝑞(𝑥) − 𝛿 ≤ 𝐿 ℎ𝑄 (𝑥), 𝑓 (𝑥) − 𝐿 ℎ𝑄 (𝑥), 𝑓 (𝑥) ≤ − ln 𝑞(𝑥) + 𝛿,               (39)
+                𝐾                                                    𝐾
+where 𝐾 and 𝛿 are constants.
+
+Assumption 2                                              √︄
+                                                               2 KL(𝑃 ∥ 𝑄)
+                                      EMD(𝑄, 𝑃) ≤                          ,                     (40)
+                                                                    𝜌
+where 𝜌 is a constant.
+
+                                                         38
+Remark 1 Assumption 1 reflects a natural phenomenon: when a hypothesis ℎ𝑄 is trained on
+                                                                                        ∗ . Fur-
+samples drawn from source distribution 𝑄, it should be close to the optimal hypothesis ℎ𝑄
+thermore, for regions of higher density q(x), there is a greater likelihood of sampling points
+in those areas during training, which improves performance locally. Hence, we assume that
+                     ∗ (𝑥), 𝑓 (𝑥) is proportional to the data density − ln 𝑞(𝑥) and their abso-
+                                
+𝐿 ℎ𝑄 (𝑥), 𝑓 (𝑥) − 𝐿 ℎ𝑄
+lute difference is bounded by 𝛿.
+   Assumption 2 states that the EMD is bounded above by the square root of the KL divergence
+scaled by some constant. In general, the EMD is expected to be positively correlated with the KL
+divergence since both measure distance between distributions. However, since the KL divergence
+is not a true distance, certain extreme cases (e.g., two sharply peaked Gaussian distributions with
+different means) may invalidate this assumption. We stress that such cases rarely arise in practice.
+Hence, to streamline our analysis, we adopt this inequality as an assumption. Notably, the same
+inequality also arises as a sufficient condition for the Talagrand inequality (68).
+
+Lemma 2 Assuming that Assumption 1, Assumption 2, and the assumptions of Lemma 1 hold, we
+have
+
+                                                    ∗              ∗                1               
+               𝑅 𝑃 (ℎ𝑄 , 𝑓 ) − 𝑅𝑄 (ℎ𝑄 , 𝑓 ) ≥ 𝑅 𝑃 (ℎ𝑄 , 𝑓 ) − 𝑅𝑄 (ℎ𝑄 , 𝑓 ) − 2𝛿 +     𝐻 (𝑃) − 𝐻 (𝑄)        (41)
+                                                                                    𝐾
+                                                  𝜌
+                                             +      EMD(𝑄, 𝑃) 2 .
+                                                 2𝐾
+Proof.
+
+ 𝑅 𝑃 (ℎ𝑄 , 𝑓 ) − 𝑅𝑄 (ℎ𝑄 , 𝑓 )                                                                             (42a)
+        ∫                              ∫
+                                                       
+      =      𝐿 ℎ𝑄 (𝑥), 𝑓 (𝑥) 𝑝(𝑥) 𝑑𝑥 −   𝐿 ℎ𝑄 (𝑥), 𝑓 (𝑥) 𝑞(𝑥) 𝑑𝑥                                          (42b)
+           ∫                                                      ∫
+                     ∗            ln 𝑞(𝑥)                                ∗            ln 𝑞(𝑥)    
+       ≥           𝐿 ℎ𝑄 (𝑥), 𝑓 (𝑥) −        −𝛿        𝑝(𝑥) 𝑑𝑥 −           𝐿 ℎ𝑄 (𝑥), 𝑓 (𝑥) −        + 𝛿 𝑞(𝑥) 𝑑𝑥
+                                        𝐾                                                     𝐾
+                                                                                                          (42c)
+                              ∫
+               ∗        1                                     ∗     1
+       = 𝑅 𝑃 (ℎ𝑄 , 𝑓) −           ln 𝑞(𝑥) 𝑝(𝑥) 𝑑𝑥 − 2𝛿 − 𝑅𝑄 (ℎ𝑄 , 𝑓) −𝐻 (𝑄)                               (42d)
+                         𝐾                                          𝐾
+               ∗              ∗              1                           
+       = 𝑅 𝑃 (ℎ𝑄 , 𝑓 ) − 𝑅𝑄 (ℎ𝑄 , 𝑓 ) − 2𝛿 +    𝐻 (𝑃) − 𝐻 (𝑄) + KL(𝑃∥𝑄)                                   (42e)
+                                             𝐾
+               ∗              ∗              1                    𝜌
+                                                                     EMD(𝑄, 𝑃) 2 ,
+                                                             
+       ≥ 𝑅 𝑃 (ℎ𝑄 , 𝑓 ) − 𝑅𝑄 (ℎ𝑄 , 𝑓 ) − 2𝛿 +   𝐻 (𝑃) − 𝐻 (𝑄) +                                            (42f)
+                                             𝐾                   2𝐾
+
+                                                          39
+where (42c) applies Assumption 1, and (42e) follows from the definition of the KL divergence. The
+final inequality applies Assumption 2.
+    The following theorem states a lower bound on how much 𝑅 𝑃 (ℎ𝑄 , 𝑓 ) can deviate from
+𝑅 𝑃 (ℎ∗𝑃 , 𝑓 ).
+
+Theorem 2 Assuming that the conditions of Lemma 2 hold, we have the following lower bound on
+the generalization error:
+
+                                                          𝜌               1
+                      𝑅 𝑃 (ℎ𝑄 , 𝑓 ) − 𝑅 𝑃 (ℎ∗𝑃 , 𝑓 ) ≥      EMD(𝑄, 𝑃) 2 +
+                                                                                         
+                                                                            𝐻 (𝑃) − 𝐻 (𝑄) − 2𝛿.                (43)
+                                                         2𝐾               𝐾
+
+Proof.
+
+          𝑅 𝑃 (ℎ𝑄 , 𝑓 ) − 𝑅 𝑃 (ℎ∗𝑃 , 𝑓 ) = 𝑅 𝑃 (ℎ𝑄 , 𝑓 ) − 𝑅𝑄 (ℎ𝑄 , 𝑓 ) + 𝑅𝑄 (ℎ𝑄 , 𝑓 ) − 𝑅 𝑃 (ℎ∗𝑃 , 𝑓 )       (44a)
+                        ∗                ∗               1                       𝜌
+                                                                                     EMD(𝑄, 𝑃) 2
+                                                                            
+               ≥ 𝑅 𝑃 (ℎ𝑄  , 𝑓 ) − 𝑅𝑄 (ℎ𝑄   , 𝑓 ) − 2𝛿 +     𝐻 (𝑃) − 𝐻 (𝑄) +
+                                                         𝐾                      2𝐾
+                  + 𝑅𝑄 (ℎ𝑄 , 𝑓 ) − 𝑅 𝑃 (ℎ∗𝑃 , 𝑓 )                                                             (44b)
+                          ∗                                                               1
+                            , 𝑓 ) − 𝑅 𝑃 (ℎ∗𝑃 , 𝑓 ) + 𝑅𝑄 (ℎ𝑄 , 𝑓 ) − 𝑅𝑄 (ℎ𝑄
+                                                                         ∗                                
+                  = 𝑅 𝑃 (ℎ𝑄                                                , 𝑓 ) − 2𝛿 +     𝐻 (𝑃) − 𝐻 (𝑄)
+                                                                                          𝐾
+                     𝜌
+                  +    EMD(𝑄, 𝑃) 2                                                                            (44c)
+                    2𝐾
+                     𝜌               1
+                       EMD(𝑄, 𝑃) 2 +
+                                                    
+                  ≥                    𝐻 (𝑃) − 𝐻 (𝑄) − 2𝛿,                                                    (44d)
+                    2𝐾               𝐾
+                                                                       ∗ , 𝑓 ) − 𝑅 (ℎ∗ , 𝑓 ) ≥ 0 and
+where (44b) applies Lemma 2 and the last inequality follows from 𝑅 𝑃 (ℎ𝑄          𝑃 𝑃
+                    ∗ , 𝑓 ) ≥ 0. This completes the proof.
+𝑅𝑄 (ℎ𝑄 , 𝑓 ) − 𝑅𝑄 (ℎ𝑄
+    Theorem 2 establishes that the generalization error is lower bounded by three terms. The
+first term is the square of the EMD. The second term captures the difference between the target
+distribution’s entropy and the source domain’s entropy. This suggests that training on a more diverse
+data distribution can enhance generalization ability. However, in our continual learning setup, the
+entropies of different wireless environments are typically similar, rendering this term negligible.
+The third term measures how strictly Assumption 1 holds, which we consider to be small. Therefore,
+the principal factor contributing to the lower generalization bound is the EMD term.
+    Since the EMD is symmetric, two distributions with a large EMD will yield high general-
+ization errors in both directions. This observation implies that, when only data from the current
+environment is available, a single hypothesis ℎ cannot concurrently achieve optimal performance
+
+                                                               40
+on both distributions if they differ significantly. Regularization-based methods, such as EWC, fall
+into this category and thus perform poorly when the distance between distributions is large. The-
+orem 2 therefore underscores the necessity of introducing new plasticity in continual learning,
+especially when the new distribution differs significantly from all previously learned ones. The
+developed SpikACom embodies this principle by activating a different subset of spiking neurons
+upon encountering a distinctly new environment. Hence, it can simultaneously achieve satisfactory
+performance on both current and previous environments.
+
+
+
+
+                                                41
+Derivation of Model-Based EMD
+
+In this section, we take a complementary perspective and derive an EMD measure directly from
+the channel model. Unlike data-driven approaches, this method does not rely solely on collected
+samples; instead, it also exploits the physical channel model, which remains invariant across
+environments. As a result, the derived EMD requires significantly fewer training samples and allows
+the hypernet to generalize more easily across different channel conditions, ensuring robustness and
+adaptability.
+      We consider a general spike transmission scenario aligned with our neuromorphic semantic
+communication task. Let the transmitted spike vector within one time slot be
+
+                                   𝒙 = [𝑥 [1], . . . , 𝑥 [𝑑]] ⊤ ∈ {0, 1} 𝑑 .                  (45)
+
+Since our focus lies on channel distribution shifts, we assume for simplicity that
+
+                                       i.i.d.
+                                 𝑥 [𝑛] ∼ Bernoulli(𝜌),                    𝑛 = 1, ..., 𝑑,      (46)
+
+where 𝜌 denotes the average firing rate of spiking neurons. The wireless channel is an 𝐿-tap
+fast-fading multipath channel, where each tap
+
+                                                ℎℓ [𝑛] ∼ CN (0, 𝑝 ℓ ),                        (47)
+
+is independently resampled at each time index. The total channel power is
+                                                              𝐿
+                                                             ∑︁
+                                                      𝑃𝒉 =         𝑝ℓ .                       (48)
+                                                             ℓ=1
+
+The received sample at time index 𝑛 is
+                                                 𝐿
+                                                ∑︁
+                                   𝑦[𝑛] =             ℎℓ [𝑛] 𝑥 [𝑛 − ℓ] + 𝑤 [𝑛],               (49)
+                                                ℓ=1
+
+where 𝑤 [𝑛] ∼ CN (0, 𝑁0 ) denotes the additive noise.
+      It can be readily checked that
+
+                                          Var(𝑦[𝑛]) = 𝜌𝑃 𝒉 + 𝑁0 ,                             (50)
+
+and
+                                  Cov(𝑦[𝑛], 𝑦[𝑚]) = 0,                       𝑛 ≠ 𝑚.           (51)
+
+                                                          42
+Thus,
+                                       Cov(𝒚) = (𝜌𝑃 𝒉 + 𝑁0 ) I𝑑 .                                 (52)
+
+    Assuming that the number of paths 𝐿 is large, the Lindeberg–Feller central limit theorem
+(66)gives
+                                  𝐿
+                                 ∑︁
+                                       ℎℓ [𝑛] 𝑥 [𝑛 − ℓ] ≈ CN (0, 𝜌𝑃 𝒉 ).                          (53)
+                                 ℓ=1
+Adding AWGN yields
+                                       𝑦[𝑛] ≈ CN (0, 𝜌𝑃 𝒉 + 𝑁0 ).                                 (54)
+
+Since the entries are uncorrelated and each satisfies a scalar CLT, the Cramér–Wold theorem
+(66)implies
+                                                               
+                                       𝒚 ≈ CN 0, (𝜌𝑃 𝒉 + 𝑁0 )I𝑑 .                                 (55)
+
+    For two zero-mean Gaussians with covariances 𝜎12 I𝑑 and 𝜎22 I𝑑 , the EMD is
+                                                   √
+                                         EMD =         𝑑 |𝜎1 − 𝜎2 |.                              (56)
+
+Hence, the EMD between the received distributions under two channel distributions is
+                                             √ √︁           √︁
+                        EMD(H1 , H2 ) ≈       𝑑 𝜌𝑃 𝒉1 + 𝑁0 − 𝜌𝑃 𝒉2 + 𝑁0 .                         (57)
+
+Defining SNR𝑖 = 𝜌𝑃 𝒉𝑖 /𝑁0 , this becomes
+                                            √︁         √︁          √︁
+                        EMD(H1 , H2 ) ≈          𝑑𝑁0     1 + SNR1 − 1 + SNR2 .                    (58)
+
+                                                                         √
+    Since only the relative distance matters in our setting, the constant 𝑑𝑁0 can be ignored. Thus,
+under a fast-fading channel with rich scattering, the detailed multipath structure is averaged out, and
+the EMD between environments is determined primarily by the difference in their SNR values. This
+model-based EMD facilitates learning the relationships between different channels, as illustrated
+in Fig. 9.
+
+
+
+
+                                                       43
+Extension of SpikACom to Convolutional Layers
+
+The preceding sections in the main text detailed the SpikACom framework within the context of
+fully connected (FC) layers. In this section, we outline the adaptation of the hypernet-based context
+modulation and SRC mechanisms for spiking convolutional layers.
+
+
+Hypernet-based context modulation for convolutional layers
+
+To start with, we analyze the FC layer, showing that orthogonal binary gates lead to no-interference
+during learning. Consider a fully connected layer with weight matrix W ∈ R𝑁post ×𝑁pre , input spike
+vector 𝒔 ∈ R𝑁pre , and a hypernet-generated binary gate 𝒈 ∈ {0, 1} 𝑁post . The gated output is
+
+                                             𝒚 = 𝒈 ⊙ 𝑓 (W𝒔),                                      (59)
+
+where 𝑓 (·) denotes the component-wise neuron nonlinearity.
+   For two environments 𝑒 ∈ {1, 2}, we denote the loss, input spike vector, and gate as 𝐿 𝑒 , 𝒔 𝑒 , and
+𝒈 𝑒 , respectively. By the chain rule, the gradient with respect to W admits an outer-product form
+
+                                              ∇W 𝐿 𝑒 = 𝜹 𝑒 𝒔⊤
+                                                            𝑒,                                    (60)
+
+where
+                                    𝜹 𝑒 ≜ ∇ 𝒚 𝑒 𝐿 𝑒 ⊙ 𝒈 𝑒 ⊙ 𝑓 ′ (W𝒔 𝑒 )
+                                                   
+                                                                                                  (61)
+
+and ⊙ denotes the Hadamard product.
+   To quantify interference between two environments, consider the Frobenius inner product
+
+                       ⟨∇W 𝐿 1 , ∇W 𝐿 2 ⟩ 𝐹 = 𝜹1 𝒔⊤         ⊤        ⊤          ⊤
+                                                  1 , 𝜹 2 𝒔 2 𝐹 = (𝜹 1 𝜹 2 ) (𝒔 1 𝒔 2 ).          (62)
+
+For disjoint binary gates, 𝒈 1 ⊙ 𝒈 2 = 0, the supports of 𝜹1 and 𝜹2 do not overlap, yielding 𝜹⊤
+                                                                                              1 𝜹2 = 0
+
+and hence
+                                         ⟨∇W 𝐿 1 , ∇W 𝐿 2 ⟩ 𝐹 = 0,                                (63)
+
+which indicates no gradient interference on this layer.
+   However, in a convolutional layer, the weight tensor is shared across spatial locations. Let
+W ∈ R𝐶out ×𝐶in ×𝐾×𝐾 denote the convolutional kernels. For a fixed output channel 𝑐, define the
+
+
+
+                                                     44
+corresponding kernel as W𝑐 ≜ W𝑐,:,:,: ∈ R𝐶in ×𝐾×𝐾 . The gradient with respect to W𝑐 aggregates
+contributions over all spatial positions:
+                                               ∑︁
+                                   ∇W𝑐 𝐿 =           𝜹 𝑐 [𝑢, 𝑣] X[𝑢, 𝑣] ⊤ ,                        (64)
+                                               𝑢,𝑣
+
+where 𝜹 𝑐 [𝑢, 𝑣] is the backpropagated error at location (𝑢, 𝑣) and X[𝑢, 𝑣] is the corresponding local
+input patch. Therefore, even if two environments activate disjoint spatial regions of a feature map,
+their gradients can still update the same kernel parameters W𝑐 due to weight sharing.
+   To maintain the no-interference behavior, we apply the hypernet gate at the output-channel level,
+as illustrated in Fig. 12. Specifically, the hypernet outputs 𝒈 ∈ {0, 1}𝐶out and modulates the feature
+maps as
+                              Y𝑐,:,: = 𝑔𝑐 𝑓 (Z𝑐,:,: ),       𝑐 = 1, . . . , 𝐶out ,                 (65)
+
+where Z𝑐,:,: denotes the 𝑐-th channel of the convolutional output Z ≜ Conv(W, X). If 𝑔𝑐 = 0,
+then 𝜹 𝑐 [𝑢, 𝑣] = 0 for all (𝑢, 𝑣) and hence ∇W𝑐 𝐿 = 0. Therefore, ⟨𝒈 1 , 𝒈 2 ⟩ = 0 will lead to
+⟨∇W 𝐿 1 , ∇W 𝐿 2 ⟩ 𝐹 = 0, indicating that disjoint channel-wise gates yield no interference.
+
+
+Spiking rate consolidation for convolutional layers
+
+In FC layers, the proposed SRC imposes a regularization term on synaptic weights, where the
+importance matrix is constructed from the pre- and post-synaptic firing rates. Let u𝐹 ∈ R𝑁pre and
+v𝐹 ∈ R𝑁post denote the spiking-rate vectors of the pre- and post-synaptic layers, respectively. We
+define
+                                     𝛀𝐹 ≜ v𝐹 (u𝐹 ) ⊤ ∈ R𝑁post ×𝑁pre ,                              (66)
+
+so that the importance of synapse 𝑤 𝐹𝑗,𝑖 (from pre neuron 𝑖 to post neuron 𝑗) is Ω𝐹𝑗,𝑖 = 𝑣 𝐹𝑗 𝑢𝑖𝐹 . This
+design follows the Hebbian principle that synapses with stronger pre–post co-activity should be
+more strongly preserved.
+   We extend the same idea to convolutional layers. Consider a convolutional layer with 𝐶in input
+channels, 𝐶out output channels, kernel size 𝐾 × 𝐾, and stride of 1 for simplicity. The convolutional
+weight tensor is W𝐶 ∈ R𝐶out ×𝐶in ×𝐾×𝐾 , and W𝐶𝑗,𝑖 ∈ R𝐾×𝐾 denotes the kernel connecting the 𝑖-th input
+channel to the 𝑗-th output channel. Since W𝐶𝑗,𝑖 is shared across all spatial locations, its importance
+should depend on the activity levels of the corresponding input and output channels. Let u𝐶 ∈ R𝐶in
+
+
+                                                      45
+and v𝐶 ∈ R𝐶out denote the channel-wise spiking-rate summaries (averaged over time and spatial
+positions) for the input and output channels, respectively. We assign the importance of the entire
+kernel W𝐶𝑗,𝑖 as 𝑣 𝐶𝑗 𝑢𝑖𝐶 , and broadcast it across the spatial kernel entries:
+
+                                𝛀𝐶 ≜ v𝐶 ⊗ u𝐶 ⊗ J𝐾×𝐾 ∈ R𝐶out ×𝐶in ×𝐾×𝐾 ,                       (67)
+
+where J𝐾×𝐾 is the 𝐾 × 𝐾 all-ones matrix and ⊗ denotes the outer product with broadcasting
+across the spatial dimensions. This construction regularizes kernels connecting highly active input
+channels to highly active output channels more strongly, preserving task-relevant knowledge with
+low storage overhead.
+
+
+
+
+                                                     46
+Detailed Computation of Energy Consumption
+
+SNNs
+
+For SNNs, only neurons receiving nonzero spikes perform computations. Hence, the effective
+number of operations (NOP) depends on the average firing rate 𝑝 ∈ [0, 1]. For a fully connected
+layer with input dimension 𝐼 and output dimension 𝑂, the NOP is
+
+                                            NOPFC,SNN = 𝐼𝑂 𝑝.                                    (68)
+
+For a convolutional layer with 𝐶in input channels, 𝐶out output channels, kernel size 𝐾 × 𝐾, and
+output feature map size 𝐻out × 𝑊out , we have
+
+                               NOPConv,SNN = 𝐻out𝑊out𝐶out𝐶in 𝐾 2 𝑝.                              (69)
+
+Because spike inputs are binary, most operations reduce to accumulations rather than multiplica-
+tions. Accordingly, the total energy consumption of an SNN can be expressed as
+                                      ∑︁                     ∑︁
+                            𝐸 SNN =         𝐸 ac NOP𝑙 𝑇 +            𝐸 mac NOP𝑙 𝑇,               (70)
+                                      𝑙∈S                    𝑙∈S ′
+
+where S represents the set of spike-based layers, S ′ denotes layers operating on analog inputs (e.g.,
+the first layer of the channel decoder), and 𝑇 is the total number of simulation time steps.
+
+
+ANNs
+
+In conventional ANNs, all neurons are active (𝑝 = 1). Thus, the NOP for fully connected and
+convolutional layers is given by
+                                            NOPFC,ANN = 𝐼𝑂,                                      (71)
+
+and
+                                NOPConv,ANN = 𝐻out𝑊out𝐶out𝐶in 𝐾 2 ,                              (72)
+
+respectively. Since the energy for matrix multiplication is dominant, we neglect the energy con-
+sumption of the AC operations for bias terms and nonlinear functions in ANNs and recurrent
+networks (RNN, LSTM, and Transformer). Therefore, the total energy consumption of an ANN is
+given by
+                                                         ∑︁
+                                       𝐸 ANN = 𝐸 mac          NOP𝑙 .                             (73)
+                                                         𝑙
+
+                                                    47
+Sequence models (RNN, LSTM, and Transformer)
+
+Sequence models extend ANNs and can sequentially handle streaming data over 𝑇 time steps.
+Regarding their energy consumption, an RNN layer with input size 𝐼 and hidden size 𝐻 consists of
+two matrix multiplications, and the NOP is
+
+                                          NOPRNN = 𝑇 (𝐼𝐻 + 𝐻 2 ).                                       (74)
+
+LSTM networks contain four gates, leading to
+
+                                         NOPLSTM = 4𝑇 (𝐼𝐻 + 𝐻 2 )                                       (75)
+
+for each layer. A Transformer block with hidden width 𝐻 consists of a self-attention layer followed
+by two feed-forward FC layers, with the hidden dimension typically expanded to 4𝐻. Its NOP can
+be computed as
+                                       NOPTrans = 𝑇 (12𝐻 2 + 2𝑇 𝐻).                                     (76)
+
+Similar to ANNs, all sequence models rely on floating-point MAC operations. Thus, the total energy
+consumption is
+                                                                   ∑︁
+                                               𝐸 Seq = 𝐸 mac               NOP𝑙 .                       (77)
+                                                                     𝑙
+
+
+LDPC
+
+An (𝑛, 𝑘) LDPC code is defined by a generator matrix G ∈ {0, 1} 𝑘×𝑛 and a parity-check matrix
+H ∈ {0, 1} 𝑚×𝑛 , where 𝑚 = 𝑛 − 𝑘. Given an information vector u ∈ {0, 1}1×𝑘 , the codeword is
+generated as
+                                                   c = uG mod 2.                                        (78)
+
+Let 𝑑𝑔 be the average number of nonzero elements per row of G. The encoding energy is modeled
+as
+                                                  𝐸 enc = 𝐸 ac 𝑁xor ,                                   (79)
+
+where 𝑁xor ≈ 𝑛(𝑑𝑔 − 1).
+     For decoding, the sum–product algorithm (SPA) is employed on the Tanner graph defined by
+H. Each check node 𝑗 updates messages according to the 𝜙–sum rule:
+                                  Ö                                             ∑︁
+                                                                         −1 ©
+                     𝐿 𝑗→𝑖 =                   sign(𝐿            )·𝜙 ­            𝜙(|𝐿 𝑖 ′ → 𝑗 |) ® ,   (80)
+                                                                                                  ª
+                                                        𝑖′ → 𝑗
+                               𝑖 ′ ∈N ( 𝑗)\𝑖                           ′
+                                                                     «𝑖 ∈N ( 𝑗)\𝑖                 ¬
+                                                             48
+where N ( 𝑗) denotes variable nodes connected to check node 𝑗 and 𝜙(·) is defined as
+                                                           𝑥 
+                                      𝜙(𝑥) = − ln tanh            .                           (81)
+                                                            2
+In this work, we assume a look up table (LUT) method for computing 𝜙(·) and 𝜙−1 (·) (70).Each
+operation requires one memory access and consumes about 𝐸 𝑚𝑒𝑚 = 10𝑝𝐽 (64). Let 𝐸 denote the
+number of edges in the Tanner graph and 𝑁iter the iteration number. Then, the decoding energy is
+approximately estimated as
+                                                                 
+                                 𝐸 dec ≈ 𝑁iter 𝐸 mem 2𝐸 + 𝐸 ac 4𝐸 ,                           (82)
+
+where the energy for additional operation such as abs and sign are neglected.
+
+
+Matrix Operations
+
+The beamforming experiment involves a lot of complex matrix operations, such as matrix multipli-
+cations and matrix inversions. For A ∈ C𝑚×𝑛 and B ∈ C𝑛×𝑟 , the energy for matrix multiplication is
+given by
+                                       𝐸 mm = 𝐸 mac NOPmm ,                                   (83)
+
+where
+                                         NOPmm = 4𝑚𝑛𝑟,                                        (84)
+
+and the factor 4 reflects the real multiplications required for complex numbers.
+   The inversion of a real square matrix C ∈ R𝑛×𝑛 requires approximately 12 𝑛3 operations (69).For
+a complex matrix, the required operations are roughly four times larger, leading to
+
+                                         𝐸 inv ≈ 2𝐸 mac 𝑛3 .                                  (85)
+
+   The Cholesky decomposition of a real matrix C ∈ R𝑛×𝑛 requires approximately 16 𝑛3 operations
+(68). Thus, the energy for the complex case becomes
+                                                   2
+                                        𝐸 chol ≈     𝐸 mac 𝑛3 .                               (86)
+                                                   3
+
+Interpolation
+
+In OFDM channel estimation, LS recovers non-pilot channel coefficients by interpolation. We
+adopt the radial basis function (RBF) interpolation method (62). Specifically, for a time–frequency
+
+                                                   49
+location 𝑥 = (𝑛, 𝑘) in a grid of size 𝑁 × 𝐾, the RBF method gives
+                                       𝑃
+                                      ∑︁                                            2
+                           𝐻ˆ (𝑥) =                  2
+                                            𝑤 𝑝 𝜙 𝑟 (𝑥, 𝑥 𝑝 ) ,        𝜙(𝑟 2 ) = 𝑒 −𝛾𝑟 ,               (87)
+                                      𝑝=1
+
+where 𝑃 denotes the number of pilots and 𝑟 2 (𝑥, 𝑥 𝑝 ) = 𝛼(𝑛 − 𝑛 𝑝 ) 2 + 𝛽(𝑘 − 𝑘 𝑝 ) 2 is the scaled squared
+distance from 𝑥 to the 𝑝-th pilot. The kernel weights 𝑤 = [𝑤 1 , . . . , 𝑤 𝑃 ] 𝑇 are obtained from the
+standard RBF system
+                                                         Φ𝑤 = ℎ,                                       (88)
+
+where Φ ∈ R𝑃×𝑃 is the pilot kernel matrix with Φ 𝑝𝑞 = 𝜙(𝑟 2 (𝑥 𝑝 , 𝑥 𝑞 )) and ℎ contains the LS channel
+estimates on the pilot positions. Since the pilot pattern is fixed in the considered OFDM system, Φ
+and its inverse can be precomputed offline. Thus, computing 𝑤 reduces to a single matrix–vector
+multiplication,
+                                                  𝐸 𝑤 ≈ 𝑃2 𝐸 mac .                                     (89)
+
+    In the interpolation stage, each non-pilot location requires 𝑃 multiplications and 𝑃 additions
+with the precomputed weights, leading to
+
+                                            𝐸 int ≈ (𝑁𝐾 − 𝑃)𝑃 𝐸 mac .                                  (90)
+
+For complex-valued channels, the real and imaginary parts are interpolated separately, giving the
+total energy
+                                               𝐸 tot ≈ 2 𝑁𝐾 𝑃𝐸 mac .                                   (91)
+
+
+
+
+                                                           50
+                           0.8                Spiking Rates (SRC)
+                           0.6
+
+
+
+
+                   Value
+                           0.4
+                           0.2
+                           0.0
+                           0.8             First SVD Component (EWC)
+                           0.6
+                   Value
+
+                           0.4
+                           0.2
+                           0.0
+                                 0   400      800    1200    1600      2000   2400
+                                                 Neuron index
+
+Figure 6: Correspondence between spiking activity and Fisher information geometry. Top: The
+spiking rate vector across 2400 neurons in the neuromorphic semantic communication task. Bottom:
+The principal eigenvector of the Fisher information matrix (FIM), indicating the direction of
+maximum curvature in the parameter space. The alignment between the two panels demonstrates that
+the computationally efficient spiking rate statistics capture the parameter importance information
+that is typically estimated from gradient-based FIM.
+
+
+
+
+                                                    51
+                              1.0
+
+                              0.8
+
+                              0.6
+
+                   Accuracy   0.4
+
+                              0.2
+                                         Train accuracy
+                                         Test accuracy
+                              0.0
+                                    0   30 60 90           120 150 180 210 240
+                                                          Epochs
+
+Figure 7: Convergence curve of hypernet-based context modulation under dynamically chang-
+ing environments. The curves report the training and testing accuracy achieved on the neuro-
+morphic semantic communication task when using the hypernet-generated gate to modulate the
+backbone network. The model undergoes sequential adaptation across environments whose SNR
+decreases from 8 dB to −20 dB in uniform steps of 4 dB; each environment is trained for 30 epochs.
+As the noise perturbation becomes more severe in later environments, the achievable accuracy
+decreases accordingly.
+
+
+
+
+                                                          52
+                              1.0
+
+                              0.8
+
+                              0.6
+
+                   Accuracy   0.4
+
+                              0.2
+                                         Train accuracy
+                                         Test accuracy
+                              0.0
+                                    0   30 60 90           120 150 180 210 240
+                                                          Epochs
+
+Figure 8: Convergence curve of orthogonal gate modulation under dynamically changing
+environments. The curves report the training and testing accuracy on the neuromorphic semantic
+communication task when the backbone network is modulated by mutually orthogonal (non-
+overlapping) gates, under the same sequential SNR schedule and training protocol as in Fig. 7.
+Orthogonal gating enforces strict parameter isolation across environments, which prevents cross-
+environment interference but also limits knowledge transfer. Consequently, adaptation to each new
+environment is slower and may fail to converge in extremely low-SNR scenarios.
+
+
+
+
+                                                          53
+                                                                1.0                                                                    1.0
+        1.00   0.50   0.29   0.18   0.13   0.09   0.07   0.06                  1.00   0.49   0.35   0.24   0.15   0.10   0.08   0.05
+    1
+
+
+
+
+                                                                           1
+        0.50   1.00   0.59   0.36   0.26   0.19   0.15   0.12                  0.49   1.00   0.44   0.34   0.23   0.17   0.12   0.09
+    2
+
+
+
+
+                                                                           2
+                                                                0.8                                                                    0.8
+
+
+        0.29   0.59   1.00   0.60   0.44   0.32   0.25   0.21                  0.35   0.44   1.00   0.73   0.51   0.36   0.28   0.22
+    3
+
+
+
+
+                                                                           3
+        0.18   0.36   0.60   1.00   0.72   0.52   0.41   0.34   0.6            0.24   0.34   0.73   1.00   0.74   0.58   0.44   0.36   0.6
+    4
+
+
+
+
+                                                                           4
+        0.13   0.26   0.44   0.72   1.00   0.72   0.57   0.47                  0.15   0.23   0.51   0.74   1.00   0.74   0.55   0.44
+    5
+
+
+
+
+                                                                           5
+                                                                0.4                                                                    0.4
+        0.09   0.19   0.32   0.52   0.72   1.00   0.78   0.65                  0.10   0.17   0.36   0.58   0.74   1.00   0.73   0.61
+    6
+
+
+
+
+                                                                           6
+        0.07   0.15   0.25   0.41   0.57   0.78   1.00   0.83                  0.08   0.12   0.28   0.44   0.55   0.73   1.00   0.81
+    7
+
+
+
+
+                                                                           7
+                                                                0.2                                                                    0.2
+
+
+        0.06   0.12   0.21   0.34   0.47   0.65   0.83   1.00                  0.05   0.09   0.22   0.36   0.44   0.61   0.81   1.00
+    8
+
+
+
+
+                                                                           8
+         1      2      3      4      5      6      7      8                     1      2      3      4      5      6      7      8
+
+
+
+
+                                     (a)                                                                    (b)
+
+Figure 9: Alignment between model-based EMD and learned hypernet representations in neu-
+romorphic semantic communication task. (a) The model-based earth mover’s distance (EMD)
+matrix computed between eight unseen wireless environments. Unlike data-driven metrics, this
+EMD is analytically derived from domain knowledge, allowing for the quantification of physical
+distribution shifts without requiring specific channel samples. (b) The cosine distance matrix be-
+tween the hypernet gates generated for the same environments. The hypernet was trained on 80
+distinct channel distributions and evaluated on these 8 unseen scenarios. The similarity between
+the physical metric (a) and the learned latent metric (b) indicates that the hypernet captures the
+underlying physical structure of the wireless channels with limited data access.
+
+
+
+
+                                                                      54
+                                               1.0                                                     1.0
+   8                                                      8
+  16                                           0.8        16                                           0.8
+
+  24                                                      24
+                                               0.6                                                     0.6
+  32                                                      32
+  40                                           0.4        40                                           0.4
+  48                                                      48
+                                               0.2                                                     0.2
+  56                                                      56
+  64                                                      64
+       8   16   24   32   40    48   56   64                   8   16   24   32   40    48   56   64
+
+
+                          (a)                                                     (b)
+
+Figure 10: Alignment between data-driven FCD and learned hypernet representations in the
+MIMO beamforming task. (a) The data-driven Fréchet channel distance (FCD) matrix computed
+pairwise among 64 unseen testing environments. Note that for the multi-user setting, we extend FCD
+by computing the distribution distance over user-wise channel features and applying the Hungarian
+algorithm to find the minimum EMD over user matchings, yielding a permutation-invariant distance.
+(b) The cosine distance matrix between the hypernet gates generated for the same environments.
+We collect 10 pilot samples per user for identifying the environments. The hypernet is trained on
+640 distinct environments and evaluated on 64 unseen scenarios. Considering the theoretical space
+comprises 180𝐾 potential environments (𝐾 = 6 users), the training set of 640 covers a very small
+fraction of the total distribution space. The alignment between (a) and (b) shows that the hypernet
+captures the structure of channel distributions.
+
+
+
+
+                                                     55
+                                   
+                                                                                          W U D L Q L Q J  G D W D
+                                                                                          W U D L Q L Q J  G D W D
+                                                                                      W U D L Q L Q J  G D W D
+                                                                                           W U D L Q L Q J  G D W D
+                                   
+
+                     1 0 6 (       
+
+                                   
+
+                                   
+
+                                   
+                                                                                                                      
+                                                       6 D P S O H  6 L ] H  N 
+
+Figure 11: Assessment of structural alignment between FCD and learned hypernet represen-
+tations in OFDM channel estimation. The y-axis represents the NMSE calculated between the
+data-driven FCD matrix and the learned hypernet cosine distance matrix. The x-axis denotes the
+number of pilot samples collected per environment. The curves correspond to hypernets trained
+on 1%, 2%, 4%, and 10% of the total samples generated from the WINNER II channel model.
+Given the limited number of distinct scenarios in the WINNER II dataset, this evaluation focuses on
+the accuracy of environment identification using a few samples rather than generalization between
+environments. Even with only 1% of the available training samples, the NMSE drops below 0.1
+once the sample size exceeds 𝑁 = 16. Moreover, the marginal NMSE gap between the 4% and 10%
+ratios further indicates data efficiency.
+
+
+
+
+                                                           56
+                             H                                                               H
+
+
+
+
+                        W                                                                W
+
+        C                                                                C
+                                          Gate
+
+Figure 12: Hypernet-based context modulator on spiking convolutional layers. The figure
+illustrates how the hypernet-generated binary gate modulates the backbone spiking convolutional
+layers. The output channels are multiplied by the gate. Masked channels are silenced. Those not
+silenced flow to the next layer.
+
+
+
+
+                                              57
+    Table 2: DeepMIMO Channel Dataset Configuration
+
+parameter         value            parameter           value
+Scenario          O1               Carrier frequency   3.5 GHz
+BS array          [8 1 8]          UE array            [2 1 2]
+Antenna spacing   0.5 wavelength   Radiation pattern   Isotropic
+Bandwidth         128 kHz          Number of paths     25
+BS index          4                UE index            800–1200
+
+
+
+
+                              58
+                       Table 3: WINNER II Channel Configuration
+
+parameter                value                   parameter          value
+Center frequency         5.25 GHz                Bandwidth          5 MHz–20 MHz
+BS location              (150 m, 150 m, 32 m)    UE location        (110 m, 120 m, 1.5 m)
+UE speed (each axis)     -0.5 m/s–0.5 m/s        Path loss          Yes
+Shadow fading            Yes                     Uniform sampling   No
+
+
+
+
+                                            59
+

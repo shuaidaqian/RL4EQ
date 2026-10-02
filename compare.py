@@ -57,7 +57,7 @@ from training.windowed_discrete_ppo import (
     _load_discrete_policy_if_available,
     run_windowed_discrete_frame,
 )
-from training.online_adaptation import PilotDrivenOnlineAdapter
+from training.online_adaptation import PilotDrivenOnlineAdapter, PilotResidualRLSAdapter
 
 
 FORMAL_METHODS = (
@@ -281,8 +281,10 @@ def main() -> None:
     parser.add_argument("--online-learning-rate", type=float, default=None)
     parser.add_argument("--online-steps", type=int, default=None)
     parser.add_argument("--online-max-delta-norm", type=float, default=None)
+    parser.add_argument("--online-rls-max-total-delta-norm", type=float, default=None)
     parser.add_argument("--online-proximal-weight", type=float, default=None)
     parser.add_argument("--online-min-reward-improvement", type=float, default=None)
+    parser.add_argument("--online-relative-min-reward-improvement", type=float, default=None)
     parser.add_argument("--online-reward-windows", type=int, default=None)
     parser.add_argument("--online-cross-frame-tolerance", type=float, default=None)
     parser.add_argument("--online-phase-smoothing", type=float, default=None)
@@ -307,8 +309,10 @@ def main() -> None:
             "online_adaptation_learning_rate": args.online_learning_rate,
             "online_adaptation_steps": args.online_steps,
             "online_adaptation_max_delta_norm": args.online_max_delta_norm,
+            "online_rls_max_total_delta_norm": args.online_rls_max_total_delta_norm,
             "online_adaptation_proximal_weight": args.online_proximal_weight,
             "online_adaptation_min_reward_improvement": args.online_min_reward_improvement,
+            "online_adaptation_relative_min_reward_improvement": args.online_relative_min_reward_improvement,
             "online_reward_windows": args.online_reward_windows,
             "online_cross_frame_rollback_tolerance": args.online_cross_frame_tolerance,
             "online_phase_tracking_smoothing": args.online_phase_smoothing,
@@ -627,6 +631,7 @@ class PilotOnlineMethodState:
     phase_tracking_min_confidence: float = 0.15
     phase_tracking_cfo_limit: float = 0.0012
     min_reward_improvement: float = 0.001
+    relative_min_reward_improvement: float = 0.0
     reward_pilot_windows: int = 2
     cross_frame_rollback_tolerance: float = 0.00001
     # 在线参数微调可固定 acquisition 条件，以单独度量 PEFT 的增量价值。
@@ -642,6 +647,24 @@ class PilotOnlineMethodState:
     consecutive_rejections: int = 0
     previous_parameter_delta_norm: float = 0.0
     bandit_action_cost: float = 0.000001
+
+
+@dataclass
+class PilotRLSMethodState:
+    """Pilot 驱动 RLS 残差 Adapter 的逐帧状态。"""
+
+    model: UnfoldedEqualizer
+    rls_adapter: PilotResidualRLSAdapter
+    cir: torch.Tensor
+    receiver_state: ReceiverState
+    pretrained_loaded: bool
+    acquisition_cfo: float = 0.0
+    acquisition_phase_features: torch.Tensor | None = None
+    condition_source: str = "acquisition"
+    tail_update_alpha: float = 0.5
+    min_reward_improvement: float = 0.001
+    relative_min_reward_improvement: float = 0.0
+    reward_pilot_windows: int = 2
 
 
 def _select_methods(methods: list[str] | None) -> tuple[str, ...]:
@@ -686,6 +709,57 @@ def _build_method_states(
     for method in methods:
         if method == "Pilot-Driven Online Adaptation":
             model = _build_equalizer(model_config, pretrained_path, device)
+            if str(config.get("online_adaptation_algorithm", "sgd")) == "rls":
+                rls_adapter = PilotResidualRLSAdapter(
+                    model,
+                    forgetting_factor=float(config.get("online_rls_forgetting_factor", 0.99)),
+                    ridge=float(config.get("online_rls_ridge", 1.0)),
+                    warmup_symbols=int(
+                        config.get("online_rls_warmup_symbols", model_config.max_delay)
+                    ),
+                    target_logit=float(config.get("online_rls_target_logit", 2.0)),
+                    max_delta_norm=float(
+                        config.get("online_adaptation_max_delta_norm", 1.0)
+                    ),
+                    max_total_delta_norm=float(
+                        config.get(
+                            "online_rls_max_total_delta_norm",
+                            config.get("online_adaptation_max_delta_norm", 1.0),
+                        )
+                    ),
+                )
+                states[method] = PilotRLSMethodState(
+                    model=model,
+                    rls_adapter=rls_adapter,
+                    cir=acquisition_cir.clone().to(device),
+                    receiver_state=ReceiverState(initial_soft_tail.clone().to(device)),
+                    pretrained_loaded=pretrained_path is not None,
+                    acquisition_cfo=float(acquisition_cfo),
+                    acquisition_phase_features=(
+                        acquisition_phase_features.clone().to(device)
+                        if acquisition_phase_features is not None
+                        else None
+                    ),
+                    condition_source=(
+                        online_condition_source_override
+                        if online_condition_source_override is not None
+                        else str(
+                            config.get(
+                                "online_rls_condition_source",
+                                config.get("online_condition_source", "acquisition"),
+                            )
+                        )
+                    ),
+                    tail_update_alpha=float(config.get("tail_update_alpha", 0.5)),
+                    min_reward_improvement=float(
+                        config.get("online_adaptation_min_reward_improvement", 0.001)
+                    ),
+                    relative_min_reward_improvement=float(
+                        config.get("online_adaptation_relative_min_reward_improvement", 0.0)
+                    ),
+                    reward_pilot_windows=max(1, int(config.get("online_reward_windows", 2))),
+                )
+                continue
             online_groups, candidate_config = _online_groups_from_config(config, online_groups_override)
             adapter = PilotDrivenOnlineAdapter(
                 model,
@@ -694,6 +768,10 @@ def _build_method_states(
                 steps=int(config.get("online_adaptation_steps", 1)),
                 max_delta_norm=float(config.get("online_adaptation_max_delta_norm", 0.5)),
                 proximal_weight=float(config.get("online_adaptation_proximal_weight", 0.0)),
+                hard_example_weighting=bool(config.get("online_hard_example_weighting", False)),
+                hard_example_temperature=float(
+                    config.get("online_hard_example_temperature", 0.5)
+                ),
             )
             candidate_specs = _online_candidate_specs(candidate_config, online_groups)
             states[method] = PilotOnlineMethodState(
@@ -722,6 +800,9 @@ def _build_method_states(
                 phase_tracking_min_confidence=float(config.get("online_phase_tracking_min_confidence", 0.15)),
                 phase_tracking_cfo_limit=float(config.get("online_phase_tracking_cfo_limit", residual_cfo_limit)),
                 min_reward_improvement=float(config.get("online_adaptation_min_reward_improvement", 0.001)),
+                relative_min_reward_improvement=float(
+                    config.get("online_adaptation_relative_min_reward_improvement", 0.0)
+                ),
                 reward_pilot_windows=max(1, int(config.get("online_reward_windows", 2))),
                 cross_frame_rollback_tolerance=float(
                     config.get("online_cross_frame_rollback_tolerance", 0.00001)
@@ -787,7 +868,14 @@ def _build_method_states(
                 # 这样它代表“离线训练后的网络直接推理”，而不是过时 acquisition
                 # 状态下的失配诊断组；当前帧 CIR 和 PEFT 参数仍不会在线更新。
                 condition_update_mode = "fixed"
-                condition_source = "pilot_cir_phase"
+                condition_source = (
+                    _online_condition_source_from_config(
+                        config,
+                        online_condition_source_override,
+                    )
+                    if online_condition_source_override is not None
+                    else "pilot_cir_phase"
+                )
             elif method == "Pilot CIR only":
                 condition_update_mode = "pilot_sparse"
                 condition_source = "pilot_cir_phase"
@@ -961,6 +1049,16 @@ def _run_new_or_single_method(
             extra={**row, "pretrained_loaded": state.pretrained_loaded, "policy_loaded": state.policy_loaded},
         )
     if method == "Pilot-Driven Online Adaptation":
+        if isinstance(state, PilotRLSMethodState):
+            return _run_pilot_rls_method(
+                method,
+                frame,
+                snr_db,
+                state,
+                delay,
+                frame_index,
+                update_interval,
+            )
         if not isinstance(state, PilotOnlineMethodState):
             raise TypeError("Pilot-Driven Online Adaptation 需要 PilotOnlineMethodState。")
         return _run_pilot_online_method(
@@ -1104,6 +1202,189 @@ def _run_new_or_single_method(
         state.receiver_state.update_tail(result.soft_tail)
         return _result_from_logits(method, result.logits, frame, result.iterations, diagnostic_extra)
     return _run_real_method(method, frame, snr_db, state, delay, frame_index, update_interval)
+
+
+def _run_pilot_rls_method(
+    method: str,
+    frame,
+    snr_db: float,
+    state: PilotRLSMethodState,
+    delay: int,
+    frame_index: int,
+    update_interval: int,
+) -> RealMethodResult:
+    """运行一帧只由有效 Pilot 驱动的 RLS 残差 Adapter。"""
+
+    del delay, frame_index, update_interval
+    device = next(state.model.parameters()).device
+    frame_device = _frame_to_device(frame, device)
+    rx_iq = torch.stack(
+        (frame_device.rx_symbols.real, frame_device.rx_symbols.imag),
+        dim=-1,
+    ).unsqueeze(0).float()
+    region_ids = frame_device.model_region_ids.unsqueeze(0).long()
+    tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
+    phase_features = _neural_phase_features(
+        condition_source=state.condition_source,
+        receiver_view=frame_device.receiver_view(),
+        cir=state.cir,
+        soft_tail=state.receiver_state.soft_tail,
+        acquisition_cfo=float(state.acquisition_cfo),
+        acquisition_phase_features=state.acquisition_phase_features,
+    )
+    condition = condition_from_cir(
+        state.cir,
+        snr_db,
+        cfo_residual=float(state.acquisition_cfo),
+        phase_features=phase_features,
+    )
+    adapt_symbols = frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64)
+    adapt_mask = frame_device.adapt_mask.unsqueeze(0).bool()
+    old_weight = state.rls_adapter.module.linear.weight.detach().clone()
+    old_bias = state.rls_adapter.module.linear.bias.detach().clone()
+    old_covariance = state.rls_adapter.covariance.detach().clone()
+    with torch.no_grad():
+        logits_before, _ = state.model(
+            rx_iq,
+            condition,
+            region_ids,
+            tail,
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        )
+    adaptation = state.rls_adapter.adapt(frame_device, condition, tail)
+    with torch.no_grad():
+        logits_after, _ = state.model(
+            rx_iq,
+            condition,
+            region_ids,
+            tail,
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        )
+    logits_before = logits_before.squeeze(0)
+    candidate_logits = logits_after.squeeze(0)
+    reward_before = _masked_bce(
+        logits_before,
+        frame_device.bits,
+        frame_device.reward_mask,
+    )
+    reward_after = _masked_bce(
+        candidate_logits,
+        frame_device.bits,
+        frame_device.reward_mask,
+    )
+    reward_window_accepted, reward_window_gains = _accept_windowed_reward_update(
+        logits_before,
+        candidate_logits,
+        frame_device.bits,
+        frame_device.reward_mask,
+        min_improvement=float(state.min_reward_improvement),
+        windows=int(state.reward_pilot_windows),
+        relative_min_improvement=float(state.relative_min_reward_improvement),
+    )
+    reward_hard_ber_accepted = _accept_reward_pilot_hard_ber(
+        logits_before,
+        candidate_logits,
+        frame_device.bits,
+        frame_device.reward_mask,
+    )
+    accepted = bool(
+        adaptation.accepted
+        and reward_window_accepted
+        and reward_hard_ber_accepted
+    )
+    if not accepted:
+        # Reward Pilot 只负责留出验收；失败时恢复 RLS 参数和协方差，
+        # 确保被拒绝的候选不会污染下一帧的在线状态。
+        with torch.no_grad():
+            state.rls_adapter.module.linear.weight.copy_(old_weight)
+            state.rls_adapter.module.linear.bias.copy_(old_bias)
+        state.rls_adapter.covariance = old_covariance
+        state.rls_adapter.parameter_delta_norm = 0.0
+        current_parameters = torch.cat(
+            [old_weight.reshape(-1).float(), old_bias.reshape(-1).float()]
+        )
+        anchor_parameters = torch.cat(
+            [
+                state.rls_adapter.anchor_weight.reshape(-1).float(),
+                state.rls_adapter.anchor_bias.reshape(-1).float(),
+            ]
+        )
+        state.rls_adapter.cumulative_delta_norm = float(
+            torch.linalg.vector_norm(current_parameters - anchor_parameters).cpu()
+        )
+        logits = logits_before
+    else:
+        logits = candidate_logits
+    reward_hard_errors_before = int(
+        (
+            (logits_before[frame_device.reward_mask] >= 0.0)
+            != (frame_device.bits[frame_device.reward_mask] >= 0.5)
+        ).sum().item()
+    )
+    reward_hard_errors_after = int(
+        (
+            (candidate_logits[frame_device.reward_mask] >= 0.0)
+            != (frame_device.bits[frame_device.reward_mask] >= 0.5)
+        ).sum().item()
+    )
+    tail_len = state.receiver_state.soft_tail.numel()
+    detected_tail = torch.complex(
+        torch.tanh(logits[-tail_len:] / 2.0),
+        torch.zeros_like(logits[-tail_len:]),
+    )
+    state.receiver_state.update_tail(
+        _update_receiver_tail(
+            state.receiver_state.soft_tail,
+            detected_tail,
+            state.tail_update_alpha,
+        )
+    )
+    return _result_from_logits(
+        method,
+        logits,
+        frame_device,
+        0,
+        {
+            "uses_neural_network": True,
+            "uses_rl": False,
+            "pretrained_loaded": state.pretrained_loaded,
+            "online_algorithm": "pilot_supervised_residual_rls",
+            "online_update_source": "adapt_pilot_only",
+            "condition_source": str(state.condition_source),
+            "pilot_phase_used": bool(state.condition_source != "acquisition"),
+            "adapt_pilot_count": int(adaptation.adapt_pilot_count),
+            "adapt_loss_before": float(adaptation.adapt_loss_before),
+            "adapt_loss_after": float(adaptation.adapt_loss_after),
+            "pilot_mse_before": float(adaptation.pilot_mse_before),
+            "pilot_mse_after": float(adaptation.pilot_mse_after),
+            "adaptation_accepted": bool(adaptation.accepted),
+            "peft_update_applied": bool(accepted),
+            "parameter_delta_norm": float(
+                adaptation.parameter_delta_norm if accepted else 0.0
+            ),
+            "cumulative_parameter_delta_norm": float(
+                state.rls_adapter.cumulative_delta_norm
+            ),
+            "max_cumulative_parameter_delta_norm": float(
+                state.rls_adapter.max_total_delta_norm
+            ),
+            "reward_pilot_guard": True,
+            "reward_pilot_guard_passed": bool(accepted),
+            "reward_pilot_window_gains": reward_window_gains,
+            "reward_pilot_hard_ber_guard": bool(reward_hard_ber_accepted),
+            "reward_pilot_hard_errors_before": reward_hard_errors_before,
+            "reward_pilot_hard_errors_after": reward_hard_errors_after,
+            "reward_pilot_loss_before": float(reward_before.detach().cpu()),
+            "reward_pilot_loss_after": float(reward_after.detach().cpu()),
+            "reward_pilot_min_improvement": float(state.min_reward_improvement),
+            "reward_pilot_relative_min_improvement": float(
+                state.relative_min_reward_improvement
+            ),
+            "data_labels_used_online": False,
+        },
+    )
 
 
 def _run_real_method(method: str, frame, snr_db: float, state: BaselineMethodState | PPOMethodState, delay: int, frame_index: int, update_interval: int) -> RealMethodResult:
@@ -1519,8 +1800,15 @@ def _run_pilot_online_method(
             frame_device.reward_mask,
             state.min_reward_improvement,
             windows=state.reward_pilot_windows,
+            relative_min_improvement=state.relative_min_reward_improvement,
         )
-        if adaptation.accepted and window_accept:
+        hard_ber_accept = _accept_reward_pilot_hard_ber(
+            best_reward_logits,
+            after,
+            frame_device.bits,
+            frame_device.reward_mask,
+        )
+        if adaptation.accepted and window_accept and hard_ber_accept:
             best_snapshot = state.model.peft.snapshot(candidate_groups)
             best_result = adaptation
             best_reward = reward_value
@@ -1588,6 +1876,17 @@ def _run_pilot_online_method(
             state.cir,
             alpha=float(state.cir_update_alpha),
         ).to(device)
+    # 这些字段只用于离线评估更新对 Data 区域输出的影响；Data 标签不参与
+    # 候选优化、Reward 守门或参数更新。
+    data_mask = frame_device.data_mask.to(device=device, dtype=torch.bool)
+    if bool(data_mask.any()):
+        data_bce_before = _masked_bce(before, frame_device.bits, data_mask)
+        data_bce_after = _masked_bce(final, frame_device.bits, data_mask)
+        data_logit_delta = torch.mean(torch.abs(final[data_mask] - before[data_mask]))
+    else:
+        data_bce_before = torch.zeros((), device=device)
+        data_bce_after = torch.zeros((), device=device)
+        data_logit_delta = torch.zeros((), device=device)
     return _result_from_logits(
         method,
         final,
@@ -1618,6 +1917,18 @@ def _run_pilot_online_method(
                 if adaptation is not None
                 else adapt_loss_before.detach().cpu()
             ),
+            "weighted_adapt_loss_before": float(
+                adaptation.weighted_adapt_loss_before
+                if adaptation is not None
+                else adapt_loss_before.detach().cpu()
+            ),
+            "weighted_adapt_loss_after": float(
+                adaptation.weighted_adapt_loss_after
+                if adaptation is not None
+                else adapt_loss_before.detach().cpu()
+            ),
+            "hard_example_weighting": bool(state.adapter.hard_example_weighting),
+            "hard_example_temperature": float(state.adapter.hard_example_temperature),
             "adaptation_accepted": bool(accepted),
             "update_applied": bool(update_applied),
             "action": str(selected_action.name),
@@ -1632,9 +1943,22 @@ def _run_pilot_online_method(
             "online_adaptation_freeze_below_snr_db": freeze_below_db,
             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
+            "data_bce_before_eval_only": float(data_bce_before.detach().cpu()),
+            "data_bce_after_eval_only": float(data_bce_after.detach().cpu()),
+            "data_logit_delta_mean_abs_eval_only": float(data_logit_delta.detach().cpu()),
             "reward_pilot_windows": int(state.reward_pilot_windows),
             "reward_pilot_window_gains": best_reward_window_gains,
+            "reward_pilot_hard_ber_guard": True,
+            "reward_pilot_hard_ber_before": int(
+                ((before[frame_device.reward_mask] >= 0.0) != (frame_device.bits[frame_device.reward_mask] >= 0.5)).sum().item()
+            ),
+            "reward_pilot_hard_ber_after": int(
+                ((final[frame_device.reward_mask] >= 0.0) != (frame_device.bits[frame_device.reward_mask] >= 0.5)).sum().item()
+            ),
             "online_min_reward_improvement": float(state.min_reward_improvement),
+            "online_relative_min_reward_improvement": float(
+                state.relative_min_reward_improvement
+            ),
             "online_proximal_weight": float(state.adapter.proximal_weight),
             "peft_update_guarded": True,
             "parameter_delta_norm": float(
@@ -1837,6 +2161,7 @@ def _accept_windowed_reward_update(
     reward_mask: torch.Tensor,
     min_improvement: float,
     windows: int = 2,
+    relative_min_improvement: float = 0.0,
 ) -> tuple[bool, list[float]]:
     """要求 Reward Pilot 的每个时间子窗口都支持同一个在线更新。"""
 
@@ -1858,8 +2183,41 @@ def _accept_windowed_reward_update(
             after[chunk], target[chunk]
         )
         gains.append(float((loss_before - loss_after).detach().cpu()))
-    accepted = bool(gains) and min(gains) >= float(min_improvement)
+    relative_gains: list[float] = []
+    for chunk in torch.tensor_split(positions, window_count):
+        if chunk.numel() == 0:
+            continue
+        loss_before = torch.nn.functional.binary_cross_entropy_with_logits(
+            before[chunk], target[chunk]
+        )
+        loss_after = torch.nn.functional.binary_cross_entropy_with_logits(
+            after[chunk], target[chunk]
+        )
+        denominator = loss_before.detach().abs().clamp_min(1e-8)
+        relative_gains.append(float(((loss_before - loss_after) / denominator).detach().cpu()))
+    accepted = bool(gains) and all(
+        gain >= float(min_improvement)
+        or relative_gain >= float(relative_min_improvement)
+        for gain, relative_gain in zip(gains, relative_gains)
+    )
     return accepted, gains
+
+
+def _accept_reward_pilot_hard_ber(
+    logits_before: torch.Tensor,
+    logits_after: torch.Tensor,
+    labels: torch.Tensor,
+    reward_mask: torch.Tensor,
+) -> bool:
+    """要求候选更新在留出 Reward Pilot 上不增加硬判决错误数。"""
+
+    mask = reward_mask.reshape(-1).to(device=logits_before.device, dtype=torch.bool)
+    if not bool(mask.any()):
+        return False
+    target = labels.reshape(-1).to(device=logits_before.device, dtype=logits_before.dtype)
+    before_errors = ((logits_before.reshape(-1)[mask] >= 0.0) != (target[mask] >= 0.5)).sum()
+    after_errors = ((logits_after.reshape(-1)[mask] >= 0.0) != (target[mask] >= 0.5)).sum()
+    return bool(after_errors <= before_errors)
 
 
 def _previous_update_is_harmful(

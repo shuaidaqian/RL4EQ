@@ -1,0 +1,2291 @@
+                                                                                                                                                                                     1
+
+
+
+                                                 SICNN: Soft Interference Cancellation Inspired
+                                                         Neural Network Equalizers
+                                            Stefan Baumgartner Graduate Student Member, IEEE, Oliver Lang Member, IEEE, and
+                                                                  Mario Huemer Senior Member, IEEE
+
+
+                                                                                                           Abstract
+                                                      In recent years data-driven machine learning approaches have been extensively studied to replace or enhance
+arXiv:2308.12591v2 [eess.SP] 11 Mar 2024
+
+
+
+
+                                                 traditionally model-based processing in digital communication systems. In this work, we focus on equalization
+                                                 and propose a novel neural network (NN-)based approach, referred to as SICNN. SICNN is designed by deep
+                                                 unfolding a model-based iterative soft interference cancellation (SIC) method. It eliminates the main disadvantages
+                                                 of its model-based counterpart, which suffers from high computational complexity and performance degradation
+                                                 due to required approximations. We present different variants of SICNN. SICNNv1 is specifically tailored to single
+                                                 carrier frequency domain equalization (SC-FDE) systems, the communication system mainly regarded in this work.
+                                                 SICNNv2 is more universal and is applicable as an equalizer in any communication system with a block-based
+                                                 data transmission scheme. Moreover, for both SICNNv1 and SICNNv2, we present versions with highly reduced
+                                                 numbers of learnable parameters. Another contribution of this work is a novel approach for generating training
+                                                 datasets for NN-based equalizers, which significantly improves their performance at high signal-to-noise ratios.
+                                                 We compare the bit error ratio performance of the proposed NN-based equalizers with state-of-the-art model-
+                                                 based and NN-based approaches, highlighting the superiority of SICNNv1 over all other methods for SC-FDE.
+                                                 Exemplarily, to emphasize its universality, SICNNv2 is additionally applied to a unique word orthogonal frequency
+                                                 division multiplexing (UW-OFDM) system, where it achieves state-of-the-art performance. Furthermore, we present
+                                                 a thorough complexity analysis of the proposed NN-based equalization approaches, and we investigate the influence
+                                                 of the training set size on the performance of NN-based equalizers.
+
+                                                                                                         Index Terms
+                                                      Equalization, neural networks, single carrier frequency domain equalization, soft interference cancellation,
+                                                 training set generation
+
+
+                                                                                        I. I NTRODUCTION
+
+                                           D     IGITAL communications at the physical layer level is traditionally a quite model-based discipline.
+                                                 That is, especially for the receiver processing blocks of digital communication systems, most al-
+                                           gorithms have been developed based on physical and statistical models of the communication chain.
+                                           With this established approach well interpretable methods can be obtained, their performance bounds
+                                           can often be specified, and usually algorithms achieving optimal performance for the given models can
+                                           be derived. Besides these advantageous properties, model-based approaches also have some downsides.
+                                           Performance-optimal methods can in some cases exhibit an infeasible computational complexity, requiring
+                                           the application of suboptimal algorithms in practice. Further, modeling errors, wrong (or oversimplified)
+                                           assumptions, or insufficient model knowledge may lead to a considerable performance degradation. Since
+                                           with data-driven machine learning methods many of the drawbacks of model-based approaches can be
+                                           resolved, currently intensive research is conducted on machine learning approaches for several applications
+                                           in communications engineering. This includes possible future scenarios like communications assisted
+                                           by reconfigurable intelligent surfaces (RISs) [2], molecular communications [3], or integrated sensing
+                                              This work has been supported by the “University SAL Labs” initiative of Silicon Austria Labs (SAL) and its Austrian partner universities
+                                           for applied fundamental research for electronic based systems. This paper was presented in part at the 2022 IEEE 23rd International Workshop
+                                           on Signal Processing Advances in Wireless Communication (SPAWC), Oulo, Finland, 2022 [1].
+                                              Stefan Baumgartner and Mario Huemer are with the JKU LIT SAL eSPML Lab, Johannes Kepler University Linz, Austria, and with the
+                                           Institute of Signal Processing, Johannes Kepler University Linz, Austria (e-mails: {stefan.baumgartner, mario.huemer}@jku.at).
+                                              Oliver Lang is with the Institute of Signal Processing, Johannes Kepler University Linz, Austria (email: oliver.lang@jku.at).
+                                                                                                           2
+
+
+
+and communication [4]. However, also in traditional wireless communication systems promising results
+can be achieved by means of machine learning. This involves completely abandoning the block-based
+paradigm of current digital communication system design with the help of end-to-end learning [5], [6],
+or replacing / enhancing individual blocks of a standard communication chain [7]–[9]. The latter includes
+machine learning approaches for channel estimation [10], [11], channel decoding [12], and self-interference
+cancellation [13]–[15]. In this work, we regard another important processing block at the receiver, namely
+equalization. Equalization, also referred to as data estimation, is the task of reconstructing transmitted
+data – distorted during transmission over a channel – at the receiver side of a communication system.
+Typically, equalization is conducted by model-based methods. However, also with machine learning
+methods auspicious results have already been demonstrated [16]–[25]. In current publications on machine
+learning approaches for data estimation, mainly neural networks (NNs) are employed. NNs are known to be
+universal function approximators [26] and thus are expected to approximate the optimal data estimators.
+Many of the presented results are promising, but there are also some new challenges arising. More
+specifically, standard NNs like a fully-connected feedforward NN (FCNN) are black-box approaches, i.e.,
+their inference is not interpretable, performance bounds can hardly be derived, and domain knowledge is
+not exploited. Especially due to the latter fact most NNs suffer from requiring large amounts of training
+data and a high inference complexity. Optimally, one can fuse model-based and data-driven approaches
+by, e.g., incorporating existing model knowledge into NNs, which is expected to lead to less complex
+and better performing NNs than the standard black-box NNs. One possibility of incorporating model
+knowledge into NNs is to design their layer structure accordingly, which leads to NNs we refer to as
+model-inspired NNs. Currently, one of the most promising and most popular approaches for obtaining
+NNs with a model-inspired layer structure is deep unfolding [27]. The idea of deep unfolding is to take a
+model-based iterative algorithm, which is conceived for finding the solution of an optimization problem,
+fix its number of iterations, and unfold every iteration to a layer of an NN. Depending on the aspired
+abstraction level of the NN (i.e., the similarity between the model-based algorithm and the NN), only a
+few parameters of the model-based iterative algorithm (e.g., its step size) or even whole parts are replaced
+by learnable parameters or modules, respectively. Those can then be optimized with tools known from
+NN optimization by utilizing available training data. A number of NN-based data estimators, e.g., the
+NNs in [18], [20], [22]–[25] are designed by employing deep unfolding. In this work, we also apply deep
+unfolding for the design of our proposed NN-based equalizers.
+   Most NN-based data estimators are currently proposed for equalization in multiple-input multiple-output
+(MIMO) communication systems, often assuming data transmission over an uncorrelated Rayleigh fading
+channel. In this work, the developed NN-based equalizers are mainly evaluated for single carrier frequency
+domain equalization (SC-FDE) systems [28], [29]. In an SC-FDE system, a single carrier transmission
+scheme is utilized, but the payload data is transmitted in a block-wise manner with guard intervals between
+successive blocks, as it is the case in orthogonal frequency division multiplexing (OFDM) systems. The
+received blocks are transformed to frequency domain before conducting matched filtering, downsampling,
+and equalization. This allows an efficient receiver implementation [29] and results in a system model
+similar to that of an OFDM system. In this work, we regard employing both a cyclic prefix (CP) and a
+so-called unique word (UW), which is a known deterministic sequence, as guard interval. The UW can
+advantageously be utilized, e.g., for synchronization purposes [30], however, at the cost of equalization
+complexity. For a CP guard interval, the optimal linear equalizer is a low-complex single-tap equalizer,
+while for a UW guard interval, in turn, the optimal linear equalizer is more complex. In contrast to
+CP-OFDM systems, for SC-FDE optimal performance can only be obtained with computationally highly
+demanding nonlinear equalizers. This motivates developing NN-based data estimators for SC-FDE systems.
+Employing NN-based equalizers for SC-FDE systems necessitates, in contrast to MIMO systems over
+uncorrelated Rayleigh fading channels, an additional pre-processing step. As extensively described in [31],
+for the application of NN-based equalizers in SC-FDE systems a data normalization scheme is required
+for a well-behaved NN training and thus a satisfying performance of the NN equalizers. We also briefly
+review the necessary data normalization scheme in this work.
+                                                                                                                                 3
+
+
+
+Contribution
+   In this work, we propose the NN-based data estimators SICNNv1 and SICNNv2, which are designed
+by unfolding an iterative soft interference cancellation (SIC) method [32]. The main idea of iterative SIC
+is that in each iteration every single data symbol in the transmitted data vector is estimated on its own, by
+considering the influence of all other data symbols in the data vector as interference. This interference can
+be mitigated by incorporating estimates of the data symbols from the previous into the current iteration.
+By that, the data symbol estimates are refined from iteration to iteration. Although also DeepSIC [23]
+is inspired by the same iterative SIC method, SICNNv1 and SICNNv2 are fundamentally different from
+this NN. The idea of SIC is adopted by DeepSIC concerning its structure. That is, DeepSIC consists of
+multiple stages, where each stage is comprised of as many sub-FCNNs as there are data symbols in the
+transmitted data vector. Each of the sub-FCNNs is utilized to estimate one data symbol, whereby the
+input data of a sub-FCNN is made up of the received vector as well as of estimates provided by the
+sub-FCNNs for the remaining data symbols from the last stage. All estimates are refined stage by stage.
+That is, DeepSIC has similarities with the model-based SIC method only by refining the estimates of
+the posterior data symbol probabilities, but neither interference cancellation is conducted in a stage, nor
+model knowledge is utilized. In contrast, our proposed NN-based equalizers are far more similar to the
+underlying model-based method. More specifically, with SICNNv1 – an adapted version of an NN-based
+equalizer called SICNN proposed in our previous work [1] – we try to resemble the model-based iterative
+SIC method closely. However, we replace numerically demanding, computationally intensive operations,
+for which also approximations have to be made in the model-based approach, by low-complex NNs. This
+NN-based approach achieves significantly better performance than the corresponding model-based method,
+while exhibiting lower complexity. We tailor SICNNv1 for being employed as an NN-based equalizer in
+an SC-FDE system by exploiting some properties of this communication system in the NN architecture
+design. SICNNv2, in turn, is more abstracted from the model-based iterative SIC method, i.e., less model
+knowledge is utilized for the NN architecture design. However, it is more universal and can also be
+applied as an equalizer in any communication system with a block-based data transmission scheme. A
+further difference between DeepSIC and the proposed SICNNv1 and SICNNv2 is their generalization
+ability regarding different channels. As it is the case for, e.g., MMNet [21] or ViterbiNet [33], DeepSIC is
+trained for one specific channel. This generally allows lower complex NNs, but requires retraining as soon
+as the channel changes. SICNNv1 and SICNNv2 belong, like DetNet [18] or OAMP-Net [20], to the group
+of NN-based data estimators, which are trained with different channels sampled from a statistical channel
+model, and use the actual channel realization as an input. These NNs generally require an extensive offline
+training, and exhibit a higher computational inference complexity, but they do not have to be retrained as
+long as the specified statistical channel model is valid for the operating environment.
+   Since in every stage1 of SICNNv1/SICNNv2 the same task has to be fulfilled, namely to refine estimated
+posterior data symbol probabilities, we additionally introduce two modified versions of SICNNv1 and
+SICNNv2. While in SICNNv1 and SICNNv2 for every stage different sub-NNs are utilized to estimate
+posterior data symbol probabilites, in SICNNv1Red and SICNNv2Red every stage uses the same sub-NNs,
+which drastically reduces the number of parameters to be trained.
+   We compare the proposed NN-based equalizers with state-of-the-art model-based and NN-based data
+estimators concerning achieved bit error ratio (BER) performance, and regarding their computational
+complexity during inference. The evaluation is conducted for SC-FDE systems, either employing a UW
+or a CP as a guard interval, for both quadrature phase shift keying (QPSK) and 16-QAM (quadrature
+amplitude modulation) alphabets, and with perfect and imperfect channel knowledge at the receiver. We
+investigate the required amount of training data for achieving satisfying performance of selected NN-
+based equalizers, pointing out the advantage of reducing the number of learnable parameters of an NN.
+  1
+    In order to avoid any misunderstandings, we refer to one unfolded iteration of the model-based iterative SIC method as stage of
+SICNNv1/SICNNv2 instead of layer.
+                                                                                                                                         4
+
+
+
+Further, we demonstrate the universal applicability of SICNNv2 by presenting its achieved performance
+for a communication system employing the so-called UW-OFDM signaling scheme.
+   As another important contribution of this paper, we present a novel approach to generate training sets for
+NN-based equalizers. In this approach, only those sample data transmissions are included in the training
+set for which the number of data symbol estimation errors made by a baseline equalizer exceeds a specified
+quantity. This greatly enhances the performance of NN-based data estimators at high signal-to-noise ratios
+(SNRs).
+   The remainder of this paper is structured as follows. In Sec. II, we review the SC-FDE signaling
+scheme and data transmission model, and we discuss state-of-the-art model-based equalizers, including in
+particular the iterative SIC method our NN-based equalizers are inspired by. In Sec. III, the novel NN-based
+equalizers are introduced and discussed in detail. Further, we propose a novel approach for generating
+training datasets for NN-based data estimators in Sec. IV. We present BER performance results, and an
+in-depth analysis of the computational complexity of the regarded model-based and NN-based equalizers
+in Sec. V.
+
+Notation
+   Throughout this paper, we use lower-case bold face letters x for vectors and upper-case bold face letters
+X for matrices, xk for the kth element of x, [X]kj for the element of X in row k and column j, and
+[X]k∗ for the kth row of X. Further, (.)T , (.)H , and (.)∗ indicate transposition, conjugate transposition,
+and conjugation respectively, while |X| is the determinant of the matrix X. We denote the probability
+density function (PDF) of a continuous random variable as p(.), the probability mass function (PMF) of a
+discrete random variable as p[.], a conditional PMF of a random variable a given b as p[a|b], and a PMF
+evaluated at the value ã as p[a = ã]. We describe the expectation operator averaging over the PDF/PMF
+of a random variable a as Ea [.], where the subscript of the expectation operator is omitted when the
+averaging PDF/PMF is clear from context.
+                                           II. P RELIMINARIES
+  In this section, we describe the system model for SC-FDE, and state-of-the-art model-based equalization
+approaches. Further, we discuss an iterative SIC approach for data estimation, and we highlight some
+properties of this method.
+
+A. Single Carrier Frequency Domain Equalization
+    In an SC-FDE communication system [28], [29], [34], [35], a single carrier modulation scheme is
+employed for data transmission. At the transmitter, the data symbols to be transmitted, which are drawn
+from a modulation alphabet S (in this work, we mainly use QPSK as a modulation alphabet), are grouped
+into blocks of length Nd . These blocks of data symbols, which we refer to as data vectors d ∈ SNd , are
+strung together to generate a transmit data burst, whereby they are separated by guard intervals of length
+Ng . As a guard interval, in this work we consider using either a CP or a UW, which is a deterministic
+sequence known by the receiver. Depending on the employed guard interval, some processing steps in
+the receiver are different, which are described later in this section. The transmit data burst is upsampled
+and pulse shaped with a root-raised-cosine (RRC) filter, followed by transmitting the resulting signal over
+a multipath channel, which is additionally disturbed by additive white Gaussian noise (AWGN). At the
+receiver, the first processing step depends on the employed guard interval. While for a UW guard interval
+every received data vector including its succeeding guard interval is transformed individually to frequency
+domain, for a CP guard interval the CPs are removed first before transforming the remaining received
+data vectors individually to frequency domain. In frequency domain, the further processing steps matched
+filtering, downsampling, and equalization are conducted. Independent of the employed guard interval, the
+general model2 of the transmission of a data vector up to the input of the equalizer in the equivalent
+  2
+    Here we assume sufficiently long guard intervals such that each data block can be processed individually and independently of all other
+transmitted data blocks.
+                                                                                                            5
+
+
+
+complex baseband can be written as [36]
+                                                 e N′x + w .
+                                            yr = HF                                                       (1)
+              N′
+Here, yr ∈ C is the received vector after matched filtering and downsampling in frequency domain,
+where N ′ depends on the employed guard interval and is being specified later in this section. He ∈ RN ′ ×N ′
+is a diagonal matrix containing the sampled frequency response of the cascade of upsampler, pulse shaping
+filter, multipath channel, matched filter, and downsampler on its main diagonal. Note, that H    e is a real-
+valued matrix since we conduct optimal matched filtering in frequency domain, i.e., the filter is matched to
+the channel distorted transmit pulse (for further details on optimal matched filtering in SC-FDE systems,
+                                                   ′   ′
+we refer to [37], [38]). Furthermore, FN ′ ∈ CN ×N is the N ′ -point discrete Fourier transform (DFT)
+                               e is circularly symmetric complex AWGN, with σ 2 being the variance of
+matrix and w ∼ CN (0, N ′ σn2 H)
+                                                                              ′
+                                                                                    n
+the AWGN in time domain. The structure of the transmitted vector x ∈ CN as well as the final system
+model differ for UW and CP guard intervals, which we further detail in the following.
+    1) Unique Word Guard Interval: As already mentioned, in case of a UW guard interval [34], [35], at
+the receiver both a received data vector and its succeeding UW are transformed to frequency domain for
+                                                         ′
+the further processing steps. Hence, the vector x ∈ CN in (1) has the form x = [dT , uT ]T , where d ∈ SNd
+is the transmitted data vector to be estimated, u ∈ CNg is the UW, and N ′ = N = Nd + Ng . Inserting
+into (1) leads to
+                                                        
+                                                 e       d
+                                            yr = HFN        +w.                                           (2)
+                                                         u
+By assuming perfect channel knowledge on receiver side, the influence of the known UW u on the received
+vector yr can be removed according to
+                                            e ′ u = HM
+                                       yr − HM      e uw d + w ,                                          (3)
+with FN = [Muw M′ ], where Muw ∈ CN ×Nd and M′ ∈ CN ×Ng are built by the first Nd columns and the
+remaining Ng columns of FN , respectively.
+  2) Cyclic Prefix Guard Interval: In case of a CP guard interval [28], [29], the guard intervals are
+removed at the receiver before transforming the received blocks of data to frequency domain, which
+means that x in (1) is realized as the transmitted data vector d ∈ SNd , and N ′ = Nd . Consequently, for a
+CP guard interval, the data transmission is modeled as
+                                                 e N d+w.
+                                            yr = HF                                                       (4)
+                                                    d
+
+
+   3) System Model for Single Carrier Frequency Domain Equalization: As elaborated above, the model
+for data transmission in an SC-FDE system is given by (3) for a UW guard interval and by (4) for a CP.
+For the ease of notation, in the remainder of this work the SC-FDE system model is given for both guard
+intervals by
+                                           e
+                                       y = HMd + w = Hd + w ,                                             (5)
+           ′        ′
+                                   e
+with y ∈ CN , M ∈ CN ×Nd , and H = HM,    where we employ for a
+                 ′
+  • UW guard: N = N = Nd + Ng , y = yr − HM e ′ u, M = Muw .
+               ′
+  • CP guard: N = Nd , y = yr , M = FNd .
+                                                                                                                 6
+
+
+
+   4) Model-Based Equalization: Based on (5), data estimation can be conducted for a given received
+vector y and a channel matrix H. As thoroughly elucidated in [39], depending on the optimality criterion,
+there exist different optimal equalizers. The bit-wise maximum a-posteriori (MAP) estimator yields for
+every transmitted bit the bit value featuring the highest posterior probability. It is known to be the
+optimal estimator regarding the bit error probability. The vector MAP, in turn, is optimal regarding the
+error probability of the data vector estimate. However, the computational complexity of both of the
+aforementioned estimators grows exponentially with the data vector length Nd , which makes them in
+general prohibitive for practical applications. Hence, one usually has to resort to suboptimal linear or
+nonlinear estimation methods.
+   The best linear estimator in the Bayesian sense is the linear minimum mean square error (LMMSE)
+estimator, which is given by [40]
+                                               N σn2 −1 H
+                                      He
+                              d̂ = M HM + 2 I            M y = ELMMSE y ,                             (6)
+                                                 σd
+with I and σd2 being the identity matrix with appropriate dimensions and the variance of the symbol
+alphabet, respectively. In case of a CP guard interval (M = FNd ), (6) can be simplified to [35]
+                                     1              2 −1
+                               d̂ = ′ MH H    e + σn I     y =
+                                                                1 H
+                                                                   M ELMMSE,dg y ,                          (7)
+                                    N              σd2          N′
+                                 
+where ELMMSE,dg = H    e + σn22 I −1 is a diagonal matrix, and thus also the inversion required to compute this
+                           σd
+estimator matrix can be realized efficiently. Typically, instead of multiplying by N1′ MH , an inverse DFT
+is conducted. Note, that this low-complex equalizer can also be employed for a UW guard interval when
+applying LMMSE estimation to (2) instead of (3), i.e., the known UW u is not being removed before data
+estimation, but is estimated as well. Compared to the LMMSE estimator (6), this approximate3 LMMSE
+estimator allows a lower-complex equalization, however, at the cost of performance degradation [35].
+   A popular suboptimal nonlinear estimator is the decision feedback equalizer (DFE), which is an
+iterative method. There, in every iteration LMMSE estimation of the data symbol with the smallest error
+variance is conducted, followed by removing the influence of the hard decision data symbol estimate
+on the received vector. However, in case of wrong data symbol estimates, this method suffers from error
+propagation deteriorating the estimation performance. For more details, we refer to [39], where the DFE is
+elaborated for a so-called unique word orthogonal frequency division multiplexing (UW-OFDM) system.
+In the following, we address another suboptimal nonlinear method, namely iterative soft interference
+cancellation (SIC), in more detail, since the proposed NN-based equalizers are deduced from this model-
+based approach.
+
+B. Iterative Soft Interference Cancellation
+   The idea of the iterative SIC method proposed in [32] is to estimate each data symbol dk , k ∈ {0, ..., Nd −
+1}, in the data vector d separately, and refine the estimates from iteration to iteration. For the estimation of
+the kth data symbol dk , all other data symbols dl , l ̸= k, are treated as interference, and thus their influence
+on the received vector y is cancelled as far as possible. Since the data symbols dl are unknown, their
+currently available estimates dˆl are utilized for interference cancellation. Interference cancellation reduces
+the unknown variable to be estimated from an Nd -dimensional data vector d to a single data symbol dk ,
+and thus nonlinear minimum mean square error (MMSE) estimation – which is generally computationally
+infeasible for estimating d – can easily be applied for estimating dk . In order to prevent error propagation,
+instead of using hard decision data symbol estimates for interference cancellation, soft information of every
+data symbol estimate from the previous iteration is utilized in form of the MMSE estimate, which is the
+posterior mean, and the corresponding conditional mean square error (MSE). The soft estimates are refined
+ 3
+     By neglecting the knowledge about the UW, only an approximate LMMSE estimator is obtained.
+                                                                                                                   7
+
+
+Algorithm 1 Model-based iterative SIC for SC-FDE.
+ 1: function I TERATIVE S OFT IC SC-FDE(H, y, σn2 , σd2 )
+       dˆk ← 0, ek ← σd2 ∀k = 0, ..., Nd − 1
+         (−1)       (−1)
+ 2:
+ 3:    for q = 0, ..., Q − 1 do
+ 4:        for k = 0, ..., Nd − 1 do
+                            (q)
+ 5:            Compute yic,k according to (11)
+                             (q)
+ 6:            Compute Cvv,k following (12) for q = 0, or (14) for q > 0
+                                              (q)
+ 7:            Evaluate posterior PMF p[dk |yic,k ]
+               Update soft information: dˆk using (18) and ek via (19)
+                                          (q)               (q)
+ 8:
+ 9:        end for
+10:    end for
+11:    return d̂(Q−1)
+12: end function
+
+
+
+iteratively. In [32], this approach is proposed for a MIMO system where all entries of the channel matrix
+H are independent of each other (all entries of the channel matrix are modeled as independent random
+variables following a normal distribution). This allows for simplifications in the iterative SIC method
+that cannot be applied in general. In the following, we present the iterative SIC method following the
+approach proposed in [32]. However, we adapt this method, which is also summarized in Algorithm 1,
+for an SC-FDE system, where the assumption of independent elements of H is not fulfilled.
+   Let us regard the qth iteration, q = 0, ..., Q − 1, of Q total iterations of the iterative SIC method. We
+assume that for every data symbol dk , k ∈ {0, ..., Nd − 1}, a soft estimate from the previous iteration
+(q − 1) is available, namely, the MMSE data symbol estimate, which is the posterior mean
+                                                            h          i
+                                        dˆk
+                                          (q−1)                  (q−1)
+                                                = Ed |y(q−1) dk yic,k ,                                   (8)
+                                                            k   ic,k
+
+                                        (q−1)
+and the corresponding MSE given yic,k
+                                                        h                     i
+                                                                (q−1) 2 (q−1)
+                                            = Ed |y(q−1) dk − dˆk
+                                    (q−1)
+                                  ek                                   yic,k .                                  (9)
+                                                 k   ic,k
+
+        (q−1)
+Here, yic,k is the received vector without the interference of all but the kth data symbol estimates in
+iteration (q − 1). For the estimation of a data symbol dk , one can reformulate the system model (5) to
+                                              y = hk dk + H̄k d̄k + w ,                                        (10)
+where H̄k is H after removing the kth column hk , and d̄k is the data vector without the kth data symbol
+dk . The term H̄k d̄k denotes the interference caused by all but the kth data symbol in the data vector,
+which should ideally be removed from y for the estimation of dk . SIC can be conducted by removing
+    ˆ (q−1) from y, leading to
+H̄k d̄k
+                                 (q)            ˆ (q−1) = h d −H̄ δ̄ (q−1) + w ,
+                                yic,k = y − H̄k d̄                                                             (11)
+                                                           k k
+                                                   k
+                                                               | k k{z       }
+                                                                           (q)
+                                                                          vk
+
+       ˆ (q−1) consists of all but the kth data symbol estimates from iteration (q−1), and δ̄ (q−1) = d̄
+where d̄                                                                                               ˆ (q−1) −d̄
+         k                                                                                   k           k         k
+contains the (unknown) data symbol estimation errors from the previous iteration step. For estimating dk
+                                                           (q)
+based on (11), the statistics of the total noise vector vk , which is composed of the Gaussian noise vector
+w and the noise due to data symbol estimation errors, have to be specified. We start by considering the
+noise statistics for the first iteration (q = 0). As we will elaborate later in this section, initializing the
+data symbol estimates with the mean of the symbol alphabet is a rational choice, i.e., d̄     ˆ (−1) = 0, leading
+                                                                                                k
+                                                                                                               8
+
+
+    (0)               (0)
+to yic,k = y and δ̄k = −d̄k . Assuming independent and identically distributed (i.i.d.) data symbols with
+uniform prior probability and reasonably large Nd , following central limit theorem arguments, H̄k d̄k can
+be considered to follow a circularly symmetric complex Gaussian distribution with zero mean, and to
+                                 (0)
+be independent of w. Hence, vk approximately also follows a circularly symmetric complex Gaussian
+distribution with zero mean and a covariance matrix
+                                      (0) (0) H 
+                             (0)
+                           Cvv,k = E vk vk               e M̄k M̄H H
+                                                   = σd2 H         e + N σ2H e,                       (12)
+                                                                 k         n
+
+where M̄k is the matrix M without the kth column. For all further iterations (q > 0), we start by specifying
+                                                        (q−1)         (q−1)
+the type of the statistical distribution of the vector rk     = H̄k δ̄k     . Based on central limit theorem
+                                                                   (q−1)
+arguments and unbiased MMSE estimates (cf. Appendix A), rk                can be approximated to follow a
+circularly symmetric complex Gaussian distribution with zero mean, and thus the same assumption holds
+     (q)                                                             (q)
+for vk . As shown in Appendix A, the noise covariance matrix Cvv,k is given by
+                                     (q)       e
+                                   Cvv,k = H̄k E
+                                                      (q−1)
+                                                          H̄H           2e
+                                                 k           k + N σn H
+                                                                         (q−1) H 
+                                              − H̄k E(d̄k |y,d̂(q−2) ),w δ̄k   w                            (13)
+                                                                     (q−1) H  H
+                                              − E(d̄k |y,d̂(q−2) ),w wδ̄k       H̄k ,
+                                   (q−1) (q−1) H            
+where E e (q−1) = E                               y, d̂(q−2) is the conditioned error covariance matrix. For the
+          k         d̄k |y,d̂(q−2) δ̄k   δ̄k
+off-diagonal entries of E   e (q−1) and for the third and the fourth term in (13) no exact closed form solution
+                               k
+is available. A possible workaround is to employ the approximation
+                                            (q)               (q−1) 2e
+                                           Cvv,k ≈ H̄k Ek  H̄H
+                                                             k + N σn H ,                              (14)
+         (q−1)          (q−1)     (q−1) (q−1)       (q−1) 
+where Ek       = diag e0 , ..., ek−1 , ek+1 , ..., eNd −1 , i.e., correlations between the data symbol esti-
+mates as well as correlations between the estimation errors and the AWGN noise are neglected. However,
+this may lead to inaccuracies in the estimation process. Especially at high SNRs, for deep fading channels,
+                                     (q−1)                                    (q)
+and when q is increasing (then the ek      are usually becoming smaller), Cvv,k can become ill-conditioned,
+which is – in combination with the occurring approximation errors – an issue for computing its inverse
+required for the next steps in the estimation process.                         (q) 
+   For computing a data symbol estimate dˆk , the posterior PMF p dk |yic,k is needed, which can be
+                                               (q)
+
+                                                                          (q)     
+obtained via the Bayesian rule by utilizing the likelihood function p yic,k dk . Given the noise covariance
+          (q)
+matrix Cvv,k , the likelihood function follows to
+                                (q)                   1                    (q) H    (q)−1    (q) 
+                             p yic,k dk =            (q)
+                                                                 exp − xk           Cvv,k xk
+                                               π N |Cvv,k |
+                                                (q) (q)
+                                             = αk fk (dk ) ,                                               (15)
+          (q)   (q)
+with xk = yic,k − hk dk , a scaling factor
+                                   (q)            1               (q) H (q)−1 (q) 
+                                   αk =           (q)
+                                                           exp − yic,k Cvv,k yic,k ,                       (16)
+                                            π N |Cvv,k |
+which is independent of dk , and a function
+                             (q)                              (q)−1   (q)   (q) H     (q)−1           
+                            fk (dk ) = exp d∗k hH
+                                                k Cvv,k yic,k + yic,k Cvv,k hk dk
+                                                        (q)−1                                             (17)
+                                       · exp − d∗k hH
+                                                    k Cvv,k hk dk
+                                                                                                            9
+
+
+
+depending on dk . With the above stated results at hand, the MMSE data symbol estimate dˆk and its
+                                                                                         (q)
+                    (q)
+corresponding MSE ek can then be computed as
+                                      (q) 
+                                               X                (q) 
+                          dˆk = E dk |yic,k =
+                            (q)
+                                                   s′ p dk = s′ yic,k
+                                                        s′ ∈S
+                                    P               (q)                P
+                                          s ′
+                                              p  y         d   = s  ′           ′ (q) ′
+                                      ′
+                                     s ∈S           ic,k     k           s′ ∈S s fk (s )
+                                =   P             (q)                = P         (q) ′
+                                                                                                        (18)
+                                           p    y        d    = s ′
+                                        ′
+                                      s ∈S        ic,k     k              s′ ∈S fk (s )
+
+and
+                                                            P              (q) 2 (q)
+                                      (q) 2 (q)                   s′ − dˆk fk (s′ )
+                         ek = E dk − dˆk |yic,k =              s′ ∈S
+                          (q)
+                                                                   P       (q) ′
+                                                                                      ,                 (19)
+                                                                      ′  f
+                                                                     s ∈S k   (s )
+where a uniform prior PMF p[dk ] is assumed.
+  Updating the data symbol soft estimates concludes one iteration. The succeeding iteration starts with
+conducting SIC following (11).
+  A quite interesting and not obvious result is verified in Appendix B, namely, that when using a zero
+vector as initialization for the estimated data symbol vector, after one iteration the iterative SIC exhibits
+the same hard decision bit error probability as the LMMSE estimator. Hence, we employ the zero vector,
+which is also the prior mean of the data vector (since we assume a symmetric modulation alphabet and
+uniformly distributed data symbol probabilities), as initialization of the iterative SIC method.
+
+        III. S OFT I NTERFERENCE C ANCELLATION I NSPIRED N EURAL N ETWORK E QUALIZERS
+   As already mentioned in Sec. II-B, the model-based SIC method suffers from the issue that the compu-
+                                               (q)−1
+tation of the inverse noise covariance matrix Cvv,k , also known as precision matrix, is computationally
+and numerically demanding while approximations have to be made in addition. With our proposed NN
+equalizers SICNNv1 and SICNNv2, whose layer structures are inspired by the iterative SIC method,
+we aim to overcome the weaknesses of the model-based SIC method. However, the SIC operation from
+the model-based method is preserved in the developed NNs, which is expected to help SICNNv1 and
+SICNNv2 to provide reliable soft estimates (required, e.g., to compute log-likelihood ratios in case of
+channel coded transmission), and allows to obtain interpretable intermediate quantities / variables inside
+the NN-based equalizers. While the structure of SICNNv1 is very similar to the model-based method
+and is specifically designed for SC-FDE communication systems, SICNNv2 is more general and can be
+applied for any communication system, where the system model can be formulated as in (5) with any
+matrix H. For both SICNNv1 and SICNNv2, we additionally present a version with a reduced number
+of learnable parameters, since we exploit the knowledge that every stage of SICNNv1/SICNNv2 has to
+provide estimates of the posterior data symbol probabilities, given the estimates of the previous stage
+and the received vector, and thus should work with the same set of learnable parameters. The parameter-
+reduced versions are referred to as SICNNv1Red and SICNNv2Red. Besides, in this section we also
+briefly review a normalization scheme of the input data, which is required for a satisfying performance
+of NN-based data estimators in SC-FDE systems.
+
+A. SICNNv1
+  The NN architecture is deduced by deep unfolding [27] the iterative SIC method described in Sec. II-B
+to Q stages of SICNNv1. That is, every iteration of the model-based SIC method (the outer loop of
+Algorithm 1), corresponds to one stage of SICNNv1. The steps conducted in one stage of SICNNv1,
+which is schematically shown in Fig. 1, are very similar to those of the model-based method described in
+Algorithm 1, however, the model-based computations in line 6 and line 7 of Algorithm 1, are accomplished
+using data-driven FCNNs. Let us describe the structure of stage q of SICNNv1, q ∈ {0, ..., Q − 1}, in
+                                                                                                                                                                                                          10
+
+
+
+                                                    σn2
+                                                                            (q)                                (q)−1
+                                                                           g0                                Ĉvv,0
+                                                    e
+                                                    H                                                   2
+                                                                 4                    FCNN 1         (.)
+                                                     (q) H
+                                                    a0                                                                                        (q)−1 (q)
+                                                                                                                                       hH
+                                                                                                                                        0 Ĉvv,0 yic,0
+                                                                                                                                                                                         (q)
+                       (q−1)                                                                                                                                                            p̂0,Re
+                   e0                                                                                         h0                              (q)−1
+  (q−1)                                                                                                                        5       hH
+                                                                                                                                        0 Ĉvv,0 h0                    FCNN 2            (q)
+                                                                                                                                                                                        p̂0,Im
+p̂0,Re               (q−1)
+                   dˆ0,Re
+
+ (q−1)
+              1      (q−1)
+                   dˆ0,Im
+p̂0,Im                                                                σn2                    (q)                                   (q)−1
+                                                                                            gNd −1                              Ĉvv,Nd −1
+                                                                      e
+                                                                      H                                                  2
+                                                                                      4              FCNN 1            (.)
+                                                           3           (q) H
+                                                                     aNd −1                                                                                        (q)−1       (q)
+                                                                                                                                                          hH
+                                                                                                                                                           Nd −1 Ĉvv,Nd −1 yic,Nd −1
+                                                                                                                                                                                                   (q)
+                                    (q−1)
+                                   eNd −1
+                                                       (q)
+                                                      yic,0                                                                                                                                       p̂Nd −1,Re
+                                                                                                                              hNd −1                      hH
+                                                                                                                                                                   (q)−1
+                                                                                                                                                           Nd −1 Ĉvv,Nd −1 hNd −1
+                                                                                                                                                                                                   (q)
+            (q−1)
+          p̂Nd −1,Re                 (q−1)                                                                                                        5                                     FCNN 2    p̂Nd −1,Im
+                                   dˆNd −1,Re
+
+           (q−1)
+                               1     (q−1)
+                                   dˆNd −1,Im
+          p̂Nd −1,Im
+                                                                                                                                                        (q−1)    P|S |−1 (q−1)
+                                                                                                                                                                           0
+                                                                                                                                                      dˆk,Re/Im = l=0 sl p̂k,Re/Im,l
+                                                                                                                                                 1               P                       2
+                                                                                                                                                        (q−1)      |S0 |−1         (q−1)     (q−1)
+                                                                     (q)                                                                              ek,Re/Im = l=0        sl − dˆk,Re/Im p̂k,Re/Im,l
+                                                                  yic,Nd −1
+                                                           2                                                                                     2     (q)            ˆ (q−1)
+                                                                                                                                                      yic,k = y − H̄k d̄ k
+
+                                                                                                                                                             P d −1 (q−1) H
+                                                                                                                                                          (q) H
+                                                                                                                                                 3    ak   = N  i=0,i6=k ei mi
+                                                          H y                                                                                              h                n       o    n       oi
+                                                                                                                                                       (q)                     (q) H        (q) H
+                                                                                                                                                 4    gk = σn2 , diag H̃ , Re ak      , Im ak
+
+                                                                                                                                                 5    Compute products specified at block outputs
+
+
+Fig. 1. Schematic structure of one stage of SICNNv1.
+
+
+more detail, starting at its input. The inputs of stage q are the received
+                                                                         (q−1)vector y, the sampled frequency
+                  e                                            (q−1)            T   (q−1) T T     (q−1)            ′
+                                           2
+response diag(H), the noise variance σn , and the vectors p̂k         = p̂k,Re , p̂k,Im        , p̂k     ∈ [0, 1]2|S | ,
+k ∈ {0, ..., Nd − 1}, where S′ = Re{S} = Im{S} (assuming a symmetric alphabet S). The elements
+  (q−1)        (q−1)                   (q−1)      (q−1)
+p̂k,Re,l and p̂k,Im,l of the vectors p̂k,Re and p̂k,Im , respectively, are the estimates of stage (q − 1) for
+                                                             (q−1)                          (q−1) 
+the data symbol posterior probabilities p Re{dk } = sl |yic,k         and p Im{dk } = sl |yic,k , respectively,
+where sl ∈ S′ are the uniquely numbered symbols of S′ , l ∈ {0, ..., |S′ | − 1}. For the inputs of the first
+                     (−1)    (−1)
+stage (q = 0), p̂k,Re = p̂k,Im = |S1′ | 1 is chosen, i.e., the estimated posterior probabilities are initialized
+uniformly, which represents the prior data symbol probability distribution. The values of the elements of
+  (q)        (q)
+p̂k,Re and p̂k,Im are updated in every stage following the procedure described below.
+    Similar to the model-based method, in the first step ( 1 in Fig. 1) of the qth stage
+                                                               |S′ |−1                                                       |S′ |−1
+                                                               X                                                             X
+                                                dˆk,Re =                                              dˆk,Im =
+                                                  (q−1)                         (q−1)                   (q−1)                                  (q−1)
+                                                                           sl p̂k,Re,l ,                                                   sl p̂k,Im,l ,                                             (20)
+                                                                l=0                                                           l=0
+
+and
+                                                                                    q
+                                                                (q−1)                        (q−1) 2                 (q−1) 2
+                                                               ek     =                     ek,Re           + ek,Im                    ,                                                             (21)
+with the estimated MSEs
+                                                                                  |S′ |−1
+                                                                                  X                (q−1) 2 (q−1)
+                                                                                            sl − dˆk,Re/Im p̂k,Re/Im,l ,
+                                                          (q−1)
+                                                      ek,Re/Im =                                                                                                                                     (22)
+                                                                                   l=0
+                     (q−1)
+are computed, where ek     is utilized as a reliability measure of the corresponding data symbol estimate.
+Note that these quantities can be computed independently for every data symbol index k, and thus the
+blocks 1 are drawn isolated from each other in Fig. 1.
+                                                                                                                              11
+
+
+
+  In a second step ( 2 in Fig. 1), model-based interference cancellation is carried out by computing
+                                                   (q)            ˆ (q−1) ,
+                                                  yic,k = y − H̄k d̄                                                        (23)
+                                                                     k
+
+using the data symbol estimates dˆ¯k,l = dˆl,Re + j dˆl,Im , l ∈ {0, ..., k − 1, k + 1, ..., Nd − 1} from stage
+                                   (q−1)   (q−1)      (q−1)
+
+            ˆ (q−1) .
+(q − 1) for d̄  k
+                                                                                        (q)−1
+    Instead of computing (an approximate of) the precision matrix Cvv,k in a model-based fashion,
+we estimate it by utilizing fully-connected feedforward layers, which we also refer to as sub-NNs. A
+                                                                                                                      (q)−1
+straightforward approach is to estimate the real and the imaginary part of the N 2 elements of Cvv,k . We
+exploit two observations for both reducing the number of parameters to be estimated by a sub-NN and
+ensuring that the estimated precision matrix satisfies the properties implied by its definition. Firstly, the
+                          (q)
+covariance matrix Cvv,k , and thus also its inverse, has to be a Hermitian, positive definite matrix. That
+       (q)−1                                                        (q)−1       (q) H (q)             (q)
+is, Cvv,k can be decomposed into the matrix product Cvv,k = Bk Bk , where Bk is the matrix to be
+estimated by the sub-NNs. Secondly, our empirical investigations showed, that for the regarded SC-FDE
+                                                      (q)−1
+communication system a precision matrix Cvv,k exhibits significant non-zero values only on the major
+and the first few minor diagonals, and thus can be approximated as a band matrix. In the initial version
+                                                                                                            (q)
+of SICNNv1 described in [1] (where it is simply referred to as SICNN), we specify Bk to be a lower
+triangular matrix containing non-zero values only on the main diagonal and the first nmd minor diagonals,
+where nmd ∈ N0 is a hyperparameter of SICNN, which tremendously reduces the number of non-zero
+                   (q)                                                                                           (q)
+elements of Bk to be estimated. The non-zero elements of the complex-valued matrix Bk are to be
+estimated by two separate sub-NNs, using one sub-NN for the real part and one for the imaginary part.
+As stated in [1], hyperparameter optimization turns out that the best equalization performance is achieved
+with nmd = 0, i.e., the precision matrix is assumed to be a diagonal matrix. This insight motivates an
+adaption of the architecture of SICNN for the structure of SICNNv1. As depicted in Fig. 1, a single sub-
+                                                                              (q)−1
+NN FCNN 1 is employed to estimate the major diagonal of Cvv,k . To ensure positive definiteness, the
+                                                  (q)−1
+final estimates of the major diagonal of Cvv,k are obtained by squaring the outputs of FCNN 1. FCNN 1
+has nL,C hidden layers with nH,C neurons per hidden layer, ReLU activation functions, and a batch norm
+layer after the input layer. For determining the required inputs of FCNN 1, we reconsider the computation
+      (q)
+of Cvv,k in (13) and the quantities involved there. Besides the terms describing correlations between w
+and d̄ˆ (q−1) , only terms consisting of σ 2 , H,e and M̄k E  e (q−1) M̄H occur in (13). When replacing E        e (q−1) by its
+        k
+                      (q−1)
+                                            n                    k       k
+                                                                            (q−1)           PNd −1      (q−1)
+                                                                                                                    k
+                                                                                                                              (q)
+approximation Ek , the latter term can be expressed as M̄k Ek M̄H                      k =            e
+                                                                                             i=0,i̸=k i       m     H
+                                                                                                                i i =: Ak ,
+                                                                                                                 m
+                                            (q)
+with mi as the ith column of M. Ak is a Hermitian Toeplitz matrix, consequently it is already fully
+                               (q) H         (q)        P d −1 (q−1) H
+described by its first row ak          = Ak 0∗ = N         i=0,i̸=k ei     mi , where we exploit mi,0 = 1 for all i in
+                                (q) H
+the last step. The vectors ak , which are computed in block 3 , are concatenated in block 4 with σn2
+and diag H     e to the input vector of FCNN 1
+                                                                                       
+                                    (q)
+                                  gk = σn2 , diag H     e , Re a(q) H , Im a(q) H .                                         (24)
+                                                                    k                k
+                                                        (q)−1                                  (q) 
+    With a given estimated precision matrix Ĉvv,k , the posterior PMF p dk |yic,k should be estimated.
+Experiments, where the posterior PMF is computed as described in Sec. II-B in a model-based fashion
+                                                                                                                            (q)−1
+did not lead to satisfying performance. We assume a major reason for this issue is that the estimate Ĉvv,k
+provided by FCNN1 is not precise enough to be treated as the exact precision matrix. Hence, we utilize
+another
+           sub-NN (FCNN 2 in Fig. 1), which is trained (jointly with FCNN1) to estimate the posterior PMF
+          (q) 
+p dk |yic,k and can cope with inaccuracies in the estimated precision matrix. More specifically, the output
+                               (q)       (q) T (q) T T
+of FCNN2 is the vector p̂k = p̂k,Re , p̂k,Im                (which is also the output of the qth SICNNv1 stage),
+containing estimates for the data symbol posterior probabilities, as introduced earlier in this section. To
+                                                                                                            12
+
+
+                                                                                       (q) 
+specify the required input quantities of FCNN 2 for estimating the posterior PMF p dk |yic,k , let us
+consider its representation
+                                                  (q)                   (q)
+                                    (q)     p(yic,k |dk )          fk (dk )
+                              p dk |yic,k = P          (q) ′
+                                                                 = P         (q) ′
+                                                                                     ,                 (25)
+                                              ′
+                                             s ∈S p(y  ic,k |s )      ′
+                                                                     s ∈S kf    (s )
+                                                                                                      (q)
+by applying the Bayesian rule and assuming a uniform prior data symbol probability,         where fk (.)
+                                                    (q)                               (q) 
+is defined in (17). Due to the definition of fk (.), the posterior PMF p dk |yic,k depends only on
+      (q)−1 (q)                                H (q)
+                                                     −1
+hHk Cvv,k yic,k , its complex conjugate, and hk Cvv,k hk . Therefore, the input vector of FCNN 2 is chosen
+to be
+                                (q)           (q)−1 (q)       H (q)−1 (q)
+                               sk = Re hH   k Ĉvv,k yic,k , Im hk Ĉvv,k yic,k ,
+                                              (q)−1   T                                              (26)
+                                         hH
+                                          k Ĉvv,k hk     ,
+                        (q)
+where the elements of sk are computed in block 5 . FCNN 2 consists of nL,Pr fully-connected hidden
+layers with nH,Pr neurons per hidden layer, ReLU activation functions between each hidden layer, and a
+batch norm layer after the input layer. Further, two independent softmax functions are utilized as output
+                                  (q)       (q)                                                 (q)
+activation functions to obtain p̂k,Re and p̂k,Im , which are concatenated to the stage output p̂k .
+   An investigation of the inputs of sub-NN FCNN 2 as defined in (26) reveals a large variation of the
+             (q)
+values of sk , which depends on both the data symbol index k and the SICNNv1 stage index q. Hence,
+                                                        (q)               (q) −1/2
+in the qth SICNNv1 stage we suggest to multiply yic,k and hk by ||yic,k ||2 , which turns out to lead to
+a more robust training procedure.
+   In one stage, we use the same sub-NNs for estimating the precision matrix and the posterior data symbol
+probabilities for all Nd data symbols to be estimated. However, different sub-NNs are utilized from stage
+to stage, i.e. their learnable parameters are in general different to those of the sub-NNs of the remaining
+stages, whereby the hyperparameters of the sub-NNs are the same for all stages.
+   We optimize the parameters of SICNNv1 by employing a custom loss function based on the cross
+entropy loss, which can be computed as
+
+                                                    1 X
+                                                             D−1
+                                   fCE (α, β) := −       αd ln(βd ) ,
+                                                   D d=0
+                                       P        P
+with any vectors α, β ∈ [0, 1]D and      d αd =   d βd = 1. More specifically, instead of utilizing only
+the final output of SICNNv1 for computing the loss value, the custom loss is based on Q partial cross
+entropy losses of all Q stage outputs, which are weighted by the corresponding stage index q. That is,
+the employed custom loss function is given by
+                                                  Q−1 N −1
+                                             1 XX     d
+                                                                                (q)
+                              ℓ(doh , P̂) =                wq fCE (doh,k,Re , p̂k,Re )
+                                            QNd q=0 k=0                                                (27)
+                                                                 (q) 
+                                             + fCE (doh,k,Im , p̂k,Im ) ,
+               (q)        d −1 Q−1
+                                                                                            PQ− 1
+where P̂ := {p̂k,Re/Im }Nk=0    q=0
+                                    is the collection of all stage outputs, wq = (q + 1)/ q=1     q is the
+weighting factor of the partial losses, and doh,k,Re and doh,k,Im are one-hot vectors corresponding to the
+real and imaginary part of a data symbol dk , respectively. This custom loss function is inspired by the
+loss function employed for training DetNet [18] and by the auxiliary classifiers of GoogLeNet [41], and
+should lead to a faster converging training.
+                                                                                                                                                             13
+
+
+
+                                 (q−1)
+                             e0,Re
+                                 (q−1)
+            (q−1)            e0,Im
+           p̂0,Re                                                                 (q)                      (q)
+                                                                              z0                          p̂0,Re
+                               (q−1)
+                             dˆ0,Re                        σn2                                             (q)
+            (q−1)
+                        1                                               3                   FCNN          p̂0,Im
+           p̂0,Im              (q−1)
+                             dˆ0,Im                        h0
+                                                            (q)
+                                                           yic,0
+
+
+                                              (q−1)
+                                             eNd −1,Re
+                                              (q−1)
+                     (q−1)                   eNd −1,Im
+                    p̂Nd −1,Re                                                                (q)                        (q)
+                                                                                             zNd −1                     p̂Nd −1,Re
+                                               (q−1)
+                                             dˆNd −1,Re                     σn2                                          (q)
+                     (q−1)
+                                         1                                              3                  FCNN         p̂Nd −1,Im
+                    p̂Nd −1,Im                 (q−1)
+                                             dˆNd −1,Im                 hNd −1
+                                                                         (q)
+                                                                 2      yic,Nd −1
+                                                                                                            (q−1)    P|S |−1 (q−1)
+                                                                                                                          0
+                                                                                                          dˆk,Re/Im = l=0 sl p̂k,Re/Im,l
+                                                                                                      1              P                       2
+                                                                                                            (q−1)     |S0 |−1          (q−1)     (q−1)
+                                                                                                          ek,Re/Im = l=0        sl − dˆk,Re/Im p̂k,Re/Im,l
+                                                            H y
+                                                                                                         (q)            ˆ (q−1)
+                                                                                                      2 yic,k = y − H̄k d̄k
+
+                                                                                                              (q)
+                                                                                                      3 z(q)          (q) T   (q)       (q) T    (q)
+                                                                                                         k = ρk Re{yic,k }, ρk Im{yic,k }, ρk Re{hk },
+                                                                                                                                                         T
+
+                                                                                                                  (q)    T   (q−1) (q−1)      (q) 2 2 T
+                                                                                                                ρk Im{hk }, ek,Re , ek,Im , ρk σn
+
+
+Fig. 2. Schematic structure of one stage of SICNNv2.
+
+
+B. SICNNv2
+   The first operations conducted in a stage of SICNNv2 are equivalent to those in a stage of SICNNv1.
+                                                        (q−1)
+That is, given the estimated posterior probabilities p̂k      from the previous stage (q−1), the corresponding
+data symbol estimates dˆk,Re/Im and estimated MSEs ek,Re/Im are computed according to (20) and (22),
+                          (q−1)                             (q−1)
+
+respectively. With the data symbol estimates dˆk,Re/Im for all data symbols in the data vector at hand,
+                                                    (q−1)
+
+                                                                                        (q)
+interference cancellation is conducted as a next step according to (23) to obtain yic,k . However, as shown
+in Fig. 2, the remaining structure of a stage of SICNNv2 differs from the stage structure of SICNNv1.
+Specifically, while the further inference steps conducted in a stage of SICNNv1 to obtain the stage output
+are similar to the steps of the model-based algorithm, in an SICNNv2 stage an FCNN is employed for
+directly estimating the posterior data symbol probabilities using the input vector
+                               (q)   (q)     (q) T     (q)      (q) T     (q)
+                             zk = ρk Re{yic,k }, ρk Im{yic,k }, ρk Re{hTk },
+                                        (q)           (q−1) (q−1)      (q) 2   T
+                                      ρk Im{hTk }, ek,Re , ek,Im , ρk σn2 ,
+                                                (q)       (q)        −1/2
+with a normalization factor ρk = ||yic,k ||2 . The estimated posterior data symbol probabilites are
+                                    (q)    (q) T (q) T T
+contained in the output vector p̂k = p̂k,Re , p̂k,Im       of the FCNN, which is also the output of the
+qth stage of SICNNv2. The FCNN has nL hidden layers, nH neurons per hidden layer, a batch norm layer
+after the input layer and every third hidden layer, and ReLU activation. SICNNv2 is trained with the same
+loss function (27) as SICNNv1.
+   The architecture of SICNNv2 is solely based on the idea of SIC, and is more universal than that of
+SICNNv1 since no properties of an SC-FDE system are utilized. Hence, SICNNv2 can be employed for
+equalization in other communication systems like, e.g., general MIMO systems or UW-OFDM systems.
+However, for SC-FDE we expect a higher equalization complexity and maybe a worse BER performance
+of SICNNv2 compared to SICNNv1 as less model knowledge is incorporated.
+
+C. Parameter Reduction: SICNNv1Red and SICNNv2Red
+  For reducing the number of parameters to be trained, we exploit the fact that in every stage of SICNNv1
+and SICNNv2 the same task is fulfilled, namely, the posterior data symbol probabilities are to be estimated
+                                                                                                                                     14
+
+
+
+given the estimated posterior data symbol probabilities from the previous stage, the received vector,
+the channel matrix, and the noise variance. Hence, we employ the same sub-NNs in every stage of
+the NN-based equalizers, leading to the corresponding parameter-reduced versions SICNNv1Red and
+SICNNv2Red. These parameter-reduced NNs can also be viewed as a single stage where its output is fed
+back Q times.
+   This NN architecture distinctly reduces the number of parameters to be optimized, which reduces the
+computational effort for training, and is also supposed to lead to a more robust training procedure and a
+smaller amount of training data to be required. However, it turns out that the employed loss function for
+training the parameter-reduced NNs has to be slightly altered for obtaining a good performance. More
+specifically, the outputs of the stages with higher stage index q are given a higher importance by changing
+the weights wq of the loss function (27) for training SICNNv1Red and SICNNv2Red to
+                                                              (q + 1)r
+                                                         wq = PQ−1 ,                                                              (28)
+                                                                      r
+                                                                q=1 q
+
+where r is a hyperparameter, which we choose for SC-FDE systems to be r = 4.
+
+                     IV. T RAINING S ET G ENERATION AND DATA N ORMALIZATION
+   In this section, we describe a novel approach for generating training sets for NN-based equalizers.
+For the regarded SC-FDE systems, this approach considerably improves the performance of NN-based
+equalizers at high SNRs. Further, we briefly describe a data normalization scheme specifically tailored
+for SC-FDE, which was already presented in [31].
+
+A. Training Set Generation
+   The achieved BER performances of model-based and NN-based equalizers are generally evaluated in a
+specified Eb /N0 interval, where Eb is the mean bit energy and N0 is the noise power spectral density on
+receiver side, i.e., Eb /N0 is a measure for the SNR. To generate the training set for NN-based equalizers,
+typically sample data transmissions over channel realizations4 drawn from a statistical channel model are
+conducted, where Eb /N0 for the data transmission is selected randomly with a uniform distribution within
+a specified range, short training SNR range. The upper and lower limits of the training SNR range are
+typically hyperparameters, which are to be selected carefully, since they have a significant influence on
+the performance of trained NN-based equalizers [39], [42], [43]. Despite a careful selection of the training
+SNR range, the issue of “flattening out” BER curves can occur. That is, although NN-based equalizers
+perform well for a wide Eb /N0 range, at higher Eb /N0 values, and thus low BERs (of, e.g., 10−5 or
+10−6 ), their BER curves do not fall as steeply as those of many model-based equalizers. Although this
+issue occurs for most NN-based equalizers (shown, e.g., in [31], [44]), interestingly, there are only very
+few works like [43], where proper training of NN-based equalizers is addressed. In this work, we propose
+a novel approach for the generation of training sets for NN-based equalizers. By training NN-based data
+estimators with these specifically generated training sets, the issue of flattening out BER curves at high
+SNRs can be mitigated significantly.
+   Typically, even low complex equalizers like the LMMSE equalizer achieve low BERs at high SNRs (as
+it can be seen, e.g., in Fig. 4, where the LMMSE estimator achieves a BER of 5·10−5 at Eb /N0 = 14 dB).
+In other words, the decision boundaries of the baseline LMMSE equalizer and the optimal bit-wise MAP
+equalizer differ only slightly. That is, by randomly generating data transmissions for the training set at high
+SNRs, for those data transmissions even with the baseline LMMSE estimator only very few data symbol
+estimation errors occur. However, the NN-based equalizers are expected to approximate the optimal bit-
+wise MAP estimator. Hence, for NN training, exactly those few received data symbols are of interest,
+  4
+    These channel realizations are not used for evaluation, but the same statistical channel model is used to generate channels used for
+evaluation.
+                                                                                                              15
+
+
+
+where with the baseline LMMSE estimator a wrong estimate is obtained for the corresponding transmitted
+data symbol, while the optimal estimator still achieves a correct data symbol estimate. Since only a few
+of those important received data symbols are contained in the training set when generating the training
+data randomly, their influence on the training loss of the NN is small, leading to the aforementioned issue
+of flattening out BER curves. With the aforementioned observations in mind, we suggest the following
+method for generating the training set of NN-based equalizers for SC-FDE systems: instead of randomly
+selecting an SNR value within the SNR training range for the transmission of every data burst that is
+contained in the training set, we define an evenly spread grid on the SNR training range (on a linear
+scale). The number of grid points coincides with the number of channels over which data transmissions
+are to be conducted to generate the training set. For every SNR grid point, a channel realization is drawn
+from the assumed statistical channel model, and a burst of Nburst data vectors d is transmitted over this
+channel. The corresponding received vectors y are equalized using a baseline LMMSE estimator. Instead
+of including all data vectors of the transmitted burst in the training set, only those are retained where
+the baseline equalizer produces at least Nepd errors per data vector. Since particularly at higher SNRs
+the number of retained data vectors is generally far lower than Nburst , another burst of data vectors is
+generated and transmitted over the same channel, again followed by keeping only the data vectors where
+at least Nepd errors per data vector are produced by the baseline estimator. This procedure is repeated
+until Nburst data vectors are found for the specific channel, which are then included in the training set.
+However, for flat channels, even with the baseline equalizer no or too few errors occur such that no data
+vectors are found which could be included in the training set. Therefore, a stopping criterion has to be
+introduced, where after Ncheck burst generations the number of retained data vectors is checked. If the the
+number of retained data vectors is smaller than, e.g., 0.1Nburst , the current channel realization is discarded.
+While keeping the SNR value corresponding to the specified SNR grid point, a new channel realization is
+drawn from the statistical channel model, and the same data vector selection process as described above
+is carried out. The parameters for the training set generation depend on the communication system setup
+for which the NN-based equalizers are trained, and thus they are specified in Sec. V-A individually for
+every setup.
+
+B. Data Normalization
+   Normalizing the input data of NNs is generally considered to be very important for training conver-
+gence when optimizing their learnable parameters via backpropagation [45], [46]. While in many current
+publications on NN-based data estimation in MIMO systems over uncorrelated Rayleigh fading channels
+no normalization of the NN input data is applied (cf., e.g., [17]–[19]), we showed in [47] and [39] that
+for a so-called UW-OFDM communication system a proper data normalization is of major importance
+for the performance of NN-based equalizers (for a visualization of the influence of data normalization on
+the performance of NN-based equalizers for UW-OFDM, we refer to [47]). With the same idea as for
+UW-OFDM in mind, namely to apply a normalization scheme leading to variances of the elements of the
+noise vector that are independent of the multipath channel, we implement a data normalization scheme for
+SC-FDE systems. This data normalization scheme for SC-FDE is elucidated in [31], and thus we repeat
+here only the result. To obtain channel-independent noise variances var(wi ), the system model (5) has to
+be multiplied by K = κH   e −1/2 , where
+                                            q
+                                                e
+                                         κ = tr{H}/tr{ e
+                                                       HMM      e .
+                                                              H H}                                   (29)
+The normalization of the input data of the NN-based equalizers is implemented by multiplying both y
+and He by K as part of pre-processing, and is neglected in the remainder of this paper for the sake of
+readability.
+                                                                                                        16
+
+
+
+                                               V. R ESULTS
+   In this section, we investigate the proposed versions of SICNN thoroughly by means of simulations
+of data transmission in an indoor frequency selective environment. To demonstrate the wide applicability
+the proposed NN-based approaches, we evaluate them for a number of different SC-FDE communication
+system setups. We show simulation results for SC-FDE systems with both UW and CP guard inter-
+vals. Besides simulations with a QPSK modulation alphabet, also results for a 16-QAM alphabet are
+provided. Most of the simulations are conducted assuming perfect channel knowledge on receiver side.
+The robustness of the proposed NN-based data estimators in case of imperfect channel knowledge, is
+proven by simulating their performance for estimated channel impulse responses. Further, we highlight the
+performance improvements of NN-based equalizers when being trained on a training set generated with our
+proposed approach, presented in Sec. IV-A. We compare SICNNv1 and SICNNv2, and their corresponding
+parameter-reduced versions SICNNv1Red and SICNNv2Red, with state-of-the-art model-based and NN-
+based equalizers in terms of both their achieved BER performance over a specified SNR range and their
+computational complexity. More specifically, for comparison with model-based equalizers, we use the
+LMMSE estimator [35], the iterative DFE (implemented in the same way as described in [47] for UW-
+OFDM systems), and the iterative SIC method, where the approximation (14) is employed. We compare
+the proposed NNs with the state-of-the-art NN-based data estimators OAMP-Net2 [19] and DetNet [18],
+whereby we do not use DetNet as proposed in [18] for MIMO systems, but a better performing version
+that is adapted for SC-FDE systems [31]. Moreover, we show the BER performance and computational
+complexity of KAFCNN from [31], which is an FCNN that is designed for equalization in SC-FDE
+systems by using a layer conducting an inverse DFT as a last layer, i.e., the knowledge that the data
+symbols being defined in time domain are to be estimated given a received vector in frequency domain
+is incorporated.
+   Moreover, for an SC-FDE system with a UW guard interval we present the influence of a limited training
+set size on the BER performance of selected NN-based equalizers to investigate the “data hunger” of an
+NN depending on its number of learnable parameters.
+   Finally, we also present performance results for SICNNv2 being employed as an equalizer in com-
+munication system utilizing the so-called UW-OFDM signaling scheme. With these results we want the
+highlight the wide applicability and the versatility of the proposed NN-based equalizers.
+
+A. Simulation Setup and Neural Network Training
+   The shown simulation results are obtained by simulating data transmission without channel coding.
+Apart from Sec. V-D, all simulation settings, results, interpretations, and conclusions in this work are
+given for SC-FDE systems. The simulation setup and the results for the simulation of SICNNv2 as an
+equalizer in a UW-OFDM system are detailed in Sec. V-D. For SC-FDE communications with a UW guard
+interval, simulations are conducted with the SC-FDE system parameters Nd = 20, Ng = 12 (i.e., N = 32),
+RRC roll-off factor α = 0.25, a baseband sampling time Ts = 52 ns. Further, unless noted otherwise, a
+QPSK modulation alphabet is employed, and perfect channel knowledge is assumed on receiver side. The
+parameters of the simulations of SC-FDE systems with a CP guard interval differ from those with a UW
+guard interval by the data vector length Nd = 32, all other parameters are maintained.
+   The achieved BER performances of the different equalizers are plotted in a specified Eb /N0 interval.
+The presented BER performances for SC-FDE systems are averaged results over 7000 different multipath
+channel realizations, which are modeled as described in [48] in form of tapped delay lines with uniformly
+distributed phase, Rayleigh distributed magnitude, and an exponentially decaying power profile with a
+root mean square delay spread of τRMS = 100 ns. The data transmission is conducted in form of data
+bursts containing 1000 blocks of payload data per burst, where the channel is assumed to be stationary
+for one burst and changes independently of its previous realizations for every burst.
+   For training the NN-based equalizers, we generate training sets with the proposed approach described
+in Sec. IV-A. The selected parameters of the training set generation method Nepd and Nburst , the training
+                                                                                                                                                     17
+
+
+
+                                                      TABLE I
+              PARAMETERS OF THE TRAINING SET GENERATION APPROACH FOR DIFFERENT SC-FDE SYSTEM SETTINGS .
+
+                                                                                                            Eb /N0 train.
+                              SC-FDE parameters           Baseline equalizer       Nepd       Nburst
+                                                                                                            range in dB
+                          UW guard, QPSK                  LMMSE, eq. (6)               3           100            [2, 12.5]
+                          CP guard, QPSK                  LMMSE, eq. (7)               2           100              [5, 18]
+                          UW guard, 16-QAM                LMMSE, eq. (6)               3           100              [6, 19]
+                          UW guard, QPSK,                 approx. LMMSE,
+                                                                                       3           100              [3, 16]
+                          channel est.                    eq. (7)
+
+
+                                                           TABLE II
+ H YPERPARAMETER SETTINGS OF THE PROPOSED NN EQUALIZERS . T HE HYPERPARAMETERS OF THE PARAMETER - REDUCED NN S
+ SICNN V 1R ED AND SICNN V 2R ED DIFFER FROM THE HYPERPARAMETERS OF SICNN V 1 AND SICNN V 2 ONLY BY THE LEARNING
+                                     RATE ηSICNN V 1R ED AND ηSICNN V 2R ED , RESPECTIVELY.
+
+
+ SC-FDE
+                                         SICNNv1 / SICNNv1Red                                                     SICNNv2 / SICNNv2Red
+ parameters
+                     ηSICNNv1      ηSICNNv1Red    Q         nL,C    nH,C       nL,pr       nH,pr       ηSICNNv2    ηSICNNv2Red     Q       nL   nH
+                              −4           −5                                                               −4                −4
+ UW guard, QPSK      6 · 10          3 · 10           7        3      70          2          10        5 · 10        1 · 10            7    4   200
+ CP guard, QPSK      1 · 10−3        7 · 10−5         7        3     100          2          10        9 · 10−4      1 · 10−4          7    4   250
+ UW guard,
+                     9 · 10−4        4 · 10−5         7        3      70          3          20        1 · 10−3    2.5 · 10−4          7    4   230
+ 16-QAM
+
+
+
+
+Eb /N0 range, as well as the employed baseline equalizer for selecting the data vectors for the training set
+are summarized for all SC-FDE system setups in Tab. I. Unless stated otherwise, every training set consists
+of data transmissions over 30000 different channels. For training of all NNs early stopping is used. That
+is, the BER performance on a validation set is evaluated after every epoch, and the set of learnable NN
+parameters achieving the best validation performance is chosen after training for a pre-defined maximum
+number of epochs.
+   The hyperparameters of the NN-based equalizers are found using the hyperparameter optimization
+framework Optuna [49]. For SICNNv1, the best hyperparameter settings found are given in Tab. II, and
+we train it for 25 epochs at most. For SICNNv1Red, the same hyperparameters as for SICNNv1 are used
+apart from a learning rate ηSICNNv1Red . The hyperparameters of SICNNv2 are also given in Tab. II, and we
+train it for a maximum of 25 epochs. The hyerparameters of SICNNv2Red differ from those of SICNNv2
+only by ηSICNNv2Red . For DetNet, OAMP-Net2, and KAFCNN the best hyperparameter found are shown
+in Tab. III. Moreover, DetNet and KAFCNN are trained for 60 epochs at most, and OAMP-Net2 for a
+maximum of 15 epochs.
+
+B. Bit Error Ratio Performance for SC-FDE
+   1) Unique Word Guard Interval, QPSK: We start with investigations on an SC-FDE system with
+UW guard interval and QPSK modulation alphabet. First, we investigate the influence of the number of
+iterations Q of the model-based iterative SIC method as well as the number of stages Q of SICNNv1
+on the achieved BER performance to highlight similarities and differences between the model-based and
+the NN-based approach. As shown in Fig. 3, our simulation result validates the proof of the equivalence
+of the bit error probabilities of the LMMSE hard decision estimates and the estimates of the iterative
+SIC method after one iteration. Moreover, the BER performance of the iterative SIC method considerably
+improves when conducting a second iteration (Q = 2), outperforming the DFE over a wide Eb /N0 range.
+For Q ≥ 3, two interesting effects are visible. Firstly, the BER performance flattens out at higher Eb /N0
+values. Secondly, although more iterations lead to an improvement of the BER performance at lower
+                                                                                                                                         18
+
+
+
+                                                          TABLE III
+   H YPERPARAMETER SETTINGS OF THE STATE - OF - THE - ART NN EQUALIZERS USED FOR COMPARISON . S IMILAR TO THE ORIGINAL
+PUBLICATION [18], FOR D ET N ET η DENOTES THE LEARNING RATE , L THE NUMBER OF LAYERS , dH THE NUMBER OF HIDDEN NEURONS
+ IN THE SINGLE - HIDDEN - LAYER FCNN, dV THE DIMENSION OF THE AUXILIARY VARIABLE PASSING UNCONSTRAINED INFORMATION
+ THOURGH THE NETWORK , AND β THE RESIDUAL WEIGHTING FACTOR . F OR OAMP-N ET 2 [19], η IS THE LEARNING RATE , AND T IS
+ THE NUMBER OF LAYERS . F OR KAFCNN [31], η IS THE LEARNING RATE , L THE NUMBER OF LAYERS , dH THE NUMBER OF NEURONS
+                                 PER HIDDEN LAYER , AND β THE RESIDUAL WEIGHTING FACTOR .
+
+
+ SC-FDE
+                                             DetNet                                 OAMP-Net2                         KAFCNN
+ parameters
+                         η          L           dh        dv           β             η         T             η        L        nh    β
+                               −4                                                        −3                      −3
+ UW guard, QPSK       6 · 10            15          200       20        0.5       1 · 10            8    1 · 10           12   250   0.8
+ CP guard, QPSK       6 · 10−4          15          250       30        0.5       1 · 10−3         10    1 · 10−3         12   300   0.8
+ UW guard,
+                      6 · 10−4          15          220       25        0.5       1 · 10−3          8    1 · 10−3         12   280   0.8
+ 16-QAM
+
+
+
+                                                          SICNNv1 Q = 2              SICNNv1 Q = 3
+                                                          SICNNv1 Q = 7              iter. SIC Q = 1
+                                                          iter. SIC Q = 2            iter. SIC Q = 3
+                                                          iter. SIC Q = 6            DFE
+                                                          LMMSE
+                                             10−1
+
+
+
+                                             10−2
+
+
+
+                                             10−3
+                                     BER
+
+
+
+
+                                             10−4
+
+
+
+                                             10−5
+
+
+
+                                             10−6
+                                                    2     4        6          8          10   12        14
+                                                                       Eb /N0 (dB)
+
+Fig. 3. BER performance of the iterative SIC method and SICNNv1 for different numbers of iterations / stages Q (SC-FDE with UW guard,
+QPSK).
+
+
+Eb /N0 values (which is, however, rather small), at higher Eb /N0 values the performance even slightly
+degrades the more iterations are conducted, which can be explained by the error caused by approximating
+                         (q)
+the covariance matrix Cvv,k . For SICNNv1, more stages than iterations of the model-based method are
+required to obtain good BER performance, however, for Q = 7 stages, the iterative SIC method is
+considerably outperformed by SICNNv1.
+  Next, we compare the proposed NN-based data estimators SICNNv1, SICNNv2, SICNNv1Red and
+SICNNv2Red with the aforementioned state-of-the-art model-based and NN-based equalizers in terms
+of achieved BER performance. Their training and hyperparameter optimization is conducted with the
+same training set as used for the proposed NN-based equalizers. As shown in Fig. 4, SICNNv1 is
+the best performing equalizer for a wide Eb /N0 range, followed by SICNNv2 and OAMP-Net2. The
+parameter-reduced variant SICNNv1Red exhibits approximately the same performance as DetNet. All
+                                                                                                                         19
+
+
+
+                                                         DFE                   LMMSE
+                                                         iter. SIC Q = 3       OAMP-Net2
+                                                         DetNet                KAFCNN
+                                                         SICNNv1               SICNNv1Red
+                                                         SICNNv2               SICNNv2Red
+                                         10−1
+
+
+
+                                         10−2
+
+
+
+                                         10−3
+                                   BER
+
+                                         10−4
+
+
+
+                                         10−5
+
+
+
+                                         10−6
+                                                2    4        6        8        10    12    14
+                                                                  Eb /N0 (dB)
+Fig. 4. BER performance of NN-based and model-based equalizers for SC-FDE with a UW guard interval and QPSK alphabet.
+
+
+                                         10−1
+
+
+
+                                         10−2
+
+
+
+                                         10−3
+                                   BER
+
+
+
+
+                                                    DFE
+                                         10−4       LMMSE
+                                                    SICNNv1
+                                                    SICNNv2
+                                                    DetNet
+                                         10−5
+                                                    SICNNv1 (rand. tr. data)
+                                                    SICNNv2 (rand. tr. data)
+                                                    DetNet (rand. tr. data)
+                                         10−6
+                                                2    4        6        8        10    12    14
+                                                                  Eb /N0 (dB)
+Fig. 5. BER performance comparison of NN-based equalizers for SC-FDE with a UW guard interval and QPSK alphabet, when being
+trained with randomly generated training data (rand. tr. data), or on a training set generated by the proposed approach.
+
+
+of the aforementioned NN-based equalizers can outperform or perform similarly as the model-based
+equalizers considered for comparison. SICNNv2Red, in turn, is the worst performing among the proposed
+NN-based equalizers, but still has a far better BER performance than KAFCNN. From this simulation result
+we can conclude that using the same sub-NNs in all stages of the proposed NN-based equalizers leads to
+a reduction of the number of learnable parameters at the cost of a performance decrease. However, since
+fewer parameters have to be optimized, the reduction of learnable parameters decreases the computational
+effort for training the NNs.
+   For an SC-FDE system with a UW guard interval and QPSK modulation alphabet, we also show
+                                                                                                                          20
+
+
+
+                                         10−1
+
+
+
+                                         10−2
+
+
+
+                                         10−3       DFE
+                                                    LMMSE
+
+
+
+
+                                   BER
+                                                    iter. SIC Q = 3
+                                         10−4       OAMP-Net2
+                                                    DetNet
+                                                    KAFCNN
+                                                    SICNNv1
+                                         10−5
+                                                    SICNNv1Red
+                                                    SICNNv2
+                                                    SICNNv2Red
+                                         10−6
+                                                6   8      10     12   14     16   18   20
+                                                                Eb /N0 (dB)
+Fig. 6. BER performance of NN-based and model-based equalizers for SC-FDE with a UW guard interval and 16-QAM alphabet.
+
+
+the influence of our proposed approach for training set generation, described in Sec. IV-A, on the
+BER performance of trained NN-based equalizers. Exemplary for SICNNv1, SICNNv2, and DetNet,
+we compare their performance when being trained on a dataset generated with our approach with the
+case that they are trained with randomly generated training data. For the randomly generated training
+data, the Eb /N0 values of the sample transmissions contained in the training set are chosen randomly
+(with uniform distribution on the linear Eb /N0 scale) in the range [3 dB, 14 dB], which is a state-of-the-art
+approach for the training of NN-based equalizers. As shown in Fig. 5, particularly at high Eb /N0 values,
+the performance of the aforementioned NN-based equalizers can be significantly improved by training
+them on a training set generated by our proposed method. As elucidated in Sec. IV-A, we assume that the
+main reason for this performance improvement is, that at high SNRs distinctly more training samples lying
+close to the decision boundaries of the optimal equalizer are available, allowing the NNs to approximate
+the optimal decision boundaries. For all following results, the NNs are trained with datasets that are
+generated with our proposed method.
+   2) Unique Word Guard Interval, 16-QAM: To show that the proposed NN-based equalizers can also
+cope with higher order modulation alphabets, we present BER performance results for an SC-FDE
+system with a UW guard interval and 16-QAM modulation alphabet. As shown in Fig. 6, SICNNv1
+is also the best performing among all considered equalizers for this system setup. Similar as for a
+QPSK modulation alphabet, the best performing equalizer behind SICNNv1 are SICNNv2 and OAMP-
+Net, outperforming the model-based DFE in lower Eb /N0 regions and performing similarly in higher
+Eb /N0 regions. SICNNv1Red, SICNNv2Red, DetNet, and KAFCNN, in turn, exhibit a significantly worse
+performance, where KAFCNN is the worst performing among all considered NN-based equalizers.
+   3) Imperfect Channel Knowledge: We investigate the influence of imperfect channel knowledge on the
+performance of NN-based and model-based equalizers. To this end, the channel, which is assumed to be
+stationary for one transmitted data burst, is estimated as described in [50] using a known preamble. This
+preamble is transmitted prior to the data burst and contains two identical pilot vectors xp . Based on the
+two corresponding received pilot vectors yp , the channel frequency response is estimated with the best
+linear unbiased estimator (BLUE) [40]. For further details on the estimation of the channel frequency
+response, we refer to [50].
+   For this evaluation, the NN-based equalizers are trained in the same manner as for perfect channel
+knowledge, however, as an input a channel matrix is employed which is computed using the estimated
+channel frequency response. As shown in Fig. 7 for SICNNv1, SICNNv2, and OAMP-Net2, an imperfect
+                                                                                                                                21
+
+
+
+                                          10−1
+
+
+
+                                          10−2
+
+
+
+                                          10−3       DFE, true ch.
+                                                     DFE, ch. est.
+
+
+
+
+                                    BER
+                                                     LMMSE, true ch.
+                                          10−4       LMMSE, ch. est.
+                                                     OAMP-Net2, true ch.
+                                                     OAMP-Net2, ch. est
+                                                     SICNNv1, true ch.
+                                          10−5
+                                                     SICNNv1, ch.est
+                                                     SICNNv2, true ch.
+                                                     SICNNv2, ch. est
+                                          10−6
+                                                 2    4       6        8        10   12    14
+                                                                  Eb /N0 (dB)
+Fig. 7. BER performance of NN-based and model-based equalizers for SC-FDE with a UW guard interval, QPSK alphabet, and with perfect
+and imperfect channel knowledge.
+
+
+channel knowledge has a similar influence on the BER performance as for model-based equalizers,
+demonstrating their robustness in terms of imperfect channel knowledge at the receiver.
+   4) Cyclic Prefix Guard Interval, QPSK: For all the previously shown results we have employed a UW
+as a guard interval. In this section, we investigate the influence of using a CP as a guard interval on the
+performance of the regarded NN-based and model-based equalizers. As presented in Fig. 8, SICNNv1 is
+also the best performing equalizer for this system setup, where its performance is very similar to that
+of OAMP-Net2. SICNNv2 and SICNNv1Red exhibit a very similar BER performance and can clearly
+outperform DetNet, which achieves similar BER results as SICNNv2Red. The worst performing NN-based
+equalizer is KAFCNN, still outperforming the model-based DFE. The LMMSE equalizer performs worst,
+however, as mentioned in Sec. II-A, stands out due to its very low complexity for SC-FDE communications
+with CP guard intervals.
+
+C. Influence of a Reduced Training Set Size
+   In this section, we investigate the influence of a limited training set size on the BER performance of
+selected NN-based data estimators. That is, while for the BER performance results shown in Sec. V-B the
+NN-based equalizers are trained utilizing sample data transmissions over 30 000 different multipath chan-
+nels, the regarded NNs are trained with training sets consisting of 10 000 or 3 000 channels. We evaluate
+the influence of a reduced training set size on the BER performance of selected NN-based equalizers for
+an SC-FDE system with UW-guard interval and QPSK modulation alphabet. The hyperparameters of the
+NN-based equalizers are the same as stated in Sec. V-A, apart from the number of training epochs which
+is adapted appropriately such that the number of update steps of the learnable NN parameters remains
+the same for all training set sizes.
+   We regard SICNNv1, its parameter-reduced variant SICNNv1Red, the OAMP-Net2, and the KAFCNN
+for performance comparison, whereby these NNs have for the chosen hyperparameter settings 135 590,
+19 370, 32, and 746 628 learnable parameters, respectively. As shown in Fig. 9, the performance of
+SICNNv1 and SICNNv1red slightly degrades in case of a reduced training set size of 10 000 or 3 000
+channels. The BER performance of OAMP-Net2 barely changes when reducing the training set size,
+while the performance of KAFCNN decreases most and is even worse than that of the LMMSE estimator
+when being trained with 3 000 different channels. That is, the fewer learnable parameters an NN contains,
+                                                                                                                        22
+
+
+
+                                                             DFE                      LMMSE
+                                                             iter. SIC Q = 3          OAMP-Net2
+                                                             DetNet                   KAFCNN
+                                                             SICNNv1                  SICNNv1Red
+                                                             SICNNv2                  SICNNv2Red
+                                          10−1
+
+
+
+                                          10−2
+
+
+
+                                          10−3
+                                    BER
+
+                                          10−4
+
+
+
+                                          10−5
+
+
+
+                                          10−6
+                                                   4   6         8      10      12         14        16     18
+                                                                      Eb /N0 (dB)
+Fig. 8. BER performance of NN-based and model-based equalizers for SC-FDE with a CP guard interval and QPSK alphabet.
+
+                                            DFE                       LMMSE                      OAMP-Net2
+                                            KAFCNN                    SICNNv1                    SICNNv1Red
+                                            train set size 30k        train set size 10k         train set size 3k
+                                        10−1
+
+
+
+                                        10−2
+
+
+
+                                        10−3
+                                  BER
+
+
+
+
+                                        10−4
+
+
+
+                                        10−5
+
+
+
+                                        10−6
+                                               2       4         6        8          10         12        14
+                                                                     Eb /N0 (dB)
+Fig. 9. BER performance comparison for different training set sizes (SC-FDE with UW guard, QPSK alphabet).
+
+
+the less it suffers from a limited training set size. This result emphasizes the importance of parameter
+reduction, e.g., by incorporating model knowledge into the layer architecture of an NN.
+
+D. Bit Error Ratio Performance of SICNNv2 for UW-OFDM
+   As mentioned in Sec. III-B, the layer architecture of SICNNv2 is inferred by deep unfolding iterative
+SIC, but no properties of any specific communication system are exploited. Hence, we expect SICNNv2
+to be universally applicable for any communication system with system models similar to the system
+                                                                                                          23
+
+
+
+                                                   LMMSE                      Opt. BER performance
+                                                   RE-MIMO                    DetNet w/ precond.
+                                                   DetNet w/o precond.        OAMP-Net2
+                                                   SICNNv2
+                                        10−2
+
+
+
+
+                                        10−3
+
+
+
+
+                                  BER   10−4
+
+
+
+
+                                        10−5
+
+
+
+
+                                        10−6
+                                               8         10              12         14          16
+                                                                Eb /N0 (dB)
+Fig. 10. BER performance comparison for UW-OFDM (system I from [39]).
+
+
+model (5) of SC-FDE systems. To demonstrate this claim, we apply SICNNv2 as an equalizer in a UW-
+OFDM system [51]–[53]. The data transmission in UW-OFDM systems can be modeled as [39], [51],
+[52]
+                                                           e d+w,
+                                                       y = |{z}
+                                                           HG                                          (30)
+                                                                H
+
+where d ∈ S is the transmitted data vector of length Nd to be estimated, y ∈ CNd +Nu the received vector
+              Nd
+                                                                                    e ∈ C(Nd +Nu )×(Nd +Nu )
+at the input of the equalizer, and Nu the length of the UW guard interval. Further, H
+denotes a diagonal matrix containing the sampled channel frequency response of the channel (excluding
+at positions of OFDM zero-subcarriers) on the main diagonal, G ∈ C(Nd +Nu )×Nd the so-called generator
+matrix, which is a full, rectangular matrix, and w ∼ N C(0, (Nd + Nu )σn2 I), where σn2 is the variance of
+AWGN in time domain. For further details on UW-OFDM we refer to [51], [52]. That is, the models
+of UW-OFDM and SC-FDE systems are very similar, allowing to employ SICNNv2 unaltered for UW-
+OFDM, apart from the used data normalization, which is described in [39]. We train (exactly in the
+same manner as all other state-of-the-art NNs used for comparison) and evaluate SICNNv2 for a UW-
+OFDM system referred to as system I in [39], where Nd = 8, Nu = 4, and the modulation alphabet is
+QPSK. The best hyperparameter combination found is a learning rate η = 5 · 10−4 , Q = 6 stages, nL = 2
+hidden layers of the sub-NNs, and nH = 200 neurons per hidden layer of the sub-NNs. SICNNv2 is
+compared to the state-of-the-art NN-based equalizers OAMP-Net2 [19], RE-MIMO [17], DetNet [18],
+and an improved version of DetNet, that employs a preconditioner in its layers [39]. Due to the small
+dimension of system I, even the optimal BER performance can be computed by applying the bit-wise
+MAP estimator. For all further details on the simulation setup, on the NNs used for comparison, or their
+training, we refer to [39]. As shown in Fig. 10, SICNNv2 can outperform the NN-based equalizers OAMP-
+Net2, DetNet in its original form [18], and performs similar as RE-MIMO. Further, its performance is
+very close to that of the improved version of DetNet and to the optimal BER performance achieved by
+the bit-wise MAP estimator. This result demonstrates the applicability of the proposed SICNN idea for
+different communication systems.
+                                                                                                                   24
+
+
+
+E. Computational Complexity
+   Besides the BER performance of the regarded equalizers, also their computational complexity is an
+important aspect. We compare the inference complexity of the model-based and the NN-based equalizers
+regarded in this work in terms of the number of real-valued multiplications required for the equalization of a
+received vector, where four real-valued multiplications and two real-valued multiplications are accounted
+for a product of two complex values and a real and a complex value, respectively, and divisions are
+counted as multiplications. Since NN training can be carried out offline, we do not regard their training
+complexity. We assume that both H     e and H = HM e     are already available and thus the complexity of
+computing H is not considered for the following complexity analysis. Unless stated otherwise, we derive
+the computational complexities for a general matrix M and a length N ′ of the received vector, where, as
+described in Sec. II-A3, both have to be replaced by the appropriate quantities Muw and N , or FNd and
+Nd , when using a UW or a CP as a guard interval, respectively.
+   We start by investigating the complexity of the proposed SICNNv1. Let us first consider the operations
+conducted in a single stage q for estimating the data symbol dk . The computation of dˆk,Re , dˆk,Im , ek ,
+                                                                                              (q)   (q)    (q)
+
+  (q)    (q)
+yic,k , ak , takes
+                            |S′ | + |S′ | + 4|S′ | + 2 + 4N ′ (Nd − 1) + 2N ′ (Nd − 1)
+                           |{z} |{z} | {z } |                  {z    } |       {z    }
+                              (q)      (q)        (q)                     (q)               (q)
+                            dˆk,Re   dˆk,Im       ek                    yic,k              ak
+
+real-valued multiplications, and the inference of FCNN 1 has a complexity of
+                          2(3N ′ + 1) +(3N ′ + 1)nH,C + (nL,C − 1)n2H,C + nH,C N ′ .
+                          | {z }
+                            batch norm.
+                                                                                                   (q)−1   (q)
+Squaring the outputs of FCNN 1 takes another N ′ multiplications. For the terms hH      k Ĉvv,k yic,k and
+     (q)−1          (q)−1                                     (q)
+hH              H
+ k Ĉvv,k hk , hk Ĉvv,k is computed first and multiplied by yic,k and hk subsequently, leading for these
+two terms in total to a complexity of
+                                                  2N ′ + |{z}
+                                                  |{z}   4N ′ + |{z}
+                                                                4N ′ .
+                                                       (q)−1     (q)
+                                              hH
+                                               k Ĉvv,k
+                                                               ·yic,k           ·hk
+
+                                                                    (q)
+The inference of FCNN 2 and the normalization of yic,k and hk require another
+                                     6 + 3nH,pr + (nL,pr − 1)n2H,pr + 2nH,pr |S′ |
+and 8N ′ + 1 multiplications, respectively. Consequently, for estimating a single data symbol in a stage,
+in total
+                            MSICNNv1,kq = n2H,pr (nL,pr − 1) + nH,pr (2|S′ | + 3)
+                                            + n2H,C (nL,C − 1) + nH,C (4N ′ + 1)                     (31)
+                                                    ′      ′      ′
+                                            + 19N + 6|S | + 6N Nd + 11
+For data normalization, another
+                                                         N ′ + |{z}
+                                          4Nd N ′ + 1 + |{z}   2N ′ + |{z}
+                                                                       N′
+                                          | {z }
+                                              κ                κH
+                                                                e          Ky         KH
+                                                                                       e
+
+real-valued multiplications are required, leading to a total complexity of SICNNv1
+                              MSICNNv1 = QNd MSICNNv1,kq + 4Nd N ′ + 4N ′ + 1 ,                                  (32)
+with MSICNNv1,kq as specified in (31).
+  For SICNNv2, the approach for deriving its complexity is similar. As already stated for SICNNv1,
+the total complexity for computing dˆk,Re , dˆk,Im , ek,Re , ek,Im , and yic,k is given by 6|S′ | + 4N ′ (Nd − 1).
+                                       (q)    (q)     (q)     (q)         (q)
+                                                                                                                 25
+
+
+                                      (q)                                                          (q)   (q)
+For computing the scaling factor ρk , scaling the quantities contained in zk (and squaring ρk ), and the
+inference of the FCNN, another
+                                                j n k
+                            ′      ′               L
+                         4N   + 4N
+                        |{z} | {z }  + 4 +  1 +        (6N ′ + 2) +(4N ′ + 3)nH
+                                                  3    | {z }
+                           (q)       scaling
+                          ρk                                          batch norm.
+
+                               + (nL − 1)n2H + 2nH |S′ |
+multiplications are required. Consequently, the complexity of SICNNv2 follows to
+                            MSICNNv2 = QNd MSICNNv2,kq + 4Nd N ′ + 4N ′ + 1 ,                                  (33)
+with
+                                            jn k
+                                               L
+                        MSICNNv2,kq =            (6N ′ + 2) + n2H (nL − 1) + 4N ′ Nd
+                                              3                                                                (34)
+                                            + 10N ′ + nH (4N ′ + 2|S′ | + 3) + 6|S′ | + 6 .
+   The complexity of DetNet can be derived similarly as for UW-OFDM, which has been conducted
+in [39]. For all operations conducted for SC-FDE specific pre-processing and for the inference of DetNet,
+we refer to [31]. Here, we only state the final result for the inference complexity of DetNet. In the qth
+DetNet layer inference of a single hidden layer FCNN, one-hot demapping of the data vector estimate in
+the qth layer, and applying weighted residual connections are conducted, which entails
+                               MDetNet,q = 4Nd2 + 6Nd + 2dh (Nd (|S′ | + 1) + dv )
+                                                                                                               (35)
+                                           + 2Nd |S′ | + dv
+real-valued multiplications, where dh is the number of neurons in the hidden layer of the FCNN, and dv
+is the dimension of an auxiliary variable passing unconstrained information from DetNet layer to DetNet
+layer [18], [31], [39]. In total, the inference complexity of DetNet is
+                           MDetNet = LMDetNet,q − 2Nd |S′ | + 4Nd N ′ + 4N ′ + 1
+                                                              |       {z       }
+                                                                         data normalization
+                                                       ′       2 ′     ′                                       (36)
+                                            + 6Nd N        + 4Nd N + 2N ,
+                                              |               {z             }
+                                                     input pre-processing
+
+where the subtracted term accounts for no one-hot demapping in the last DetNet layer, L is the number of
+DetNet layers, and for the input pre-processing the quantities MH H    e 1/2 M and MH H
+                                                                                      e −1/2 y are computed
+(cf. [31]).
+   The KAFCNN [31] with weighted residual connections and a multiplication by a partial inverse DFT
+matrix in the last layer requires
+                                                                                  
+                         MKAFCNN = 3N ′ + (nL − 1)nH + 2N ′ |S′ | + (nL − 2) nH
+                                    + 4N ′ Nd |S′ | + 2Nd |S′ | + 4Nd N ′ + 4N ′ + 1                   (37)
+                                      |          {z         } |           {z       }
+                                               part. IDFT + symb. scaling           data normalization
+
+  The OAMP-Net2 layer structure [19] also stems from unfolding an iterative model-based algorithm, such
+that determining its inference complexity is conducted in a similar fashion as for DetNet or SICNNv1/SICNNv2.
+For the matrix inverse that has to be computed in every layer of OAMP-Net2, we assume that a Cholesky
+                                                                                                         26
+
+
+
+decomposition [54] is employed for accomplishing this task. The computational complexity of OAMP-
+Net2 can thus be specified as (using the notation from [19])
+                                   
+                       MONet2 = T 8Nd N ′ + 2Nd + 4Nd2 (2N ′ + 1) + 8Nd N ′ + 5
+                                     |    {z      } |           {z            }
+                                             rt                              τt2
+                               14 ′ 3                                      1
+                           +      N + 8N ′ 2 (2Nd + 1) + 8Nd (N ′ + |S′ | + ) + 2
+                               |3                     {z                   2    }                     (38)
+                                                       x̂d,t+1
+                                                   
+                           + 2Nd (2N ′ + 1) + 1 + 4Nd N ′ + 4N ′ + 1
+                             |      {z        }   |       {z       }
+                                      vt2                 data normalization
+
+   Let us now consider the complexity of the model-based equalizers. For the LMMSE estimator, one
+has to distinguish between UW and CP guard intervals. We start by regarding its complexity in case of
+a UW guard interval. Here, we first regard its complexity for determining the LMMSE estimator matrix
+ELMMSE , which is independent of the received vector y and thus has to be computed only once per data
+burst (the channel is assumed to be stationary for the whole data burst). By assuming that the inverse
+in (6) is computed utilizing a Cholesky decomposition [54],
+                                                     14
+                     MLMMSE,burst = 4Nd2 (Nd + Ng ) + Nd3 + 4Nd2 + 4Nd2 (Nd + Ng )
+                                    |      {z    } |3 {z      } |         {z    }
+                                            MH H        inverse (Cholesky)         ·MH
+
+                                     38 3
+                                  =    N + 8Nd2 Ng + 4Nd2                                         (39)
+                                      3 d
+real-valued multiplications are to be carried out for computing ELMMSE . Given ELMMSE , the complexity
+of equalizing one received vector is
+                                       MLMMSE,eq = 4Nd (Nd + Ng ) .                                   (40)
+   In case of a CP guard interval, equalization becomes for the LMMSE estimator far less complex. As
+given in (7), the matrix for which an inverse has to be computed is a diagonal matrix. Hence, obtaining
+the estimator matrix ELMMSE,dg requires 4Nd real-valued multiplications, which is already the number of
+multiplications that have to be carried out per burst
+                                             MLMMSE,burst = 4Nd .                                     (41)
+For equalization of a single received data vector, a multiplication with the diagonal estimator matrix
+ELMMSE,dg is required, followed by conducting an inverse DFT, leading to a complexity of
+                                    MLMMSE,eq = 4Nd + 2Nd log2 (Nd ) ,                                (42)
+                                                      |    {z     }
+                                                                 IDFT
+
+real-valued multiplications.
+   For the DFE, using a CP guard interval does not reduce the complexity as for the LMMSE, since
+in every iteration the LMMSE error variances (which are the diagonal elements of the LMMSE error
+covariance matrix) have to be computed. We distinguish between operations to be carried out only once
+every data burst and those to be accomplished for every received vector. For a derivation of the complexity
+of the DFE we refer to [39], where an in-depth complexity analysis of the DFE for a similar system,
+namely a UW-OFDM system is conducted. Here, we only state the final results. The number of real-valued
+multiplications to be conducted once per data burst is
+                              7     11    19               2               14
+                  MDFE,burst = Nd4 + Nd3 + Nd2 + 6Nd2 N ′ + Nd + 2Nd N ′ −    ,                       (43)
+                              6      3     6               3                3
+                                                                                                                                        27
+
+
+
+                                                       TABLE IV
+  N UMBER OF REQUIRED REAL - VALUED MULTIPLICATIONS ( ROUNDED TO HUNDREDS ) OF EVALUATED EQUALIZERS FOR DIFFERENT
+                                               SC-FDE SYSTEM SETUPS .
+
+                                                                         Nr. multiplications for different setups
+     Equalizer
+                                                              UW guard, QPSK       UW guard, 16-QAM               CP guard, QPSK
+     SICNNv1 / SICNNv1Red              MSICNNv1                     3 288 600                  3 409 300                8 929 500
+     SICNNv2 / SICNNv2Red              MSICNNv2                     6 836 900                 31 552 200               50 600 900
+     DetNet                            MDetNet                        565 100                    911 400                1 153 200
+     KAFCNN                            MKAFCNN                        753 900                    976 900                1 072 700
+     OAMP-Net2                         MONet2                       4 892 300                  4 894 800                9 815 100
+                                       MLMMSE,burst                   141 300                    141 300                      100
+     LMMSE
+                                       MLMMSE,eq                        2 600                      2 600                      400
+                                       MDFE,burst                     295 400                    295 400                1 545 400
+     DFE
+                                       MDFE,eq                          5 100                      5 100                    8 200
+     Iterative SIC                     MitSIC                      14 440 800                 14 441 500               27 897 500
+
+
+while the inference complexity per received vector is given by
+                                                        MDFE,eq = 8Nd N ′ .                                                         (44)
+   For the iterative SIC method, the same steps have to be conducted Q times, where – as for the
+LMMSE estimator – a Cholesky decomposition is utilized for inverting the (approximated) covariance
+matrices Cvv,k in every iteration. We assume that the estimated data symbols dˆk
+            (q)                                                                 (q−1)
+                                                                                      are multiplied by the
+corresponding column of H only once per iteration, being available for interference cancellation required
+for estimating any data symbol dk . Hence, the computational complexity of the iterative SIC method with
+Q iterations is
+                                                            14                                         
+  MitSIC = QNd 6|S′ | + 2 + (Nd − 1)(2N ′ + 4N ′ 2 ) + 4N ′ + N ′ 3 + 4N ′ 2 + 4N ′ 2 + 8N ′ + 4 + 4N ′
+                   | {z } |               {z             } |3      {z      } |         {z      } |{z}
+                    (q) (q)               (q)
+                       dˆk ,ek                        Cvv,k                         Cholesky                 (q)                (q−1)
+                                                                                                            fk (.)         hk dˆk
+                      14                                                                      
+           = QNd            N ′ 3 + 4N ′ 2 Nd + 4N ′ 2 + 2N ′ Nd + 14N ′ + 6|S′ | + 6             (45)
+                 3
+  The numerical results of the complexities of the equalizers for the SC-FDE system setup specified in
+Sec. V-A are given in Tab. IV. For all system setups considered, DetNet and KAFCNN are the lowest
+complex NN-based equalizers. The inference complexity of SICNNv1 is distinctly lower than that of
+SICNNv2 and OAMP-Net2, and also than the model-based iterative SIC method it is deduced from.
+However, the LMMSE estimator and the DFE exhibit by far the lowest complexity.
+
+                                              VI. C ONCLUSION
+   In this work, we proposed novel NN-based equalizers, called SICNNv1 and SICNNv2, inspired by a
+model-based soft interference cancellation scheme. SICNNv1 is tailored for an SC-FDE communication
+system, while SICNNv2 is also applicable for other communication systems with block-based data trans-
+mission. In addition, we presented a novel approach for generating training sets for NN-based equalizers,
+which considerably helps to improve their performance at high SNRs. We evaluated the proposed NN-
+based equalizers for a number of different SC-FDE system setups, and investigated their robustness with
+respect to imperfect channel knowledge at the receiver. In particular SICNNv1 exhibits a superior BER
+performance over all regarded state-of-the-art model-based and NN-based equalization approaches for all
+SC-FDE system setups considered. To highlight the universal applicability of SICNNv2, we exemplarily
+presented its state-of-the-art performance for a UW-OFDM system. Further, we investigated the influence
+of the size of the dataset used to train the NN-based equalizers, and we presented an in-depth complexity
+analysis.
+                                                                                                                          28
+
+
+
+                                                 A PPENDIX A
+                   N OISE S TATISTICS IN A S OFT I NTERFERENCE C ANCELLATION S TEP
+  Let us consider the system model (11) for estimating the kth data symbol dk , k ∈ {0, ..., Nd − 1}, for
+any but the first iteration (q = 0), i.e., 0 < q < Q,
+                                                                            (q)
+                                                                           rk
+                                                                       z }| {
+                                        (q)            ˆ (q−1) = h d − H̄ δ̄ (q−1) +w ,
+                                       yic,k = y − H̄k d̄                                                            (46)
+                                                                  k k
+                                                          k
+                                                                      | k {zk
+                                                                                    }
+                                                                                (q)
+                                                                            vk
+
+                                                                                                                    (q)
+which we repeat here for readability. Following central limit theorem arguments, the total noise vk is
+                                                                            (q)             (q)    (q)           (q)
+assumed to feature a multivariate Gaussian distribution, i.e., p(vk ) = CN µv,k , Cvv,k , where µv,k and
+   (q)                                                                       (q−1)                           (q)
+Cvv,k are to be specified. We start by computing the statistics of δ̄k             , followed by those of rk to obtain
+                               (q)
+finally the distribution of vk . It is important to note, that for computing noise statistics in iteration q, the
+estimation errors from the previous iteration (q−1) have to be specified, whereby the interference canceled
+           (q−1)                                                           (q)   (q)         (q−1)
+vectors yic,k are fixed and available, i.e., the PDFs/PMFs of vk , rk , and δ̄k                    are not unconditional,
+                                       (q−1)
+but are conditioned on a given yic,k .
+                                                   = dˆk
+                                           (q−1)        (q−1)                  (q−1)
+    A data symbol estimation error δk                         − dk , where yic,k is given, can only attain a finite
+number of different values (as many    (q−1)as the  cardinality |S| of the symbol alphabet), and thus its statistics
+                                                (q−1) 
+is described by a PMF pd |y(q) δk              yic,k . In order to compute the statistics of an estimation error
+                               k ic,k
+
+        = dˆk
+  (q−1)     (q−1)
+δk                − dk , we start by reconsidering the MMSE estimate of the preceding iteration
+                                                         (q−1) 
+                                                                    X                  (q−1) 
+                           dˆk
+                             (q−1)
+                                    = Ed |y(q−1) dk yic,k         =    s′ p dk = s′ yic,k .                          (47)
+                                              k   ic,k
+                                                                   s′ ∈S
+
+Since
+                                                             ˆ (q−2) ,
+                                                          (q−1)
+                                                   = y − H̄k d̄
+                                                         yic,k                                             (48)
+                                                                k
+                            (q−1)          (q−1)             ˆ (q−2) , where we consider d̄
+                                                                                                ˆ (q−2) to be a
+we can reformulate p dk yic,k        as p dk yic,k    = p dk y, d̄  k                             k
+fixed vector in iteration (q − 1), which does not feature a statistical distribution. It can be observed from
+the system model for iteration step (q − 1)
+                                       (q−1)
+                                     yic,k = y − H̄k d̄ˆ (q−2) = h d − H̄ δ̄ (q−2) + w                               (49)
+                                                         k           k k       k k
+                            ˆ (q−2)  does not depend on the estimate dˆ(q−2) for a given y and d̄      ˆ (q−2) . Hence,
+that the PMF p dk y, d̄        k                                                k                          k
+                                                           ˆ (q−2)  without altering the PMF, i.e., pd y, d̄ˆ (q−2)  =
+dˆk
+  (q−2)
+        can be included in the condition of p dk y, d̄        k                                          k        k
+        ˆ (q−2) , dˆ(q−2)  = pd y, d̂(q−2) . Consequently, the MMSE estimate dˆ(q−1) and its corresponding
+p dk y, d̄ k         k               k                                                        k
+conditional MSE can be rewritten as
+                                                         (q−1)                                
+                               dˆk
+                                 (q−1)
+                                        = Ed |y(q−1) dk yic,k     = Edk |y,d̂(q−2) dk y, d̂(q−2)                     (50)
+                                              k   ic,k
+
+and
+                                          (q−1) 2 (q−1)                         (q−1) 2           
+                       = Ed |y(q−1) dk − dˆk               = Edk |y,d̂(q−2) dk − dˆk
+               (q−1)
+              ek                                  yic,k                                    y, d̂(q−2) ,              (51)
+                            k   ic,k
+
+respectively. Hence, the conditional PMF of an estimation error δk can be written as
+                                     (q−1) (q−1)                   (q−1)           
+                          pd |y(q−1) δk    yic,k    = pdk |y,d̂(q−2) δk     y, d̂(q−2) ,
+                                  k    ic,k
+                                           (q−1)           
+and the PMF of δ̄ (q−2) as pd̄k |y,d̂(q−2) δ̄k    y, d̂(q−2) .
+                                                                                                                                     29
+
+
+                                                                                                           (q)
+  Following central limit theorem arguments, we assume the distribution of rk                                    to be multivariate
+                       (q)
+Gaussian. The mean of rk follows to
+                             (q)                       ˆ (q−1) − d̄  y, d̂(q−2) 
+                            µr,k = Ed̄k |y,d̂(q−2) H̄k d̄ k         k
+                                         ˆ (q−1) − d̄       
+                                                    ˆ (q−1) = 0 .
+                                 = H̄ d̄         k     k            k                                                             (52)
+Its covariance matrix, in turn, is given by
+                             (q)            (q) (q) H 
+                           Crr,k = Er(q) rk rk
+                                       k
+                                                        (q−1) (q−1) H           
+                                 = H̄k Ed̄k |y,d̂(q−2) δ̄k    δ̄k      y, d̂(q−2) H̄H
+                                                                                    k .                                           (53)
+                                         |                   {z                  }
+                                                                        e (q−1)
+                                                                        E k
+
+
+For computing an element in the mth row and the nth column of E       e              (q−1)
+                                                                           , m, n ∈ {0, ..., Nd −2}, let us first
+                                                                        k
+consider
+ (q−1)  to which data symbol    di and dj in the data vector d, i, j ∈ {0, ..., Nd − 1}, the matrix element
+  e
+ Ek
+                              (q−1)
+             belongs. Since δ̄k     contains the deviations of the data symbol estimates to the corresponding
+         mn
+true data symbols for all but the kth data symbols in the data vector, the index mapping follows to
+                                 (                               (
+                                    m       m<k                     n       n<k
+                            i=                        and j =                      .
+                                    m+1 m≥k                         n+1 n≥k
+
+An off-diagonal element of E   e (q−1) can be written as
+                                 k
+        (q−1)                        (q−1) (q−1) ∗                    
+         e
+         E         = E          (q−2)  δ         δ          y,  d̂ (q−2)
+           k    mn     d̄k |y,d̂         i         j
+                                         ∗                                           (q−1) ∗             
+                   = Edi ,dj |y,d̂(q−2) di dj |y, d̂(q−2) − Edi ,dj |y,d̂(q−2) di dˆj           |y, d̂(q−2)
+                                             (q−1) ∗                                     (q−1) (q−1) ∗                
+                     − Edi ,dj |y,d̂(q−2) dˆi         dj |y, d̂(q−2) + Edi ,dj |y,d̂(q−2) dˆi     dˆj        |y, d̂(q−2)
+                                                                                               (q−1) ∗
+                   = Edi ,dj |y,d̂(q−2) di d∗j |y, d̂(q−2) − Edi ,dj |y,d̂(q−2) di |y, d̂(q−2) dˆj
+                                                                          (q−1) ˆ(q−1) ∗
+                     − dˆi        Edi ,dj |y,d̂(q−2) d∗j |y, d̂(q−2) + dˆi
+                          (q−1)
+                                                                                  dj
+                                         ∗                         (q−1) ˆ(q−1) ∗
+                   = Edi ,dj |y,d̂(q−2) di dj |y, d̂(q−2) − dˆi            dj       ,
+                          e (q−1) has the value
+and a diagonal element of E k
+                           (q−1)                         (q−1) (q−1) ∗              
+                           e
+                           E           =  E         (q−2)  δ     δ        y,  d̂ (q−2)
+                              k    mm      d̄k |y,d̂        i      i
+                                                         (q−1) (q−1) ∗              
+                                       = Edi |y,d̂(q−2) δi       δi       y, d̂(q−2)
+                                                        (q−1)
+                                                     = ei       .
+                                               (q)
+  With the above results at hand, vk can be specified to be a zero mean Gaussian distributed vector
+with a covariance matrix
+     (q)            (q) (q) H 
+   Cvv,k = Ev(q) vk vk
+               k
+                      (q) (q) H         (q)                (q) H          
+         = Er(q) ,w rk rk          − rk wH − wrk                   + wwH
+               k
+                                                                                                        
+              (q)
+         = Crr,k − H̄k E                       δ̄ (q−1) wH − E                          wδ̄ (q−1) H H̄H + Cww
+                              d̄k |y,d̂(q−2) ,w k                        d̄k |y,d̂(q−2) ,w          k          k
+                                                                                                          (q−1) H  H
+         = H̄k E e (q−1) H̄H − H̄k E                 (q−2) ,w δ̄k
+                                                                  (q−1) H
+                                                                       w      −  E             (q−2) ,w w δ̄k
+                                                                                                                                  e,
+                                                                                                                      H̄k + N σn2 H
+                   k       k              ( k
+                                           d̄  |y, d̂     )                         ( k
+                                                                                     d̄ |y, d̂      )
+                                                                                                                                    (54)
+                                                                                                               30
+
+
+     e
+with E
+       (q−1)
+                 containing
+       k
+                                             (q−1)
+                                            
+                                            ei                                     m=n
+                               (q−1)                          ∗                
+                               e
+                               E           = Edi ,dj |y,d̂(q−2) di dj y, d̂ (q−2)
+                                 k      mn  
+                                             ˆ(q−1) ˆ(q−1) ∗                       m ̸= n
+                                              −d        i  d  j
+
+in the mth row and nth column, and the index mapping as defined above.
+
+                                                    A PPENDIX B
+ E STIMATES OF I TERATIVE S OFT I NTERFERENCE C ANCELLATION M ETHOD AFTER F IRST I TERATION
+   We show for a QPSK modulation alphabet that the bit error probability of a hard decision estimate
+produced by the iterative SIC method described in Sec. II-B after the first iteration is equivalent to the
+bit error probability of an LMMSE hard decision estimate when initializing all data symbol estimates
+of the iterative SIC method with 0, i.e., dˆk
+                                                (−1)
+                                                     = 0, k ∈ {0, ..., Nd − 1}. To this end, we show that the
+decision criteria of both estimation methods for the jth bit bjk of the kth data symbol, k ∈ {0, ..., Nd − 1},
+j ∈ {0, ..., log2 (|S|) − 1}, being 0 or 1 are the same, and thus also their bit error probability must coincide.
+The QPSK bit-to-symbol mapping (b1k b0k ) 7→ dk is assumed to map b0k to the real part and b1k to the
+imaginary part √ of dk . The bit values 0 and 1 are mapped to the symbol values −ρ and ρ, respectively,
+with ρ = 1/ 2 being an energy normalization factor.
+   Let us start with the LMMSE data estimator. The SC-FDE system model is given by (cf. (5))
+                                                       y = Hd + w ,                                         (55)
+                       e and the corresponding LMMSE data estimator follows to
+where w ∼ CN (0, N σn2 H),
+                                                             
+                                                           e −1 y ,
+                               d̂ = σd2 HH σd2 HHH + N σn2 H                                                (56)
+which is expressed in a different way as in (6), but can be shown to be mathematically equivalent. Based
+on the LMMSE estimates dˆk , the hard decision estimate for bit b0k is
+                                     (
+                                      1 Pr(b0k = 1|dˆk ) > Pr(b0k = 0|dˆk )
+                              b̂0k =                                        .                       (57)
+                                      0 otherwise
+
+It can be shown [55] that for the LMMSE estimator (56) and the model (55) Pr(b0k = 1|dˆk ) = κPr(b0k =
+1|y) and Pr(b0k = 0|dˆk ) = κPr(b0k = 0|y), where κ is a proportionality constant. Hence, the condition
+on dˆk in criterion (57) can be replaced by a condition on y, leading to a decision criterion
+                                       (
+                                        1 Pr(b0k = 1|y) > Pr(b0k = 0|y)
+                                b̂0k =                                     .                       (58)
+                                        0 otherwise
+   By using the Bayesian rule and assuming a uniform prior PMF p[dk ], we can rearrange the criterion
+in (58) to
+                                        Pr(b0k = 1|y) > Pr(b0k = 0|y)
+                                       X                 X
+                                         p[dk = s′ |y] >      p[dk = s′ |y]
+                                          (1)                          (0)
+                                     s′ ∈S0                       s′ ∈S0
+                                      X                            X
+                                                p(y|dk = s′ ) >              p(y|dk = s′ ) ,                (59)
+                                          (1)                          (0)
+                                     s′ ∈S0                       s′ ∈S0
+
+           (0)        (1)
+where S0 and S0 are the sets of data symbols containing a bit with value 0 and 1 at the 0th position,
+respectively. For determining the PDF p(y|dk = s′ ), we reformulate (55) as
+                                                  y = H̄k d̄k + hk dk + w .                                 (60)
+                                                                                                                31
+
+
+
+Due to central limit theorem arguments, H̄k d̄k can be assumed to be Gaussian distributed, and thus p(y|dk )
+is approximated to be a multivariate complex Gaussian PDF, i.e.,
+                                                                                   
+                         p(y|dk ) = ζy|dk exp − (y − µy|dk )H C−1
+                                                                yy|dk (y − µy|dk
+                                                                                 )   ,                 (61)
+with the scaling factor ζy|dk = πN |C1yy|d | , the conditional mean
+                                              k
+
+                                                  µy|dk = E[y|dk ] = hk dk ,                                  (62)
+and the conditional covariance matrix
+                                                                           
+                              Cyy|dk = Ck = E (y − µy|dk )(y − µy|dk )H |dk
+                                                                             
+                                          = E (H̄k d̄k + w)(H̄k d̄k + w)H |dk
+                                                                e.
+                                          = σ 2 H̄k H̄H + N σ 2 H                                             (63)
+                                                       d               k               n
+
+Since Cyy|dk = Ck does not depend on the realization of dk , the scaling factor ζy|dk is a constant for any
+symbol s′ ∈ S. Consequently, by inserting (61) into (59) we arrive at the LMMSE hard decision criterion
+                                     ( P                     P
+                                                        ′                  ′
+                                      1          (1) g(s ) >
+                                            s′ ∈S0
+                                                                    (0) g(s )
+                                                               s′ ∈S0
+                              b̂0k =                                          ,                        (64)
+                                      0 otherwise
+with
+                                                                             
+                                  g(s′ ) = exp − (y − hk s′ )H C−1         ′
+                                                                k (y − hk s )                                 (65)
+and Ck as defined in (63).
+  Let us now consider the iterative SIC method, starting with the system model in its first iteration (q = 0),
+which is given by
+                                                                                   (0)
+                                                      y = hk dk + vk ,                                        (66)
+        (0)                                                                                             (0)
+where vk = H̄k d̄k + w is assumed to be zero mean Gaussian noise with a covariance matrix Cvv,k =
+                 2e
+σd2 H̄k H̄H
+          k + N σn H. The MMSE estimate for data symbol dk is the mean of the posterior PMF Edk |y [dk |y]
+for the model (66), which is given by (cf. (18))
+                                             P          ′            ′
+                                                                       
+                                                      s   p y dk = s
+                                      dˆk = Ps ∈S
+                                                 ′
+                                                                                                    (67)
+                                                                   ′
+                                                 s′ ∈S p y dk = s
+Considering the QPSK bit-to-symbol mapping defined above, the MMSE hard decision estimate for bit
+b0k is
+                                           (
+                                            1 Re{dˆk } > 0
+                                    b̂0k =                 .                                (68)
+                                            0 otherwise
+Since the denominator of the MMSE estimate given in (67) is always positive, the MMSE hard decision
+estimate b̂0k is estimated to be 1 if
+                                X ′                 
+                         0 < Re       s p y dk = s ′
+                                      s′ ∈S
+                              X                                    
+                          =           Re{s′ }p y dk = s′
+                              s′ ∈S
+                               X                              X                                             (69)
+                          =               Re{s′ }p y dk = s′ +   Re{s′ }p y dk = s′
+                              s′ ∈S (+)                                          s′ ∈S (-)
+                                  X                                        X                      
+                                                           ′
+                          =ρ                p y dk = s − ρ                             p y dk = s ′ ,
+                                s′ ∈S (+)                                  s′ ∈S (-)
+                                                                                                                                     32
+
+
+
+or, equivalently formulated, if
+                                          X                       X            
+                                                    p y dk = s ′ >   p y dk = s′ ,                                                (70)
+                                        s′ ∈S (+)                    s′ ∈S (-)
+
+with S (+) ⊂ S and S (−) ⊂ S being the sets of symbols containing solely symbols with positive and
+negative real part, respectively. For the given QPSK bit-to-symbol mapping, these two sets of symbols
+                                           (1)    (0)
+S (+) and S (−) coincide with the sets S0 and S0 as defined above, respectively. The PDF p(y|dk ) for
+the system model (66), in turn, is given by
+                                                                 (0)−1            
+                        p(y|dk ) = ζv(0) |d exp − (y − hk dk )H Cvv,k (y − hk dk ) ,             (71)
+                                               k     k
+
+                         1                                                                                 (0)
+with ζv(0) |d =           (0)
+                                 being constant for every data symbol realization and Cvv,k Ck = σd2 H̄k H̄H
+                                                                                                           k +
+         k    k     πN   Cvv,k
+      e Combining (68), (70), and (71) leads to the MMSE hard decision criterion
+N σn2 H.
+                                                   ( P                 P
+                                                                  ′                   ′
+                                                    1  ′
+                                                      s ∈S
+                                                           (1) g(s ) >
+                                                                         s′ ∈S
+                                                                               (0) g(s )
+                                       b̂0k =                  0                    0          ,                                  (72)
+                                                     0 otherwise
+with g(s′ ) as defined in (65). This is the same decision criterion as that of the LMMSE (64), which
+concludes the proof.
+
+                                                           R EFERENCES
+ [1] S. Baumgartner, O. Lang, and M. Huemer, “A Soft Interference Cancellation Inspired Neural Network for SC-FDE,” in Proceedings
+     of the 2022 IEEE 23rd International Workshop on Signal Processing Advances in Wireless Communication (SPAWC), 2022, pp. 1–5.
+ [2] B. Sagir, E. Aydin, and H. Ilhan, “Deep-Learning-Assisted IoT-Based RIS for Cooperative Communications,” IEEE Internet of Things
+     Journal, vol. 10, no. 12, pp. 10 471–10 483, 2023.
+ [3] X. Qian and M. Di Renzo, “Receiver Design in Molecular Communications: An Approach Based on Artificial Neural Networks,” in
+     Proceedings of the 15th International Symposium on Wireless Communication Systems (ISWCS), 2018, pp. 1–5.
+ [4] J. M. Mateos-Ramos, J. Song, Y. Wu, C. Häger, M. F. Keskin, V. Yajnanarayana, and H. Wymeersch, “End-to-End Learning for
+     Integrated Sensing and Communication,” in Proceedings of 2022 IEEE International Conference on Communications (ICC 2022),
+     2022, pp. 1942–1947.
+ [5] T. O’Shea and J. Hoydis, “An Introduction to Deep Learning for the Physical Layer,” IEEE Transactions on Cognitive Communications
+     and Networking, vol. 3, no. 4, pp. 563–575, 2017.
+ [6] F. Ait Aoudia and J. Hoydis, “Model-Free Training of End-to-End Communication Systems,” IEEE Journal on Selected Areas in
+     Communications, vol. 37, no. 11, pp. 2503–2516, 2019.
+ [7] H. He, S. Jin, C.-K. Wen, F. Gao, G. Y. Li, and Z. Xu, “Model-Driven Deep Learning for Physical Layer Communications,” IEEE
+     Wireless Communications, vol. 26, no. 5, pp. 77–83, 2019.
+ [8] A. Balatsoukas-Stimming and C. Studer, “Deep Unfolding for Communications Systems: A Survey and Some New Directions,” in
+     2019 IEEE International Workshop on Signal Processing Systems (SiPS), 2019, pp. 266–271.
+ [9] J. Hoydis, F. Ait Aoudia, A. Valcarce, and H. Viswanathan, “Toward a 6G AI-Native Air Interface,” IEEE Communications Magazine,
+     vol. 59, no. 5, pp. 76–81, 2021.
+[10] H. Ye, G. Y. Li, and B.-H. Juang, “Power of Deep Learning for Channel Estimation and Signal Detection in OFDM Systems,” IEEE
+     Wireless Communications Letters, vol. 7, no. 1, pp. 114–117, 2018.
+[11] Q. Hu, F. Gao, H. Zhang, S. Jin, and G. Y. Li, “Deep Learning for Channel Estimation: Interpretation, Performance, and Comparison,”
+     IEEE Transactions on Wireless Communications, vol. 20, no. 4, pp. 2398–2412, 2021.
+[12] E. Nachmani, E. Marciano, L. Lugosch, W. J. Gross, D. Burshtein, and Y. Be’ery, “Deep Learning Methods for Improved Decoding
+     of Linear Codes,” IEEE Journal of Selected Topics in Signal Processing, vol. 12, no. 1, pp. 119–131, 2018.
+[13] O. Ploder, C. Auer, C. Motz, T. Paireder, O. Lang, and M. Huemer, “SICNet—Low Complexity Sample Adaptive Neural Network-
+     Based Self-Interference Cancellation in LTE-A/5G Mobile Transceivers,” IEEE Open Journal of the Communications Society, vol. 3,
+     pp. 958–972, 2022.
+[14] A. Balatsoukas-Stimming, “Non-Linear Digital Self-Interference Cancellation for In-Band Full-Duplex Radios Using Neural Networks,”
+     in 2018 IEEE 19th International Workshop on Signal Processing Advances in Wireless Communications (SPAWC), 2018, pp. 1–5.
+[15] S. Baumgartner, C. Böck, M. Huemer, and A. Balatsoukas-Stimming, “Joint Self-Interference Cancellation and Data Estimation for
+     OFDM Based Full-Duplex Communication Systems,” in Proceedings of the 57th Asilomar Conference on Signals, Systems, and
+     Computers, 2023, accepted for publication.
+[16] M. Mohammadkarimi, M. Mehrabi, M. Ardakani, and Y. Jing, “Deep Learning-Based Sphere Decoding,” IEEE Transactions on Wireless
+     Communications, vol. 18, no. 9, pp. 4368–4378, 2019.
+[17] K. Pratik, B. D. Rao, and M. Welling, “RE-MIMO: Recurrent and Permutation Equivariant Neural MIMO Detection,” IEEE Transactions
+     on Signal Processing, vol. 69, pp. 459–473, 2021.
+                                                                                                                                      33
+
+
+
+[18] N. Samuel, T. Diskin, and A. Wiesel, “Learning to Detect,” IEEE Transactions on Signal Processing, vol. 67, no. 10, pp. 2554–2564,
+     2019.
+[19] H. He, C.-K. Wen, S. Jin, and G. Y. Li, “Model-Driven Deep Learning for MIMO Detection,” IEEE Transactions on Signal Processing,
+     vol. 68, pp. 1702–1715, 2020.
+[20] J. Liao, J. Zhao, F. Gao, and G. Y. Li, “A Model-Driven Deep Learning Method for Massive MIMO Detection,” IEEE Communications
+     Letters, vol. 24, no. 8, pp. 1724–1728, 2020.
+[21] M. Khani, M. Alizadeh, J. Hoydis, and P. Fleming, “Adaptive Neural Signal Detection for Massive MIMO,” IEEE Transactions on
+     Wireless Communications, vol. 19, no. 8, pp. 5635–5648, 2020.
+[22] N. Shlezinger, N. Farsad, Y. C. Eldar, and A. J. Goldsmith, “ViterbiNet: A Deep Learning Based Viterbi Algorithm for Symbol
+     Detection,” IEEE Transactions on Wireless Communications, vol. 19, no. 5, pp. 3319–3331, 2020.
+[23] N. Shlezinger, R. Fu, and Y. C. Eldar, “DeepSIC: Deep Soft Interference Cancellation for Multiuser MIMO Detection,” IEEE
+     Transactions on Wireless Communications, vol. 20, no. 2, pp. 1349–1362, 2021.
+[24] T. V. Luong, N. Shlezinger, C. Xu, T. M. Hoang, Y. C. Eldar, and L. Hanzo, “Deep Learning Based Successive Interference Cancellation
+     for the Non-Orthogonal Downlink,” IEEE Transactions on Vehicular Technology, vol. 71, no. 11, pp. 1–13, 2022.
+[25] Y. Wei, M. Zhao, M. Hong, M. Zhao, and M. Lei, “Learned Conjugate Gradient Descent Network for Massive MIMO Detection,” in
+     Proceedings of the 2020 IEEE International Conference on Communications (ICC 2020), 2020, pp. 1–6.
+[26] K. Hornik, “Approximation Capabilities of Multilayer Feedforward Networks,” Neural Networks, vol. 4, no. 2, pp. 251–257, 1991.
+[27] J. R. Hershey, J. Le Roux, and F. Weninger, “Deep unfolding: Model-based inspiration of novel deep architectures,” arXiv preprint
+     arXiv:1409.2574, 2014.
+[28] F. Pancaldi, G. M. Vitetta, R. Kalbasi, N. Al-Dhahir, M. Uysal, and H. Mheidat, “Single-Carrier Frequency Domain Equalization,”
+     IEEE Signal Processing Magazine, vol. 25, no. 5, pp. 37–56, 2008.
+[29] M. Huemer, A. Koppler, R. Weigel, and L. Reindl, “A Review of Cyclically Extended Single Carrier Transmission with Frequency
+     Domain Equalization for Broadband Wireless Transmission,” European Transactions on Telecommunications, vol. 14, no. 4, pp. 329–
+     341, 2003.
+[30] M. Huemer, H. Witschnig, and J. Hausner, “Unique Word Based Phase Tracking Algorithms for SC/FDE-Systems,” in Proceedings of
+     GLOBECOM 03 - IEEE Global Telecommunications Conference, 2003, pp. 70–74.
+[31] S. Baumgartner, O. Lang, and M. Huemer, “Neural Network Based Single-Carrier Frequency Domain Equalization,” in Computer Aided
+     Systems Theory - EUROCAST 2022, ser. Lecture Notes in Computer Science (LNCS), 2023, pp. 295–302.
+[32] W.-J. Choi, K.-W. Cheong, and J. M. Cioffi, “Iterative Soft Interference Cancellation for Multiple Antenna Systems,” in Proceedings
+     of the 2000 IEEE Wireless Communications and Networking Conference. Conference Record, 2000, pp. 304–309.
+[33] N. Shlezinger, R. Fu, and Y. C. Eldar, “Deep Soft Interference Cancellation for MIMO Detection,” in Proceedings of the 2020 IEEE
+     International Conference on Acoustics, Speech and Signal Processing (ICASSP), 2020, pp. 8881–8885.
+[34] H. Witschnig, T. Mayer, A. Springer, L. Maurer, M. Huemer, and R. Weigel, “The Advantages of a Known Sequence Versus Cyclic
+     Prefix in a SC/FDE System,” in Proceedings of the 5th International Symposium on Wireless Personal Multimedia Communications,
+     vol. 3, 2002, pp. 1328–1332.
+[35] M. Huemer, C. Hofbauer, and J. B. Huber, “Unique Word Prefix in SC/FDE and OFDM: A Comparison,” in 2010 IEEE Globecom
+     Workshops, 2010, pp. 1296–1301.
+[36] S. Reinhardt, T. Buzid, and M. Huemer, “Receiver Structures for MIMO-SC/FDE Systems,” in Proceedings of the 2006 IEEE 63rd
+     Vehicular Technology Conference, 2006, pp. 1401–1405.
+[37] M. Huemer, L. Reindl, A. Springer, and R. Weigel, “Implementation Aspects on Single Carrier Transmission with Frequency Domain
+     Equalization,” in Proceedings of the 4th International OFDM Workshop, 1999, pp. 18.1 – 18.4.
+[38] Y. Yang, T. Ihalainen, M. Rinne, and M. Renfors, “Frequency-Domain Equalization in Single-Carrier Transmission: Filter Bank
+     Approach,” EURASIP Journal on Advances in Signal Processing, vol. 2007, pp. 1–16, 2007.
+[39] S. Baumgartner, G. Bognár, O. Lang, and M. Huemer, “Neural Network Approaches for Data Estimation in Unique Word OFDM
+     Systems,” IEEE Transactions on Vehicular Technology, 2023, early access.
+[40] S. M. Kay, Fundamentals of Statistical Signal Processing: Estimation Theory. Prentice Hall, 1993, vol. 1.
+[41] C. Szegedy, W. Liu, Y. Jia, P. Sermanet, S. Reed, D. Anguelov, D. Erhan, V. Vanhoucke, and A. Rabinovich, “Going Deeper with
+     Convolutions,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition, 2015, pp. 1–9.
+[42] H. Xu, Y. Li, B. Tan, J. Wu, and D. Hu, “A Neural Network Empowered Belief Propagation Algorithm Optimized for Short-Cycles in
+     Tanner Graph,” IEEE Transactions on Machine Learning in Communications and Networking, vol. 1, pp. 31–42, 2023.
+[43] R. Wiesmayr, G. Marti, C. Dick, H. Song, and C. Studer, “Bit Error and Block Error Rate Training for ML-Assisted Communication,”
+     in Proceedings of the 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), 2023, pp. 1–5.
+[44] M. Goutay, F. Ait Aoudia, and J. Hoydis, “Deep HyperNetwork-Based MIMO Detection,” in Proceedings of the 2020 IEEE 21st
+     International Workshop on Signal Processing Advances in Wireless Communications (SPAWC), 2020, pp. 1–5.
+[45] Y. A. LeCun, L. Bottou, G. B. Orr, and K.-R. Müller, Efficient BackProp. Springer Berlin Heidelberg, 2012, pp. 9–48.
+[46] C. M. Bishop, Neural Networks for Pattern Recognition. Oxford University Press, Inc., 1995.
+[47] S. Baumgartner, G. Bognár, O. Lang, and M. Huemer, “Neural Network Based Data Estimation for Unique Word OFDM,” in Proceedings
+     of the 55th Asilomar Conference on Signals, Systems, and Computers, Pacific Grove, USA, 2021.
+[48] J. Fakatselis, “Criteria for 2.4 GHz PHY Comparison of Modulation,” IEEE Document, 1997, IEEE P802.11-97/157r1.
+[49] T. Akiba, S. Sano, T. Yanase, T. Ohta, and M. Koyama, “Optuna: A Next-Generation Hyperparameter Optimization Framework,” in
+     Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining, 2019, pp. 2623–2631.
+[50] M. Huemer and O. Lang, “On Component-Wise Conditionally Unbiased Linear Bayesian Estimation,” in Proceedings of the 48th
+     Asilomar Conference on Signals, Systems and Computers, Nov. 2014, pp. 879–885.
+[51] M. Huemer, C. Hofbauer, and J. Huber, “The Potential of Unique Words in OFDM,” in Proceedings of the 15th International OFDM-
+     Workshop, 2010, pp. 140–144.
+                                                                                                                              34
+
+
+
+[52] M. Huemer, C. Hofbauer, and J. B. Huber, “Non-Systematic Complex Number RS Coded OFDM by Unique Word Prefix,” IEEE
+     Transactions on Signal Processing, vol. 60, no. 1, pp. 285–299, 2012.
+[53] O. Lang, C. Böck, M. Huemer, and C. Hofbauer, “Increasing the Bandwidth Efficiency in UW-OFDM,” in Proceedings of the 53rd
+     Asilomar Conference on Signals, Systems, and Computers, 2019, pp. 1857–1861.
+[54] G. H. Golub and C. F. Van Loan, Matrix Computations. Johns Hopkins University Press, 2013.
+[55] W. Haselmayr and A. Springer, “Extrinsic LLR Computation by the SISO LMMSE Detector: Four Different Approaches,” in Computer
+     Aided Systems Theory – EUROCAST 2015, ser. Lecture Notes in Computer Science (LNCS), 2015, pp. 529–536.
+

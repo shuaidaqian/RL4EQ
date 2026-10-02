@@ -1,0 +1,296 @@
+﻿[
+    {
+        "arxiv_id":  "1903.12546v1",
+        "title":  "Robust Data Detection for MIMO Systems with One-Bit ADCs: A Reinforcement Learning Approach",
+        "published":  "2019-03-29T14:36:52Z",
+        "updated":  "2019-03-29T14:36:52Z",
+        "authors":  [
+                        "Yo-Seb Jeon",
+                        "Namyoon Lee",
+                        "H. Vincent Poor"
+                    ],
+        "summary":  "The use of one-bit analog-to-digital converters (ADCs) at a receiver is a power-efficient solution for future wireless systems operating with a large signal bandwidth and/or a massive number of receive radio frequency chains. This solution, however, induces a high channel estimation error and therefore makes it difficult to perform the optimal data detection that requires perfect knowledge of likelihood functions at the receiver. In this paper, we propose a likelihood function learning method for multiple-input multiple-output (MIMO) systems with one-bit ADCs using a reinforcement learning approach. The key idea is to exploit input-output samples obtained from data detection, to compensate the mismatch in the likelihood function. The underlying difficulty of this idea is a label uncertainty in the samples caused by a data detection error. To resolve this problem, we define a Markov decision process (MDP) to maximize the accuracy of the likelihood function learned from the samples. We then develop a reinforcement learning algorithm that efficiently finds the optimal policy by approximating the transition function and the optimal state of the MDP. Simulation results demonstrate that the proposed method provides significant performance gains for the optimal data detection methods that suffer from the mismatch in the likelihood function.",
+        "pdf_url":  "http://arxiv.org/pdf/1903.12546v1"
+    },
+    {
+        "arxiv_id":  "1911.04291v1",
+        "title":  "Machine Learning-Based Adaptive Receive Filtering: Proof-of-Concept on an SDR Platform",
+        "published":  "2019-11-11T14:10:44Z",
+        "updated":  "2019-11-11T14:10:44Z",
+        "authors":  [
+                        "Matthias Mehlhose",
+                        "Daniyal Amir Awan",
+                        "Renato L. G. Cavalcante",
+                        "Martin Kurras",
+                        "Slawomir Stanczak"
+                    ],
+        "summary":  "Conventional multiuser detection techniques either require a large number of antennas at the receiver for a desired performance, or they are too complex for practical implementation. Moreover, many of these techniques, such as successive interference cancellation (SIC), suffer from errors in parameter estimation (user channels, covariance matrix, noise variance, etc.) that is performed before detection of user data symbols. As an alternative to conventional methods, this paper proposes and demonstrates a low-complexity practical Machine Learning (ML) based receiver that achieves similar (and at times better) performance to the SIC receiver. The proposed receiver does not require parameter estimation; instead it uses supervised learning to detect the user modulation symbols directly. We perform comparisons with minimum mean square error (MMSE) and SIC receivers in terms of symbol error rate (SER) and complexity.",
+        "pdf_url":  "http://arxiv.org/pdf/1911.04291v1"
+    },
+    {
+        "arxiv_id":  "2506.06323v2",
+        "title":  "Composite Reward Design in PPO-Driven Adaptive Filtering",
+        "published":  "2025-05-29T23:11:48Z",
+        "updated":  "2026-07-02T13:22:02Z",
+        "authors":  [
+                        "Abdullah Burkan Bereketoglu"
+                    ],
+        "summary":  "Model-free and reinforcement learning-based adaptive filtering methods are gaining traction for denoising in dynamic, non-stationary environments such as wireless signal channels, biomedical monitoring, and sensor networks. Traditional filters such as LMS, RLS, Wiener, and Kalman are often limited by assumptions of stationarity, the need for exact noise statistics, or fragile parameter tuning. This paper proposes an adaptive filtering framework using Proximal Policy Optimization (PPO), guided by a composite reward that balances SNR improvement, MSE reduction, and residual smoothness. We frame adaptive filtering as a Markov decision process and train a PPO agent to adjust filter coefficients directly in response to changing noise. Experiments on synthetic nonstationary signals with diverse noise types show that the PPO agent generalizes beyond its training distribution. Moreover, real-world analysis is made and evaluated on ECG recordings from the MIT-BIH Noise Stress Test Database corrupted by baseline wander, electrode motion, and muscle artifacts. The learned PPO policy achieves real-time inference and slightly outperforms strong classical baselines on ECG denoising. These results demonstrate the viability of policy-gradient reinforcement learning as a computationally efficient and flexible tool for adaptive filtering in nonlinear, time-varying dynamical systems.",
+        "pdf_url":  "http://arxiv.org/pdf/2506.06323v2"
+    },
+    {
+        "arxiv_id":  "2203.14359v2",
+        "title":  "Online Meta-Learning For Hybrid Model-Based Deep Receivers",
+        "published":  "2022-03-27T17:53:29Z",
+        "updated":  "2023-02-11T20:07:58Z",
+        "authors":  [
+                        "Tomer Raviv",
+                        "Sangwoo Park",
+                        "Osvaldo Simeone",
+                        "Yonina C. Eldar",
+                        "Nir Shlezinger"
+                    ],
+        "summary":  "Recent years have witnessed growing interest in the application of deep neural networks (DNNs) for receiver design, which can potentially be applied in complex environments without relying on knowledge of the channel model. However, the dynamic nature of communication channels often leads to rapid distribution shifts, which may require periodically retraining. This paper formulates a data-efficient two-stage training method that facilitates rapid online adaptation. Our training mechanism uses a predictive meta-learning scheme to train rapidly from data corresponding to both current and past channel realizations. Our method is applicable to any deep neural network (DNN)-based receiver, and does not require transmission of new pilot data for training. To illustrate the proposed approach, we study DNN-aided receivers that utilize an interpretable model-based architecture, and introduce a modular training strategy based on predictive meta-learning. We demonstrate our techniques in simulations on a synthetic linear channel, a synthetic non-linear channel, and a COST 2100 channel. Our results demonstrate that the proposed online training scheme allows receivers to outperform previous techniques based on self-supervision and joint-learning by a margin of up to 2.5 dB in coded bit error rate in rapidly-varying scenarios.",
+        "pdf_url":  "http://arxiv.org/pdf/2203.14359v2"
+    },
+    {
+        "arxiv_id":  "2203.13571v2",
+        "title":  "Adaptive Neural Network-based OFDM Receivers",
+        "published":  "2022-03-25T10:57:12Z",
+        "updated":  "2022-07-21T10:11:42Z",
+        "authors":  [
+                        "Moritz Benedikt Fischer",
+                        "Sebastian Dörner",
+                        "Sebastian Cammerer",
+                        "Takayuki Shimizu",
+                        "Hongsheng Lu",
+                        "Stephan ten Brink"
+                    ],
+        "summary":  "We propose and examine the idea of continuously adapting state-of-the-art neural network (NN)-based orthogonal frequency division multiplex (OFDM) receivers to current channel conditions. This online adaptation via retraining is mainly motivated by two reasons: First, receiver design typically focuses on the universal optimal performance for a wide range of possible channel realizations. However, in actual applications and within short time intervals, only a subset of these channel parameters is likely to occur, as macro parameters, e.g., the maximum channel delay, can assumed to be static. Second, in-the-field alterations like temporal interferences or other conditions out of the originally intended specifications can occur on a practical (real-world) transmission. While conventional (filter-based) systems would require reconfiguration or additional signal processing to cope with these unforeseen conditions, NN-based receivers can learn to mitigate previously unseen effects even after their deployment. For this, we showcase on-the-fly adaption to current channel conditions and temporal alterations solely based on recovered labels from an outer forward error correction (FEC) code without any additional piloting overhead. To underline the flexibility of the proposed adaptive training, we showcase substantial gains for scenarios with static channel macro parameters, for out-of-specification usage and for interference compensation.",
+        "pdf_url":  "http://arxiv.org/pdf/2203.13571v2"
+    },
+    {
+        "arxiv_id":  "2507.10619v1",
+        "title":  "Meta-Reinforcement Learning for Fast and Data-Efficient Spectrum Allocation in Dynamic Wireless Networks",
+        "published":  "2025-07-13T21:29:39Z",
+        "updated":  "2025-07-13T21:29:39Z",
+        "authors":  [
+                        "Oluwaseyi Giwa",
+                        "Tobi Awodunmila",
+                        "Muhammad Ahmed Mohsin",
+                        "Ahsan Bilal",
+                        "Muhammad Ali Jamshed"
+                    ],
+        "summary":  "The dynamic allocation of spectrum in 5G / 6G networks is critical to efficient resource utilization. However, applying traditional deep reinforcement learning (DRL) is often infeasible due to its immense sample complexity and the safety risks associated with unguided exploration, which can cause severe network interference. To address these challenges, we propose a meta-learning framework that enables agents to learn a robust initial policy and rapidly adapt to new wireless scenarios with minimal data. We implement three meta-learning architectures, model-agnostic meta-learning (MAML), recurrent neural network (RNN), and an attention-enhanced RNN, and evaluate them against a non-meta-learning DRL algorithm, proximal policy optimization (PPO) baseline, in a simulated dynamic integrated access/backhaul (IAB) environment. Our results show a clear performance gap. The attention-based meta-learning agent reaches a peak mean network throughput of 48 Mbps, while the PPO baseline decreased drastically to 10 Mbps. Furthermore, our method reduces SINR and latency violations by more than 50% compared to PPO. It also shows quick adaptation, with a fairness index 0.7, showing better resource allocation. This work proves that meta-learning is a very effective and safer option for intelligent control in complex wireless systems.",
+        "pdf_url":  "http://arxiv.org/pdf/2507.10619v1"
+    },
+    {
+        "arxiv_id":  "2502.17168v2",
+        "title":  "Enabling Green Wireless Communications with Neuromorphic Continual Learning",
+        "published":  "2025-02-24T14:02:53Z",
+        "updated":  "2026-01-16T16:23:45Z",
+        "authors":  [
+                        "Yanzhen Liu",
+                        "Zhijin Qin",
+                        "Yongxu Zhu",
+                        "Geoffrey Ye Li"
+                    ],
+        "summary":  "The pursuit of carbon-neutral wireless networks is increasingly constrained by the escalating energy demands of deep learning-based signal processing. Here, we introduce SpikACom (Spiking Adaptive Communications), a neuromorphic computing framework that synergizes brain-inspired spiking neural networks (SNNs) with wireless signal processing to deliver sustainable intelligence. SpikACom advances the paradigm shift from energy-intensive, continuous-valued processing to event-driven sparse computation. Moreover, it supports continual learning in dynamic wireless environments via a dual-scale mechanism that integrates channel distribution-aware context modulation with a synaptic consolidation rule using SNN-specific statistics, mitigating catastrophic forgetting. Evaluations across critical wireless communication tasks, including semantic communication, multiple-input multiple-output (MIMO) beamforming, and channel estimation demonstrate that SpikACom matches full-precision deep learning baselines while achieving an order-of-magnitude improvement in computational energy efficiency. Our results position SNNs as a promising pathway toward green wireless intelligence, providing evidence that neuromorphic computing can empower the sustainability of modern digital systems.",
+        "pdf_url":  "http://arxiv.org/pdf/2502.17168v2"
+    },
+    {
+        "arxiv_id":  "2011.07782v1",
+        "title":  "Learning to Continuously Optimize Wireless Resource In Episodically Dynamic Environment",
+        "published":  "2020-11-16T08:24:34Z",
+        "updated":  "2020-11-16T08:24:34Z",
+        "authors":  [
+                        "Haoran Sun",
+                        "Wenqiang Pu",
+                        "Minghe Zhu",
+                        "Xiao Fu",
+                        "Tsung-Hui Chang",
+                        "Mingyi Hong"
+                    ],
+        "summary":  "There has been a growing interest in developing data-driven and in particular deep neural network (DNN) based methods for modern communication tasks. For a few popular tasks such as power control, beamforming, and MIMO detection, these methods achieve state-of-the-art performance while requiring less computational efforts, less channel state information (CSI), etc. However, it is often challenging for these approaches to learn in a dynamic environment where parameters such as CSIs keep changing. This work develops a methodology that enables data-driven methods to continuously learn and optimize in a dynamic environment. Specifically, we consider an ``episodically dynamic\" setting where the environment changes in ``episodes\", and in each episode the environment is stationary. We propose to build the notion of continual learning (CL) into the modeling process of learning wireless systems, so that the learning model can incrementally adapt to the new episodes, {\\it without forgetting} knowledge learned from the previous episodes. Our design is based on a novel min-max formulation which ensures certain ``fairness\" across different data samples. We demonstrate the effectiveness of the CL approach by customizing it to two popular DNN based models (one for power control and one for beamforming), and testing using both synthetic and real data sets. These numerical results show that the proposed CL approach is not only able to adapt to the new scenarios quickly and seamlessly, but importantly, it maintains high performance over the previously encountered scenarios as well.",
+        "pdf_url":  "http://arxiv.org/pdf/2011.07782v1"
+    },
+    {
+        "arxiv_id":  "2102.00178v1",
+        "title":  "Deep Reinforcement Learning Aided Monte Carlo Tree Search for MIMO Detection",
+        "published":  "2021-01-30T07:29:04Z",
+        "updated":  "2021-01-30T07:29:04Z",
+        "authors":  [
+                        "Tz-Wei Mo",
+                        "Ronald Y. Chang",
+                        "Te-Yi Kan"
+                    ],
+        "summary":  "This paper proposes a novel multiple-input multiple-output (MIMO) symbol detector that incorporates a deep reinforcement learning (DRL) agent into the Monte Carlo tree search (MCTS) detection algorithm. We first describe how the MCTS algorithm, used in many decision-making problems, is applied to the MIMO detection problem. Then, we introduce a self-designed deep reinforcement learning agent, consisting of a policy value network and a state value network, which is trained to detect MIMO symbols. The outputs of the trained networks are adopted into a modified MCTS detection algorithm to provide useful node statistics and facilitate enhanced tree search process. The resulted scheme, termed the DRL-MCTS detector, demonstrates significant improvements over the original MCTS detection algorithm and exhibits favorable performance compared to other existing linear and DNN-based detection methods under varying channel conditions.",
+        "pdf_url":  "http://arxiv.org/pdf/2102.00178v1"
+    },
+    {
+        "arxiv_id":  "2308.12591v2",
+        "title":  "SICNN: Soft Interference Cancellation Inspired Neural Network Equalizers",
+        "published":  "2023-08-24T06:40:54Z",
+        "updated":  "2024-03-11T10:02:49Z",
+        "authors":  [
+                        "Stefan Baumgartner",
+                        "Oliver Lang",
+                        "Mario Huemer"
+                    ],
+        "summary":  "In recent years data-driven machine learning approaches have been extensively studied to replace or enhance traditionally model-based processing in digital communication systems. In this work, we focus on equalization and propose a novel neural network (NN-)based approach, referred to as SICNN. SICNN is designed by deep unfolding a model-based iterative soft interference cancellation (SIC) method. It eliminates the main disadvantages of its model-based counterpart, which suffers from high computational complexity and performance degradation due to required approximations. We present different variants of SICNN. SICNNv1 is specifically tailored to single carrier frequency domain equalization (SC-FDE) systems, the communication system mainly regarded in this work. SICNNv2 is more universal and is applicable as an equalizer in any communication system with a block-based data transmission scheme. Moreover, for both SICNNv1 and SICNNv2, we present versions with highly reduced numbers of learnable parameters. Another contribution of this work is a novel approach for generating training datasets for NN-based equalizers, which significantly improves their performance at high signal-to-noise ratios. We compare the bit error ratio performance of the proposed NN-based equalizers with state-of-the-art model-based and NN-based approaches, highlighting the superiority of SICNNv1 over all other methods for SC-FDE. Exemplarily, to emphasize its universality, SICNNv2 is additionally applied to a unique word orthogonal frequency division multiplexing (UW-OFDM) system, where it achieves state-of-the-art performance. Furthermore, we present a thorough complexity analysis of the proposed NN-based equalization approaches, and we investigate the influence of the training set size on the performance of NN-based equalizers.",
+        "pdf_url":  "http://arxiv.org/pdf/2308.12591v2"
+    },
+    {
+        "arxiv_id":  "2511.06045v2",
+        "title":  "Online Learning of Modular Bayesian Deep Receivers: Single-Step Adaptation with Streaming Data",
+        "published":  "2025-11-08T15:34:34Z",
+        "updated":  "2026-05-24T08:02:38Z",
+        "authors":  [
+                        "Yakov Gusakov",
+                        "Osvaldo Simeone",
+                        "Tirza Routtenberg",
+                        "Nir Shlezinger"
+                    ],
+        "summary":  "Deep neural network (DNN)-based receivers offer a powerful alternative to classical model-based designs for wireless communication, especially in complex and nonlinear propagation environments. However, their adoption is challenged by the rapid variability of wireless channels, which makes pre-trained static DNN-based receivers ineffective, and by the latency and computational burden of online stochastic gradient descent (SGD)-based learning. In this work, we propose an online learning framework that enables rapid low-complexity adaptation of DNN-based receivers. Our approach is based on two main tenets. First, we cast online learning as Bayesian tracking in parameter space, enabling a single-step adaptation, which deviates from multi-epoch SGD . Second, we focus on modular DNN architectures that enable parallel, online, and localized variational Bayesian updates. Simulations with practical communication channels demonstrate that our proposed online learning framework can maintain a low error rate with markedly reduced update latency and increased robustness to channel dynamics as compared to traditional gradient descent based method.",
+        "pdf_url":  "http://arxiv.org/pdf/2511.06045v2"
+    },
+    {
+        "arxiv_id":  "2603.02489v1",
+        "title":  "RIS-Enabled Wireless Channel Equalization: Adaptive RIS Equalizer and Deep Reinforcement Learning",
+        "published":  "2026-03-03T00:43:00Z",
+        "updated":  "2026-03-03T00:43:00Z",
+        "authors":  [
+                        "Gal Ben-Itzhak",
+                        "Ender Ayanoglu"
+                    ],
+        "summary":  "Reconfigurable Intelligent Surfaces (RISs) offer a promising means of reshaping the wireless propagation environment, yet practical methods for configuring large passive arrays to achieve reliable signal equalization remain limited. Equalization is essential in wideband links to counteract multipath-induced pulse distortion that otherwise degrades symbol recovery. This work investigates RIS-assisted pulse response equalization and signal boosting using both classical adaptive filtering and model-free deep reinforcement learning (DRL). We develop a steepest descent (SD) method that exploits cascaded BS-RIS-UE channel information to configure RIS coefficients for multipath mitigation and SNR enhancement, and we show that the tradeoffs between SD and DRL primarily arise from the extensive channel estimation required for accurate equalization with passive RIS hardware. Unlike traditional adaptive filtering, which updates delayed filter coefficients after signal reception, our approach uses the RIS positioned within the cascaded channel to perform equalization without delay elements, prior to reception at the UE. In this framework, the channel is estimated before equalization, forming the basis of what we term adaptive RIS equalization (ARISE). To overcome the reliance on channel estimation required for ARISE, we explore several DRL algorithms -- DDPG, TD3, and SAC -- that optimize RIS coefficients directly from the received pulse response without explicit channel estimation. Through extensive simulations across diverse channel conditions and RIS sizes, we show that SAC achieves fast, stable convergence and equalization performance comparable to ARISE while offering significantly lower implementation complexity. These results highlight the potential of DRL as a practical and scalable solution for real-time RIS control in future wireless systems.",
+        "pdf_url":  "http://arxiv.org/pdf/2603.02489v1"
+    },
+    {
+        "arxiv_id":  "2602.20361v1",
+        "title":  "Learning During Detection: Continual Learning for Neural OFDM Receivers via DMRS",
+        "published":  "2026-02-23T21:07:36Z",
+        "updated":  "2026-02-23T21:07:36Z",
+        "authors":  [
+                        "Mohanad Obeed",
+                        "Ming Jian"
+                    ],
+        "summary":  "Deep neural networks (DNNs) have been increasingly explored for receiver design because they can handle complex environments without relying on explicit channel models. Nevertheless, because communication channels change rapidly, their distributions can shift over time, often making periodic retraining necessary. This paper proposes a zero-overhead online and continual learning framework for orthogonal frequency-division multiplexing (OFDM) neural receivers that directly detect the soft bits of received signals. Unlike conventional fine-tuning methods that rely on dedicated training intervals or full resource grids, our approach leverages existing demodulation reference signals (DMRS) to simultaneously enable signal demodulation and model adaptation. We introduce three pilot designs: fully randomized, hybrid, and additional pilots that flexibly support joint demodulation and learning. To accommodate these pilot designs, we develop two receiver architectures: (i) a parallel design that separates inference and fine-tuning for uninterrupted operation, and (ii) a forward-pass reusing design that reduces computational complexity. Simulation results show that the proposed method effectively tracks both slow and fast channel distribution variations without additional overhead, service interruption, or catastrophic performance degradation under distribution shift.",
+        "pdf_url":  "http://arxiv.org/pdf/2602.20361v1"
+    },
+    {
+        "arxiv_id":  "2312.05158v1",
+        "title":  "Deep Learning-Based Pilotless Spatial Multiplexing",
+        "published":  "2023-12-08T16:38:02Z",
+        "updated":  "2023-12-08T16:38:02Z",
+        "authors":  [
+                        "Dani Korpi",
+                        "Mikko Honkala",
+                        "Janne M. J. Huttunen"
+                    ],
+        "summary":  "This paper investigates the feasibility of machine learning (ML)-based pilotless spatial multiplexing in multiple-input and multiple-output (MIMO) communication systems. Especially, it is shown that by training the transmitter and receiver jointly, the transmitter can learn such constellation shapes for the spatial streams which facilitate completely blind separation and detection by the simultaneously learned receiver. To the best of our knowledge, this is the first time ML-based spatial multiplexing without channel estimation pilots is demonstrated. The results show that the learned pilotless scheme can outperform a conventional pilot-based system by as much as 15-20% in terms of spectral efficiency, depending on the modulation order and signal-to-noise ratio.",
+        "pdf_url":  "http://arxiv.org/pdf/2312.05158v1"
+    },
+    {
+        "arxiv_id":  "2202.10635v1",
+        "title":  "Online Learning of Trellis Diagram Using Neural Network for Robust Detection and Decoding",
+        "published":  "2022-02-22T02:48:14Z",
+        "updated":  "2022-02-22T02:48:14Z",
+        "authors":  [
+                        "Jie Yang",
+                        "Qinghe Du",
+                        "Yi Jiang"
+                    ],
+        "summary":  "This paper studies machine learning-assisted maximum likelihood (ML) and maximum a posteriori (MAP) receivers for a communication system with memory, which can be modelled by a trellis diagram. The prerequisite of the ML/MAP receiver is to obtain the likelihood of the received samples under different state transitions of the trellis diagram, which relies on the channel state information (CSI) and the distribution of the channel noise. We propose to learn the trellis diagram real-time using an artificial neural network (ANN) trained by a pilot sequence. This approach, termed as the online learning of trellis diagram (OLTD), requires neither the CSI nor statistics of the noise, and can be incorporated into the classic Viterbi and the BCJR algorithm. %Compared with the state-of-the-art ViterbiNet and BCJRNet algorithms in the literature, it It is shown to significantly outperform the model-based methods in non-Gaussian channels. It requires much less training overhead than the state-of-the-art methods, and hence is more feasible for real implementations. As an illustrative example, the OLTD-based BCJR is applied to a Bluetooth low energy (BLE) receiver trained only by a 256-sample pilot sequence. Moreover, the OLTD-based BCJR can accommodate for turbo equalization, while the state-of-the-art BCJRNet/ViterbiNet cannot. As an interesting by-product, we propose an enhancement to the BLE standard by introducing a bit interleaver to its physical layer; the resultant improvement of the receiver sensitivity can make it a better fit for some Internet of Things (IoT) communications.",
+        "pdf_url":  "http://arxiv.org/pdf/2202.10635v1"
+    },
+    {
+        "arxiv_id":  "2012.13523v1",
+        "title":  "Feature-Aided Adaptive-Tuning Deep Learning for Massive Device Detection",
+        "published":  "2020-12-25T06:15:12Z",
+        "updated":  "2020-12-25T06:15:12Z",
+        "authors":  [
+                        "Xiaodan Shao",
+                        "Xiaoming Chen",
+                        "Yiyang Qiang",
+                        "Caijun Zhong",
+                        "Zhaoyang Zhang"
+                    ],
+        "summary":  "With the increasing development of Internet of Things (IoT), the upcoming sixth-generation (6G) wireless network is required to support grant-free random access of a massive number of sporadic traffic devices. In particular, at the beginning of each time slot, the base station (BS) performs joint activity detection and channel estimation (JADCE) based on the received pilot sequences sent from active devices. Due to the deployment of a large-scale antenna array and the existence of a massive number of IoT devices, conventional JADCE approaches usually have high computational complexity and need long pilot sequences. To solve these challenges, this paper proposes a novel deep learning framework for JADCE in 6G wireless networks, which contains a dimension reduction module, a deep learning network module, an active device detection module, and a channel estimation module. Then, prior-feature learning followed by an adaptive-tuning strategy is proposed, where an inner network composed of the Expectation-maximization (EM) and back-propagation is introduced to jointly tune the precision and learn the distribution parameters of the device state matrix. Finally, by designing the inner layer-by-layer and outer layer-by-layer training method, a feature-aided adaptive-tuning deep learning network is built. Both theoretical analysis and simulation results confirm that the proposed deep learning framework has low computational complexity and needs short pilot sequences in practical scenarios.",
+        "pdf_url":  "http://arxiv.org/pdf/2012.13523v1"
+    },
+    {
+        "arxiv_id":  "1905.08795v2",
+        "title":  "Unsupervised Linear and Nonlinear Channel Equalization and Decoding using Variational Autoencoders",
+        "published":  "2019-05-21T15:32:06Z",
+        "updated":  "2020-04-13T10:56:24Z",
+        "authors":  [
+                        "Avi Caciularu",
+                        "David Burshtein"
+                    ],
+        "summary":  "A new approach for blind channel equalization and decoding, variational inference, and variational autoencoders (VAEs) in particular, is introduced. We first consider the reconstruction of uncoded data symbols transmitted over a noisy linear intersymbol interference (ISI) channel, with an unknown impulse response, without using pilot symbols. We derive an approximate maximum likelihood estimate to the channel parameters and reconstruct the transmitted data. We demonstrate significant and consistent improvements in the error rate of the reconstructed symbols, compared to existing blind equalization methods such as constant modulus, thus enabling faster channel acquisition. The VAE equalizer uses a convolutional neural network with a small number of free parameters. These results are extended to blind equalization over a noisy nonlinear ISI channel with unknown parameters. We then consider coded communication using low-density parity-check (LDPC) codes transmitted over a noisy linear or nonlinear ISI channel. The goal is to reconstruct the transmitted message from the channel observations corresponding to a transmitted codeword, without using pilot symbols. We demonstrate improvements compared to the expectation maximization (EM) algorithm using turbo equalization. Furthermore, unlike EM, the computational complexity of our method does not have exponential dependence on the size of the channel impulse response.",
+        "pdf_url":  "http://arxiv.org/pdf/1905.08795v2"
+    },
+    {
+        "arxiv_id":  "2207.04478v2",
+        "title":  "Model-Driven Based Deep Unfolding Equalizer for Underwater Acoustic OFDM Communications",
+        "published":  "2022-07-10T14:46:04Z",
+        "updated":  "2023-04-15T14:39:41Z",
+        "authors":  [
+                        "Hao Zhao",
+                        "Cui Yang",
+                        "Yalu Xu",
+                        "Fei Ji",
+                        "Miaowen Wen",
+                        "Yankun Chen"
+                    ],
+        "summary":  "It is challenging to design an equalizer for the complex time-frequency doubly-selective channel. In this paper, we employ the deep unfolding approach to establish an equalizer for the underwater acoustic (UWA) orthogonal frequency division multiplexing (OFDM) system, namely UDNet. Each layer of UDNet is designed according to the classical minimum mean square error (MMSE) equalizer. Moreover, we consider the QPSK equalization as a four-classification task and adopt minimum Kullback-Leibler (KL) to achieve a smaller symbol error rate (SER) with the one-hot coding instead of the MMSE criterion. In addition, we introduce a sliding structure based on the banded approximation of the channel matrix to reduce the network size and aid UDNet to perform well for different-length signals without changing the network structure. Furthermore, we apply the measured at-sea doubly-selective UWA channel and offshore background noise to evaluate the proposed equalizer. Experimental results show that the proposed UDNet performs better with low computational complexity. Concretely, the SER of UDNet is nearly an order of magnitude lower than that of MMSE.",
+        "pdf_url":  "http://arxiv.org/pdf/2207.04478v2"
+    },
+    {
+        "arxiv_id":  "1711.00355v2",
+        "title":  "Detection for 5G-NOMA: An Online Adaptive Machine Learning Approach",
+        "published":  "2017-11-01T14:09:58Z",
+        "updated":  "2018-01-11T18:55:59Z",
+        "authors":  [
+                        "Daniyal Amir Awan",
+                        "Renato L. G. Cavalcante",
+                        "Masahiro Yukawa",
+                        "Slawomir Stanczak"
+                    ],
+        "summary":  "Non-orthogonal multiple access (NOMA) has emerged as a promising radio access technique for enabling the performance enhancements promised by the fifth-generation (5G) networks in terms of connectivity, low latency, and high spectrum efficiency. In the NOMA uplink, successive interference cancellation (SIC) based detection with device clustering has been suggested. In the case of multiple receive antennas, SIC can be combined with the minimum mean-squared error (MMSE) beamforming. However, there exists a tradeoff between the NOMA cluster size and the incurred SIC error. Larger clusters lead to larger errors but they are desirable from the spectrum efficiency and connectivity point of view. We propose a novel online learning based detection for the NOMA uplink. In particular, we design an online adaptive filter in the sum space of linear and Gaussian reproducing kernel Hilbert spaces (RKHSs). Such a sum space design is robust against variations of a dynamic wireless network that can deteriorate the performance of a purely nonlinear adaptive filter. We demonstrate by simulations that the proposed method outperforms the MMSE-SIC based detection for large cluster sizes.",
+        "pdf_url":  "http://arxiv.org/pdf/1711.00355v2"
+    },
+    {
+        "arxiv_id":  "2407.09134v1",
+        "title":  "Asynchronous Online Adaptation via Modular Drift Detection for Deep Receivers",
+        "published":  "2024-07-12T10:05:24Z",
+        "updated":  "2024-07-12T10:05:24Z",
+        "authors":  [
+                        "Nicole Uzlaner",
+                        "Tomer Raviv",
+                        "Nir Shlezinger",
+                        "Koby Todros"
+                    ],
+        "summary":  "Deep learning is envisioned to facilitate the operation of wireless receivers, with emerging architectures integrating deep neural networks (DNNs) with traditional modular receiver processing. While deep receivers were shown to operate reliably in complex settings for which they were trained, the dynamic nature of wireless communications gives rise to the need to repeatedly adapt deep receivers to channel variations. However, frequent re-training is costly and ineffective, while in practice, not every channel variation necessitates adaptation of the entire DNN. In this paper, we study concept drift detection for identifying when does a deep receiver no longer match the channel, enabling asynchronous adaptation, i.e., re-training only when necessary. We identify existing drift detection schemes from the machine learning literature that can be adapted for deep receivers in dynamic channels, and propose a novel soft-output detection mechanism tailored to the communication domain. Moreover, for deep receivers that preserve conventional modular receiver processing, we design modular drift detection mechanisms, that simultaneously identify when and which sub-module to re-train. The provided numerical studies show that even in a rapidly time-varying scenarios, asynchronous adaptation via modular drift detection dramatically reduces the number of trained parameters and re-training times, with little compromise on performance.",
+        "pdf_url":  "http://arxiv.org/pdf/2407.09134v1"
+    },
+    {
+        "arxiv_id":  "1812.06638v3",
+        "title":  "AI-Aided Online Adaptive OFDM Receiver: Design and Experimental Results",
+        "published":  "2018-12-17T07:53:47Z",
+        "updated":  "2021-12-24T09:27:43Z",
+        "authors":  [
+                        "Peiwen Jiang",
+                        "Tianqi Wang",
+                        "Bin Han",
+                        "Xuanxuan Gao",
+                        "Jing Zhang",
+                        "Chao-Kai Wen",
+                        "Shi Jin",
+                        "Geoffrey Ye Li"
+                    ],
+        "summary":  "Orthogonal frequency division multiplexing (OFDM) has been widely applied in current communication systems. The artificial intelligence (AI)-aided OFDM receivers are currently brought to the forefront to replace and improve the traditional OFDM receivers. In this study, we first compare two AI-aided OFDM receivers, namely, data-driven fully connected deep neural network and model-driven ComNet, through extensive simulation and real-time video transmission using a 5G rapid prototyping system for an over-the-air (OTA) test. We find a performance gap between the simulation and the OTA test caused by the discrepancy between the channel model for offline training and the real environment. We develop a novel online training system, which is called SwitchNet receiver, to address this issue. This receiver has a flexible and extendable architecture and can adapt to real channels by training only several parameters online. From the OTA test, the AI-aided OFDM receivers, especially the SwitchNet receiver, are robust to real environments and promising for future communication systems. We discuss potential challenges and future research inspired by our initial study in this paper.",
+        "pdf_url":  "http://arxiv.org/pdf/1812.06638v3"
+    }
+]

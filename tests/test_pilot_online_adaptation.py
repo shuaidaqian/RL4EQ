@@ -127,8 +127,23 @@ from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from training.online_adaptation import (
     PilotDrivenOnlineAdapter,
     _normalized_proximal_penalty,
+    hard_example_weights,
     run_pilot_driven_online,
 )
+
+
+def test_hard_example_weights_emphasize_logits_near_decision_boundary():
+    logits = torch.tensor([0.0, 0.25, 2.0, 8.0])
+    weights = hard_example_weights(logits, temperature=0.5)
+
+    assert weights[0] > weights[1] > weights[2] > weights[3]
+    assert weights[0].item() == pytest.approx(2.0)
+    assert weights[-1].item() < 1.01
+
+
+def test_hard_example_temperature_must_be_positive():
+    with pytest.raises(ValueError, match="temperature"):
+        hard_example_weights(torch.zeros(2), temperature=0.0)
 
 
 def test_normalized_proximal_penalty_is_zero_at_snapshot_and_positive_after_move():
@@ -225,6 +240,51 @@ def test_online_adapter_updates_selected_peft_group_from_adapt_pilot_only():
     ]
     assert changed
     assert all(getattr(model.get_parameter(name), "_peft_group", None) == "head" for name in changed)
+
+
+def test_phase_peft_update_changes_parameters_and_adapt_loss():
+    torch.manual_seed(19)
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+            enable_phase_correction_branch=True,
+            phase_correction_initial_scale=1.0,
+        )
+    )
+    frame = SimpleNamespace(
+        rx_symbols=torch.randn(32, dtype=torch.complex64),
+        tx_symbols=torch.where(
+            torch.arange(32) % 2 == 0,
+            torch.ones(32, dtype=torch.complex64),
+            -torch.ones(32, dtype=torch.complex64),
+        ),
+        adapt_mask=torch.arange(32) < 12,
+        reward_mask=torch.arange(32) >= 12,
+        data_mask=torch.zeros(32, dtype=torch.bool),
+        model_region_ids=torch.zeros(32, dtype=torch.long),
+    )
+    adapter = PilotDrivenOnlineAdapter(model, groups={"phase"}, learning_rate=1e-2, steps=2)
+    before = {name: value.detach().clone() for name, value in model.named_parameters()}
+    result = adapter.adapt(
+        frame,
+        _identity_condition(),
+        torch.zeros(1, 4, dtype=torch.complex64),
+        groups={"phase"},
+        learning_rate=1e-2,
+        steps=2,
+        max_delta_norm=1.0,
+    )
+    changed = [name for name, value in model.named_parameters() if not torch.equal(before[name], value.detach())]
+    assert result.accepted is True
+    assert result.parameter_delta_norm > 0.0
+    assert result.adapt_loss_after != pytest.approx(result.adapt_loss_before)
+    assert changed
+    assert all(getattr(model.get_parameter(name), "_peft_group", None) == "phase" for name in changed)
 
 
 def test_online_adapter_rejects_frame_without_adapt_pilot():

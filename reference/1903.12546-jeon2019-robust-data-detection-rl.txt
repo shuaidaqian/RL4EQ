@@ -1,0 +1,1557 @@
+                                                                                                                                                                      1
+
+
+
+                                           Robust Data Detection for MIMO Systems with One-Bit
+                                                        ADCs: A Reinforcement Learning Approach
+                                                                   Yo-Seb Jeon, Namyoon Lee, and H. Vincent Poor
+
+
+                                                                                                    Abstract
+arXiv:1903.12546v1 [eess.SP] 29 Mar 2019
+
+
+
+
+                                                      The use of one-bit analog-to-digital converters (ADCs) at a receiver is a power-efficient solution for
+                                                 future wireless systems operating with a large signal bandwidth and/or a massive number of receive radio
+                                                 frequency chains. This solution, however, induces a high channel estimation error and therefore makes it
+                                                 difficult to perform the optimal data detection that requires perfect knowledge of likelihood functions at
+                                                 the receiver. In this paper, we propose a likelihood function learning method for multiple-input multiple-
+                                                 output (MIMO) systems with one-bit ADCs using a reinforcement learning approach. The key idea is to
+                                                 exploit input-output samples obtained from data detection, to compensate the mismatch in the likelihood
+                                                 function. The underlying difficulty of this idea is a label uncertainty in the samples caused by a data
+                                                 detection error. To resolve this problem, we define a Markov decision process (MDP) to maximize
+                                                 the accuracy of the likelihood function learned from the samples. We then develop a reinforcement
+                                                 learning algorithm that efficiently finds the optimal policy by approximating the transition function
+                                                 and the optimal state of the MDP. Simulation results demonstrate that the proposed method provides
+                                                 significant performance gains for the optimal data detection methods that suffer from the mismatch in
+                                                 the likelihood function.
+
+
+                                                                                                 Index Terms
+
+                                                      Multiple-input-multiple-output (MIMO), one-bit analog-to-digital converter (ADC), reinforcement
+                                                 learning, robust data detection, likelihood function learning.
+
+
+                                                                                            I. I NTRODUCTION
+
+                                              Future wireless systems are expected to use a large signal bandwidth and/or a massive
+                                           antenna array to achieve high data rates beyond hundreds of Gbits/sec [3]–[5]. Unfortunately,
+
+                                             Y.-S. Jeon is with the Department of Electrical Engineering, Princeton University, Princeton, NJ 08544. He is also with the
+                                           Department of Electrical Engineering, POSTECH, Pohang, Gyeongbuk 37673, South Korea (e-mail: yoseb.jeon@postech.ac.kr).
+                                             N. Lee is with the Department of Electrical Engineering, POSTECH, Pohang, Gyeongbuk 37673, South Korea (e-mail:
+                                           nylee@postech.ac.kr).
+                                             H. V. Poor is with the Department of Electrical Engineering, Princeton University, Princeton, NJ 08544 (e-mail:
+                                           poor@princeton.edu).
+                                                                                                 2
+
+
+
+implementing these techniques also brings a significant power consumption problem at a receiver.
+The main cause of this problem is a high-precision (12∼16 bits) analog-to-digital converter
+(ADC) employed per radio frequency (RF) chain at the receiver, because its power consumption
+increases linearly with both the signal bandwidth (i.e., the sampling rate) and the number of
+receive RF chains [6]–[9]. To resolve this problem, the use of one-bit ADCs has received a
+great deal of attention [10]–[30]. This solution provides an exponential reduction in the power
+consumption of the ADCs and therefore makes it possible to compensate the power increase in
+the future wireless systems.
+  In multiple-input multiple-output (MIMO) systems operating with one-bit ADCs, perfect
+knowledge of likelihood functions is necessary at the receiver to perform the optimal data
+detection [13]–[16]. The most common approach to attain this knowledge is to compute the
+likelihood functions based on channel information obtained via pilot-assisted channel estimation
+methods (e.g., [16], [21]–[26]). This channel information, however, is inaccurate when employing
+one-bit ADCs because coarse quantization at the ADCs fundamentally limits the available
+information at the receiver. Such inaccurate channel information causes a mismatch in the
+likelihood functions computed at the receiver and therefore results in a severe performance
+degradation in the optimal data detection methods. To facilitate reliable communication in the
+MIMO systems with one-bit ADCs, it is essential to design a likelihood function estimation
+method that is robust to the mismatch caused by the inaccurate channel information.
+  In our prior works [1], [2], we made the first attempt to use a reinforcement learning approach
+to design a likelihood function learning method for MIMO systems with one-bit ADCs. A major
+limitation of the methods in [1], [2] is that they exploit only a part of input-output samples
+obtained from the data detection, while being applicable to specific data detection methods. In
+this paper, we make substantial progress toward this direction; we define a Markov decision
+process (MDP) that optimizes the exploitation of all the input-output samples to maximize the
+accuracy of the learned likelihood function, and then develop a practical algorithm to efficiently
+solve the MDP. We also improve the applicability of the learning method, so that it is universally
+applicable to any data detection method that utilizes the likelihood functions as the sufficient
+statistics in the MIMO systems with one-bit ADCs.
+                                                                                                  3
+
+
+
+A. Related Work
+
+  Data detection methods for MIMO systems with one-bit ADCs have been intensively studied
+in the literature [13]–[21]. For frequency flat channels, the optimal maximum-likelihood (ML)
+detection method and its low-complexity variations were developed in [15]–[18]. Particularly, in
+[17], [18], it was proven that the optimal ML detection is equivalent to the minimum weighted
+Hamming distance decoding in which the weights are determined by the likelihood functions.
+Utilizing this equivalence, the optimal soft-output detection method was proposed in [19] that
+computes a posteriori probability (APP) based on the weighted Hamming distance. For frequency
+selective channels, the optimal ML sequence detection method was developed by using Viterbi
+algorithm [13] which is optimal in the sense of detecting the sequence of transmitted data
+symbols. Recently, the optimal soft-output detection method for frequency selective channels was
+proposed in [14], by utilizing the forward-backward algorithm based on a trellis diagram. In this
+work, a near-optimal low-complexity method was also developed based on the belief propagation
+algorithm by constructing a sparse factor graph. The common feature of the aforementioned
+methods is that they require the likelihood functions as the sufficient statistics for the data
+detection. Some suboptimal detection methods that can reduce the complexity of the optimal
+detection methods were presented in [20], [21], but these methods are suboptimal and therefore
+suffer from a severe degradation in the detection performance.
+  There is also a rich literature on channel estimation methods in MIMO systems with one-bit
+ADCs [16], [21]–[26]. For frequency flat channels, an iterative channel estimation method was
+developed in [16] on the basis of a ML criterion. In [22], a linear channel estimation method
+was developed based on Bussgang’s theorem [31] which provides a linear representation of
+the quantized signals with Gaussian inputs. For frequency selective channels, iterative channel
+estimation algorithms were proposed based on the expectation-maximization algorithm [23]–
+[25] and the approximate-message-passing (AMP) algorithm [26]. The common idea of these
+algorithms is to estimate unquantized signals and channel coefficients separately and successively
+at each iteration. For quantized orthogonal frequency division multiplexing (OFDM) systems, a
+convex-optimization-based channel estimation algorithm was studied in [21], which provides the
+maximum a posteriori (MAP) estimate if the prior distribution of channel frequency responses
+is log concave. Despite all these efforts, obtaining an accurate channel information is still chal-
+lenging in the MIMO systems with one-bit ADCs. The major reason is that coarse quantization
+                                                                                                    4
+
+
+
+at the ADCs fundamentally limits the available information at the receiver.
+  Recently, several different approaches beyond conventional data detection and channel esti-
+mation methods have studied for MIMO systems with one-bit ADCs [27]–[30]. In [27], a joint
+data-and-channel estimation technique was proposed on the basis of the bilinear generalized AMP
+(BiGAMP) algorithm to iteratively improve the estimation accuracy for both channel coefficients
+and data symbols, but its applicability is limited to frequency flat channels only. This limitation
+has overcome in [28] by developing the Bayesian optimal data detector combined with a channel
+estimation method for MIMO OFDM systems with few-bit ADCs. The optimality of this method,
+however, is not guaranteed due to the use of OFDM signaling which is shown to be highly
+suboptimal when employing the few-bit ADCs [14]. A joint channel estimation-and-decoding
+technique that does not rely on the OFDM signaling was proposed in [29]. Unfortunately,
+this technique is still suboptimal in terms of the decoding performance, because it adopts the
+parametric BiGAMP algorithm based on Gaussian approximations. In [30], inspired by the
+nonlinearity of the MIMO systems with few-bit ADCs, a supervised learning approach was
+proposed which learns the input-output relation of the nonlinear system by training examples
+and then uses the learned information for the data detection. One major limitation of this approach
+is that the length of the training sequence depends on the number of possible inputs; thereby,
+this approach may not be an efficient solution for the use in frequency selective channels.
+
+
+B. Contributions
+
+  The major contributions of this paper are summarized as follows:
+  •   We present a likelihood function learning method for MIMO systems with one-bit ADCs.
+      The key idea of the presented method is to exploit input-output samples obtained from the
+      data detection, each describes the association between a quantized received vector and a
+      transmitted symbol index at each time slot. Particularly, we define an empirical likelihood
+      function that describes the empirical distribution of the input-output samples. We then exploit
+      this empirical function to compensate a mismatch in a model-based likelihood function
+      initially computed based on an estimated channel. One prominent feature of the presented
+      method is that it is universally applicable to any data detection method that utilizes the
+      likelihood functions as the sufficient statistics, regardless of the channel estimation method,
+      the frequency selectivity of the channel, and the type of the channel code adopted in the
+      system.
+                                                                                                    5
+
+
+
+•   We optimize the presented learning method via a reinforcement learning approach, to resolve
+    a label uncertainty problem in the samples caused by a data detection error. To this end, we
+    formulate the optimization problem as a Markov decision process (MDP) that maximizes
+    the accuracy of the likelihood function learned from the input-output samples. Since the
+    transition function of the MDP is unknown at the receiver, we develop a reinforcement
+    learning algorithm that approximates the transition function and the optimal state of the
+    MDP to find the optimal policy in a closed-form expression. The key advantage of the
+    developed algorithm is that it is readily implemented in practical communication systems,
+    unlike a conventional reinforcement learning algorithm. We also analyze the mean squared
+    error (MSE) of the likelihood functions obtained from this policy. From the analysis results,
+    we demonstrate that the mismatch in the likelihood function gradually reduces as the number
+    of the input-output samples used for the learning increases.
+•   We also present two practical strategies to improve the performance of the presented method
+    optimized by the reinforcement learning algorithm. The first strategy is to refine the input-
+    output samples by reconstructing the transmitted symbol vectors at the receiver when cyclic
+    redundancy check (CRC) bits are successfully decoded. Using this strategy, some false input-
+    output samples associating with symbol detection errors are refined into the true samples
+    that can be utilized to learn the likelihood function. The second strategy is to generate virtual
+    input-output samples by exploiting the symmetric properties of the modulation alphabets and
+    the noise distribution. Using this strategy, the number of the input-output samples is shown
+    to increase by four times for quadrature amplitude modulation (QAM) and the circularly
+    symmetric noise (e.g., complex Gaussian noise).
+•   Using simulations, we evaluate the performance gain achieved by using the proposed
+    likelihood learning method for a coded MIMO system with one-bit ADCs under imper-
+    fect channel state information at the receiver (CSIR). In these simulations, the proposed
+    method is applied to various data detection methods including the optimal ML detection for
+    frequency flat channels [15], [16], and the optimal soft-output detection method and the low-
+    complexity method for frequency selective channels [14]. Simulation results demonstrate
+    that the proposed method significantly reduces the performance degradation caused by a
+    mismatch in the likelihood function, regardless of the detection methods. One remarkable
+    result is that the proposed method also provides a robustness to time-varying effects in
+    wireless channels, by adapting the likelihood functions to channel variations.
+                                                                                                                                                  6
+
+
+
+                                                                     Re    One-Bit                   ߠ௡ǡ௝       Channel        CRC      Decoded
+                                                                            ADC                                                           Bits
+                                                                            Low bit                             Decoder       Decoder
+                                                                      Im     ADC
+ Information
+                                                   Channel   Noise
+                 CRC      Channel    Symbol                                              Data
+                                                     ሾκሿ
+
+
+
+
+                                               …
+
+
+
+
+                                                                           …
+     Bits       Encoder   Encoder    Mapper                                            Detection    ݊ ǡ ߠ௡ǡ௝
+                                                                                                                 Likelihood Function
+                                                                     Re    One-Bit
+                                                                                                      ‫݌‬ො௜ǡ௞       Learning Method
+                                                                            ADC
+                                                                            Low bit                                  (Proposed)
+                                                                      Im     ADC
+                                                             Noise
+
+                                              ݊                                  ݊                                               ෡
+                                                                                                                 Estimated Channel ۶
+
+
+
+Fig. 1. A MIMO communication system with one-bit ADCs, in which a transmitter equipped with Ntx antennas communicates
+with a receiver equipped with Nrx antennas.
+
+
+
+      Notation: Upper-case and lower-case boldface letters denote matrices and column vectors,
+respectively. E[·] is the statistical expectation, P(·) is the probability, (·)⊤ is the transpose, (·)H
+is the conjugate transpose, Re{·} is the real part, Im{·} is the imaginary part, | · | is the absolute
+value, and Φ(·) is the cumulative distribution of the standard normal random variable. (a)i
+represents the i-th element of a vector a. I{A} is an indicator function which equals one if an
+event A is true and zero otherwise. 0n is an n-dimensional vector whose elements are zero.
+
+
+                                      II. S YSTEM M ODEL AND P RELIMINARY
+
+      In this section, we present a system model considered in this work. We then discuss the
+necessity and the challenge of likelihood function estimation to perform the optimal data detection
+in the considered system.
+
+
+A. System Model
+
+      We consider a MIMO communication system with one-bit ADCs, in which a transmitter
+equipped with Ntx antennas communicates with a receiver equipped with Nrx antennas, as
+illustrated in Fig. 1. The wireless channel of the system is a frequency-selective channel described
+by an L-tap channel-impulse-responses (CIRs), where the number of CIR taps depends on the
+maximum delay spreads of the wireless channel and the signal bandwidth of the system. We
+denote the l-th CIR tap as H[ℓ] ∈ CNrx ×Ntx for ℓ ∈ {0, 1, . . . , L − 1}, where the (i, j)-th element
+of H[ℓ] represents the ℓ-th CIR1 tap between the i-th receive antenna and the j-th transmit
+antenna. We assume a block-fading model in which each CIR tap keeps a constant value over a
+
+  1
+      In mmWave communication systems, H[ℓ] represents an effective channel at the ℓ-th discrete time delay, which abstracts the
+effects of an antenna array, transmit analog beamforming, and receive analog beamforming, as explained in [14].
+                                                                                                                        7
+
+
+
+                         ܰ୮         ‫ܮ‬െͳ           ܰୢ        ‫ܮ‬െͳ                                ഥୢ ൌ ܰୢ ൅ ‫ ܮ‬െ ͳ
+                                                                                               ܰ
+
+                    Pilot Signals    Zeros   Data Signals   Zeros   Data Signals   Zeros   ‫ڮ‬   Data Signals   Zeros
+
+
+                        Pilot Block                                            ‫ ܦ‬Data Blocks
+
+
+
+Fig. 2. A transmission frame that consists of one pilot signal block with length Np and D data blocks each with length Nd
+when L − 1 zero vectors are appended at the end of every block.
+
+
+
+transmission frame, but in simulations, we also consider a time-varying channel model in which
+each CIR tap can change in a block.
+   We consider a transmission frame that consists of one pilot signal block with length Np and
+D data blocks each with length Nd , as illustrated in Fig. 2. To avoid inter-block-interference
+among different blocks, we assume that L − 1 zero vectors are appended at the end of every
+block. In this work, we consider a time-domain signaling, because a frequency-domain signaling
+such as orthogonal-frequency-division multiplexing is suboptimal in one-bit ADC systems due
+to the nonlinearity of the quantization function at the ADCs, as discussed in [14]. During the
+transmission of the pilot block, the transmitter sends pilot signals with length Np . Then the
+receiver uses the prior knowledge of the pilot signals to estimate L CIR taps, {H[ℓ]}Lℓ=1. During
+the transmission of each data block, the transmitter sends a sequence of a data symbol vector
+generated by successively applying 1) CRC appending, 2) channel encoding, and 3) symbol
+mapping to information bits. We denote the data symbol vector sent at time slot n as s[n] ∈ X Ntx ,
+where X is a constellation set. We assume that each data symbol vector satisfies a power
+constraint given by E[|(s[n])i |2 ] = 1 for i ∈ {1, . . . , Ntx }. Let N̄d , Nd + L − 1 be the total
+duration of the received signal associating with each data block. Then the received signal at
+time slot n before the ADCs is given by
+                                             L−1
+                                             X
+                                    r[n] =          H[ℓ]s[n − ℓ] + z[n] = Hx[n] + z[n],                               (1)
+                                             ℓ=0
+
+where H = [H[L − 1], · · · , H[0]] ∈ CNrx ×Ntx L is a concatenated channel matrix, x[n] is the
+                                                                                   ⊤
+effective symbol vector at time slot n, defined as x[n] = s⊤ [n−L+1], · · · , s⊤ [n] , and z[n] ∼
+CN (0Nrx , σ 2 INrx ) is a circularly symmetric complex Gaussian noise vector at time slot n with
+variance σ 2 . Note that due to the zero padding at the end of each block, s[n] = 0Ntx for n ∈
+                                                                                             / Nd ,
+where Nd = {(d−1)N̄d +1, . . . , dN̄d }, which is the set of time slot indexes that associate with
+non-zero transmission at the d-th data symbol block for d ∈ {1, . . . , D}. Using the effective
+                                                                                                        8
+
+
+
+symbol vector, we also define the k-th symbol vector, namely xk , as the k-th possible element
+in {x[n] : ∀n} for k ∈ K = {1, . . . , K}, where K is the cardinality of {x[n] : ∀n}.
+  At the ADCs, the real and imaginary parts of each element of the received signal in (1) are
+separately quantized using two independent one-bit scalar quantizers. Let sign : Rn → {+1, −1}n
+be the quantization function of the scalar quantizer that maps an n-dimensional real-valued vector
+into an n-dimensional sign vector in {+1, −1}n , where sign(r) = −1 if r ≥ 0 and sign(r) = 1
+otherwise. Using this function, the quantized received vector at time slot n is represented as
+                                                                  
+                  y[n] = sign Re Hx[n] + z[n] + jsign Im Hx[n] + z[n] .                               (2)
+
+The real-domain representation of the quantized vector is given by
+                                                                      !
+             Re{y[n]}            Re{H} −Im{H}         Re{x[n]}      Re{z[n]}
+                     = sign                                +           .                      (3)
+             Im{y[n]}            Im{H} Re{H}          Im{x[n]}      Im{z[n]}
+           |    {z    }        |        {z        }|      {z    } |    {z    }
+               =yre [n]                     =Hre                        =xre [n]           =zre [n]
+
+To decode the d-th data block at the receiver, the set of the associating quantized vectors is used
+as an input of the data detection, which is given by {y[n]}n∈Nd .
+
+
+B. Likelihood Function
+                                        
+  A likelihood function P y[n] x[n] = xk is the probability of receiving a quantized vector
+y[n] when assuming the k-th symbol vector xk was sent at time slot n. Perfect knowledge of
+the likelihood functions at the receiver is essential to realize a reliable communication in the
+MIMO system with one-bit ADCs, because these functions are the sufficient statistics of the
+optimal data detection methods [14]–[16]. For example, in frequency flat channels (L = 1), the
+ML estimate for the transmitted symbol vector at time slot n is determined as
+                                                                
+                              x̂ML [n] = argmax P y[n] x[n] = xk .                                    (4)
+                                               xk
+
+  In the MIMO system with one-bit ADCs specified in Section II-A, the likelihood function
+associating with the quantized vector y[n] and xk is computed as
+                                     2Nr 
+                                   Y                          ⊤ re
+                                                                              
+                  P y[n] x[n] = xk =    P yire[n] = sign (hre
+                                                           i  ) xk  + zi
+                                                                        re
+                                                                           [n]
+                                         i=1
+                                             Y                      Y
+                                     =                   pk,i               (1 − pk,i ),              (5)
+                                         i:yire [n]=+1          i:yire [n]=−1
+                                                                                                 9
+
+
+
+            ⊤
+where (hre                        re
+         i ) is the i-th row of H , and pi,k is the element-wise likelihood function defined as
+                                                                                        !
+                                                                                   ⊤ re
+              re
+                                     
+                                                re ⊤ re   re
+                                                                            (hre
+                                                                                i ) xk
+  pi,k = P yi [n] = +1|x[n] = xk = P sign (h̄i ) xk + zi [n] = +1 = Φ p                   , (6)
+                                                                                 σ 2 /2
+for i ∈ I = {1, . . . , 2Nrx } and k ∈ K.
+  Unfortunately, the perfect knowledge of the likelihood function at the receiver is not feasible
+in practical MIMO systems with one-bit ADCs due to imperfect CSIR. As can be seen in (6),
+the likelihood functions are the function of the channel matrix, H, but the receiver only knows
+an estimated channel matrix, Ĥ, that contains an estimation error when using a pilot-assisted
+channel estimation method. Furthermore, this error is significant when employing the one-bit
+ADCs, because only the sign information of the received signal is available for the channel
+estimation at the receiver. The most common approach to deal with this problem is to simply
+ignore the channel estimation error and then to compute the likelihood functions based on the
+estimated channel. Then the likelihood function associating with the k-th symbol vector and the
+i-th quantized element is given by
+                                                                 !
+                                                  (ĥre )⊤ xre
+                                      p̂mod
+                                        i,k = Φ    pi       k
+                                                                     ,                         (7)
+                                                         2
+                                                      σ /2
+           ⊤
+where (hre                       re
+        i ) is the i-th row of Ĥ defined as
+                                                    
+                                      Re{Ĥ} −Im{Ĥ}
+                                                    ,                                        (8)
+                                      Im{Ĥ} Re{Ĥ}
+for i ∈ I and k ∈ K. In this work, we refer to the above estimate as a model-based likelihood
+function, since it attempts to estimate the likelihood function based on the input-output model of
+the system. The optimal data detection methods using these model-based functions may suffer
+from a performance degradation due to a mismatch in the model caused by the channel estimation
+error.
+
+
+              III. T HE P ROPOSED L IKELIHOOD F UNCTION L EARNING M ETHOD
+
+  In this section, we propose a likelihood function learning method that corrects mismatches in
+the model-based likelihood functions caused by a channel estimation error in MIMO systems
+with one-bit ADCs.
+                                                                                                      10
+
+
+
+A. Basic Idea
+
+  The basic idea of the proposed method is to update the model-based likelihood functions by
+exploiting input-output samples obtained from the data detection, each describes the association
+between the quantized received vector and the transmitted symbol index at each time slot. Our
+motivation is that the true likelihood function in (6) is represented by its empirical samples as
+follows:
+                              P[yire [n] = +1, x[n] = xk ]
+                    pi,k =
+                                       P[x[n] = xk ]
+                                                  P            re
+                          (a)                        m≤n I{yi [m] = +1, k[m] = k}
+                          =P            lim              P
+                                m≤n I{k[m]=k}→∞               m≤n I{k[m] = k}
+                                                 P
+                                                     m≤n ỹi [m]I{k[m] = k}
+                          =P           lim           P                      ,                       (9)
+                               m≤n I{k[m]=k}→∞         m≤n I{k[m] = k}
+
+where (a) holds by the law of large numbers, k[n] ∈ K is the transmitted symbol index such
+that x[n] = xk[n] , and
+                                                       
+                                                       
+                                      1                1,   yire [n] = +1,
+                             ỹi [n] = (yire[n] + 1) =                                             (10)
+                                      2                
+                                                       0,   yire [n] = −1.
+
+Motivated from (9), we define (ỹ[n], k̂[n]) as the n-th input-output sample that describes the
+association between the quantized received vector and the transmitted symbol vector at time
+slot n, where ỹ[n] = [ỹ1 [n], · · · , ỹ2Nrx [n]]⊤ ∈ {0, 1}2Nrx and k̂[n] is the detected symbol index
+defined as
+
+                                          k̂[n] = argmax θn,k ,                                    (11)
+                                                   k∈K
+
+where θn,k is a-posteriori probability (APP) of the event {k[n] = k} computed from the data
+detection based on the quantized observations at the receiver. We then define the empirical
+likelihood function associating with the i-th quantized element and the symbol index k as
+                                   P
+                             emp      m≤n (ỹ[n])i I{k̂[m] = k}   ui,k
+                           p̂i,k =    P                         =      ,                  (12)
+                                         m≤n I{k̂[m] = k}
+                                                                  ūk
+where
+                           X                                        X
+                  ui,k =         (ỹ[n])i I{k̂[m] = k}, and ūk =         I{k̂[m] = k}.
+                           m≤n                                      m≤n
+
+A key advantage of the empirical likelihood function is that it approaches to the true function as
+the number of the input-output samples goes to the infinity, i.e., p̂emp
+                                                                     i,k → pi,k as ūk → ∞, provided
+                                                                                                        11
+
+
+
+that every symbol vector is correctly detected (i.e., k[n] = k̂[n], ∀n). To exploit this advantage,
+we propose a new estimate for the (i, k)-th likelihood function which is a linear combination
+of the empirical likelihood function in (12) and the model-based likelihood function in (7) as
+follows:
+
+                                  p̂pro          mod            emp
+                                    i,k (α) = αp̂i,k + (1 − α)p̂i,k ,                              (13)
+
+where α ∈ [0, 1] is a combining ratio. The optimization of the combining ratio will be discussed
+in the sequel.
+  A major factor that limits the accuracy of the proposed estimate in (13) is a label uncertainty in
+the input-output samples which occurs when a data detection is incorrect; the detected symbol
+index in the sample may differ from the transmitted symbol index, i.e., k̂[n] 6= k[n]. Under
+this uncertainty, the misusage of incorrect input-output samples may increase a mismatch in
+the empirical likelihood function. Therefore, a decision on the use of each input-output sample
+should be optimized to maximize the accuracy of the proposed estimate in (13).
+
+
+B. Optimization Problem: Markov Decision Process
+
+  To overcome the limitation caused by the label uncertainty, we formulate an optimization
+problem that finds the optimal decision for each input-output sample to maximize the accuracy
+of the proposed estimate in (13). Particularly, we formulate this problem as a Markov decision
+process (MDP) to capture the fact that the decision on the current input-output sample affects
+the decisions on the subsequent input-output samples. Each component of the MDP is defined
+below.
+  1) State: The state set of the MDP is defined as
+                                                    rx ×K
+   S = (U, W, n)        U = [u1 , · · · , uK ] ∈ Z2N
+                                                  +        , W = [w1 , · · · , wK ] ∈ ZK×K
+                                                                                       +   , n ∈ Z+ .
+                                                                                                   (14)
+
+where wk = [w1,k , · · · , wK,k ]⊤ and
+                                          X
+                                 wj,k =         I{k[m] = j, k̂[m] = k},                            (15)
+                                          m≤n
+
+which represents the number of the quantized vectors associating with the transmitted symbol
+index j, but exploited to estimate the likelihood function associating with the symbol index k.
+               P                       P
+Note that ūk = m≤n I{k̂[m] = k} = K      j=1 wj,k .
+                                                                                                                                                     12
+
+
+
+              Time slot                                                             Time slot
+
+              Ͳ                              ‫܁‬୧୬୧                                   Ͳ                             ‫܁‬୧୬୧
+
+
+
+
+                                                                                                                ‫ڮ‬
+                                            ‫ڮ‬
+              ݊                               ‫܁‬                                     ݊                              ‫܁‬
+
+
+
+                                 ܽൌͲ                     ܽൌͳ                                           ܽൌͲ                    ܽൌͳ
+                    ௔ ௝ᇱ ‫ ܁‬ǡ ‫ ܁‬ൌ ͳ                     ͳ                                ෡௔ ௝ᇱ ‫ ܁‬ǡ ‫ ܁‬ൌ ͳ
+                                                                                                                  ߠ௡ǡଵ        ߠ௡ǡ௞ሾ௡ሿ   ߠ௡ǡ௄
+                                                                                                                          ‫ڮ‬         ‫ڮ‬
+            ݊൅ͳ                  ଴ᇱ ‫܁‬               ௞ᇱ ௡ ‫܁‬                       ݊൅ͳ                 ଴ᇱ ‫܁‬   ଵᇱ ‫܁‬      ௞ᇱ ௡ ‫܁‬          ௄ᇱ ‫܁‬
+
+
+
+
+                                                                                                                                          ‫ڮ‬
+                                                                                                      ‫ڮ‬
+
+
+
+                                                                                                                              ‫ڮ‬
+                                                                                                               ‫ڮ‬
+                                ‫ڮ‬
+
+
+
+                                                         ‫ڮ‬
+                          (a) Original MDP                                                        (b) Approximate MDP
+
+Fig. 3. The search tree of the MDP defined in Section IV-A with the original transition function in (20) (Fig. 3(a)) and with
+the approximate transition function in (25) (Fig. 3(b)).
+
+
+
+   2) Actions: The action set of the MDP is defined as
+
+                                                                    A = {0, 1},                                                                    (16)
+
+which indicates whether or not to update the proposed estimate by using the input-output sample
+associating with the current state. For example, if the action a = 1 ∈ A is associating with the
+state S = (U, W, n) ∈ S, the n-th input-output sample (ỹ[n], k̂[n]) is used to compute the
+empirical likelihood functions {p̂emp    } .
+                                  i,k̂[n] i∈I
+   3) Reward Function: The reward function of the MDP for the states S, S′ ∈ S is defined as
+                                                               2N
+                                                               X     K
+                                                                  rx X
+                                                     ′
+                                           R(S, S ) =                    {MSE⋆i,k (S) − MSE⋆i,k (S′ )},                                            (17)
+                                                               i=1 k=1
+
+where MSE⋆i,k (S) = minα∈[0,1] MSEi,k (S; α) with
+                                                                          h                                      i
+                                                                                             2
+                                         MSEi,k (S; α) = E{pi,k }k ,p̂emp
+                                                                      i,k
+                                                                            pi,k − p̂pro
+                                                                                     i,k (α)                   wk ,                                (18)
+
+provided that S = (U, W, n). As can be seen in (17), the reward function R(S, S′ ) is defined to
+quantify the improvement in the estimation error of the proposed estimate in terms of the MSE,
+when the state S is transited to the state S′ .
+   4) Transition Function: The (state) transition function of the MDP for the action a ∈ A and
+the states S, S′ ∈ S is defined as
+                                                                                         
+                                                  Ta (S′ , S) = P S(n+1) = S′ S(n) = S, a ,                                                        (19)
+                                                                                                13
+
+
+
+provided that S = (U, W, n) and S′ = (U′ , W′ , n + 1). If a = 0, the n-th input-output sample
+will not be used to update the empirical likelihood functions, so it is obvious that U′ = U
+and W′ = W. Whereas, if a = 1, the n-th sample (ỹ[n], k̂[n]) will be used to update the
+empirical likelihood functions {p̂emp    } . Therefore, by the definitions in (12) and (15), we
+                                  i,k̂[n] i∈I
+have U′ = U + ỹ[n]e⊤
+                    k̂[n]
+                          and W′ = W + Ek[n],k̂[n] , where ek is the k-th column of IK and
+Ei,j ∈ {0, 1}K×K is a matrix with zero elements except its (i, j)-th position which is one. Based
+on these facts, the transition function in (19) is rewritten as
+                                               
+                                               
+                                               I{j = 0},
+                                   ′
+                                                                a = 0,
+                              Ta (Sj (S), S) =                                               (20)
+                                               
+                                               I{k[n] = j}, a = 1,
+
+where S′j (S) is the valid state that can be transited from S, defined as
+                               
+                               
+                               (U, W, n + 1),
+                      ′
+                                                                           j = 0,
+                     Sj (S) =                                                                (21)
+                               
+                               (U + ỹ[n]e⊤ , W + E
+                                             k̂[n]       j,k̂[n] , n + 1), j ∈ K.
+
+The search tree of the MDP defined above is illustrated in Fig. 3(a).
+  The above MDP cannot be solved using dynamic programming in practical communication
+systems. The reason is that the transition function in (20) is unknown at the receiver due to the
+lack of the information of the transmitted symbol indexes. Furthermore, solving this MDP may
+require a prohibitive computational complexity because the number of the states exponentially
+increases with the number of the input-output samples, as can be seen in Fig. 3(a). Therefore,
+to solve the above MDP, it is essential to design a computationally-efficient algorithm that can
+perform without the perfect information of the transition function.
+
+C. Solving MDP: A Reinforcement Learning Approach
+
+  Reinforcement learning is a well-known solution to solve an MDP with unknown transition
+and/or reward functions [32]. Inspired by reinforcement learning, we present an optimization
+algorithm that approximately but efficiently solves the MDP defined in Section III-B. The key
+idea of the presented algorithm is to approximate both the transition function and the optimal
+states of the MDP to determine the optimal policy for each data block. A promising feature of
+this algorithm is that a mismatch in the optimal policy caused by the use of the approximation
+may gradually reduce as the algorithm is proceeded for multiple data blocks.
+  We first characterize the optimal policy for each data block in terms of the transition function
+and the optimal state of the MDP. Let Q(S, a) be the Q-value associating with the state S ∈ S
+                                                                                                  14
+
+
+
+and the action a ∈ A. Then by the definition of the transition function in (20), the Q-value
+Q(S, a) is given by
+                               X                                               
+                  Q(S, a) =             Ta (S′j (S), S) R S, S′j (S) + V⋆ S′j (S) ,            (22)
+                              j∈K∪{0}
+         ⋆
+where V (S) is the sum of the future rewards when optimally acting from the state S. Note that
+it is possible to assign more weight to the current reward than the future rewards by employing a
+discounting factor ζ ∈ [0, 1]. Nevertheless, in this work, we assume ζ = 1 because every reward
+equally contributes to the improvement in the accuracy of the likelihood function estimate. Using
+the Q-value, the optimal policy for the state S ∈ S is obtained as
+
+                                        π(S) = argmax Q(S, a).                                 (23)
+                                                   a∈{0,1}
+
+From (22) and (23), the optimal policy for the state S is characterized as given in the following
+lemma:
+
+Lemma 1. The optimal policy for the state S ∈ S associating with time slot n ∈ Nd is
+                                        2N
+                                        X     K
+                                           rx X
+                                                                                     
+                      π(S) = argmax                Ta S′j (S), S MSE⋆i,k̂[n] S⋆j,d (S) ,       (24)
+                              a∈{0,1}    i=1 j=0
+
+where S⋆j,d(S) is the optimal state when optimally acting from the state S′j (S) for the samples
+from the d-th data block.
+
+     Proof: See Appendix A.
+
+  Now, we derive a closed-form expression of the optimal policy in Lemma 1 by approximating
+the transition function and the optimal state. To approximate the transition function in (24), we
+exploit the APP θn,j of the event {k[n] = j} known at the receiver to estimate I{k[n] = j} in (20)
+unknown at the receiver. Using this strategy, we approximate the transition function Ta (S′j (S), S)
+in (20) as
+                                                    
+                                                    
+                                                    I{j = 0}, a = 0,
+                                             
+                               T̂a S′j (S), S =                                                (25)
+                                                    
+                                                    θn,j ,          a = 1,
+
+provided that S = (U, W, n) ∈ S. The search tree of the MDP with this transition function is
+illustrated in Fig. 3(b). Based on the approximate transition function in (25), it is possible to
+determine the optimal state S⋆j,d(S) in (24) via the dynamic programming, as done in conventional
+model-based reinforcement learning [32]. This approach, however, may require a prohibitive
+                                                                                                            15
+
+
+
+computational complexity because the number of states in the MDP exponentially increases
+with a data block length, as can be seen from Fig. 3. To develop a practical algorithm that can
+be implemented in communication systems, we also approximate the optimal state by considering
+the ideal case in which all the symbol indexes after time slot n+1 are correctly detected, i.e.,
+k[m] = k̂[m] for n + 1 ≤ m ∈ Nd . In this case, the optimal state S⋆j,d (S) is readily computed as
+                             
+                             
+                             (U⋆ , W⋆ , dN̄d +1),
+                   ⋆
+                                                                            j = 0,
+                 Ŝj,d (S) =                                                                  (26)
+                             
+                             (U⋆ + ỹ[n]e⊤ , W⋆ + E
+                                           k̂[n]       j,k̂[n] , d N̄d +1), j ∈ K,
+                  PdN̄d          ⊤
+                                                        P                                 PdN̄d       
+where U⋆ = U+                             ⋆
+                     m=n+1 ỹ[m]ek̂[m] , W = W+              k∈K δn,k Ek,k , and δn,k =     m=n+1 I    k̂[m] =
+k . Utilizing the above fact, we approximate the optimal state S⋆j,d (S) as Ŝ⋆j,d (S). From the
+approximations in (25) and (26), we obtain a closed-form expression of the optimal policy as
+given in the following theorem:
+
+Theorem 1. If Ta (S′j (S), S) and S⋆j,d(S) are given as in (25) and (26), respectively, the optimal
+policy for the state S ∈ S associating with time slot n ∈ Nd is
+                         "2N             (K                          2             )#
+                                                     ⋆                      ⋆     2
+                           X rx
+                                   mod 2
+                                          X        w k,k +I{j =   k}     (w k,k )
+                π(S) = I        (Êi,k )      θn,j       (w⋆ +e )
+                                                                        − (w⋆ )       ,                   (27)
+                           i=1            j=1          Ωi,k k j           Ωi,k k
+                  ⋆
+where k = k̂[n], wk,k  = wk,k +δn,k , wk⋆ = wk +δn,k ek ,
+                             X                2 X                  X
+                      (wk )              ˆ mod                          2     mod
+                   Ωi,k =           wj,k ∆i,k,j +       wj,k v̂i,j +   wj,k Êi,j ,
+                                 j6=k                    j                j
+
+                     ˆ mod = p̂mod − p̂mod ,
+                     ∆ i,k,j   i,k     i,j
+
+                       v̂i,j = p̂mod       mod       mod
+                                 i,j (1− p̂i,j ) − Êi,j ,
+
+
+provided that S = (U, W, n), E[pi,k ] = p̂mod                    ˆmod
+                                          i,k , and Var(pi,k ) = Ei,k for i ∈ I and k ∈ K.
+
+
+     Proof: See Appendix B.
+
+  The common feature of the approximations adopted in Theorem 1 is that their tightness
+increases as the data detection performance improves because T̂a (S′j (S), S) → Ta (S′j (S), S) and
+Ŝ⋆j,d (S) → S⋆j,d (S) as θn,k[n] → 1 for n ∈ Nd . This implies that a mismatch in the policy caused
+by the use of the approximations in (25) and (26) can be reduced by improving the accuracy of
+the likelihood function estimates. Fortunately, the accuracy of the proposed estimates is expected
+to increase as the number of the input-output samples increases. Therefore, the optimal policy
+                                                                                                       16
+
+
+
+in Theorem 1 becomes close to the true optimal policy as the presented algorithm is proceeded
+for multiple data blocks within the channel coherence time.
+      After the detection of the d-th data block, the receiver updates the current (or initial) state ac-
+cording to the optimal policy in Theorem 1 for a set of the input-output samples {(ỹ[n], k̂[n])}n∈Nd
+and the corresponding APPs {θn,j }n∈Nd ,j∈K obtained from the data detection. Suppose that the
+state is given by S ∈ S after the update for the data block d. Then by using the result in (54),
+the proposed likelihood function in (13) is determined as
+                                                     !
+                        pro
+                                                 mod
+                                      wk,k ūk Êi,k     mod
+                                                               wk,k Eˆi,k
+                                                                      mod
+                      p̂i,k (S) = 1 −       (w )
+                                                       p̂i,k +    (w )
+                                                                          ui,k ,                    (28)
+                                          Ωi,k k                Ωi,k k
+            P
+where ūk = j wj,k provided that S = (U, W, dN̄d +1).
+
+Algorithm 1 The proposed likelihood function learning method.
+ 1: Initialize pi,k = p̂mod
+                        i,k from (7) based on Ĥ, ∀i ∈ I, k ∈ K.
+              mod
+ 2: Compute Êi,k using an offline learning process based on p̂mod
+                                                               i,k and Ĥ, ∀i ∈ I, k ∈ K.
+                                         
+ 3: Initialize S = 02Nrx ×K , 0K×K , 1 .
+ 4: for d = 1 to D do
+
+ 5:      Perform a data detection based on {pi,k }i,k .
+ 6:      Set {(ỹ[n], k̂[n])}n∈Nd and {θn,j }n∈Nd ,j∈K .
+ 7:      for n ∈ Nd do
+ 8:         Compute π(S) from (27) with v̂i,k = p̂mod        mod
+                                                  i,k (1 − p̂i,k ), ∀i ∈ I, k ∈ K.
+
+ 9:         Update S ← S′k̂[n] (S) if π(S) = 1, and S ← S′0 (S) if π(S) = 0 from (20).
+10:      end for
+11:      Update pi,k ← p̂pro                              mod        mod
+                         i,k (S) from (28) with v̂i,k = p̂i,k (1 − p̂i,k ), ∀i ∈ I, k ∈ K.
+
+12: end for
+
+
+
+      In Algorithm 1, we summarize the proposed likelihood function learning method optimized via
+the presented algorithm. In Step 2, an offline learning process is adopted to compute the MSE of
+the model-based likelihood function, which will be discussed with more details in Section IV-C.
+In Step 9, the current state S is updated according to the optimal action determined from (27).
+Particularly, since the knowledge of the next state is neither observable nor available at the
+receiver, if π(S) = 1, the most probable transition is assumed, i.e., S ← S′k̂[n] (S). In Step 8 and
+Step 11 of Algorithm 1, we approximate v̂i,k = E[pi,k (1 − pi,k )] as p̂mod        mod
+                                                                        i,k (1 − p̂i,k ) to guarantee
+
+that v̂i,k ≥ 0 which may not hold under our assumptions of E[pi,k ] = p̂mod                    mod
+                                                                        i,k and Var(pi,k ) = Êi,k .
+                                                                                                  17
+
+
+
+  Remark (Comparison to Model-Based Reinforcement Learning): The presented algorithm
+resembles to a conventional model-based reinforcement learning algorithm: 1) both algorithms
+attempt to approximate an unknown MDP first and then find the optimal policy based on the
+approximate MDP; and 2) these two steps are repeated to improve the policy, where in the
+presented algorithm the decision for each data block corresponds to each iteration. Despite this re-
+semblance, our algorithm also has some key differences. In the conventional algorithm, the MDP
+is empirically learned by a training process, and the (approximate) optimal policy is obtained
+via the dynamic programming. Whereas, in our algorithm, the MDP is approximately learned by
+the APPs obtained from the data detection, and the (approximate) optimal policy is derived in a
+closed-form expression. These differences are essential to reduce the computational complexity
+of the presented algorithm, so that it can be readily implemented in practical communication
+systems. Therefore, the presented algorithm can be regarded as a low-complexity variation of
+the model-based reinforcement learning for the application in communication systems.
+
+D. Mean-Squared-Error (MSE) Analysis
+
+  We also analyze the reduction in the estimation error achieved when using the proposed
+method. The result is given in the following corollary:
+
+                         w
+Corollary 1. As βk , P k,k
+                       wj,k
+                            → 1, the MSE defined in (18) becomes
+                          j
+
+                                                                  mod
+                                          ⋆
+                                                          v̂i,k Êi,k
+                                   lim MSEi,k (S) =                       ,                    (29)
+                                  βk →1             v̂i,k + wk,k Eˆi,kmod
+
+
+provided that S = (U, W, n), E[pi,k ] = p̂mod                    ˆmod
+                                          i,k , and Var(pi,k ) = Ei,k .
+
+                              w
+     Proof: Since βk = P k,k
+                         wj,k
+                              → 1 implies that wj,k → 0 for j 6= k ∈ K, the above result is
+                              j
+
+directly obtained from (53) derived in Appendix B.
+
+Corollary 1 shows that the MSE of the likelihood function obtained by the proposed method
+decreases with the number of the exploited input-output samples. Particularly, if Eˆmod > 0, this
+                                                                                      i,k
+
+error approaches to zero as the number of the input-output samples goes to the infinity. Therefore,
+the analysis result demonstrates that the proposed method has a potential to realize the perfect
+knowledge of the likelihood functions at the receiver even in the imperfect CSIR case. Although
+this advantage is attained only when the channel coherence time is sufficiently long, we also
+demonstrate that the proposed method is beneficial even in time varying channels, as will be
+shown in Section V.
+                                                                                                          18
+
+
+
+                         IV. P ERFORMANCE I MPROVEMENT S TRATIGIES
+
+  In this section, we present two practical strategies to improve the effectiveness of the proposed
+likelihood function learning method in Section III. We also introduce a simple offline learning
+method to learn the MSE of the model-based likelihood function, required by the proposed
+method.
+
+
+A. Sample Refinement Using CRC
+
+  We present a sample refinement strategy that exploits CRC bits to refine incorrect input-
+output samples (i.e., the samples with k̂[n] 6= k[n]) which limit the performance of the proposed
+likelihood function learning method. The key idea is to reconstruct the transmitted symbol vectors
+by applying the transmission procedures to the decoded bits at the receiver, only when the
+CRC bits are successfully decoded. Suppose that the CRC bits appended to the d-th data block
+are successfully decoded. Using the above strategy, for n ∈ Nd , the n-th input-output sample
+(ỹ[n], k̂[n]) is refined into (ỹ[n], krec [n]) such that xrec [n] = xkrec [n] , where xrec [n] is the n-th
+reconstructed symbol vector at the receiver. The corresponding APP θn,j is also refined into
+                                          
+                                          
+                                          1, j = krec [n],
+                                   θn,j =                                                  (30)
+                                          
+                                          0, j 6= krec [n],
+
+for n ∈ Nd . If the CRC bits of the d-th data block are sufficient to check any error in the
+decoded bits, the reconstructed symbol vectors are the same as the transmitted symbol vectors
+(i.e., krec [n] = k[n], ∀n ∈ Nd ). In this case, all the input-output samples associating with the d-th
+data block become the true input-output samples. Therefore, by applying the presented strategy,
+the proposed learning method can utilize more number of the input-output samples. In addition,
+this strategy also improves the tightness of the approximation adopted in the reinforcement
+learning algorithm in Section III-C, because the use of the refined APPs reduces the mismatch
+in the approximate transition function in (25).
+
+
+B. Virtual-Sample Generation Using Symmetric Property
+
+  We also present a virtual-sample generation strategy that generates additional input-output
+samples by exploiting the symmetric properties of the modulation alphabets and the noise distri-
+bution. The required symmetric properties are as follows: 1) the modulation alphabets should be
+symmetric with respect to the origin, the in-phase axis, and the quadrature axis in the constellation
+                                                                                                          19
+
+
+
+diagram (e.g., QAM), and also 2) the distribution of the noise should be circularly symmetric
+(e.g., CN (0, σ 2 )). If the modulation set X holds the first condition, for any M-dimensional
+symbol vector xk ∈ X M , there also exist three symbol vectors −xk , jxk , −jxk ∈ X M . Then by
+the circularly symmetric property of the noise distribution, the following equalities are obtained:
+
+  P(y[n]|x[n] = xk ) = P(−y[n]|x[n] = −xk ) = P(jy[n]|x[n] = jxk ) = P(−jy[n]|x[n] = −jxk ),
+                                                                                                       (31)
+as shown in [30]. The above equalities imply that the n-th input-output sample (ỹ[n], k̂[n]) can
+be used to generate three virtual samples: (−ỹ[n], k̂1 [n]), (ỹ∗ [n], k̂2 [n]), and (−ỹ∗ [n], k̂3 [n]),
+where
+                                                                       
+                                                   (ỹ[n])Nrx +1:2Nrx
+                                     ỹ∗ [n] =                         ,                             (32)
+                                                    −(ỹ[n])1:Nrx
+
+and k̂1 [n], k̂2 [n], k̂3 [n] ∈ K are the symbol indexes such that xk̂1 [n] = −xk̂[n] , xk̂2 [n] = jxk̂[n] ,
+xk̂3 [n] = −jxk̂[n] . Therefore, every time the n-th sample (ỹ[n], k̂[n]) is utilized to update the
+empirical likelihood function in the proposed method, three virtual samples (−ỹ[n], k̂1 [n]),
+(ỹ∗ [n], k̂2 [n]), and (−ỹ∗ [n], k̂3 [n]) can also be utilized, which improve the sample efficiency
+of the proposed method by four times.
+
+C. Offline Learning for Initial Estimation Error
+
+  We present a simple offline learning method to learn the MSE of the model-based likelihood
+function in (7), which is necessary to use the reinforcement learning algorithm in Section III-C.
+The basic idea is to generate multiple pseudo channels by applying a channel estimation method
+to the initial estimated channel. Then the MSEs are learned by averaging the squared errors
+between the model-based likelihood functions computed based on the pseudo channels and the
+initial channel.
+                                           
+  Let Xp =          xp [1], . . . , xp [Np ] ∈ CNtx ×Np be a pilot signal matrix used in the channel
+estimation, where xp [n] ∈ CNtx is the n-th pilot signal vector, and Np is the length of the
+pilot signals such that Np ≥ L(Ntx−1)+1. By regarding Ĥ as a true channel matrix, the receiver
+generates Ttrain pseudo quantized matrices; each corresponds to a quantized received matrix
+obtained when transmitting the pilot signals through the channel Ĥ. The t-th pseudo quantized
+matrix is given by
+                                                                                
+                     Yp(t) = sign Re{X̄p ĤH + Zp(t) } + jsign Im{X̄p ĤH + Z(t)
+                                                                             p } ,                     (33)
+                                                                                                                              20
+
+
+
+where X̄p ∈ C(Np +L−1)×LNtx is a Toeplitz-type matrix that consists of the pilot signals, and
+  (t)
+Zp ∈ C(Np +L−1)×Nrx is the t-th pseudo noise matrix generated according to the noise distribution.
+Then the t-th pseudo channel matrix, namely Ĥ(t) ∈ CNrx ×Ntx L , is obtained by applying the
+                                              (t)
+channel estimation method to Yp , for t ∈ {1, . . . , Ttrain }. Using these Ttrain channel matrices,
+we estimate the MSE of the model-based likelihood function as follows:
+                                    TX            (t) ⊤ re
+                                                            !         !2
+                       mod     1     train
+                                              ( ĥR,i )  xk
+                     Êi,k ≈               Φ     p            − p̂mod
+                                                                  i,k    ,                                                 (34)
+                             Ttrain t=1                2
+                                                    σ /2
+                                                            (t)
+for i ∈ {1, . . . , 2Nrx } and k ∈ K, where (ĥR,i )⊤ is the i-th row of
+                                                                 
+                                             (t)             (t)
+                                       Re{Ĥ } −Im{Ĥ }
+                                                                 .                                                       (35)
+                                       Im{Ĥ(t) } Re{Ĥ(t) }
+
+                                                V. S IMULATION R ESULTS
+
+      In this section, using simulations, we evaluate the performance gain achieved by the proposed
+likelihood function learning method when it is applied to various data detection methods in
+a MIMO system with one-bit ADCs. In these simulations, we adopt 4-QAM for the symbol
+mapping, and 16-bit CRC bits with the polynomial of z 16 + z 15 + z 2 + 1. For channel coding, we
+adopt the rate 21 turbo codes based on parallel concatenated codes with feedforward and feedback
+polynomial (15,13) in octal notation. For the proposed method, we apply the performance
+improvement strategies and the offline learning process, both presented in Section IV, with
+                                                mod
+Ttrain = 10. In Step 2 of Algorithm 1, we set Êi,k         mod
+                                                    = max{Êi,k , 10−20 }, ∀i ∈ I, k ∈ K to
+improve numerical stability.
+
+
+A. Frequency-Flat Channels
+
+      We present simulation results for Rayleigh-fading frequency-flat channels. In this simulation,
+we consider three data detection methods: 1) the maximum-likelihood (ML) detection [15],
+[16], 2) the GAMP-based detection2 [27], and 3) zero-forcing (ZF) detection. We refer to the
+ML detection operating with the proposed likelihood learning method as robust ML. For the
+channel estimation, we adopt a linear minimum-MSE (LMMSE) method with Np pilot signals
+which ignores the quantization effect at the ADCs.
+
+  2
+      In this method, we perform a joint channel-and-data estimation algorithm in [27] for the given estimated channel matrix, by
+setting all signals as data signals (i.e., Np = 0).
+                                                                                                                    21
+
+
+
+
+                                   100
+                                                                           Imperfect CSIR
+
+
+
+
+                                             Perfect CSIR
+                                   10-1
+
+
+
+
+                                   10-2
+                                       -8     -7   -6       -5   -4   -3   -2   -1     0    1   2
+
+
+
+
+Fig. 4. The FER vs. Eb /N0 of the ML, the robust ML, the GAMP-based, and the ZF detection methods for a time-invariant
+frequency-flat channel in a 4 × 8 MIMO system with one-bit ADCs.
+
+
+
+   Fig. 4 compares the FERs of various detection methods for a time-invariant frequency-flat
+channel in a 4 × 8 MIMO system with one-bit ADCs. The parameters related to the transmission
+frame are set to be Np = 8Ntx , D = 40, and Nd = 128 (i.e., 1024 coded bits). As can be seen
+in Fig. 4, the ML detection with perfect CSIR achieves the optimal FER, but this method suffers
+from a severe performance loss under imperfect CSIR due to the mismatch in the model-based
+likelihood function. Whereas, the robust ML detection effectively reduces this loss by applying
+the proposed method to correct the likelihood function mismatch; thereby, in the imperfect
+CSIR case, the robust ML detection achieves the lowest FER among all the considered detection
+methods. Other conventional detection methods (GAMP-based detection and ZF detection) are
+not only suboptimal in terms of the FER performance, but also vulnerable to the effect of
+imperfect CSIR. Therefore, these methods are inferior to both the robust and the conventional
+ML detection methods.
+   Fig. 5 plots the average MSE of the proposed likelihood function estimate, computed as
+                                                   2Nrx X
+                                                        K
+                                              1 X
+                                                           |pi,k − p̂pro     2
+                                                                     i,k (S)| ,                                 (36)
+                                            2Nrx K i=1 k=1
+versus the index of the data block when applying the ML detection. As a performance benchmark,
+the MSE in (29) derived for the ideal case of βk = 1 is also plotted. The parameters related
+to the transmission frame are set to be Np = 8Ntx , D = 40, and Nd = 128. As can be seen
+in Fig. 5, the MSE of the proposed likelihood function estimate significantly decreases with
+the data block index. This result demonstrates that the mismatch in the likelihood function is
+                                                                                                                      22
+
+
+
+
+                                    -15
+
+
+
+                                    -20
+
+
+
+                                    -25
+
+
+
+                                    -30
+                                                                    4x8 MIMO
+
+
+                                    -35
+
+
+
+                                    -40
+                                                   2x8 MIMO
+
+                                    -45
+                                          0    5      10       15      20      25   30   35   40
+
+
+
+
+Fig. 5. The MSE of the proposed likelihood function estimate vs. data block index n when adopting the ML detection method
+in 2 × 8 and 4 × 8 MIMO systems with one-bit ADCs.
+
+
+
+effectively reduced by using the proposed method, while the amount of the reduction increases
+as the number of input-output samples increases. Furthermore, the mismatch reduction in the
+2 × 8 MIMO case is shown to be larger than that in the 4 × 8 MIMO case, because the larger
+the number of possible symbol vectors, the smaller the number of input-output samples per each
+symbol vector. It is also shown that the difference between the simulated MSE and the ideal
+MSE in (29) is smaller in the 2 × 8 MIMO case than in the 4 × 8 MIMO case. The underlying
+reason is that for the same per-bit SNR, the 2 × 8 MIMO system is more reliable than the 4 × 8
+MIMO system; thereby, βk in the 2 × 8 MIMO system is closer to one than that in the 4 × 8
+MIMO system.
+   Fig. 6 compares the FERs of various detection methods for a time-varying frequency-flat
+channel in a 4 × 8 MIMO system with one-bit ADCs. Particularly, we model the time-varying
+channel by adopting the first-order Gaussian-Markov process as done in [33], [34] which is a
+simple yet effective model to characterize the time-varying effect. Using this model, the channel
+matrix at time slot n is obtained as
+                                                           √
+                                              H(n) =           1 − ǫ2 H(n−1) + ǫ∆,                                 (37)
+
+for n ∈ Nd and d ∈ {1, . . . , D}, where H(0) = H, ǫ ∈ [0, 1] is a temporal evolution coefficient,
+and each element of ∆ ∈ CNrx ×Ntx is assumed to be independent and identically distributed
+as CN (0, 1). We set ǫ = 10−2 in the simulations. The parameters related to the transmission
+frame are set to be Np = 8Ntx , D = 10, and Nd = 128 (i.e., 1024 coded bits). As can be
+                                                                                                                  23
+
+
+
+
+                                   100
+                                                                 Imperfect CSIR
+
+
+
+
+                                            Perfect CSIR
+                                   10-1
+
+
+
+
+                                   10-2
+                                       -8     -6       -4   -2     0       2      4   6
+
+
+
+
+Fig. 6. The FER vs. Eb /N0 of the ML, the robust ML, the GAMP-based, and the ZF detection methods for a time-varying
+frequency-flat channel in a 4 × 8 MIMO system with one-bit ADCs.
+
+
+
+seen in Fig. 6, when the channel varies over time, the ML detection with perfect CSIR suffers
+from the mismatch in the likelihood functions due to the channel variations. Furthermore, the
+performance loss of the ML detection with imperfect CSIR is even more severe in time-varying
+channels, as this method suffers from both the channel variations and the channel estimation
+error. Whereas, the ML detection using the proposed method is robust to both effects, because
+in the proposed method, any change in the likelihood function can be tracked by exploiting the
+input-output samples that empirically provide the information of such change. Other suboptimal
+methods (GAMP-based detection and ZF detection) are still inferior to both the robust and the
+conventional ML detection methods in terms of the FER performance, as similar to Fig. 4.
+
+
+B. Frequency-Selective Channels
+
+   We also present simulation results for time-invariant frequency-selective channels. In this
+simulation, we consider the following data detection methods:
+   •   Q-BCJR [14]: The optimal MAP detection method for wideband (frequency selective)
+       MIMO systems with few-bit ADCs, which performs the BCJR algorithm based on the
+       likelihood functions;
+   •   Q-BP [14]: A near-optimal low-complexity MAP detection method for wideband MIMO
+       systems with few-bit ADCs, which performs the belief propagation (BP) algorithm based
+       on the likelihood functions;
+                                                                                                              24
+
+
+
+
+                                   100
+                                                                 Imperfect CSIR
+
+
+
+
+                                            Perfect CSIR
+                                   10-1
+
+
+
+
+                                   10-2
+                                       -8    -6        -4   -2      0             2   4
+
+
+
+
+Fig. 7. The FER vs. Eb /N0 of the Q-BCJR, the robust Q-BCJR, and the existing OFDM-based methods for a frequency
+selective channel in an 1 × 4 SIMO system with one-bit ADCs.
+
+
+
+   •   OFDM-Convex [21]: A joint-subcarrier data equalization method for MIMO-OFDM sys-
+       tems with few-bit ADCs, which solves a convex optimization problem using the FASTA
+       algorithm;
+   •   OFDM-Bussgang: A per-subcarrier data equalization method for MIMO-OFDM systems
+       with few-bit ADCs, which linearizes the quantized received signal based on Bussgang’s
+       theorem [31] under the assumption of the Gaussian signaling; and
+   •   OFDM-MMSE: A per-subcarrier data equalization method for conventional MIMO-OFDM
+       systems, which ignores the quantization effect at the ADCs (i.e., by assuming y[n] = r[n]).
+We refer to the Q-BCJR method and the Q-BP method operating with the proposed likelihood
+learning method as robust Q-BCJR and robust Q-BP, respectively. For the channel estimation,
+we adopt a time-domain LMMSE method with Np pilot signals which ignores the quantization
+effect at the ADCs.
+   Fig. 7 compares the FERs of various detection methods for a frequency selective channel in
+an 1 × 4 single-input multiple-output (SIMO) system with one-bit ADCs. In this simulation,
+the channel is modeled by independent Rayleigh fading CIR taps that follow an exponentially-
+decaying power-delay profile with an exponent 0.5 and L = 3. The parameters related to the
+transmission frame are set to be Np = 8L, D = 20, and Nd = 512 (i.e., 1024 coded bits).
+Fig. 7 shows that the Q-BCJR with perfect CSIR achieves the lowest FER which is the optimal
+performance in the considered system. When this method is employed under imperfect CSIR,
+                                                                                                                                25
+
+
+
+
+                                         100
+
+
+
+
+                                                                              Imperfect CSIR
+
+
+
+                                        10-1
+                                                 Perfect CSIR
+
+
+
+
+                                        10-2
+                                           -10   -8      -6     -4   -2   0    2      4        6
+
+
+
+
+Fig. 8. The FER vs. Eb /N0 of the Q-BP, the robust Q-BP, and the existing OFDM-based methods for a frequency-selective
+mmWave channel in an 1 × 8 SIMO system with one-bit ADCs.
+
+
+
+however, a significant performance loss is observed due to the mismatch in the model-based
+likelihood function. Whereas, in the robust Q-BCJR, the use of the proposed learning method
+effectively reduces this loss by correcting the likelihood function mismatch from the learning. As
+a result, the robust Q-BCJR is superior to all the other detection methods under imperfect CSIR.
+The FERs of OFDM-based methods are severely degraded not only by the channel estimation
+error, but also by the use of the OFDM signaling, as reported in [14].
+      Fig. 8 compares the FERs of various detection methods for a frequency-selective mmWave
+channel in an 1 × 8 SIMO system with one-bit ADCs. In this simulation, the mmWave channel
+is implemented3 according to the 28-GHz non-line-of-sight model in [35]. Particularly, only
+the channels with a less than 4 dominant (more than 1% of total power) CIR taps are used
+for simulations, in order to maintain an affordable level of the computational complexity when
+applying the Q-BP detection method4. The parameters related to the transmission frame are set
+to be Np = 3L, D = 20, and Nd = 512 (i.e., 1024 coded bits). For the channel estimation
+with Eb /N0 ≥ 0 dB, we use the estimated channel obtained at Eb /N0 = 0 dB, to prevent from
+a performance degradation caused when applying the LMMSE method in a high-SNR regime.
+
+  3
+      In this implementation, the system bandwidth is set to be 1 GHz, the transmitter is assumed to use 4 × 4 uniform-planar-array
+(UPA) with Ntx = 1 RF chain, and the receiver is assumed to use 8 × 8 UPA with Nrx = 8 RF chains. The antenna-element
+spacing in both the horizontal and the vertical domains of the UPA is set to be 0.5λ. The transmit and receive analog BFs are
+designed based on Algorithm 1 in [36].
+  4
+      The Q-BP is applied with the dominant-tap-selection algorithm in [14] with Dmax = 4 and ǫth = 0.1.
+                                                                                                     26
+
+
+
+As can be seen in Fig. 8, the Q-BP with perfect CSIR achieves the lowest FER, as it is a
+near-optimal detection method for a mmWave MIMO system with one-bit ADCs [14]. In the
+imperfect CSIR case, the robust Q-BP shows a substantial FER gain over the conventional Q-BP,
+which is attained by using the proposed learning method. Particularly, this performance gain is
+shown to be larger in mmWave channels than in other wireless channels, due to a high channel
+estimation error in the mmWave channels.
+
+
+                                         VI. C ONCLUSION
+
+  In this paper, we have presented a likelihood function learning method which is universally
+applicable to data detection methods that utilize the likelihood functions as the sufficient statistics
+in MIMO systems with one-bit ADCs. The key idea of the presented method is to exploit input-
+output samples obtained from the data detection, to improve the accuracy of likelihood function
+estimates. Inspired by the resemblance between the presented method and reinforcement learning,
+we have optimized this method by solving a reinforcement learning problem. One prominent
+feature is that the mismatch in the likelihood function decreases with the number of the input-
+output samples exploited in the presented method; this feature has been demonstrated by both
+the analysis and the numerical results. Using simulations, we have also shown that the use of
+the presented method makes the existing data detection methods robust not only to the channel
+estimation error but also to the effect of the channel variations.
+  A simple yet powerful extension of this work is to apply our approach for a communication
+system with time-varying channels. In this extension, our approach can be optimized to correct a
+mismatch effect caused by the channel variations. Another important direction for future research
+is to extend our approach for a communication system with hardware impairments beyond one-
+bit ADCs, in which the proposed approach can be used to correct a modeling error caused by
+hardware imperfections or imperfect knowledge of the system model at the receiver. When the
+knowledge of the system model is completely absent at the receiver, it would also be possible to
+develop a model-free communication framework by combining our approach with a supervised
+learning approach developed in our previous work [30].
+                                                                                                                  27
+
+
+
+                                                       A PPENDIX A
+                                                   P ROOF OF L EMMA 1
+
+  Suppose that S = (U, W, n) with n ∈ Nd . From the definitions of the reward function
+                                                     
+R(S, S′ ) and the optimal state S⋆j,d (S), V⋆ S′j (S) in (22) is expressed as
+                                                                 
+                                 V⋆ S′j (S) = R S′j (S), S⋆j,d (S) .              (38)
+
+Applying (25) and (38) into (22) yields
+                               K
+                               X                                                   
+                Q(S, a) =            Ta S′j (S), S R S, S′j (S) + R S′j (S), S⋆j,d(S)
+                               j=0
+                               K
+                           (a) X                      2N
+                                                       X  rx X
+                                                                                              
+                           =          Ta S′j (S), S                MSE⋆i,k S − MSE⋆i,k S⋆j,d (S) ,              (39)
+                               j=0                      i=1 k∈K
+
+where (a) is obtained from (17). By removing terms in (39) that are irrelevant to an action a,
+the optimal policy in (23) is expressed as
+                                                 2N
+                                                 X       K
+                                                    rx X X
+                                                                                               
+                          π(S) = argmin                         Ta S′j (S), S MSE⋆i,k S⋆j,d (S)
+                                      a∈[0,1]    i=1 k∈K j=0
+                                                 2N
+                                                 X     K
+                                                    rx X
+                               (b)                                                            
+                               = argmin                     Ta S′j (S), S MSE⋆i,k̂[n] S⋆j,d (S) ,               (40)
+                                      a∈[0,1]     i=1 j=0
+                                                        
+where (b) holds because              MSE⋆i,k    S⋆j,d(S) does not depend on an index j for k 6= k̂[n] and
+i ∈ {1, . . . , 2Nrx }.
+
+                                                       A PPENDIX B
+                                                 P ROOF OF T HEOREM 1
+
+   By applying the approximate transition function in (25) into (27), the optimal policy π(S) is
+expressed as
+                                "2N K                                                                   #
+                                 X rx X
+                                                                                                   
+                   π(S) = I                     θn,j MSE⋆i,k̂[n] S⋆j,d(S) − MSE⋆i,k̂[n] S⋆0,d (S)           .   (41)
+                                     i=1 j=1
+
+To further characterize π(S), we find a closed-form expression for the minimum MSE of the
+(i, k)-th likelihood function for given wk , denoted by MSE⋆i,k (S) = argminα∈[0,1] MSEi,k (S; α).
+For this, we rewrite the MSE for given α in (18) as
+
+             MSEi,k (S; α) = α2 Ai,k + 2α(1 − α)Bi,k + (1 − α)2 Ci,k
+                                                              2                  2
+                                               Ci,k − Bi,k            Ai,k Ci,k − Bi,k
+             = (Ai,k + Ci,k − 2Bi,k ) α −                         +                     ,                       (42)
+                                           Ai,k + Ci,k − 2Bi,k      Ai,k + Ci,k − 2Bi,k
+                                                                                                  28
+
+
+
+where
+                                                            mod 2
+                                                                          
+                        Ai,k = E{pi,k }k ,p̂emp
+                                            i,k
+                                                 (p i,k − p̂ i,k )    w k   ,                  (43)
+                                                                             emp
+                                                                                      
+                        Bi,k = E{pi,k }k ,p̂emp
+                                            i,k
+                                                 (pi,k − p̂mod
+                                                             i,k )(pi,k − p̂i,k )   wk ,       (44)
+                                                            emp 2        
+                        Ci,k = E{pi,k }k ,p̂emp
+                                            i,k
+                                                 (p i,k − p̂ i,k )    w k   .                  (45)
+
+To compute three arguments Ai,k , Bi,k , and Ci,k , we specify the statistical characteristic of the
+empirical likelihood function p̂emp
+                                 i,k for given wk . Since
+                                                       
+                           P ỹi [n] = +1 = P yiRe[n] = +1 = pi,k[n] ,                         (46)
+
+ỹi [n] is a Binomial random variable with mean pi,k[n] and one trial. Therefore, ui,k is a Poisson
+Binomial random variable whose mean and variance are given by
+                                    X
+                         E[ui,k ] =   pi,k[m] I{k̂[m] = k},
+                                          m≤n
+                                          X
+                           Var(ui,k ) =         pi,k[m] (1−pi,k[m])I{k̂[m] = k},
+                                          m≤n
+
+respectively. The definition of wj,k in (15) allows us to express the mean and the variance of
+the (i, k)-th empirical likelihood function as
+                                           P
+                                 emp       j wj,k pi,j
+                               E p̂i,k = P                = µemp
+                                                             i,k ,                             (47)
+                                               j wj,k
+                                           P
+                                            j wj,k pi,j (1−pi,j )
+                             Var p̂emp
+                                   i,k   =       P                    emp
+                                                                   = Ei,k ,                    (48)
+                                               ( j wj,k )2
+respectively. Under the assumptions of E[pi,k ] = p̂mod                  ˆmod
+                                                    i,k and Var(pi,k ) = Ei,k along with (47) and
+
+(48), three arguments Ai,k , Bi,k , and Ci,k in (42) are computed as follows:
+                                            mod
+                                   Ai,k = Êi,k ,                                              (49)
+                                                     mod
+                                   Bi,k = (1 − βk )Êi,k ,                                     (50)
+                                                       mod             1 (wk )
+                                    Ci,k = (1 − 2βk )Êi,k +              Ω    ,               (51)
+                                                                      ū2k i,k
+             w             P
+where βk = ūk,k
+              k
+                 , ūk = j wj,k ,
+                        X                       
+                  (wk )             mod     mod
+                                                 2 X              X
+                                                                      2     mod
+                 Ωi,k =      wj,k p̂i,k − p̂i,j    +  wj,k v̂i,k +   wj,k Êi,j ,
+                            j6=k                                  j                 j
+
+and v̂i,k = p̂mod       mod       mod
+              i,j (1− p̂i,j ) − Êi,k . From (49)–(51), it can be easily shown that
+
+                                                               1 (wk )
+                                   Ai,k + Ci,k − 2Bi,k =          Ω    ≥ 0.                    (52)
+                                                              ū2k i,k
+                                                                                                                            29
+
+
+
+The results in (42) and (52) imply that the minimum MSE for given S is obtained as
+                                                        2         2 ˆmod 
+                                           Ai,k Ci,k − Bi,k       wk,k Ei,k
+          ⋆
+     MSEi,k (S) = min MSEi,k (S; α) =                        = 1−    (wk )
+                                                                             Eˆi,k
+                                                                               mod
+                                                                                   ,                                     (53)
+                   α∈[0,1]               Ai,k + Ci,k − 2Bi,k       Ωi,k
+and the corresponding combining ratio is given by
+                                                                                               mod
+               ⋆                                                Ci,k − Bi,k         wk,k ūk Êi,k
+              αi,k (S) = argmin MSEi,k (S; α) =                                 =1−       (w )
+                                                                                                   .                     (54)
+                             α∈[0,1]                        Ai,k + Ci,k − 2Bi,k       Ωi,k k
+Finally, by applying both (53) and (26) into (40), we obtain the result in (27).
+
+
+                                                      R EFERENCES
+
+[1] Y.-S. Jeon, M. So, and N. Lee, “Reinforcement-learning-aided ML detector for uplink massive MIMO systems with low-
+    precision ADCs,” in Proc. IEEE Wireless Commun. Netw. Conf. (WCNC), Barcelona, Spain, Apr. 2018, pp. 1–6.
+[2] Y.-S. Jeon, H. Lee, and N. Lee, “Robust MLSD for wideband SIMO systems with one-bit ADCs: Reinforcement-learning
+    approach,” in Proc. IEEE Int. Conf. Commun. Workshops (ICC Workshops), Kansas City, MO, May 2018, pp. 1–6.
+[3] A. L. Swindlehurst, E. Ayanoglu, P. Heydari, and F. Capolino, “Millimeter-wave massive MIMO: The next wireless
+    revolution?,” IEEE Commun. Mag., vol. 52, no. 9, pp. 56–62, Sep. 2014.
+[4] S. Sun, T. S. Rappaport, R. W. Heath, Jr., A. Nix, and S. Rangan, “MIMO for millimeter-wave wireless communications:
+    Beamforming, spatial multiplexing, or both?,” IEEE Commun. Mag., vol. 52, no. 12, pp. 110–121, Dec. 2014.
+[5] S. Han, C.-L. I, Z. Xu, and C. Rowell, “Large-scale antenna systems with hybrid analog and digital beamforming for
+    millimeter wave 5G,” IEEE Commun. Mag., vol. 53, no. 1, pp. 186–194, Jan. 2015.
+[6] B. Murmann, “ADC performance survey 1997-2018,” [Online]. Available: http://web.stanford.edu/∼murmann/adcsurvey.html
+[7] R. H. Walden, “Analog-to-digital converter survey and analysis,” IEEE J. Sel. Areas Commun., vol. 17, no. 4, pp. 539–550,
+    Apr. 1999.
+[8] J. Singh, S. Ponnuru, and U. Madhow,“Multi-gigabit communication: The ADC bottleneck,” in Proc. IEEE Int. Conf.
+    Ultra-Wideband, Vancouver, BC, Canada, Sep. 2009, pp. 22–27.
+[9] O. Orhan, E. Erkip, and S. Rangan, “Low power analog-to-digital conversion in millimeter wave systems: Impact of resolution
+    and bandwidth on performance,” in Proc. Inf. Theory Applications Workshop (ITA), San Diego, CA, Feb. 2015, pp. 191–198.
+[10] A. Mezghani and J. Nossek, “On ultra-wideband MIMO systems with 1-bit quantized outputs: Performance analysis and
+    input optimization,” in Proc. IEEE Int. Symp. Inf. Theory (ISIT), Nice, France, June 2007, pp. 1286–1289.
+[11] J. Singh, O. Dabeer, and U. Madhow, “On the limits of communication with low-precision analog-to-digital conversion at
+    the receiver,” IEEE Trans. Commun., vol. 57, no. 12, pp. 3629–3639, Dec. 2009.
+[12] E. Björnson, M. Matthaiou, M. Débbah, “Massive MIMO with non-ideal arbitrary arrays: Hardware scaling laws and
+    circuit-aware design,” IEEE Trans. Wireless Commun., vol. 14, no. 8, pp. 4353–4368, Aug. 2015.
+[13] H. Lee, Y.-S. Jeon, and N. Lee, “Quantized Viterbi algorithm: Maximum likelihood sequence detection for SIMO ISI
+    channels with low-precision ADCs,” in Proc. IEEE 77th Veh. Tech. Conf. (VTC Spring), Porto, Portugal, June 2018, pp.
+    1–5.
+[14] Y.-S. Jeon, H. Do, S.-N. Hong, and N. Lee, “Soft-output detection methods for sparse millimeter wave MIMO systems with
+    low-precision ADCs,” to be appeared in IEEE Trans. Commun., 2019. [Online]. Available: http://arxiv.org/abs/1811.11923
+[15] S. Wang, Y. Li, and J. Wang, “Convex optimization based multiuser detection for uplink large-scale MIMO under low-
+    resolution quantization,” in Proc. IEEE Int. Conf. Commun., Sydney, NSW, Australia, June 2014, pp. 4789–4794.
+                                                                                                                              30
+
+
+
+[16] J. Choi, J. Mo, and R. W. Heath, Jr., “Near maximum-likelihood detector and channel estimator for uplink multiuser
+    massive MIMO systems with one-bit ADCs,” IEEE Trans. Commun., vol. 64, no. 5, pp. 2005–2018, May 2016.
+[17] S.-N. Hong, S. Kim, and N. Lee, “A weighted minimum distance decoding for uplink multiuser MIMO systems with
+    low-resolution ADCs,” IEEE Trans. Commun., vol. 66, no. 5, pp. 1912–1924, May 2018.
+[18] Y.-S. Jeon, N. Lee, S.-N. Hong, and R. W. Heath, Jr., “One-bit sphere decoding for uplink massive MIMO systems with
+    one-bit ADCs,” IEEE Trans. Wireless Commun., vol. 17, no. 7, pp. 4509–4521, July 2018.
+[19] S.-N. Hong and N. Lee, “Soft-output detector for uplink MU-MIMO systems with one-bit ADCs,” IEEE Commun. Lett.,
+    vol. 22, no. 5, pp. 930–933, May 2018.
+[20] H. He, C.-K. Wen, and S. Jin, “Bayesian optimal data detector for hybrid mmWave MIMO-OFDM systems with low-
+    resolution ADCs,” IEEE J. Sel. Topics Signal Process., vol. 12, no. 3, pp. 469–483, June 2018.
+[21] C. Studer and G. Durisi, “Quantized massive MU-MIMO-OFDM uplink,” IEEE Trans. Commun., vol. 64, no. 6, pp.
+    2387–2399, June 2016.
+[22] Y. Li, C. Tao, Seco-Granados, A. Mezghani, A. L. Swindlehurst, and L. Liu, “Channel estimation and performance analysis
+    of one-bit massive MIMO systems,” IEEE Trans. Signal Process., vol. 65, no. 15, pp. 4075–4089, Aug. 2017.
+[23] T. M. Lok, and V. K.-W. Wei, “Channel estimation with quantized observations,” in Proc. IEEE Int. Symp. Inf. Theory
+    (ISIT), Cambridge, MA, Aug. 1998, pp. 333.
+[24] A. Mezghani, F. Antreich, and J. A. Nossek, “Multiple parameter estimation with quantized channel output,” in Proc. Int.
+    ITG Workshop on Smart Antennas (WSA), Bremen, Germany, Feb. 2010, pp. 143–150.
+[25] C. Stöckle, J. Munir, A. Mezghani, and J. A. Nossek “Channel estimation in massive MIMO systems using 1-bit
+    quantization,” in Proc. IEEE 17th Int. Workshop Signal Process. Adv. Wireless Commun. (SPAWC), Edinburgh, UK, July
+    2016, pp. 1–6.
+[26] J. Mo, P. Schniter, and R. W. Heath, Jr., “Channel estimation in broadband millimeter wave MIMO systems with few-bit
+    ADCs,” IEEE Trans. Signal Process., vol. 66, no. 5, pp. 1141–1154, Mar. 2018.
+[27] C.-K. Wen, C.-J. Wang, S. Jin, K.-K. Wong, and P. Ting, “Bayes-optimal joint channel-and-data estimation for massive
+    MIMO with low-precision ADCs,” IEEE Trans. Signal Process., vol. 64, no. 10, pp. 2541–2556, May 2016.
+[28] H. Wang, C.-K. Wen, and S. Jin, “Bayesian optimal data detector for mmWave OFDM system with low-resolution ADC,”
+    IEEE J. Sel. Areas Commun., vol. 35, no. 9, pp. 1962–1979, Sep. 2017.
+[29] P. Sun, Z. Wang, R. W. Heath, Jr., and P. Schniter, “Joint channel-estimation/decoding with frequency-selective channels and
+    few-bit ADCs,” in Proc. 51st Asilomar Conf. Signals, Systems & Computers, Pacific Grove, CA, Nov. 2017, pp. 1824–1828.
+[30] Y.-S. Jeon, S.-N. Hong, and N. Lee, “Supervised-learning-aided communication framework for MIMO systems with low-
+    resolution ADCs,” IEEE Trans. Veh. Tech., vol. 67, no. 8, pp. 7299–7313, Aug. 2018.
+[31] J. J. Bussgang, “Crosscorrelation functions of amplitude-distorted Gaussian signals,” Res. Lab. Electron., Massachusetts
+    Inst. Technol., Cambridge, MA, Tech. Rep. 216, Mar. 1952.
+[32] R. S. Sutton and A. G. Barto, Reinforcement Learning: An Introduction, Cambridge, MA: The MIT Press, 2018.
+[33] M. Dong, L. Tong, and B. M. Sadler, “Optimal insertion of pilot symbols for transmissions over time-varying flat fading
+    channels,” IEEE Trans. Signal Process., vol. 52, no. 5, pp. 1403–1418, May 2004.
+[34] Y.-S. Jeon, H.-M. Kim, Y.-S. Cho, and G.-H. Im, “Time-domain differential feedback for massive MISO-OFDM systems
+    in correlated channels,” IEEE Trans. Commun., vol. 64, no. 2, pp. 630–642, Feb. 2016.
+[35] M. K. Samimi and T. S. Rappaport, “3-D millimeter-wave statistical channel model for 5G wireless system design,” IEEE
+    Trans. Microwave Theory and Techniques, vol. 64, no. 7, pp. 2207–2225, July 2016.
+[36] J. Mo, A. Alkhateeb, S. Abu-Surra, and R. W. Heath, Jr., “Hybrid architectures with few-bit ADC receivers: Achievable
+    rates and energy-rate tradeoffs,” IEEE Trans. Wireless Commun., vol. 16, no. 4, pp. 2274–2287, Apr. 2017.
+

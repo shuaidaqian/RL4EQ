@@ -1,0 +1,1413 @@
+                                                                                                                                                                                    1
+
+
+
+
+                                           Feature-Aided Adaptive-Tuning Deep Learning for
+                                                       Massive Device Detection
+                                                            Xiaodan Shao, Xiaoming Chen, Yiyang Qiang, Caijun Zhong, and Zhaoyang Zhang
+
+
+
+
+                                            Abstract—With the increasing development of Internet of                  lem. Specifically, active device detection is equivalent to the
+                                         Things (IoT), the upcoming sixth-generation (6G) wireless net-              recovery of the sparse device state matrix from the noisy
+                                         work is required to support grant-free random access of a massive
+arXiv:2012.13523v1 [cs.IT] 25 Dec 2020
+
+
+
+
+                                                                                                                     measurements. Therefore, many works attempt to address
+                                         number of sporadic traffic devices. In particular, at the beginning
+                                         of each time slot, the base station (BS) performs joint activity            the problem of active device detection by using compressed
+                                         detection and channel estimation (JADCE) based on the received              sensing (CS) approaches [7]. For instance, the authors in
+                                         pilot sequences sent from active devices. Due to the deployment of          [8] proposed a generalized turbo signal recovery algorithm
+                                         a large-scale antenna array and the existence of a massive number           which was capable of achieving good performance and strong
+                                         of IoT devices, conventional JADCE approaches usually have                  robustness in solving the active device detection problem
+                                         high computational complexity and need long pilot sequences. To
+                                         solve these challenges, this paper proposes a novel deep learning           with a mixed analog-to-digital converter (ADC) architecture.
+                                         framework for JADCE in 6G wireless networks, which contains                 By exploiting both the active device sparsity and the chunk
+                                         a dimension reduction module, a deep learning network module,               sparsity feature of the channel matrix, the authors in [9]
+                                         an active device detection module, and a channel estimation                 proposed a modified Bayesian CS algorithm, which can further
+                                         module. Then, prior-feature learning followed by an adaptive-               improve the detection performance. If channel information
+                                         tuning strategy is proposed, where an inner network composed
+                                         of the Expectation-maximization (EM) and back-propagation is                is available, the accuracy of active device detection can be
+                                         introduced to jointly tune the precision and learn the distribution         significantly increased. Motivated by that, the authors in [10]
+                                         parameters of the device state matrix. Finally, by designing the            and [11] proposed an approximate message passing (AMP)
+                                         inner layer-by-layer and outer layer-by-layer training method,              algorithm for active device detection by making use of the
+                                         a feature-aided adaptive-tuning deep learning network is built.             statistical information of wireless channels. It was proved
+                                         Both theoretical analysis and simulation results confirm that
+                                         the proposed deep learning framework has low computational                  that if the number of BS antennas was sufficiently large, the
+                                         complexity and needs short pilot sequences in practical scenarios.          detection error asymptotically approached zero in the case
+                                                                                                                     that the elements of pilot sequences were independent and
+                                           Index Terms—6G, grant-free random access, active device                   identically distributed (i.i.d.) Gaussian random variables with
+                                         detection, channel estimation, deep learning.                               zero mean. To provide more pilot sequences with a given
+                                                                                                                     length, pilot sequences have to be non-i.i.d. For improving
+                                                                  I. I NTRODUCTION                                   the estimation performance in the case of non-i.i.d. pilot
+                                                                                                                     sequences, a vector AMP (VAMP) algorithm was proposed
+                                             Driven by the fast proliferation of Internet of Things (IoT),           in [12] by introducing a linear minimum mean square error
+                                         massive machine-type communication (mMTC) has been iden-                    (LMMSE) estimator into AMP. Note that the aforementioned
+                                         tified as one of the main use cases of the sixth-generation (6G)            approaches in [8]-[12] performed active device detection based
+                                         wireless networks [1]-[3]. Generally speaking, mMTC has                     on the instantaneous received signals, which requires exceed-
+                                         three fundamental characteristics, namely massive connectiv-                ingly long pilot sequences in the scenario of massive access.
+                                         ity, sporadic data traffic and small payload [4]. In the context of         To tackle this problem, the covariance-based algorithms were
+                                         mMTC, conventional grant-based random access schemes lead                   proposed in [13]-[16] to improve the performance of device
+                                         to a high access latency and a prohibitive signaling overhead.              activity detection. In specific, [13] formulated device activity
+                                         To this end, grant-free random access schemes have been                     detection as an maximum likelihood (ML) estimation problem,
+                                         regarded as a candidate technology of 6G wireless networks                  in which the received signals at multiple antennas affected the
+                                         [5], [6]. In particular, active devices transmit their data signals         detection results via their empirical covariance matrix. Then,
+                                         without a grant from the BS after sending pre-assigned pilot                [14] proposed a joint device activity and data detection scheme
+                                         sequences. Hence, the key of grant-free random access is                    based on the covariance matrix of the received signals, and
+                                         active device detection and channel estimation at the BS based              analyzed the distribution of the estimation error in the massive
+                                         on the received pilot sequences.                                            MIMO regime. In fact, the covariance-based algorithm can
+                                             Due to the sporadic characteristic of IoT data traffic, active          outperform the AMP algorithm with the same length of pilot
+                                         device detection is a typical sparse signal recovery prob-                  sequences. However, such a superior system performance
+                                           Xiaodan         Shao        (shaoxiaodan@zju.edu.cn),               Xi-   comes from the expense of the use of a relatively large
+                                         aoming        Chen       (chen_xiaoming@zju.edu.cn),              Yiyang    number of BS antennas. Although the algorithms in [8]-[15]
+                                         Qiang        (yiyang_qiang@zju.edu.cn),                Caijun      Zhong    can achieve good detection performance by exploiting the
+                                         (caijunzhong@zju.edu.cn),               and         Zhaoyang       Zhang
+                                         (ning_ming@zju.edu.cn) are with the College of Information Science          sparsity structure of the device state matrix, they impose high
+                                         and Electronic Engineering, Zhejiang University, Hangzhou 310027, China.    computational complexity due to large-dimensional matrix
+                                                                                                                                  2
+
+
+
+operators caused by the large-scale antenna array and the          deep learning algorithm to enforce the suspicious device to be
+massive number of IoT devices [17]. More importantly, these        inactive in each iteration of the AMP algorithm via employing
+algorithms require long pilot sequences, which cannot satisfy      the idea of list decoding in the field of error control coding.
+the requirement of short-packet communications in the context      Unfortunately, the data-driven deep learning approaches in
+of small IoT payload. As a result, active device detection in 6G   [36] and [37] for active device detection require a large
+wireless networks has emerged as a challenging problem due         number of training data to achieve satisfactory performance.
+to a large number of devices and the limited radio resources       However, in the scenario of time-varying fading channels, the
+in wireless networks [18], [19].                                   data-driven deep learning approaches are inapplicable as the
+   To overcome these challenges, one can project the original      channel coherence time is limited. In this context, this paper
+detection problem in a high-dimensional space to a low-            aims to design a model-driven deep learning framework for
+dimensional space by exploiting its specific structure [20].       massive device detection. The main challenges lie in that how
+In addition, if the apriori knowledge of the device state          to exploit the specific feature, i.e., the parameters of complex
+matrix that needs to be recovered is available in advance,         distribution of the device state matrix in a low-dimensional
+the required length of the pilot sequences can be shortened        space, how to reduce the performance loss caused by imperfect
+for a given performance requirement. For example, the AMP          learning of the prior distribution parameters, and how to design
+algorithms improved the detection performance by modeling          a scheme to train the parameters of the detection algorithm.
+the device state matrix as a Bernoulli-Gaussian distributed        The contributions of this paper are as follows:
+random matrix based on the assumptions that uplink channels
+                                                                    1) This paper proposes a novel deep learning framework for
+were Gaussian distributed [11]. These assumptions, however,
+                                                                       massive device detection in 6G wireless networks, which
+still have limitations, since wireless channels in practical
+                                                                       contains a dimension reduction module, a deep learning
+environments often exhibit much more complex statistical
+                                                                       network module, an active device detection module, and
+structures. Specifically, some research works in [21]-[25] have
+                                                                       a channel estimation module. The proposed deep learn-
+shown that the channels in massive multiple-input multiple-
+                                                                       ing framework can perform joint activity detection and
+output (MIMO) systems exhibit spatial sparsity, which can
+                                                                       channel estimation with a finite number of training data.
+be approximated by the Gaussian mixture distribution. As
+                                                                    2) This paper introduces an adaptive-tuning module in deep
+a result, the interested device state matrix is a Bernoulli-
+                                                                       learning network by combing EM and back-propagation
+Gaussian mixture distributed random matrix. Based on such
+                                                                       to adaptively tune the noise precision and learn the
+a distribution, the detection performance can be improved in
+                                                                       distribution parameters of the device state matrix. In
+practical scenarios. However, it is not trivial to obtain the
+                                                                       addition, by exploiting prior features that the elements
+parameters of the Bernoulli-Gaussian mixture distribution by
+                                                                       of device state matrix follow the Bernoulli-Gaussian
+employing traditional channel estimation approaches.
+                                                                       mixture distribution, this paper derives a new denoiser for
+   An effective approach for jointly obtaining and applying the
+                                                                       improving the detection performance, which is different
+distribution parameters is deep learning due to its powerful
+                                                                       from the original denoisers in the existing deep learning
+capabilities of data processing. Recently, deep learning has
+                                                                       networks.
+been widely adopted to design various advanced wireless
+                                                                    3) Integrating the prior-feature learning and adaptive-tuning
+communication techniques [26]-[35]. For instance, in [33],
+                                                                       module, this paper designs a feature-aided adaptive-
+the authors proposed an orthogonal AMP-Net (OAMP-Net)
+                                                                       tuning deep learning (FAT-DL) network including inner
+algorithm which incorporated deep learning into the OAMP
+                                                                       and outer networks to solve the massive device detec-
+algorithm. The OAMP-Net algorithm can significantly im-
+                                                                       tion problem. By designing the layer-by-layer training
+prove the detection performance over Rayleigh and correlated
+                                                                       method, a number of received data at the BS is used as
+MIMO channels. The authors in [34] proposed a millimeter-
+                                                                       the training data to obtain the feature, namely distribu-
+wave beam prediction scheme that combined machine learning
+                                                                       tion parameters. Moreover, extensive simulation results
+tools and situational awareness to learn the beam informa-
+                                                                       confirm the effectiveness of the proposed algorithm in
+tion, including power and optimal beam index from past
+                                                                       massive device detection problem.
+observations. A deep learning compressed sensing channel
+estimation scheme was proposed in [35], where the channel             The rest of this paper is organized as follows: Section II
+estimation neural network was trained offline using simulated      gives a brief introduction of 6G wireless networks with a
+environments to predict the beamspace channel amplitude,           massive number of sporadic traffic devices. Section III pro-
+then the channel was reconstructed based on the obtained           poses a deep learning framework for massive device detection.
+indices of dominant beamspace channel entries. For active          Next, a feature-aided adaptive-tuning deep learning network is
+device detection, deep learning also has a great potential for     designed in Section IV. Extensive simulation results are shown
+performance enhancement. For example, the pilot matrix and         in Section V. Finally, Section VI concludes the paper.
+the support recovery method were jointly designed in [36] by          Notations: We use bold letters to denote matrices or vectors,
+using an auto-encoder deep learning network, where the auto-       non-bold letters to denote scalars, (·)T to denote transpose,
+encoder comprised an encoder which mimicked the noisy lin-         (·)H to denote conjugate transpose, E[·] to denote expectation,
+ear measurement process and a decoder which approximately          var(·) to denote the variance, k · k2 to denote the l2 -norm of
+performed the sparse support recovery from the under-sampled       a vector, k · kF to denote the Frobenius norm of a matrix,
+linear measurements. Moreover, the authors in [37] proposed a      E(·|·) to denote the conditional expectation operator, CA×B
+                                                                                                                                                      3
+
+
+
+                                                                                      CSI can be obtained after active device detection. Since pilot
+                                                                                      sequences are not orthogonal of each other, the recovery
+                                                                                      of X from the noisy measurement Y is not a trivial task.
+                                                                                      Especially in 6G wireless networks, there are a large-scale
+                                                                                      antenna array at the BS and a massive number of IoT devices,
+                                                                                      resulting in high computational complexity in the recovery of
+                                     %6
+                                                                                      X based on the conventional activity detection approaches.
+                                                                                      In the following, we will propose a novel deep learning
+                                                           : Active devices
+                                                           : Inactive devices
+                                                                                      framework for recovering the device state matrix X.
+
+Fig. 1. A 6G wireless network with sporadic traffic devices.
+                                                                                              III. A N OVEL D EEP L EARNING F RAMEWORK
+                                                                                         In this section, we design a deep learning framework
+                                                                                      for massive device detection in 6G wireless networks. The
+to denote the space of complex matrices of size A × B, | · | to                       designed framework aims to address two critical issues in
+denote the absolute value. For a matrix S, sr denotes its rth                         conventional massive device detection approaches. Firstly, the
+column and snr denotes its element in the nth row and rth                             conventional device detection approaches are only applicable
+column. · denotes multiplication.                                                     to the scenarios of Rayleigh fading channels [11], which limits
+                                                                                      their applicabilities significantly. Secondly, the conventional
+     II. S YSTEM M ODEL AND P ROBLEM F ORMULATION                                     device detection approaches have high computational com-
+                                                                                      plexity. As shown in Fig. 2, the proposed deep learning frame-
+   This paper considers a single-cell 6G wireless network,
+                                                                                      work for massive device detection comprises four modules,
+where a BS equipped with M antennas serves N single-
+                                                                                      i.e., a dimension reduction module, a deep learning network
+antenna IoT devices distributed in the network. In 6G wireless
+                                                                                      module, an active device detection module, and a channel
+networks, the density of IoT devices is usually very large, i.e.,
+                                                                                      estimation module. In what follows, we introduce these four
+10 per m2 . However, due to the burst characteristic of IoT
+                                                                                      modules.
+applications, only a fraction of IoT devices are active at any
+given time slot, as shown in Fig. 1. In this context, a grant-
+                                                                                      A. Dimension Reduction
+free random access scheme is applied to jointly detect active
+devices and to estimate their corresponding channel state                                Since the BS of 6G wireless networks is equipped with a
+information (CSI). Specifically, at the beginning of each time                        large-scale antenna array, massive device detection based on
+slot, the active IoT devices simultaneously send predetermined                        Y imposes prohibitive computational complexity. Considering
+pilot sequences to the BS, and then the BS performs JADCE                             X ∈ CN ×M is simultaneously sparse and low-rank, namely its
+based on the received signals. In a given time slot, K is used                        rank re = rank(X) ≤ min{M, N }, we carry out dimension
+to denote the collection of active devices with K = |K| being                         reduction before performing any sparse signal recovery. In
+the number of active devices. For convenience, define αk as                           particular, we can transform the original detection problem
+the activity indicator with αk = 1 if the kth device is active,                       in (1) to a low-dimensional space, where the unknown matrix
+and αk = 0 otherwise.                                                                 is of size N × re . Consequently, the solution of the original
+   We adopt hn ∈ CM to denote the channel vector from the                             problem can be recovered based on that of the low-dimensional
+nth device to the BS. It is assumed that the channels remain                          problem. Specifically, we conduct dimension reduction as
+constant in a time slot and independently fade over time slots.                       follows [20]:
+A unique pilot sequence an = [an,1 , · · · , an,L ]T ∈ CL×1                             1) The received signal Y in (1) is partitioned into a signal
+is assigned to the nth device, where L is the pilot length.                                space and its null space by singular value decomposition
+Let E ∈ CL×M be the independent and identically dis-                                       (SVD), namely Y = Ssd Vsd DH      sd . Let V = Sr e Vr e ,
+tributed (i.i.d.) additive white Gaussian noise (AWGN) matrix,                             where Sre is the first re columns of Ssd , and Vre is a
+whose element el,m follows the distribution CN (el,m ; 0, σ 2 ),                           square matrix consisting of the first re rows and the first
+i.e., the complex Gaussian distribution with zero mean and                                 re columns of Vsd . Let U be the first re rows of DH    sd .
+variance σ 2 . Besides, ξn = Lppn denotes the total pilot                                  Then, the signal space is constructed as
+transmit energy with ppn being the pilot transmit power of                                                    VU = AX + EX ,                       (2)
+the nth device. Define X = [x1 , ..., xN ]T ∈ CN ×M with
+xn = αn ξn hn ∈ CM×1 as the device state matrix and                                       where EX is the noise incorporated in the signal space,
+                                                                                                      e                                e
+A = [a1 , ..., aN ] ∈ CL×N as the pilot matrix. Thus, the                                 V ∈ CL×r with rank(V) = re , and U ∈ Cr ×M with
+                                                                                               H
+received signal Y ∈ CL×M at the BS can be cast as                                         UU = I.
+                 N
+                                                                                       2) Based on (2), an equivalent form to the original input-
+                                                                                          output model (1) in a low-dimensional space is con-
+                 X
+           Y=          αn ξn an hTn + E = AX + E.                               (1)
+                 n=1
+                                                                                          structed as
+                                                                                                             V = AS + ES ,                    (3)
+Based on the received signal Y, the BS first performs active
+device detection, which is equivalent to recovering the sparse                             with S = XUH and ES = EX UH . The transformed
+and low-rank device state matrix X. Then, the corresponding                                device state matrix S can be recovered uniquely in the
+                                                                                                                                                            4
+
+
+
+
+                                                                                                                Active Device              Channel
+     Dimension                                        Deep Learning Network
+                                                                                                                  Detection               Estimation
+     Reduction
+                                                                                                                    aˆ n = 1
+                    Input                                                                           Ŝ                            ˆ ˆ = Sˆ ˆ U
+                                                                                                                                        X
+                            1-th layer                     t -th layer                   Tmax -th layer                             ˆ
+                                                                                                         Threshold
+ Y
+       Y ® VU               V                                                                                        aˆ n = 0
+
+
+Fig. 2. The architecture of the proposed deep learning framework for massive access. Wherein, the deep learning network for the estimation of the transformed
+device state matrix consists of Tmax layers, and each layer has the same structure.
+
+
+
+      low-dimensional space based on (3). Then, the originally                  threshold. In specific, we determine the estimated activity
+      concerned device state matrix X is obtained by letting                    indicator α̂k as follows:
+      X = SU, where S has the same distribution parameters                                                        2
+      with X.                                                                                     1, if Ŝ(k, :) ≥ v 2 re
+                                                                                                  
+                                                                                            α̂k =                  2                    (4)
+                                                                                                                   2
+   Applying the above dimension reduction, the transformed                                        0, if Ŝ(k, :) < v 2 re
+                                                                                                  
+device state matrix S in the low-dimensional space can be                                                                       2
+
+adopted for active device detection. Since the number of BS                     where Ŝ(k, :) is the kth row of the estimation of de-
+antennas in 6G wireless networks is huge, such a dimen-                         vice state matrix, i.e., Ŝ, v 2 re is the threshold, and v =
+sion reduction can decrease the computational complexity                        v1 max(|ŝnr |), ∀n ∈ {1, · · · , N }, ∀r ∈ {1, · · · , re } with
+substantially during the recovery of the device state matrix.                   max(|ŝnr |) being the maximum absolute value of element
+Importantly, S has the same distribution parameters with                        of Ŝ. Herein, v1 is set according to the considered channel
+X, a feature that will be exploited for improving detection                     model. In particular, v1 is set as the ratio of the minimum and
+performance in this paper. Different from this paper, the                       the maximum amplitudes of the generated channel coefficients,
+work in [20] mainly applied the full column rank property                       which has been widely adopted in [38] and [39]. The threshold
+of transformed device state matrix S after the dimension                        in (4) implies that if the energy of Ŝ(k, :) is not less than the
+reduction. Note that the result in (2) is a high signal-to-noise                re fold of the minimum element energy in statistical sense,
+ratio (SNR) characterization of the received signal. Such a                     the kth device is declared active.
+high-SNR approximation is a reasonable assumption in 6G
+wireless networks with massive connectivity due to the limited                  D. Channel Estimation
+interference.
+                                                                                   Once the active devices are determined, the estimate of
+                                                                                original interested device state matrix can be obtained by
+                                                                                letting X̂ = ŜU. Correspondingly, the CSI of the kth active
+B. Deep Learning Network                                                        device ĥk can be estimated as
+                                                                                                                  p
+   After dimension reduction, a deep learning network module                                           ĥk = x̂k / ξk ,                  (5)
+is utilized to estimate the transformed device state matrix S.
+In general, the estimator is designed based on the distribution                 where x̂k is the kth row of X̂.
+of the device state matrix. Even with dimension reduction,                         Overall, the proposed deep learning framework combines
+S has the same distribution parameters as X. Commonly, X                        the apriori knowledge of the device state matrix with a deep
+is assumed to be Bernoulli-Gaussian distributed if the chan-                    learning network to improve the robustness against a wider
+nels experience Rayleigh fading [11]. However, in practical                     distributions range of the device state matrix and the pilot
+environments, the channels may have an irregular distribution.                  matrix, also conducts the dimension reduction operator to de-
+To enhance the robustness of the estimator, we model X as                       crease the demand in computation resources and training time.
+a Bernoulli-Gaussian mixture distributed random matrix [23].                    In the following, we provide an effective algorithm to design
+With the prior knowledge information, we design a feature-                      the deep learning network module of the proposed framework
+aided adaptive-tuning deep learning (FAT-DL) algorithm based                    for massive device detection in 6G wireless networks.
+on the architecture of the VAMP algorithm for the design of
+the estimator in Section IV.                                                    IV. F EATURE -A IDED A DAPTIVE -T UNING D EEP L EARNING
+                                                                                                      N ETWORK D ESIGN
+                                                                                   In this section, we propose a feature-aided adaptive-tuning
+C. Active Device Detection                                                      deep learning (FAT-DL) network to recover the transformed
+                                                                                device state matrix by exploiting the prior feature of the device
+   Next, given the output of the deep learning network model                    state matrix, and combining the AWGN precision adaptive-
+Ŝ, we can detect the active devices based on a judgement                       tuning and variable back-propagation to boost the learning
+                                                                                                                                                     5
+
+
+
+performance. The VAMP algorithm is a powerful approach for                    It is shown in [12] that when A is a right-orthogonally
+solving the JADCE problem in high-dimensional settings [12],               invariant random matrix and sufficiently large, the per-iteration
+however, it can not adapt to general complex channel settings              behavior of the denoiser and the LMMSE estimator in VAMP
+for JADCE problem. In what follows, we first briefly review                can be exactly predicted by a scalar state evolution. The
+the VAMP algorithm, and then design the FAT-DL network                     right-orthogonally invariant matrix A allows arbitrary singular
+based on the architecture of VAMP.                                         values and arbitrary left singular vectors, making VAMP robust
+                                                                           against the distribution of A. However, there are still two prob-
+A. VAMP Algorithm                                                          lems when it is used for massive device detection. First, the
+                                                                           conventional VAMP algorithm assumes that the distribution
+   Based on the low-dimensional received signal V, S can be                parameters are known and assumes that the device state matrix
+recovered by using the VAMP algorithm [12]. In general, the                is a Bernoulli-Gaussian distributed random matrix. However,
+VAMP algorithm performs activity detection by considering                  in practical massive MIMO systems [21]-[25], the device state
+each column of the received signal in parallel and assuming                matrix is a Bernoulli-Gaussian mixture distributed random
+that the distribution parameters of the device state matrix are            matrix. As a result, the denoiser of the VAMP algorithm is not
+known. The derivation of VAMP is through an approxima-                     specifically designed for the massive device detection under
+tion of a non-loopy graph with vector-valued nodes. For the                investigation. Second, AWGN precision in u1,r is not equal
+low-dimensional received signal V, the non-loopy graph is                  to γ1 when the distribution parameters are not perfect, which
+constructed based on the following factorization                           may lead to severe performance loss in VAMP algorithm.
+              p(vr , sr ) = p(sr )CN (vr ; Asr , σ 2 I),            (6)
+where vr and sr are the rth column of V and S, re-
+spectively. p(sr ) is the probability density function of sr .             B. Bernoulli-Gaussian Mixture Distribution
+CN (vr ; Asr , σ 2 I) represents the probability density function
+of the complex Gaussian distributed random variable vr with                   For solving the aforementioned problem, we consider a
+mean Asr and variance σ 2 I. By splitting sr into two identical            practical case that prior distribution parameters of the device
+variables s1,r = s2,r , an equivalent factorization can be                 state matrix X are unknown, which is modeled as a Bernoulli-
+obtained as follows                                                        Gaussian mixture distributed random matrix. Note that this is
+                                                                           a general and accurate distribution for the practical scenarios
+ p(vr , s1,r , s2,r ) = p(s1,r )δ(s1,r − s2,r )CN (vr ; As2,r , σ 2 I).    with a large-scale antenna array at the BS [21]. Since the
+                                                                     (7)   transformed device state matrix S has the same distribution
+As specified in Algorithm 1, through passing messages on this              parameters with X, the distribution of the transformed device
+factor according to the rules introduced in [12], the VAMP can             state matrix can be specifically expressed as
+be divided into a denoising step (steps 3 − 6 in Algorithm 1)                              e
+                                                                                    N Y
+                                                                                      r                                  J
+and a LMMSE estimation step (steps 7 − 10 in Algorithm 1),                          Y                                    X
+which operate repeatedly for iterations t = 0, 1, 2, ... until the         p(S) =              (1 − ǫnr )δ(snr ) + ǫnr         qnj CN (snr ; 0, ϑ2nj ),
+                                                                                    n=1 r=1                              j=1
+algorithm converges.                                                                                                                             (8)
+     In Algorithm 1, ŝt1,r and ŝt2,r are the estimates of st1,r and      where δ(·) is the Dirac delta function, 0 < ǫnr < 1 is
+  t                              t         t
+s2,r at the tth iteration, γ1,r      and γ2,r  are noise precisions,       the sparse ratio, i.e., the probability of snr being non-zero,
+   t          t
+u1,r and u2,r behave like an AWGN corrupted version of the                 ϑ2nj denotes the variance of the jth component, qnj > 0
+true signal sr , namely ut1,r = sr + CN (0, I/γ1,r    t
+                                                        ) and ut2,r =                                                    PJ
+                     t                                N ×1                 is the jth weighted coefficient, and               j=1 qnj = 1 with
+sr + CN (0, I/γ2,r ). g1,r (·) is the denoiser: C          → CN ×1 ,
+                                                    ′            ′         J being the number of the mixture components. Thus, the
+and g2,r (·) is the LMMSE estimator of s2,r . g1,r (·) and g2,r (·)        transformed device state matrix S is parameterized by un-
+are the first-order derivative of g1,r (·) and g2,r (·), respectively,     known parameters ǫnr and Ω = [θ1T , θ2T , · · · , θnT , · · · , θN   T T
+                                                                                                                                                  ]
+and < · > denotes the empirical averaging operation.                                                             2     2             2
+                                                                           with θn = [qn1 , qn2 , · · · , qnJ , ϑn1 , ϑn2 , · · · , ϑnJ ]. Note that
+                                                                           the distribution of element in the device state matrix, xnm ,
+Algorithm 1 Vector AMP Algorithm
+                                                                           and the element in the transformed device state matrix, snr ,
+ 1: Initialize: u01,r and γ2,r
+                             0
+                                                                           have the same number of the mixture components J. The
+ 2: for t = 0, · · · , Tmax do                                             unknown parameters in the form of Ω control the accuracy
+ 3:   ∀r : ŝt1,r = g1,r   t      t
+                        D(u1,r , γ1,r ) E                                  and convergence of the activity detection algorithm. Although
+                           ′
+                 t
+ 4:    ∀r : 1/η1,r  = g1,r (ut1,r , γ1,rt         t
+                                            ) /γ1,r                        dimension reduction is performed, finding optimal distribution
+ 5:           t      t
+       ∀r : γ2,r = η1,r − γ1,r  t                                          parameters still has high computational complexity. In fact,
+ 6:                    t
+       ∀r : ut2,r = (η1,r                       t
+                          ŝt1,r − γ1t ut1,r )/γ2,r                        these parameters can be learned via the back-propagation with
+              t
+       ∀r : ŝ2,r = g2,r     t    t                                        a finite number of training data, which will be introduced in
+ 7:
+                       D(u2,r , γ2,r )
+                                                                           Section IV. E.
+                           ′
+                                              E
+               t
+ 8:    ∀r : 1/η2,r = g2,r (ut2,r , γ2,r
+                                    t       t
+                                        ) /γ2,r
+            t+1    t         t                                                With such a Bernoulli-Gaussian mixture distribution model,
+ 9:   ∀r : γ1,r = η2,r − γ2,r
+            t+1      t    t      t            t+1                          we propose a deep learning-based minimum mean square error
+10:   ∀r : u1,r = (η2,r ŝ2,r − γ2,r ut2,r )/γ1,r                          (MMSE) estimator to solve the problem of the transformed de-
+11: end for
+                                                                           vice state matrix recovery. With the low-dimensional received
+                                                                                                                                                                   6
+
+
+                                                                                                                 
+signal V and the learned variables Ω̂, the MMSE estimate of                                                   1
+                                                                                       · CN   u1,nr ; snr ,
+S can be computed as                                                                                        γ1,r
+                                                                                              J                                  
+                          Ŝ = E[S|V; ǫ̂, Ω̂],                         (9)
+                                                                                             X
+                                                                                                                          2   1
+                                                                                       = ǫnr     qnj CN u1,nr ; 0, ϑnj +
+                                                                                             j=1
+                                                                                                                             γ1,r
+where ǫ̂ is the estimation of ǫ, which is the collection of
+                                                                                                                   1    2
+                                                                                                                           !
+elements ǫnr across r = 1, 2, · · · , re and n = 1, 2, · · · , N , and                             ϑ2nj u1,nr γ1,r ϑnj
+                                                                                       · CN snr ;               ,
+the expectation is taken over the following posterior density                                          bnj          bnj
+                                                                                                                                 
+                                 p(S; ǫ̂, Ω̂)p(V|S; ǫ̂, Ω̂)                                                                   1
+            p(S|V; ǫ̂, Ω̂) =                                  ,       (10)             + (1−ǫnr )δ(snr )CN u1,nr ; snr ,            ,                          (15)
+                                        p(V; ǫ̂, Ω̂)                                                                         γ1,r
+
+where p(V|S; ǫ̂, Ω̂) and p(S; ǫ̂, Ω̂) in Eq. (10) can be de-                   with
+                                                                                                                                  1
+coupled  across the columns of S and V eas p(V|S; ǫ̂, Ω̂) =                                                  bnj = ϑ2nj +             .                        (16)
+Qre                                           Qr                                                                                 γ1,r
+   r=1 p(v r |sr ; ǫ̂, Ω̂) and p(S; ǫ̂, Ω̂) =  r=1 p(sr ; ǫ̂, Ω̂).
+   Clearly, we are interested in computing the MMSE estimate                   By substituting (15) into (11), the denoiser based on the
+of S from the noisy data V. In this context, we need to design                 Bernoulli-Gaussian mixture distribution can be expressed as
+a specific denoiser for Algorithm 1 based on (9) and provides                                                                        J
+                                                                                                                                     P          ϑ2 u1,nr
+appropriate parameters Ω̂ and ǫ̂ for updating the estimated                                                                    ǫnr         qnj njbnj       C0,nj
+                                                                                                                                     j=1
+transformed device state matrix.                                               g1,nr (u1,nr ; ǫnr , γ1,r , θn ) =              J
+                                                                                                                                                                       ,
+                                                                                                                               P
+                                                                                                                         ǫnr         qnj C0,nj + (1 − ǫnr )C1,n
+                                                                                                                               j=1
+C. The Specific Denoiser Design                                                                                                                                (17)
+  Now, the denoiser in step 3 and its derivative in step 4                     with
+of Algorithm 1 can be specifically designed based on (8)-                                               C0,nj = CN (u1,nr ; 0, bnj ),                          (18)
+(10) for massive device detection. According to the theory                     and                                             
+of statistical signal processing, the element-wise Bernoulli-                                                               1
+Gaussian mixture denoiser for ŝ1,nr in Algorithm 1 based on                                          C1,n = CN u1,nr ; 0,        .                            (19)
+                                                                                                                           γ1,r
+the MMSE principle is calculated as
+                                                                               Then, the first-order derivative of g1,nr (·) can be derived as
+ŝ1,nr = g1,nr (u1,nr ; ǫnr , γ1,r , θn ) = E[snr |u1,nr ; ǫnr , γ1,r , θn ]       ′
+                                                                               g1,nr (u1,nr ; ǫnr , γ1,r , θn )
+                            1
+     R
+       snr p u1,nr |snr ; γ1,r    p(snr ; ǫnr , θn )dsnr                                        J                     J
+                                                                                                                                                               !
+ = R                                                    ,           (11)                       P       ϑ2nj         P      ϑ2 u1,nr    u
+                          1
+                                                                                       ǫnr         qnj bnj  C0,nj −     qnj njbnj C0,nj b1,nr
+        p u1,nr |snr ; γ1,r     p(snr ; ǫnr , θn )dsnr                                          j=1                  j=1
+                                                                                                                                           nj
+
+                                                                                  =                         J
+where u1,nr denotes the nth element of the vector u1,r . For                                          ǫnr
+                                                                                                            P
+                                                                                                                  qnj C0,nj + (1 − ǫnr )C1,n
+the VAMP algorithm, the input of denoiser, i.e., u1,nr , can be                                             j=1
+modeled as                                                                                        J q ǫ ϑ2 u
+                                                                                                  P  nj nr nj 1,nr C0,nj
+                                                                                                                   bnj
+                           u1,nr = snr + z,                           (12)                       j=1
+                                                                                  +                                                        !2
+                                                                                                J
+where z is the AWGN scalar which follows the distribution                                       P
+                                                                                          ǫnr         qnj C0,nj + (1 − ǫnr )C1,n
+CN (0, 1/γ1,r ) [12]. Consequently, we have                                                     j=1
+                                                                                                                          
+                      1                        1                                      J
+    p u1,nr |snr ;         = CN u1,nr ; snr ,        . (13)                          X   q  ǫ  u    C
+                                                                                          nj nr 1,nr 0,nj   (1 − ǫ    )u  C
+                                                                                                                   nr 1,nr 1,n 
+                    γ1,r                      γ1,r                                ·                      +            1         .                             (20)
+                                                                                     j=1
+                                                                                               b nj                  γ1,r
+By the law of distribution in (8), the distribution of snr can
+be written as                                                            Compared to the existing Gaussian mixture denoiser [3],
+                                             X J                         [40], the proposed Bernoulli-Gaussian mixture denoiser takes
+                                                                    2
+p(snr ; ǫnr , θn ) = (1−ǫnr )δ(snr )+ǫnr         qnj CN (snr ; 0, ϑnj ). into account the prior knowledge of the device state matrix,
+                                             j=1                         which can further improve the detection performance. In the
+                                                                   (14) following, we will design a FAT-DL network based on (17)
+Substituting the distributions defined
+                                             in (13) and (14) into and (20).
+                                 1
+the expression p u1,nr |snr ; γ1,r     p(snr ; ǫnr , θn ) and utilizing
+some calculations, we obtain                                             D. Adaptive-Tuning Module Design for Network
+                         
+                      1                                                     To further improve the performance, we design an adaptive-
+    p u1,nr |snr ;          p(snr ; ǫnr , θn )
+                     γ1,r                                                tuning module by combing EM and back-propagation to
+                                                                         adaptively tune the noise precision and learn the parameters
+                                                               
+                                      J
+                                                                         in (9). As mentioned in IV. A, ut1,r behaves like a corrupted
+                                     X
+                                                             2 
+     = (1 − ǫnr )δ(snr ) + ǫnr
+                                         qnj CN (snr ; 0, ϑnj )
+                                                                                                                                   t
+                                     j=1                                 version of the true signal sr by an AWGN precision γ1,r     ,
+                                                                                                                                                           7
+
+
+                                                                                                                    
+namely ut1,r = sr + CN (0, I/γ1,r      t
+                                          ). When the variable Ω                                     1
+                                                                                       · γ2,r u2,r + 2 diag(β)H AH vr .                                 (25)
+learned by the deep learning network is not perfect, ut1,r is                                       σ
+still an AWGN corrupted version of the true signal sr . In                Taking the derivative over the equation above and performing
+                                                         t
+this case, the AWGN precision is not equal to γ1,r          , which       the empirical averaging leads to
+                              t
+compromises the updates of ŝ1 . Thus, we propose to adaptively             D ′                     E
+tune the precision γ1t = [γ1,1
+                           t              t
+                               , · · · , γ1,r e]
+                                                 T
+                                                   by combing back-           g2,r (u2,r ; γ2,r , β)
+propagation. In this context, the maximum likelihood (ML)                               "                                 −1 #
+                                                                               γ2,r         1          H H
+estimator is employed, which is given by                                    =        tr         diag(β) A Adiag(β) + γ2,r I      . (26)
+                                                                                N           σ2
+               {γ1t , ǫt } = argmax p(Ut1 ; ǫ, γ1 , Ω),           (21)
+                                γ1                                           In the following, we will propose a deep learning-based
+under the statistical model of ut1,r and the distribution feature         JADCE network based on the designed denoiser and adaptive-
+                                                                          tuning module for jointly learning the unknown distribution
+of sr . Therein, Ω is learned through back-propagation and Ut1
+                                                                          parameters and applying the learned distribution parameters
+is the matrix collecting ut1,r . To solve the problem (21), we
+                                                                          to detect active devices. Specifically, the designed FAT-DL
+utilize the following inner EM iterations based on the learned
+                                                                          network contains an inner network and an outer network.
+Ωτ in the τ th layer
+                                                                          The outer network consists of Tmax cascade layers and each
+   γ1τ +1 = argmax E[ln p(S, Ut1 ; ǫ, γ1 , Ω)|Ut1 ; ǫτ , γ1τ , Ωτ ]       has the same architecture but different trainable parameters.
+                γ1
+                                                                          For the t-th layer of the outer network, the input is the
+    = argmax{E[ln p(S; ǫ, Ω)|Ut1 ; ǫτ , γ1τ , Ωτ ]                        estimation ut1,r and γ1,r
+                                                                                                  t
+                                                                                                     from the (t − 1)th layer, and the
+          γ1                                                                                    t+1       t+1
+                                                                          output variables are u1,r and γ1,r  . The inner network consists
+    + E[ln p(Ut1 |S; γ1 )|Ut1 ; ǫτ , γ1τ , Ωτ ]}.                 (22)    of τmax cascade layers and each has the same architecture but
+Keeping the variables of outer iteration t unchanged, and                 different trainable parameters. For the τ -th layer of the inner
+                                                                                                                   τ
+omitting the terms that are independent of the parameter vector           network, the input is the estimation γ1,r    from the (τ − 1)th
+                                                                                                                τ +1
+γ1τ , we have                                                             layer, and the output variables is γ1,r . In summary, the tth
+              re
+                                                                          outer layer of the FAT-DL network performs as (27)-(39),
+  τ +1
+             X                                                            where the inner layer repeats (27)-(31) for τ = 1, . . . , τmax
+ γ1 = argmax     E[ln p(ut1,r |sr ; γ1,r )|ut1,r ; ǫτ , γ1,r
+                                                         τ
+                                                             , Ωτ ].
+         γ1  r=1                                                                                           J        ϑ2,t ut
+                                                                                                    ǫτnr          τ           τ
+                                                                                                           P         nj 1,nr
+                                                                                                                 qnj  bτ     C0,nj
+Decoupling γ1τ into the elementwise form γ1,r
+                                          τ
+                                              leads to                                                     j=1          nj
+                                                                              ŝτ1,nr =             J
+                                                                                                                                             , ∀r, n,   (27)
+ τ +1
+γ1,r                                                                                      ǫτnr
+                                                                                                    P       τ Cτ            τ    τ
+                                                                                                           qnj 0,nj + (1 − ǫnr )C1,n
+                                                                                                 j=1
+                            h                                   i
+          N ln γ1,r −γ1,r E sr−ut1,r 2 |ut1,r ; ǫτ , γ1,r
+          
+                                                       τ       τ 
+                                                           , Ω                     τ      ′
+= argmax
+                                          2
+                                                                              1/η1,r  = hg1,nr (ut1,r ; ǫτnr , γ1,r
+                                                                                                                τ
+                                                                                                                    , θnτ )i/γ1,r
+                                                                                                                              τ
+                                                                                                                                  , ∀r, n,              (28)
+    γ1,r                            2                                                                                    −1
+                                                                               τ        1 τ                   2
+                                          i−1                                γ1,r  =       ŝ − ut1,r 2 + 1/η1,r         τ
+                                                                                                                                  , ∀r,                 (29)
+                                                                                        N 1,r
+    h
+                     2
+=N E sr − ut1,r 2 |ut1,r ; ǫτ , γ1,r
+                                 τ
+                                     , Ωτ                                                       e
+                                                                                            r
+                                −1                                                    1 X                         1
+                                                                              ǫτnr =
+  
+     1 τ         t    2      τ                                                                                                    , ∀r, n,              (30)
+=        ŝ − u1,r 2 + 1/η1,r                                 (23)                     re r=1 1 +
+                                                                                                                          τ
+                                                                                                                (1−ǫτnr )C1,n
+    N 1,r                                                                                                         PJ
+                                                                                                                       t Cτ
+                                                                                                             ǫτnr     qnj  0,nj
+where ŝτ1,r and 1/η1,r
+                      τ
+                          can be calculated by (27) and (28),                                                     j=1
+
+
+respectively. In a similar way, ǫ can be obtained by                          τ = τ + 1,                                                                (31)
+
+    ǫτ +1 = argmax E[ln p(S; ǫ, Ω)|Ut1 ; ǫτ , γ1τ , Ωτ ]}.        (24)    and then let
+                  ǫ
+                                                                                          Ŝt1 = Ŝτ1 ,                                                 (32)
+   For the ŝ2,r in the LMMSE estimator, message pass-                                     t      τ
+ing rules have shown that it is the expectation of ŝ2,r ∼                                γ1,r = γ1,r , ∀r,                                             (33)
+                     −1                                                                    t      t         t
+CN (s2 ; u2,r , γ2,r     I)CN (vr ; As2 , σ 2 I). Herein, the pilot ma-                   γ2,r = η1,r − γ1,r  , ∀r,                                     (34)
+trix A is updated as At , Adiag(β t ) at the tth layer                                     t        t
+                                                                                          u2,r = (η1,r ŝ1,r − γ1t ut1,r )/γ2,r
+                                                                                                         t                  t
+                                                                                                                                , ∀r.                   (35)
+for a more accurate estimation by introducing the parameter
+β t = [β1t , β2t , · · · , βN
+                            t
+                              ]. In other words, the parameter βnt acts   For the LMMSE estimation step:
+                                                                                                                            −1
+to scale the power of the nth column of pilot matrix A.
+                                                                                    
+                                                                              t         1         t H H           t    t
+Compared with the scaling rule of pilot matrix in the learned               ŝ2,r =       diag(β ) A Adiag(β )+γ2,r IN
+                                                                                      σ2
+AMP (LAMP) [41], where all elements of matrix A vary with                                                           
+                                                                                       t          1
+the layer t, the proposed scheme can decrease the expense of                      · γ2,r  ut2,r + 2 diag(β t )H AH vr , ∀r,                             (36)
+                                                                                                  σ
+an L-fold in memory and training complexity.                                              "                           −1 #
+   Using standard expectation manipulations, we have                          t      1          1     t H      t    t
+                                                                            η2,r = tr             A(β ) A(β ) + γ2,r I       , ∀r,                      (37)
+                                                              −1                  N          σ2
+                       1           H H
+      ŝ2,r =             diag(β)    A   Adiag(β)   + γ 2,r IN                t+1
+                                                                             γ1,r    t
+                                                                                  = η2,r    t
+                                                                                         − γ2,r , ∀r,                                                   (38)
+                     σ2
+                                                                                                                                                                                                                                                                                        8
+
+
+
+
+                                                                                                                                        ut2,r
+               t
+           u 1,r
+                                                                                          (h1,t r sˆ1,t r - g 1t u1,t r ) / g 2,t r =
+                                                                                                                                                           LMMSE                                  ŝ t2, r                                                    ut1,+1r
+                                                                        ŝ1,t r                                                                                                                                   (h2,t r sˆ t2,r - g 2t ut2,r ) / g 1t,+1
+                                                                                                                                                                                                                                                        r =
+
+
+
+                                        Adaptive-Tuning                                                                                             g 2,r (ut2,r ; g 2,t r , b t )
+                                                                       h1,t r
+          g 1,t r                           Module                                                                                                                                                             h2,t r
+                                                                       g   t
+                                                                           1, r                    h -g =
+                                                                                                      t             t
+                                                                                                                                                                                                                             h2,t r - g 2,t r =                    g 1,t +1r
+                                                                                                      1, r          1, r
+                                                                                                                                        g   t
+                                                                                                                                            2, r
+
+
+
+
+                                                                 1
+                                                                                                                                                                                                                        sˆ1,t max -1
+
+
+  g 1,r
+    1
+                    g1,nr (u1,t nr ; n1r , g 1,1r , q n1 ) sˆ1,r
+                                                                       æ          1 1           2ö
+                                                                       ç1 / h1,r + sˆ1,r - u1,r 2 ÷ =
+                                                                             1              t
+                                                                                                               -1
+
+                                                                                                                           g 1,r2
+                                                                                                                                    ... g 1t,r -1
+                                                                                                                                                      g1,nr (u1,t nr ; ntrmax -1 , g 1,t rmax -1 , q nt max -1 )              r
+
+
+                                                                                                                                                                                                                                       æ    t max -1
+                                                                                                                                                                                                                                       ç1/ h1,r +
+                                                                                                                                                                                                                                                     1 t max -1 t 2 ö
+                                                                                                                                                                                                                                                       sˆ1,r - u1,r ÷ =
+                                                                                                                                                                                                                                                                        -1
+                                                                                                                                                                                                                                                                                 t
+                                                                                                                                                                                                                                                                               g 1,r
+                                                                                                                                                                                                                                                                                  max
+
+
+
+
+                                                                                                                                    ...
+                                                                                                                                              max
+                                                                                                                                                                                                                         t -1          è                             ø
+                                                                                                                                                                                                                        h1,r                         N             2
+
+                                                                h1,r
+                                                                 1     è          N               ø                                                                                                                         max
+
+
+
+                    ág '
+                       1, nr
+                                t
+                               (u
+                                1, nr   ;     1
+                                              nr   , g , q )ñ
+                                                     1
+                                                     1, r
+                                                            1
+                                                            n                                                                                          á g1,' nr (u1,t nr ; ntrmax -1 , g 1,t max -1
+                                                                                                                                                                                                     , q nt max -1 )ñ
+                                                                                                                                                                                              r
+
+                                    g       1
+                                            1, r                                                                                                                                g 1,t r -1
+                                                                                                                                                                                    max
+
+
+
+
+                                                                                                                 τ )T ]T . Wherein, the adaptive-tuning module
+Fig. 3. The proposed FAT-DL architecture with the learnable variables βt and Ωτ = [(θ1τ )T , (θ2τ )T , · · · , (θN
+and LMMSE estimator exchange information iteratively until convergence.
+
+
+
+   ut+1     t     t      t    t      t+1
+    1,r = (η2,r ŝ2,r − γ2,r u2,r )/γ1,r , ∀r.                                                                               (39)       where S is the true transformed device state matrix, Ŝt1 and
+                                                                                                                                        Ŝt2 are the matrices collecting ŝt1,r and ŝt2,r , respectively.
+   Notice that the rows of the transformed device state matrix
+                                                                                                                                            The details of the parameters learning are specified in Algo-
+S share the common support, which can be utilized to improve
+                                                                                                                                        rithm 2. The training includes an inner training by minimizing
+the accuracy of the support estimation. Therefore, the update                                                                                                         t
+                                                                                                                                        the inner loss function CInner   and a outer training by mini-
+rule of the sparsity ratio in (30) is refined to leverage the                                                                                                               t
+                                                                                                                                        mizing the outer loss function COuter    , where coefficients β t or
+structured sparsity of the transformed device state matrix for                                                                                                      i
+                                                                                                                                        distribution parameters Ω are first optimized individually, and
+enhancing detection performance. Fig. 3 provides an illustra-
+                                                                                                                                        then all the trainable variables of the previous t outer layers
+tion of the corresponding block diagram of the proposed FAT-
+                                                                                                                                        and i inner layers are optimized globally. Specifically, line
+DL network. The proposed network architecture is obtained by
+                                                                                                                                        14 performs a training by minimizing the inner loss function
+introducing the learnable variables Φ = [β, Ω] and adaptive-                                                                               i
+                                                                                                                                        CInner , where only the Ωi is trainable with the trainable
+tuning module, i.e., the inner network, which fully exploit the
+                                                                                                                                        variables β t of previous (t−1) outer layers and Ωi of previous
+domain knowledge and adaptively adjust the AWGN precision.
+                                                                                                                                        (i − 1) inner layers unchanged. Next, line 15 re-learns the
+This improved architecture not only inherits the superiority
+                                                                                                                                        inner parameters {Ωi }ii=tτmax −τmax +1 for the training limited
+of traditional approaches, but also significantly improves the
+                                                                                                                                        in the layer t. Line 17 re-learns the variables Ωi of previous
+performance of activity detection.
+                                                                                                                                        i inner layers and variables β t of previous (t − 1) outer
+                                                                                                                                        layers. Line 18 performs a training by minimizing the outer
+E. Parameter Learning                                                                                                                                     t
+                                                                                                                                        loss function COuter    in the LMMSE estimation step, where
+   We now turn to design a scheme to train the parameters                                                                               only the β is trainable with the trainable variables β t of
+                                                                                                                                                     t
+Ω characterizing the Bernoulli-Gaussian mixture distribution                                                                            previous (t − 1) outer layers and Ωi of previous i inner layers
+of the device state matrix, and the parameters β adjusting the                                                                          unchanged. Finally, line 19 performs the global optimization
+pilot matrix for the designed deep learning network. From Fig.                                                                          for the training.
+3, we observe that the convergence behavior and detection                                                                                   Compared with the LVAMP network in [41], where the
+performance of the designed algorithm are determined by                                                                                 soft-threshold denoiser is applied with the trainable threshold
+appropriate parameters Ω. The parameters β in the LMMSE                                                                                 parameter, the proposed Bernoulli-Gaussian mixture denoiser
+estimation step also play important roles in constructing trans-                                                                        takes into account the prior knowledge of the practical trans-
+form coefficients.                                                                                                                      formed device state matrix, which can improve the detection
+   Before proceeding, we introduce the inner loss function                                                                              performance. On the other hand, compared with the LVAMP
+  t                              t
+CInner and outer loss function COuter as follows:                                                                                       network, an inner network is introduced to the proposed
+                                              t
+                                                                              2                                                         FAT-DL network, which can further reduce the performance
+                                             CInner = Ŝt1 − S                        ,                                      (40)       loss caused by imperfect learning of the prior distribution
+                                                                              F
+                                                                                  2                                                     parameters. Furthermore, different from the conventional deep
+                                              t
+                                             COuter = Ŝt2 − S                        ,                                      (41)       learning network, which only defines one loss function for the
+                                                                                  F
+                                                                                                                                      9
+
+
+
+whole network, the proposed deep learning network employs             performance loss in the FAT-DL algorithm. The inner network
+two loss functions in each layer, which are related to the            about precision γ2 = [γ2,1 , · · · , γ2,re ]T can be introduced.
+inner network and the outer network, respectively. Finally, the       Accordingly, a specialized parameter learning scheme for this
+calculations of the conventional LVAMP network are made on            specific problem can be designed for better performance.
+the real and imaginary part of the complex inputs separately,             Unlike conventional deep neural network (DNN) based
+while the proposed FAT-DL network directly conducts the               activity detection [37], where the adopted activation function
+denoising step and LMMSE step on the complex inputs.                  is a black box that has no explicit physical meaning, the
+                                                                      designed denoiser in (17) of the proposed FAT-DL network
+Algorithm 2 FAT-DL Parameter Learning.                                is equivalent to the activation function. The designed denoiser
+ 1: Initialization: β 1 = β 0 , Ω1 = Ω0                               has an explicit physical meaning, this is because the denoiser
+ 2: Learn Ω1 to minimize CInner   1                                   can promote Ŝ sparser by minimizing the mean-squared-error
+ 3: for i = 2, · · · , τmax do                                        (MSE) in each iteration. In this context, the proposed FAT-
+ 4:   Learn Ωi with fixed {Ωi }i−1                       i
+                                       i=1 to minimize CInner         DL network requires less low-dimensional training data and
+                       i i                    i
+ 5:   Re-learn {Ω }i=1 to minimize CInner                             shorter training time. However, in [37], to train the black box,
+ 6: end for                                                           it requires large training data and training time, which are often
+ 7: Learn β 1 with fixed {Ωi }ii=1 to minimize COuter  1              scarce in 6G wireless networks due to the fact that the fading
+                   1      i i                     1
+ 8: Re-learn {β , {Ω }i=1 } to minimize COuter                        channel is time-varying and the activity status of the devices
+ 9: for t = 2, · · · , Tmax do                                        changes over the time slots. In addition, the proposed FAT-DL
+10:   Initialization β t = β t−1                                      network is obtained by unfolding an iterative algorithm, thus
+11:   for τ = 1, · · · , τmax do                                      its performance can be rigorously analyzed through combing
+12:       i←i+1                                                       the specific denoiser in (17) with the state evolution [40],
+13:       Initialization Ωi = Ωi−1                                    which will be discussed in the future work.
+14:       Learn Ωi with fixed {Ωi }i−1               t t−1
+                                          i=1 and {β }t=1 to mini-        In summary, the proposed FAT-DL algorithm can obtain a
+                   i
+          mize CInner                                                 more accurate complex-valued estimation with low computa-
+15:       Re-learn {Ωi }ii=tτmax −τmax +1 with fixed {β t }t−1  t=1   tional complexity and low demand for training data by effi-
+          and {Ωi }i=tτ
+                      i=1
+                           max −τmax                i
+                                     to minimize CInner               ciently learning the distribution parameters of the transformed
+16:   end for                                                         device state matrix and boosting the adaptive update of the
+17:   Re-learn {Ωi }ii=1 and {β t }t−1                     t
+                                         t=1 to minimize COuter       AWGN precision. Moreover, the proposed FAT-DL algorithm
+                 t                 i i           t t−1
+18:   Learn β with fixed {Ω }i=1 and {β }t=1 to minimize              is robust to a much broader class of pilot matrices, as will
+         t                                                            be verified by simulations in Section V, which stabilizes the
+      COuter
+19:   Re-learn {β t }tt=1 and {Ωi }ii=1 to minimize COuter t          system and saves the storage space of the BS in the context
+20:   Update t ← t + 1                                                of mMTC compared to the detectors that can only work in
+21: end for                                                           the case of a large i.i.d. Gaussian pilot matrix. Therefore, the
+                     Tmax
+22: Return: {β t }t=1       and {Ωi }Ti=1
+                                        max τmax
+                                                                      proposed FAT-DL algorithm becomes appealing for achieving
+                                                                      intelligent device detection.
+
+
+F. Implementation Details and Insights                                G. Computational Complexity
+   The proposed FAT-DL algorithm works in two phases: an                 In what follows, the computational complexity of the pro-
+offline training phase and an online JADCE phase. In the              posed algorithm is briefly discussed. Unlike conventional
+offline training phase, we obtain the parameters {β t }Tt=1
+                                                          max
+                                                              and     massive device detection algorithms, the proposed algorithm
+    i Tmax τmax
+{Ω }i=1         for the deep learning network by minimizing           does not recover the original unknown signal in the high-
+the loss function with a finite number of known training data         dimensional space CN ×M . It recovers the sparse signal in
+generated from (1). In the online JADCE phase, the FAT-DL             a potentially low-dimensional space CN ×r . Specifically, the
+network can be regarded as an iterative estimator. According          computational complexity of the FAT-DL algorithm mainly
+to (1), the new measurements different from the training data         comes from the matrix multiplication AS. Given A ∈ CL×N
+                                                                                        e
+set can be obtained. Then, the new measurements and the               and S ∈ CN ×r , the computational complexity of FAT-DL
+stored parameters {β t }Tt=1
+                          max
+                              and {Ωi }Ti=1
+                                          max τmax
+                                                   obtained from      is in the order of O(LN re ) per layer. In contrast with the
+the offline phase are fed into the FAT-DL network in turn to          AMP-based device detection algorithm [10], [11], the compu-
+directly generate the estimation of transformed device state          tational complexity of FAT-DL does not grow by increasing
+matrix.                                                               the number of BS antennas M . FAT-DL learns Ω ∈ CN ×2J
+   Remark 1: The inner network can be extended to the                 and β ∈ CN ×1 for inner and outer layers. Thus, its memory
+LMMSE estimation step in (36) and (37) for improving                  complexity can be approximated as Tmax (N +2N Jτmax ) over
+performance. For example, besides the distribution parameters,        Tmax layers.
+the accurate noise variance σ 2 is not trivial to get in practical       In this paper, we compare the proposed algorithm with
+applications, which can be learned by deep learning networks.         five traditional algorithms from the computational complexity
+Also, AWGN precision in u2,r is not equal to γ2,r when                and memory complexity aspects, including the AMP algo-
+the learned variance is not perfect, which may lead to severe         rithm [40], the learned AMP (LAMP) algorithm [41], the
+                                                                                                                                10
+
+
+
+learned vector AMP (LVAMP) algorithm [41], the fast iterative     same distribution. The mini-batch size is set to be 128. In
+shrinkage-thresholding algorithm (FISTA) [42] which is a          particular, we randomly select 128 samples from the training
+classical optimization algorithm to minimize convex functions,    data set at each updating, and the total size of updating is set
+and the OMP algorithm which is a greedy algorithm proposed        as 1, 000, 000. The training and testing methods were imple-
+in [43]. It can be seen in Table I that the computational         mented in Python using TensorFlow with the Adam optimizer
+complexity scalings of FAT-DL is superior to the traditional      [45], [46]. The training rates for individual optimization of
+algorithms, implying its lower complexity in the high di-         Algorithm 2 are set as 0.001, and for the global optimization
+mensional regime. Note that, an re × re SVD is performed          of Algorithm 2, the training rate decreases to 0.0005, 0.0001,
+for dimension reduction, whose computational complexity in        and 0.00001 to reduce the validation error. The configures of
+the worst case is O(min(L, M )2 ). For sparse recovery, since     the LAMP and LVAMP algorithms are the same as that of
+re ≤ K and SVD only needs to be calculated once at each time      the FAT-DL algorithm. For the OMP-based device detection
+slot before the start of iteration, this step is not numerically  algorithm, the number of iterations is equal to the sparsity
+expensive. Moreover, the memory complexity of the proposed        level of the vectorized device state matrix. For the FISTA
+FAT-DL algorithm is lower than that of the LAMP and LVAMP         algorithm, we set the maximum number of iterations as 500,
+algorithms in mMTC, which is an advantageous feature for          which is enough to get a maximal absolute error inferior to
+massive device detection problems.                                an acceptable value between two iterations.
+                                                                      Fig. 4 illustrates the NMSE performance versus the number
+                             TABLE I                              of  outer layers under an i.i.d. Gaussian distribution A with
+     T HE C OMPUTATION C OMPLEXITY AND M EMORY C OMPLEXITY        zero mean and unit variance. The soft-threshold based shrink-
+             C OMPARISON OF C ONSIDERED A LGORITHMS .
+                                                                  age functions are adopted for the AMP algorithm, LAMP
+                      Computational               Memory          algorithm, and LVAMP algorithm. To clarify the impact of
+  Algorithms                                                      the proposed training steps on the detection performance
+                        complexity               complexity
+  FAT-DL                O(LN r )e
+                                           Tmax (N + 2JN τmax ) compared to a simpler training process, the proposed FAT-
+  LAMP [41]             O(LN M )               Tmax (LN + 2)      DL algorithm is trained with varying τmax which controls the
+  LVAMP [41]            O(LN M )                         2
+                                              Tmax (LN + 2)       scale of the inner network. When τmax = 1, the proposed FAT-
+  AMP [40]              O(LN M )                      0           DL reduces to a simpler network, where the inner network
+  FISTA [42]            O(LN M )                      0           degenerates. It is seen that the proposed FAT-DL algorithm
+  OMP [43]          O(LN M + K M )3   3
+                                                      0           with τmax = 1 can obtain more accurate NMSE than the
+                                                                  AMP algorithm, LAMP algorithm, and LVAMP algorithm.
+                                                                  Moreover, it is found that FAT-DL needs a smaller number
+                    V. N UMERICAL R ESULTS                        of layers for achieving the saturated performance when A is
+                                                                  i.i.d. Gaussian distributed with zero mean and unit variance.
+   We examine the activity detection performance and the Such advantages of the proposed FAT-DL mainly benefit from
+channel estimation accuracy of the proposed algorithm through that there are learnable variables β t and Ωi in each layer,
+computer simulations. As a reference, we compare the pro- and a specifically designed denoiser. The performance of joint
+posed FAT-DL algorithm with the AMP algorithm [40], the activity detection and channel estimation can be improved
+LAMP algorithm [41], the LVAMP algorithm [41], the FISTA through optimizing these variables in the training process.
+algorithm [42], and the OMP algorithm [43]. We use the On the other hand, when τ
+                                                                                                 max > 1, the proposed FAT-
+activity error rate (AER) to measure the detection performance DL involves both inner and outer networks. Accordingly, the
+and normalized mean square error (NMSE) to measure the detection performance of FAT-DL further improves when the
+channel estimation accuracy. The AER is a sum of the miss value of τ
+                                                                              max becomes large. This is due to the fact that when
+detection probability, defined as the probability that a device τ        >  1,  the AWGN precision γ1t is updated based on the
+                                                                    max
+is active but is declared to be inactive, and the false-alarm current learned prior distribution parameters, hence, the inner
+probability, defined as the probability that a device is inactive network can further reduce the performance loss caused by
+but the detector declares it to be active. The NMSE2
+                                                           of all imperfect learning of the prior distribution parameters.
+                                        kX̂K −XK kF
+active devices is defined as 10 log10 kX k2           where XK        Fig. 5 shows the NMSE performance of the proposed
+                                              K F
+collects the row vectors corresponding to the active support K algorithm versus the number of outer layers under pilot matrix
+                                                2
+in X. The SNR is defined as 10 log10 (kAXkF /LM σ 2 ).            A with the condition number = 20. As seen in Fig. 5, the
+   The spatial channels of all IoT devices are generated proposed FAT-DL algorithms with τmax = 1, 2 perform better
+according to [44] and each device has different distribution than the AMP, LAMP, and LVAMP algorithms in the entire
+parameters. For each device, the number of paths is set as 3, range of layer numbers. Note that the AMP algorithm and
+the complex gain is generated from a complex-valued standard the LAMP algorithm are sensitive to the ill-conditioned pilot
+normal distribution, the azimuth and elevation of each path matrix. However, the FAT-DL algorithm has higher robustness
+are generated from (−π/2, π/2), v1 is set to 0.1, and the than the other considered algorithms when the pilot matrix
+number of components J is set to 3, unless stated otherwise. is an ill-conditioned matrix. Such advantages mainly stem
+For the proposed FAT-DL network, we use samples of size from the fact that the proposed FAT-DL algorithm not only
+100, 000 for training, 30, 000 for validation, and 30, 000 for introduces the adaptive-tuning module and exploits the prior
+testing. Herein, the testing data and training data follow the information of the Bernoulli-Gaussian mixture distributed
+                                                                                                                                                          11
+
+
+
+                                                                                 comes from the fact that FAT-DL well incorporates the prior
+                0
+                                                     Proposed FAT-DL, τmax = 2
+                                                                                 information of the Bernoulli-Gaussian mixture distribution and
+                                                     Proposed FAT-DL, τmax = 1   effectively boosts the AWGN precision auto-tuning. More-
+                                                     LVAMP                       over, the proposed FAT-DL algorithm effectively decreases the
+                -5
+                                                     LAMP
+                                                     AMP                         computational complexity by dimension reduction. This is an
+                                                                                 appealing observation since a small number of training data is
+   NMSE (dB)
+
+
+
+
+               -10                                                               required for the deep learning network.
+
+               -15
+                                                                                          10 0
+
+
+
+               -20
+
+
+
+
+               -25                                                                        10 -1
+                     2           4       6       8        10        12    14
+                                     Number of Outer Layers
+
+
+
+
+                                                                                    AER
+Fig. 4. The NMSE for different numbers of outer layers with N = 100,
+ǫk = 0.05, L = 60, M = 64, SNR = 30 dB, and A is i.i.d. Gaussian
+distributed with zero mean and unit variance.                                             10 -2
+
+                                                                                                     Proposed FAT-DL
+                                                                                                     LVAMP
+channel via deep learning, but also inherits the advantages                                          LAMP
+                                                                                                     FISTA
+of the traditional VAMP algorithm effectively.                                                       OMP
+                                                                                          10 -3
+                                                                                               25   30   35    40      45    50       55   60   65   70
+                                                                                                                    Length of Pilot
+                0
+
+                                                                                 Fig. 6. The AER for different lengths of pilot sequence with N = 100,
+                                                                                 ǫk = 0.2, M = 32, SNR = 20 dB, and A is i.i.d. Gaussian distributed with
+                -5                                                               zero mean and unit variance.
+
+                                                                                    Fig. 7 plots the detection performance with different SNRs
+   NMSE (dB)
+
+
+
+
+               -10                                                               under the scenario of a mean-perturbed pilot matrix A. It is
+                                                                                 observed that for the considered range of SNRs, the AMP
+                                                                                 algorithm, the FISTA algorithm, the OMP algorithm, the
+               -15
+                                                                                 LAMP algorithm, and the LVAMP algorithm perform worse
+                                                                                 than the proposed FAT-DL algorithm, and the performance
+                         Proposed FAT-DL, τmax = 2
+               -20       Proposed FAT-DL, τmax = 1                               gap is enlarged as the SNR increases. The reason is that
+                         LVAMP                                                   dimension reduction in (2) becomes more accurate in high
+                         LAMP
+                         AMP                                                     SNR region. Moreover, it is found that the proposed algorithm
+               -25
+                     2       4       6       8       10        12    14   16
+                                                                                 is not sensitive to the accuracy of rank estimation when the
+                                     Number of Outer Layers                      estimated rank is larger than the actual rank. This is because
+                                                                                 although overestimating the rank leads to more noises to be
+Fig. 5. The NMSE for different numbers of outer layers with N = 100,             included, the transformed device state matrix based on the
+ǫk = 0.05, L = 60, M = 64, SNR = 30 dB, and A has the condition
+number 20.
+                                                                                 overestimated rank contains the desired signal space of that
+                                                                                 based on the actual rank. Compared with extra noises, the
+   In the rest of the simulations, τmax is set to 2 for unveiling                desired signal space dominates the impact on the detection ac-
+the full potential of FAT-DL under various system settings.                      curacy. The performance gap between the proposed algorithm
+Fig. 6 illustrates the AER performance versus the length of                      with actual rank information and the one with overestimated
+pilot sequences under an i.i.d. Gaussian distribution A with                     rank is negligible for sufficiently long pilot sequences. Thus,
+zero mean and unit variance. It is clear that the proposed                       we can utilize a relatively large rank for guaranteeing the AER
+FAT-DL algorithm can achieve a better performance than the                       performance if the rank estimation is less accurate. Similar to
+AMP algorithm, the FISTA algorithm, the OMP algorithm,                           the LVAMP algorithm, the proposed FAT-DL algorithm is not
+the LAMP algorithm, and the LVAMP algorithm with the                             sensitive to the mean value of the pilot matrix. However, the
+same length of pilot sequences. In other words, the proposed                     AER performance of AMP and LAMP degrades severely in
+FAT-DL algorithm needs shorter pilot sequences than the                          the presence of a nonzero mean A.
+conventional algorithms to achieve the same activity detection                      Fig. 8 plots the AER curves of the considered algorithms
+accuracy. For example, the AER performance achieved by                           against different activity probabilities under an i.i.d. Gaussian
+FAT-DL with L = 50 is even better than that achieved by                          distribution A with zero mean and unit variance. It is seen
+the LAMP algorithm with L = 65. The performance gain                             that the performance of all the algorithms is degraded as
+                                                                                                                                                                          12
+
+
+
+                                                                                            performance than that of the other considered algorithms. The
+         10 0                                                                               performance gain stems from that the proposed algorithm
+                                                                                            not only exploits the prior information of the Bernoulli-
+                                                                                            Gaussian mixture distribution, but also boosts the precision
+         10 -1                                                                              auto-tuning to enhance the detection performance. Actually,
+                                                                                            due to rank(X) ≤ min{M, K}, when the BS is equipped with
+                                                                                            a large antenna array, the reduction of computational com-
+                                                                                            plexity of the proposed algorithm is substantial. Thereby, the
+   AER
+
+
+
+
+         10 -2
+                                                                                            proposed algorithm is appealing for massive MIMO regime,
+                      Proposed FAT-DL, r̂ = 30
+                       (Actual Rank)                                                        which is widely assumed in 6G wireless networks.
+                      Proposed FAT-DL, r̂ = 35
+                      Proposed FAT-DL, r̂ = 27
+         10 -3        LVAMP
+                      FISTA
+                      OMP                                                                            10 -1
+                      AMP
+                      LAMP
+         10 -4
+                 5         10            15                 20            25          30
+                                              SNR (dB)
+                                                                                                     10 -2
+Fig. 7. The AER for different SNRs with N = 100, ǫk = 0.3, M = 64,
+L = 60, and A has a mean µ = 7.
+
+
+
+
+                                                                                               AER
+the activity probability increases. This is because the co-                                          10 -3
+channel interference among devices increases as more devices
+                                                                                                                    Proposed FAT-DL
+are active. The proposed algorithm outperforms the LVAMP                                                            LVAMP
+algorithm by a large margin even if the activity probability                                                        FISTA
+                                                                                                                    OMP
+is higher than 0.45. In practice, the proposed algorithm is
+appealing in various IoT applications with a wide range of                                           10 -4
+                                                                                                          50   52      54     56   58   60    62   64      66   68   70
+activity probability. Fig. 8 also confirms that as the number of                                                            Number of Antennas at the BS
+BS antennas, M , increases, the AER of the proposed FAT-DL
+algorithm drops rapidly and faster than that of the LVAMP                                   Fig. 9. The AER curve with respect to the number of antennas at the BS
+                                                                                            with N = 1000, L = 200, ǫk = 0.1, SNR = 25 dB, and A has a mean
+algorithm, indicating that the proposed algorithm can quickly                               µ = 5.
+drive the detection error to zero with a fewer number of BS
+antennas for saving cost.                                                                      Fig. 10 illustrates the impact of the number of training
+                                                                                            samples on the AER performance of the considered deep
+                                                                                            learning-based detection algorithms. In Fig. 10, the size of the
+         10 0
+                                                                                            testing samples is the same as the size of the training samples.
+                                                                                            Initially, in the regime with a few numbers of training samples,
+         10 -1                                                                              the AER of the considered algorithms is poor and decreases
+                                                                                            sharply as the number of training samples increases. However,
+                                                                                            when the number of training samples continues to increase, the
+         10 -2                                                                              performance improvement diminishes. As a result, the curves
+   AER
+
+
+
+
+                                                                                            are not smooth. The reason for this phenomenon is that for
+                                                                                            a small training set, samples cannot fully characterize the
+         10 -3
+                                                                                            distribution features and overfitting occurs, which substantially
+                                                                                            increases randomness and degrades the AER performance.
+                                                     LVAMP, M = 32
+         10 -4
+                                                     Proposed FAT-DL, M = 32
+                                                                                            However, increasing the number of training samples helps
+                                                     LVAMP, M = 128                         decrease the AER and smooth the curves. Note that the
+                                                     Proposed FAT-DL, M = 128               saturation AER value of the proposed FAT-DL algorithm is
+         10 -5                                                                              lower than that of the other two algorithms. This is because
+             0.05    0.1   0.15    0.2        0.25    0.3        0.35   0.4    0.45   0.5
+                                     Activity Probability                                   the conventional algorithms attempt to detect the device only
+                                                                                            from the received signal, without exploiting prior observations.
+Fig. 8. The AER for different activity probabilities with N = 100, L = 60,                  While the proposed FAT-DL algorithm well incorporates the
+SNR = 15 dB, and A is i.i.d. Gaussian distributed with zero mean and unit
+variance.                                                                                   prior information of the Bernoulli-Gaussian mixture distribu-
+                                                                                            tion, and also effectively boosts the precision auto-tuning by
+  Fig. 9 plots the error probability versus the number of                                   combining the inner and outer networks. In addition, for the
+antennas at the BS. As expected, increasing the number of                                   minimum required sample number of the proposed FAT-DL,
+antennas at the BS improves the performance appreciably                                     LAMP, and LVAMP algorithm, 30, 000 samples are sufficient.
+and the proposed FAT-DL algorithm achieves much better                                      Taking training efficiency, testing performance, and stability
+                                                                                                                                                                                 13
+
+
+
+into consideration, we generate more samples for training,                                               algorithms in Fig. 12. Herein, GM-VAMP refers to the VAMP
+validation, and testing in other simulations.                                                            algorithm proposed in [12] where the soft-threshold denoiser is
+                                                                                                         replaced by our designed Bernoulli-Gaussian mixture denoiser
+                                                                                                         in (17), but the distribution parameters Ω are set as fixed
+            10 0                                                                                         constants. Fig. 12 shows that the FAT-DL algorithm performs
+                                                                                 Proposed FAT-DL
+                                                                                 LVAMP                   much better than the LVAMP algorithm due to the fact
+                                                                                 LAMP                    that FAT-DL can approximate the distribution of device state
+                                                                                                         matrix more accurately compared with the LVAMP algorithm
+            10 -1
+                                                                                                         utilizing the soft threshold denoiser. Importantly, it is observed
+                                                                                                         that the AER of FAT-DL is smaller than that of the GM-VAMP
+      AER
+
+
+
+
+                                                                                                         algorithm. The performance gain stems from that the FAT-
+                                                                                                         DL algorithm does parameter tuning based on sample space,
+            10 -2
+                                                                                                         while GM-VAMP employs the set of prior fixed parameters
+                                                                                                         over all realizations, which are not exact any more in practical
+                                                                                                         data. Such characteristics of the FAT-DL algorithm is mostly
+                                                                                                         beneficial to combat the wrong distribution parameters effect.
+            10 -3
+                        0.5         1       1.5         2   2.5     3      3.5    4    4.5    5    5.5
+                                             Number of Training Sambles (× e 4 )
+
+                                                                                                               10 -1
+Fig. 10. The AER curve with respect to the number of training samples with
+N = 100, ǫk = 0.1, M = 32, SNR = 15 dB, L = 50, and A is i.i.d.
+Gaussian distributed with zero mean and unit variance.
+
+   In Fig. 11, we examine the sensitivity of the proposed FAT-
+                                                                                                               10 -2
+DL algorithm to the setting of the mixture component number
+J. We run the FAT-DL algorithm with J varying from 1 to 6. It
+                                                                                                             AER
+
+
+
+can be easily observed that when J is 1, underfitting occurs in
+the model which substantially degrades the AER performance.
+After J is larger than 3, the detection performance of the                                                     10 -3
+proposed algorithm tends to be stable and is not very sensitive
+to the choice of the number of mixture components. Too big J
+                                                                                                                           Proposed FAT-DL
+may cause overfitting effects in the model. Actually, in all our                                                           GM-VAMP
+real experiments, we just simply set the mixture component                                                                 LVAMP
+                                                                                                               10 -4
+number as 3, and the proposed algorithm can consistently                                                            30      35        40          45          50   55       60
+
+perform well throughout all our simulations.                                                                                                Length of Pilot
+
+
+                                                                                                         Fig. 12. The AER curve versus the length of pilot for exploiting effect of
+            10 0
+                                                                                                         the fixed distribution parameters with N = 100, M = 64, ǫk = 0.1, SNR =
+                                                                                                         20 dB, and A has a mean µ = 5.
+                                                                        Proposed FAT-DL, L = 40
+                                                                        Proposed FAT-DL, L = 65
+                                                                                                            Finally, to show the AER for a different version of distribu-
+            10 -1
+                                                                                                         tion of the samples, this paper postulates a Bernoulli-Student’s-
+                                                                                                         t distribution as a heavy-tailed prior on the device state matrix,
+                                                                                                         where the non-zero elements contain a few large values and
+      AER
+
+
+
+
+            10 -2
+                                                                                                         many small ones. The probability density function (PDF) of
+                                                                                                         the considered Bernoulli-Student’s-t distribution is explicitly
+                                                                                                         given by
+            10 -3
+                                                                                                                                       e
+                                                                                                                                  N Y
+                                                                                                                                  Y r
+                                                                                                                         p(S) =            (1 − ǫnr )δ(snr )
+            10 -4
+                                                                                                                                  n=1 r=1
+                    1         1.5       2         2.5       3     3.5      4     4.5   5     5.5   6
+                                                                                                                              Γ((ν + 1)/2)
+                                             Number of Mixture Components
+                                                                                                                         + ǫnr √           (1 + s2nr )−(ν+1)/2 ,              (42)
+                                                                                                                                 πΓ(ν/2)
+Fig. 11. The AER curve with respect to the number of mixture components
+with N = 100, ǫk = 0.1, M = 32, SNR = 15 dB, and A has a mean
+                                                                                                         where Γ(·) is the Gamma function and the non-compressible
+µ = 5.                                                                                                   rate ν is set as 1.9. In Fig. 13, we observe that the OMP algo-
+                                                                                                         rithm and the FISTA algorithm perform relatively poorly, the
+   Next, we study the effect of the fixed distribution parame-                                           LVAMP algorithm performs relatively well, and the FAT-DL
+ters on the AER performance of conventional algorithms, as                                               algorithm outperforms all other algorithms under the heavy-
+compared to that of the FAT-DL algorithm. Specifically, we                                               tailed distribution. We attribute this behavior to the FAT-DL
+compare the FAT-DL algorithm with LVAMP and GM-VAMP                                                      algorithm’s ability to tune itself and adapt to the signal at hand,
+                                                                                                                                                             14
+
+
+
+namely the adopted denoiser based on Bernoulli-Gaussian                           [4] X. Chen, D. W. K. Ng, W. Yu, E. G. Larsson, N. Al-Dhahir, and
+mixture distribution can approximate the Bernoulli-Student’s-t                        R. Schober, “Massive access for 5G and beyond,” IEEE J. Sel. Areas
+                                                                                      Commun., vol. PP, no. 99, pp. 1-1, 2020.
+distribution well. Moreover, in the case of Bernoulli-Student’s-                  [5] Z. Zhang, X. Wang, Y. Zhang, and Y. Chen, “Grant-free rateless multiple
+t distribution, the FAT-DL algorithm has a smaller performance                        access: A novel massive access scheme for internet of things,” IEEE
+gain over the LVAMP algorithm compared with the case in                               Commun. Lett., vol. 20, no. 10, pp. 2019-2022, Oct. 2016.
+                                                                                  [6] E. de Carvalho, E. Bjornson, J. H. Sorensen, P. Popovski, and E. G.
+Fig. 6. The reason is that the irregular distribution of samples                      Larsson, “Random access protocols for massive MIMO,” IEEE Commun.
+leads to an increase in information loss. In other words, it                          Mag., vol. 55, no. 5, pp. 216-222, May 2017.
+may need more number of the mixture components in learning                        [7] Z. Gao, L. Dai, S. Han, C. I, Z. Wang, and L. Hanzo, “Compressive
+a more accurate approximation of the unknown parameters                               sensing techniques for next-generation wireless communications,” IEEE
+                                                                                      Wireless Commun., vol. 25, no. 3, pp. 144-153, June 2018.
+under Bernoulli-Student’s-t distributed samples. Meanwhile,                       [8] T. Liu, S. Jin, C. Wen, M. Matthaiou, and X. You, “Generalized channel
+this comes with the expense of increased training time.                               estimation and user detection for massive connectivity with mixed-ADC
+                                                                                      massive MIMO,” IEEE Trans. Wireless Commun., vol. 18, no. 6, pp.
+                                                                                      3236-3250, Jun. 2019.
+                                                                                  [9] X. Xu, X. Rao, and V. K. N. Lau, “Active user detection and channel
+          10 0                                                                        estimation in uplink CRAN learning for sparse linear invers systems,”
+                                                                                      in Proc. IEEE Int. Conf. Commun. (ICC), London, UK, Jun. 2015, pp.
+                                                                                      2727-2732.
+                                                                                  [10] Z. Chen, F. Sohrabi, and W. Yu, “Sparse activity detection for massive
+          10 -1                                                                       connectivity,” IEEE Trans. Signal Process., vol. 66, no. 7, pp. 1890-1904,
+                                                                                      Apr. 2018.
+                                                                                  [11] L. Liu and W. Yu, “Massive connectivity with massive MIMO-Part I:
+                                                                                      Device activity detection and channel estimation,” IEEE Trans. Signal
+    AER
+
+
+
+
+                                                                                      Process., vol. 66, no. 11, pp. 2933-2946, Jun. 2018.
+          10 -2
+                                                                                  [12] A. K. Fletcher, M. Sahraee-Ardakan, S. Rangan, and P. Schniter,
+                                                                                      “Rigorous dynamics and consistent estimation in arbitrarily conditioned
+                                                                                      linear systems,” in Proc. Neural Inform. Process. Syst. Conf., 2017, pp.
+                                                                                      2542-2551.
+          10 -3                                                                   [13] S. Haghighatshoar, P. Jung, and G. Caire, “Improved scaling law for
+                     Proposed FAT-DL
+                                                                                      activity detection in massive MIMO systems,” in Proc. IEEE Int. Symp.
+                     LVAMP
+                                                                                      Inf. Theory (ISIT), Vail, USA, Jun. 2018, pp. 381-385.
+                     FISTA
+                     OMP
+                                                                                  [14] Z. Chen, F. Sohrabi, Y. Liu, and W. Yu, “Covariance based joint activity
+          10 -4
+                                                                                      and data detection for massive random access with massive MIMO”, in
+               25   30   35    40      45    50       55   60    65     70            Proc. IEEE Int. Conf. Commun. (ICC), Shanghai, China, May 2019, pp.
+                                    Length of Pilot                                   1-6.
+                                                                                  [15] J. Dong, J. Zhang, Y. Shi, and J. H. Wang, “Faster activity and data
+Fig. 13. The AER versus the length of pilot for recovery of Bernoulli-                detection in massive random access: A multi-armed bandit approach,”
+Student’s-t signals with N = 100, ǫk = 0.2, M = 32, SNR = 20 dB,                      [Online]: arXiv preprint arXiv:2001.10237, Jan. 2020.
+and A is i.i.d. Gaussian distributed with zero mean and unit variance.            [16] X. Shao, X. Chen, D. W. K. Ng, C. Zhong, and Z. Zhang, “Cooper-
+                                                                                      ative activity detection: Sourced and unsourced massive random access
+                                                                                      paradigms,” IEEE Trans. Signal Process., vol. PP, no. 99, pp. 1-1, 2020.
+                                                                                  [17] Y. Qiang, X. Shao, and X. Chen, “A model-driven deep learning
+                              VI. C ONCLUSION                                         algorithm for joint activity detection and channel estimation,” IEEE
+                                                                                      Commun. Lett., vol. 24, no. 11, pp. 2508-2512, Nov. 2020.
+  This paper has proposed a novel deep learning framework                         [18] J. Zhang, E. Björnson, M. Matthaiou, D. W. K. Ng, H. Yang, and D. J.
+for massive device detection in 6G wireless networks. The                             Love, “Prospective multiple antenna technologies for beyond 5G,” IEEE
+proposed framework contained a dimension reduction module,                            J. Sel. Areas Commun., vol. 38, no. 8, pp. 1637-1660, Aug. 2020.
+                                                                                  [19] V. W. S. Wong, R. Schober, D. W. K. Ng, and L.-C. Wang, Key
+a deep learning network module, an active device detection                            Technologies for 5G Wireless Systems. Cambridge, U.K.: Cambridge
+module, and a channel estimation module. The dimension                                Univ. Press, 2017.
+reduction module effectively decreased the computational                          [20] X. Shao, X. Chen, and R. Jia, “A dimension reduction-based joint
+                                                                                      activity detection and channel estimation algorithm for massive access,”
+complexity of massive device detection even with a large-                             IEEE Trans. Signal Process., vol. 68, pp. 420-435, 2020.
+scale antenna array at the BS. For the deep-learning network                      [21] O. Ozdogan, E. Bjornson, and E. G. Larsson, “Massive MIMO with
+module, this paper designed a feature-aided adaptive-tuning                           spatially correlated Rician fading channels,” IEEE Trans. Commun., vol.
+                                                                                      67, no. 5, pp. 3234-3250, May 2019.
+deep learning network. Simulation results confirmed that the
+                                                                                  [22] N. Simmons, C. R. N. da Silva, S. L. Cotton, P. C. Sofotasios, and M.
+proposed algorithm can shorten the length of pilot sequences.                         D. Yacoub, “Double shadowing the Rician fading model,” IEEE Wireless
+Thus, the proposed deep learning framework is especially                              Commun. Lett., vol. 8, no. 2, pp. 344-347, April 2019.
+amenable to solve the high-dimensional device detection prob-                     [23] P. L. D. Cohen, E. J. Cohen, and R. L. Torres, “A Bernoulli-Gaussian
+                                                                                      mixture model of donation likelihood and monetary value: An application
+lem in 6G wireless networks.                                                          to alumni segmentation in a university setting,” Comput. Ind. Eng., vol.
+                                                                                      66, no. 4, pp. 1085-1095, 2013.
+                                                                                  [24] C. Wen, S. Jin, K. Wong, J. Chen, and P. Ting, “Channel estimation for
+                                R EFERENCES                                           massive MIMO using Gaussian-mixture Bayesian learning,” IEEE Trans.
+[1] X. Chen, Massive Access for Cellular Internet of Things Theory and                Wireless Commun., vol. 14, no. 3, pp. 1356-1368, Mar. 2015.
+    Technique, Germany: Springer, 2019.                                           [25] J. Mo, P. Schniter, and R. W. Heath, “Channel estimation in broadband
+[2] S. Chen, R. Ma, H. H. Chen, H. Zhang, W. Meng, and J. Liu, “Machine-              millimeter wave MIMO systems with few-bit ADCs,” IEEE Trans. Signal
+    to-machine communications in ultra-dense networks: A survey,” IEEE                Process., vol. 66, no. 5, pp. 1141-1154, Mar. 2018.
+    Commun. Surv. Tuts., vol. 19, no. 3, pp. 1478-1503, 3rd Quart., 2017.         [26] Y. Su, X. Lu, Y. Zhao, L. Huang, and X. Du, “Cooperative commu-
+[3] X. Shao, X. Chen, C. Zhong, J. Zhao, and Z. Zhang, “A unified design              nications with relay selection based on deep reinforcement learning in
+    of massive access for cellular internet of things,” IEEE Internet of Things       wireless sensor networks,” IEEE Sensors J., vol. 19, no. 20, pp. 9561-
+    J., vol. 6, no. 2, pp. 3934-3947, Apr. 2019.                                      9569, Oct. 2019.
+                                                                                 15
+
+
+
+[27] M. Borgerding and P. Schniter, “Onsager-corrected deep learning for
+    sparse linear inverse problems,” in Proc. IEEE Global Conf. Signal Inf.
+    Process. (GlobalSIP), Washington, DC, USA, Dec. 2016, pp. 227-231.
+[28] U. S. Kamilov and H. Mansour, “Learning optimal nonlinearities for
+    iterative thresholding algorithms,” IEEE Signal Process. Lett., vol. 23,
+    no. 5, pp. 747-751, May 2016.
+[29] K. Gregor and Y. LeCun, “Learning fast approximations of sparse
+    coding,” in Proc. Int. Conf. Machine Learning, 2010, pp. 399-406.
+[30] P. Miao, B. Zhu, C. Qi, Y. Jin, and C. Lin, “A model-driven deep
+    learning method for LED nonlinearity mitigation in OFDM-based optical
+    communications,” IEEE Access, vol. 7, pp. 71436-71446, 2019.
+[31] A. B. Stimming and C. Studer, “Deep unfolding for communications
+    systems: A survey and some new directions,” in Proc. IEEE Intern.
+    Workshop Signal Process. Sys. (SIPS), pp. 266-271, Jan. 2019.
+[32] J. Gao, C. Zhong, X. Chen, H. Lin, and Z. Zhang, “Unsupervised
+    learning for passive beamforming,” IEEE Commun. Lett., vol. 24, no.
+    5, pp. 1052-1056, May 2020,
+[33] H. He, C. Wen, S. Jin, and G. Y. Li, “A model-driven deep learning
+    network for MIMO detection,” in Proc. IEEE Global Conf. Signal Inf.
+    Process. (GlobalSIP), Anaheim, CA, USA, 2018, pp. 584-588.
+[34] Y. Wang, M. Narasimha, and R. W. Heath, “MmWave beam prediction
+    with situational awareness: A machine learning approach,” in Proc. IEEE
+    SPAWC, Kalamata, Greece, Jun. 2018, pp. 1-5.
+[35] W. Ma, C. Qi, Z. Zhang, and J. Cheng, “Sparse channel estimation
+    and hybrid precoding using deep learning for millimeter wave massive
+    MIMO,” IEEE Trans. Commun., vol. 68 no. 5, pp. 2838-2849, 2020.
+[36] S. Li, W. Zhang, Y. Cui, H. V. Cheng, and W. Yu, “Joint design of
+    measurement matrix and sparse support recovery method via deep auto-
+    encoder,” IEEE Signal Process. Lett., vol. 26, no. 12, pp. 1778-1782, Dec.
+    2019.
+[37] B. Liu, Z. Wei, J. Yuan, and M. Pajovic, “Deep learning assisted user
+    identification in massive machine-type communications,” in Proc. IEEE
+    Global Commun. Conf. (GLOBECOM), Waikoloa, HI, USA, 2019, pp.
+    1-6.
+[38] M. Ke, Z. Gao, Y. Wu, X. Gao, and R. Schober, “Compressive sensing-
+    based adaptive active user detection and channel estimation: Massive
+    access meets massive MIMO,” IEEE Trans. Signal Process., vol. 68, pp.
+    764-779, Jan. 2020.
+[39] X. Shao, X. Chen, C. Zhong and Z. Zhang, “Joint activity detection and
+    channel estimation for mmW/THz wideband massive access,” in Proc.
+    IEEE Intern. Conf. Commun. (ICC), Dublin, Ireland, Jun. 2020, pp. 1-6.
+[40] D. L. Donoho, A. Maleki, and A. Montanari, “Message passing algo-
+    rithms for compressed sensing,” in Proc. Nat. Acad. Sci., vol. 106, pp.
+    18914-18919, Nov. 2009.
+[41] M. Borgerding, P. Schniter, and S. Rangan, “AMP-inspired deep net-
+    works for sparse linear inverse problems,” IEEE Trans. Signal Process.,
+    vol. 65, no. 16, pp. 4293-4308, Aug. 2017.
+[42] A. Beck and M. Teboulle, “A fast iterative shrinkage-thresholding
+    algorithm for linear inverse problems,” SIAM J. Imag. Sci., vol. 2, no.
+    1, pp. 183-202, Mar. 2009.
+[43] S. K. Sahoo and A. Makur, “Signal recovery from random measurements
+    via extended orthogonal matching pursuit,” IEEE Trans. Signal Process.,
+    vol. 63, no. 10, pp. 2572-2581, May 2015.
+[44] A. Sayeed and J. Brady, “Beamspace MIMO for high-dimensional
+    multiuser communication at millimeter-wave frequencies,” in Proc. IEEE
+    Global Commun. Conf. (GLOBECOM), Atlanta, USA, Dec. 2013, pp.
+    3679-3684.
+[45] M. Abadi, A. Agarwal, P. Barham, et al., “TensorFlow: Large-scale
+    machine learning on heterogeneous systems,” 2015. Software available
+    from tensorflow.org.
+[46] D. P. Kingma and J. Ba, “Adam: A method for stochastic optimization,”
+    in Proc. Int. Conf. Learning Repres. (ICLR), San Diego, USA, 2014.
+

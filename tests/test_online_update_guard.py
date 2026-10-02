@@ -54,6 +54,48 @@ def test_windowed_reward_guard_accepts_consistent_reward_improvement():
     assert all(gain > 0.01 for gain in gains)
 
 
+def test_windowed_reward_guard_supports_relative_improvement_at_high_snr():
+    import torch
+    import compare
+
+    labels = torch.tensor([0.0, 0.0, 1.0, 1.0])
+    mask = torch.ones(4, dtype=torch.bool)
+    before = torch.tensor([-4.0, -4.0, 4.0, 4.0])
+    after = torch.tensor([-5.0, -5.0, 5.0, 5.0])
+
+    accepted, gains = compare._accept_windowed_reward_update(
+        before,
+        after,
+        labels,
+        mask,
+        min_improvement=0.0005,
+        windows=2,
+        relative_min_improvement=0.01,
+    )
+
+    assert accepted is True
+    assert len(gains) == 2
+
+
+def test_reward_pilot_hard_ber_guard_rejects_more_bit_errors():
+    import torch
+    import compare
+
+    assert compare._accept_reward_pilot_hard_ber(
+        logits_before=torch.tensor([-2.0, 2.0, -2.0, 2.0]),
+        logits_after=torch.tensor([-2.0, -2.0, -2.0, 2.0]),
+        labels=torch.tensor([0.0, 1.0, 0.0, 1.0]),
+        reward_mask=torch.ones(4, dtype=torch.bool),
+    ) is False
+
+    assert compare._accept_reward_pilot_hard_ber(
+        logits_before=torch.tensor([-2.0, 2.0, -2.0, 2.0]),
+        logits_after=torch.tensor([-3.0, 3.0, -2.0, 2.0]),
+        labels=torch.tensor([0.0, 1.0, 0.0, 1.0]),
+        reward_mask=torch.ones(4, dtype=torch.bool),
+    ) is True
+
+
 def test_previous_online_update_guard_detects_cross_frame_reward_regression():
     import compare
 
