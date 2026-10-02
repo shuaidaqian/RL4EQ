@@ -176,3 +176,53 @@ Data BER 优势，且当前 12 帧也未显示后期收益。样本量只适合�
 组合扰动校准、组合扰动 Frozen/Online 探针、CFO-only 与 phase-only 单因素探针，以及
 phase-only SGD PEFT 的 1 × 12 和 3 × 12 结果。主要组合失配和 phase-only SGD 配置已
 归档在 `configs/diagnostics/`，均标记为 diagnostic，不进入主平均。
+
+### acquisition 到数据段的长间隔诊断
+
+为检查“采集得到的状态已经老化，但网络参数仍可用 Pilot 修正”的可能性，在保持
+Level B 长记忆信道、116-symbol 延迟、prefix Pilot=256 和离线 checkpoint 不变的前提下，
+额外推进 acquisition 与首个数据帧之间的时间间隔。该实验只改变诊断配置中的
+`acquisition_to_data_gap_seconds`，不改变主配置的统计口径。
+
+| 间隔 | SNR | Frozen BER | Online BER | 保留更新 | 结论 |
+|---:|---:|---:|---:|---:|---|
+| 30 s | 10 dB | 1.4106% | 1.4106% | 3/12 | 参数更新没有改变数据判决 |
+| 30 s | 15 dB | 0.3147% | 0.3147% | 6/12 | 参数更新没有改变数据判决 |
+| 120 s | 10 dB | 3.5916% | 3.5916% | 3/12 | 状态老化使 Frozen 变差，但 PEFT 没有转化为收益 |
+| 120 s | 15 dB | 1.7904% | 1.8012% | 5/12 | 在线略有退化，不能视为收益 |
+
+日志目录分别为 `logs/rls_gap30_peft_1s12f_20261003/` 和
+`logs/rls_gap120_peft_1s12f_20261003/`。这组结果说明，仅增加 acquisition 与数据段的
+时间失配，不会自动使当前 Pilot BCE 更新目标变得可迁移；长间隔确实降低了 Frozen
+性能，但当前可调参数没有学到对应的 Data 残差。
+
+### 强更新探针：参数变化仍未转化为 BER 变化
+
+针对“之前的更新量太小”的假设，使用 `conditioner_film+head`，学习率 `1e-2`、每帧
+8 步、单步范数上限 `0.05` 和 `proximal_weight=0.01`，在 120 s gap、单 seed × 8 帧、
+10/15 dB 下进行强更新探针。结果如下：
+
+| SNR | Frozen BER | Online BER | 保留更新 | 平均参数增量 | 最大参数增量 |
+|---:|---:|---:|---:|---:|---:|
+| 10 dB | 3.6133% | 3.6133% | 2/8 | 1.50e-4 | 9.69e-4 |
+| 15 dB | 1.8066% | 1.8066% | 7/8 | 6.62e-4 | 1.42e-3 |
+
+即使放大在线优化超参数，Data BER 仍与 Frozen 每帧完全相同。日志目录为
+`logs/rls_gap120_film_head_strong_1s8f_20261003/`。该探针排除了“完全没有更新”这一
+解释，但也显示当前参数对象主要改变 logit 的连续置信度，尚未改变足够多的符号判决。
+结合模型结构，离线 checkpoint 的物理 warm-start 占据主导，`neural_residual_scale=0.1`，
+而离线 `head` 范数约为 `1.19e-2`；因此单纯继续增加学习率、步数或放宽 Reward Pilot
+门控没有明确的收益机制，反而可能放大 Pilot 噪声造成的错误更新。
+
+### 阶段性结论更新
+
+1. acquisition gap 诊断确认了状态失配可以让 Frozen 性能明显下降，但当前 PEFT 不会因
+   失配变强而自然获得收益。
+2. 强更新探针确认“参数确实变化”与“Data BER 下降”是两件事；当前更新主要改变连续
+   logit，不足以改变 Data 硬判决。
+3. 当前 Pilot BCE/Reward Pilot 门控加低维 `conditioner_film/head` 或 RLS 残差 Adapter
+   不能作为稳定在线微调创新点。主目标仍未完成，现阶段不应扩大同一更新对象的学习率
+   或帧数扫描来包装收益。
+4. 后续若继续推进，必须改变在线可辨识目标或参数对象，并保持离线训练和主 Level B
+   配置不变；新方案需要先在小样本配对 replay 中同时证明参数确实改变 Data 判决、跨
+   seed 方向一致，再进入 5 seeds × 60 帧正式统计。
