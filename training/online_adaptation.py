@@ -598,6 +598,16 @@ def run_pilot_driven_online(
                         ["head", "conditioner_film"],
                     )
                 }
+                if "logit_affine" in online_groups:
+                    model.attach_online_logit_affine_adapter()
+                if "input_affine" in online_groups:
+                    model.attach_online_input_affine_adapter()
+                if "input_trend" in online_groups:
+                    model.attach_online_input_trend_adapter()
+                if "input_fir" in online_groups:
+                    model.attach_online_input_fir_adapter()
+                if "logit_fir" in online_groups:
+                    model.attach_online_logit_fir_adapter()
                 adapter = PilotDrivenOnlineAdapter(
                     model,
                     groups=online_groups,

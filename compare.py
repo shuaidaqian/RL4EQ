@@ -761,6 +761,16 @@ def _build_method_states(
                 )
                 continue
             online_groups, candidate_config = _online_groups_from_config(config, online_groups_override)
+            if "logit_affine" in online_groups:
+                model.attach_online_logit_affine_adapter()
+            if "input_affine" in online_groups:
+                model.attach_online_input_affine_adapter()
+            if "input_trend" in online_groups:
+                model.attach_online_input_trend_adapter()
+            if "input_fir" in online_groups:
+                model.attach_online_input_fir_adapter()
+            if "logit_fir" in online_groups:
+                model.attach_online_logit_fir_adapter()
             adapter = PilotDrivenOnlineAdapter(
                 model,
                 groups=online_groups,

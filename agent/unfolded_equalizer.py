@@ -74,6 +74,145 @@ class ResidualLogitAdapter(nn.Module):
         return self.linear(hidden)
 
 
+class OnlineLogitAffineAdapter(nn.Module):
+    """在线校准最终 logit 的两参数 PEFT。
+
+    参数以零初始化，未挂载时不改变离线 checkpoint。增益和偏置都经过有界
+    参数化，避免少量 Pilot 把最终判决推到无界范围。
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.raw_gain = nn.Parameter(torch.zeros((), dtype=torch.float32))
+        self.raw_bias = nn.Parameter(torch.zeros((), dtype=torch.float32))
+        mark_peft_group(self, "logit_affine")
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        gain = 1.0 + 0.5 * torch.tanh(self.raw_gain).to(logits.dtype)
+        bias = 2.0 * torch.tanh(self.raw_bias).to(logits.dtype)
+        return gain * logits + bias
+
+
+class OnlineInputAffineAdapter(nn.Module):
+    """在线微调接收前端的有界实值仿射 Adapter。
+
+    该模块只做可学习的 IQ 线性校正和偏置，零初始化为恒等映射，不修改离线
+    checkpoint。它不估计或替换 CIR/phase 状态，在线参数只由 Adapt Pilot 更新。
+    """
+
+    def __init__(self, max_matrix_delta: float = 0.25, max_bias: float = 0.25):
+        super().__init__()
+        self.max_matrix_delta = float(max_matrix_delta)
+        self.max_bias = float(max_bias)
+        self.raw_matrix = nn.Parameter(torch.zeros(2, 2, dtype=torch.float32))
+        self.raw_bias = nn.Parameter(torch.zeros(2, dtype=torch.float32))
+        mark_peft_group(self, "input_affine")
+
+    def forward(self, rx_iq: torch.Tensor) -> torch.Tensor:
+        identity = torch.eye(2, device=rx_iq.device, dtype=rx_iq.dtype)
+        matrix = identity + self.max_matrix_delta * torch.tanh(self.raw_matrix).to(rx_iq.dtype)
+        bias = self.max_bias * torch.tanh(self.raw_bias).to(rx_iq.dtype)
+        return torch.matmul(rx_iq, matrix) + bias
+
+
+class OnlineInputTrendAdapter(nn.Module):
+    """在线微调随帧内位置平滑变化的 IQ 仿射参数。
+
+    全局 IQ 仿射无法表达前缀到数据段之间的缓慢失配。该模块保留恒等初始化，
+    只增加一阶位置趋势；参数仍由 Adapt Pilot 的监督损失更新，不读取数据标签。
+    """
+
+    def __init__(self, max_matrix_delta: float = 0.18, max_bias: float = 0.18):
+        super().__init__()
+        self.max_matrix_delta = float(max_matrix_delta)
+        self.max_bias = float(max_bias)
+        self.raw_matrix = nn.Parameter(torch.zeros(2, 2, dtype=torch.float32))
+        self.raw_matrix_slope = nn.Parameter(torch.zeros(2, 2, dtype=torch.float32))
+        self.raw_bias = nn.Parameter(torch.zeros(2, dtype=torch.float32))
+        self.raw_bias_slope = nn.Parameter(torch.zeros(2, dtype=torch.float32))
+        mark_peft_group(self, "input_trend")
+
+    def forward(self, rx_iq: torch.Tensor) -> torch.Tensor:
+        length = int(rx_iq.shape[1])
+        if length <= 1:
+            position = torch.zeros(1, device=rx_iq.device, dtype=rx_iq.dtype)
+        else:
+            position = torch.arange(length, device=rx_iq.device, dtype=rx_iq.dtype)
+            position = 2.0 * position / float(length - 1)
+        identity = torch.eye(2, device=rx_iq.device, dtype=rx_iq.dtype)
+        matrix = (
+            identity
+            + self.max_matrix_delta * torch.tanh(self.raw_matrix).to(rx_iq.dtype)
+            + self.max_matrix_delta
+            * torch.tanh(self.raw_matrix_slope).to(rx_iq.dtype)
+            * position.reshape(1, -1, 1, 1)
+        )
+        bias = (
+            self.max_bias * torch.tanh(self.raw_bias).to(rx_iq.dtype)
+            + self.max_bias
+            * torch.tanh(self.raw_bias_slope).to(rx_iq.dtype)
+            * position.reshape(1, -1, 1)
+        )
+        return torch.einsum("bti,btij->btj", rx_iq, matrix) + bias
+
+
+class OnlineInputFIRAdapter(nn.Module):
+    """在线微调短残差 IQ FIR 的参数高效 Adapter。
+
+    中心抽头为恒等映射，其余抽头零初始化；因此挂载后与离线模型完全等价。
+    复数标量抽头只需两个实参数，能够表达局部回波/ISI 失配，同时保持在线参数量小。
+    """
+
+    def __init__(self, radius: int = 4, max_tap_delta: float = 0.18):
+        super().__init__()
+        self.radius = int(radius)
+        self.max_tap_delta = float(max_tap_delta)
+        if self.radius < 1:
+            raise ValueError("radius 必须至少为 1。")
+        self.raw_taps = nn.Parameter(torch.zeros(2 * self.radius + 1, 2, dtype=torch.float32))
+        mark_peft_group(self, "input_fir")
+
+    def forward(self, rx_iq: torch.Tensor) -> torch.Tensor:
+        taps = self.max_tap_delta * torch.tanh(self.raw_taps).to(rx_iq.dtype)
+        length = 2 * self.radius + 1
+        kernel = torch.zeros(2, 2, length, device=rx_iq.device, dtype=rx_iq.dtype)
+        kernel[0, 0, self.radius] = 1.0
+        kernel[1, 1, self.radius] = 1.0
+        kernel[0, 0] = kernel[0, 0] + taps[:, 0]
+        kernel[1, 1] = kernel[1, 1] + taps[:, 0]
+        kernel[0, 1] = kernel[0, 1] - taps[:, 1]
+        kernel[1, 0] = kernel[1, 0] + taps[:, 1]
+        channels_first = rx_iq.transpose(1, 2)
+        filtered = torch.nn.functional.conv1d(
+            channels_first,
+            kernel,
+            padding=self.radius,
+        )
+        return filtered.transpose(1, 2)
+
+
+class OnlineLogitFIRAdapter(nn.Module):
+    """在线微调最终软判决的短时域残差 FIR。"""
+
+    def __init__(self, radius: int = 4, max_tap_delta: float = 0.35):
+        super().__init__()
+        self.radius = int(radius)
+        self.max_tap_delta = float(max_tap_delta)
+        if self.radius < 1:
+            raise ValueError("radius 必须至少为 1。")
+        self.raw_taps = nn.Parameter(torch.zeros(2 * self.radius + 1, dtype=torch.float32))
+        mark_peft_group(self, "logit_fir")
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        taps = self.max_tap_delta * torch.tanh(self.raw_taps).to(logits.dtype)
+        filtered = torch.nn.functional.conv1d(
+            logits.unsqueeze(1),
+            taps.reshape(1, 1, -1),
+            padding=self.radius,
+        ).squeeze(1)
+        return logits + filtered
+
+
 class DenoiserBlock(nn.Module):
     def __init__(self, config: UnfoldedConfig):
         super().__init__()
@@ -127,6 +266,7 @@ class UnfoldedEqualizer(nn.Module):
                 nn.GELU(),
                 nn.Conv1d(self.config.d_model, self.config.d_model, kernel_size=1),
             )
+            mark_peft_group(self.pilot_encoder, "pilot_encoder")
         self.phase_correction = None
         if self.config.enable_phase_correction_branch:
             self.phase_correction = nn.Sequential(
@@ -163,6 +303,11 @@ class UnfoldedEqualizer(nn.Module):
         self.damping = nn.Parameter(torch.full((self.config.iterations,), 0.2))
         # 该模块只在在线运行时动态挂载，不进入离线 checkpoint。
         self.online_residual_adapter: ResidualLogitAdapter | None = None
+        self.online_logit_affine_adapter: OnlineLogitAffineAdapter | None = None
+        self.online_input_affine_adapter: OnlineInputAffineAdapter | None = None
+        self.online_input_trend_adapter: OnlineInputTrendAdapter | None = None
+        self.online_input_fir_adapter: OnlineInputFIRAdapter | None = None
+        self.online_logit_fir_adapter: OnlineLogitFIRAdapter | None = None
         self._last_online_features: torch.Tensor | None = None
         mark_peft_group(self.conditioner, "conditioner_film")
         mark_peft_group(self.head, "head")
@@ -179,6 +324,12 @@ class UnfoldedEqualizer(nn.Module):
         adapt_symbols: torch.Tensor | None = None,
         adapt_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        if self.online_input_affine_adapter is not None:
+            rx_iq = self.online_input_affine_adapter(rx_iq)
+        if self.online_input_trend_adapter is not None:
+            rx_iq = self.online_input_trend_adapter(rx_iq)
+        if self.online_input_fir_adapter is not None:
+            rx_iq = self.online_input_fir_adapter(rx_iq)
         rx_iq = self._apply_phase_correction(rx_iq, condition)
         self._last_online_features = None
         pilot_context = None
@@ -221,6 +372,10 @@ class UnfoldedEqualizer(nn.Module):
             # 只在全部展开迭代结束后叠加残差，保证 RLS 的特征不被 Adapter 反向改变。
             self._last_online_features = hidden.detach()
             logits = logits + self.online_residual_adapter(hidden).squeeze(-1)
+        if self.online_logit_affine_adapter is not None:
+            logits = self.online_logit_affine_adapter(logits)
+        if self.online_logit_fir_adapter is not None:
+            logits = self.online_logit_fir_adapter(logits)
         return logits, torch.sigmoid(logits)
 
     def attach_online_residual_adapter(self) -> ResidualLogitAdapter:
@@ -235,6 +390,61 @@ class UnfoldedEqualizer(nn.Module):
                 parameter.requires_grad_(False)
             self.online_residual_adapter = adapter
         return self.online_residual_adapter
+
+    def attach_online_logit_affine_adapter(self) -> OnlineLogitAffineAdapter:
+        """动态挂载零初始化的最终 logit 仿射 PEFT，不改变离线 checkpoint。"""
+
+        if self.online_logit_affine_adapter is None:
+            adapter = OnlineLogitAffineAdapter()
+            reference = next(self.parameters())
+            adapter = adapter.to(device=reference.device, dtype=reference.dtype)
+            adapter.train(self.training)
+            self.online_logit_affine_adapter = adapter
+        return self.online_logit_affine_adapter
+
+    def attach_online_input_affine_adapter(self) -> OnlineInputAffineAdapter:
+        """动态挂载恒等初始化的接收前端参数 Adapter。"""
+
+        if self.online_input_affine_adapter is None:
+            adapter = OnlineInputAffineAdapter()
+            reference = next(self.parameters())
+            adapter = adapter.to(device=reference.device, dtype=reference.dtype)
+            adapter.train(self.training)
+            self.online_input_affine_adapter = adapter
+        return self.online_input_affine_adapter
+
+    def attach_online_input_trend_adapter(self) -> OnlineInputTrendAdapter:
+        """动态挂载恒等初始化的时间趋势 IQ Adapter。"""
+
+        if self.online_input_trend_adapter is None:
+            adapter = OnlineInputTrendAdapter()
+            reference = next(self.parameters())
+            adapter = adapter.to(device=reference.device, dtype=reference.dtype)
+            adapter.train(self.training)
+            self.online_input_trend_adapter = adapter
+        return self.online_input_trend_adapter
+
+    def attach_online_input_fir_adapter(self) -> OnlineInputFIRAdapter:
+        """动态挂载恒等初始化的短残差 IQ FIR Adapter。"""
+
+        if self.online_input_fir_adapter is None:
+            adapter = OnlineInputFIRAdapter()
+            reference = next(self.parameters())
+            adapter = adapter.to(device=reference.device, dtype=reference.dtype)
+            adapter.train(self.training)
+            self.online_input_fir_adapter = adapter
+        return self.online_input_fir_adapter
+
+    def attach_online_logit_fir_adapter(self) -> OnlineLogitFIRAdapter:
+        """动态挂载零初始化的最终 logit 时域残差 Adapter。"""
+
+        if self.online_logit_fir_adapter is None:
+            adapter = OnlineLogitFIRAdapter()
+            reference = next(self.parameters())
+            adapter = adapter.to(device=reference.device, dtype=reference.dtype)
+            adapter.train(self.training)
+            self.online_logit_fir_adapter = adapter
+        return self.online_logit_fir_adapter
 
     @property
     def online_residual_features(self) -> torch.Tensor | None:

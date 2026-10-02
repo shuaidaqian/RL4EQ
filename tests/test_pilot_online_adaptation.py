@@ -242,6 +242,55 @@ def test_online_adapter_updates_selected_peft_group_from_adapt_pilot_only():
     assert all(getattr(model.get_parameter(name), "_peft_group", None) == "head" for name in changed)
 
 
+def test_online_adapter_updates_only_pilot_encoder_from_adapt_pilot():
+    torch.manual_seed(23)
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    frame = SimpleNamespace(
+        rx_symbols=torch.randn(32, dtype=torch.complex64),
+        tx_symbols=torch.where(
+            torch.arange(32) % 2 == 0,
+            torch.ones(32, dtype=torch.complex64),
+            -torch.ones(32, dtype=torch.complex64),
+        ),
+        adapt_mask=torch.arange(32) < 12,
+        reward_mask=torch.arange(32) >= 12,
+        data_mask=torch.zeros(32, dtype=torch.bool),
+        model_region_ids=torch.zeros(32, dtype=torch.long),
+    )
+    adapter = PilotDrivenOnlineAdapter(
+        model,
+        groups={"pilot_encoder"},
+        learning_rate=1e-2,
+        steps=1,
+    )
+    before = {name: value.detach().clone() for name, value in model.named_parameters()}
+
+    result = adapter.adapt(
+        frame,
+        _identity_condition(),
+        torch.zeros(1, 4, dtype=torch.complex64),
+    )
+
+    assert result.accepted is True
+    assert result.data_labels_used_online is False
+    assert result.adapt_pilot_count == 12
+    changed = [
+        name for name, value in model.named_parameters()
+        if not torch.equal(before[name], value.detach())
+    ]
+    assert changed
+    assert all(getattr(model.get_parameter(name), "_peft_group", None) == "pilot_encoder" for name in changed)
+
+
 def test_phase_peft_update_changes_parameters_and_adapt_loss():
     torch.manual_seed(19)
     model = UnfoldedEqualizer(

@@ -264,3 +264,143 @@ def test_acquisition_condition_override_is_shared_by_frozen_and_rls_methods():
 
     assert states["Frozen Offline NN"].condition_source == "acquisition"
     assert states["Pilot-Driven Online Adaptation"].condition_source == "acquisition"
+
+
+def test_zero_initialized_logit_affine_adapter_is_identity_and_isolated_group():
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    checkpoint_keys = set(model.state_dict())
+    adapter = model.attach_online_logit_affine_adapter()
+    assert checkpoint_keys.issubset(set(model.state_dict()))
+    assert set(model.peft.parameters({"logit_affine"})) == set(adapter.parameters())
+    logits = torch.tensor([-3.0, -0.2, 0.0, 1.5, 4.0])
+    assert torch.allclose(adapter(logits), logits)
+
+    model.set_trainable_groups({"logit_affine"})
+    trainable = model.trainable_parameters()
+    assert trainable
+    assert set(trainable) == set(adapter.parameters())
+    model.set_trainable_groups(set())
+    assert not any(parameter.requires_grad for parameter in adapter.parameters())
+
+
+def test_zero_initialized_input_affine_adapter_is_identity_and_isolated_group():
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    checkpoint_keys = set(model.state_dict())
+    adapter = model.attach_online_input_affine_adapter()
+    assert checkpoint_keys.issubset(set(model.state_dict()))
+    assert set(model.peft.parameters({"input_affine"})) == set(adapter.parameters())
+    rx_iq = torch.randn(1, 32, 2)
+    assert torch.allclose(adapter(rx_iq), rx_iq)
+
+    model.set_trainable_groups({"input_affine"})
+    trainable = model.trainable_parameters()
+    assert trainable
+    assert set(trainable) == set(adapter.parameters())
+    model.set_trainable_groups(set())
+    assert not any(parameter.requires_grad for parameter in adapter.parameters())
+
+
+def test_zero_initialized_input_trend_adapter_is_identity_and_isolated_group():
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    checkpoint_keys = set(model.state_dict())
+    adapter = model.attach_online_input_trend_adapter()
+    assert checkpoint_keys.issubset(set(model.state_dict()))
+    assert set(model.peft.parameters({"input_trend"})) == set(adapter.parameters())
+    rx_iq = torch.randn(1, 32, 2)
+    assert torch.allclose(adapter(rx_iq), rx_iq)
+
+    model.set_trainable_groups({"input_trend"})
+    trainable = model.trainable_parameters()
+    assert trainable
+    assert set(trainable) == set(adapter.parameters())
+    model.set_trainable_groups(set())
+    assert not any(parameter.requires_grad for parameter in adapter.parameters())
+
+
+def test_zero_initialized_input_fir_adapter_is_identity_and_isolated_group():
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    checkpoint_keys = set(model.state_dict())
+    adapter = model.attach_online_input_fir_adapter()
+    assert checkpoint_keys.issubset(set(model.state_dict()))
+    assert set(model.peft.parameters({"input_fir"})) == set(adapter.parameters())
+    rx_iq = torch.randn(1, 32, 2)
+    assert torch.allclose(adapter(rx_iq), rx_iq)
+
+    model.set_trainable_groups({"input_fir"})
+    trainable = model.trainable_parameters()
+    assert trainable
+    assert set(trainable) == set(adapter.parameters())
+    model.set_trainable_groups(set())
+    assert not any(parameter.requires_grad for parameter in adapter.parameters())
+
+
+def test_zero_initialized_logit_fir_adapter_is_identity_and_isolated_group():
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    checkpoint_keys = set(model.state_dict())
+    adapter = model.attach_online_logit_fir_adapter()
+    assert checkpoint_keys.issubset(set(model.state_dict()))
+    assert set(model.peft.parameters({"logit_fir"})) == set(adapter.parameters())
+    logits = torch.randn(1, 32)
+    assert torch.allclose(adapter(logits), logits)
+
+    model.set_trainable_groups({"logit_fir"})
+    trainable = model.trainable_parameters()
+    assert trainable
+    assert set(trainable) == set(adapter.parameters())
+    model.set_trainable_groups(set())
+    assert not any(parameter.requires_grad for parameter in adapter.parameters())

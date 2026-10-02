@@ -118,7 +118,8 @@ BER 在 10/15 dB 分别达到 `54.67%` / `55.78%`。在线微调只把 10 dB 降
 
 ## 验证
 
-完整测试：`499 passed`（包含参数累计保护、条件来源覆盖和配对条件一致性的回归测试）。
+完整测试：`505 passed`（包含参数累计保护、条件来源覆盖、配对条件一致性和本轮新增
+PEFT 分组隔离/在线更新回归测试）。
 
 ## 更强状态失配筛选（2026-10-03）
 
@@ -226,3 +227,69 @@ Level B 长记忆信道、116-symbol 延迟、prefix Pilot=256 和离线 checkpo
 4. 后续若继续推进，必须改变在线可辨识目标或参数对象，并保持离线训练和主 Level B
    配置不变；新方案需要先在小样本配对 replay 中同时证明参数确实改变 Data 判决、跨
    seed 方向一致，再进入 5 seeds × 60 帧正式统计。
+
+## 更多在线参数对象筛选（2026-10-03）
+
+为区分“参数对象不合适”和“参数没有更新”这两个问题，在不改变离线 checkpoint、
+Pilot 划分、Reward Pilot 门控或在线标签约束的前提下，增加了五类动态 PEFT Adapter，
+并对已有的最终 logit 仿射候选补充了诊断配置。所有 Adapter 都是零初始化或恒等
+初始化，运行时才挂载，不改变离线 checkpoint 的结构；在线梯度只使用 Adapt Pilot，
+Reward Pilot 只用于候选验收和回滚。以下结果全部是诊断 replay，不进入 Level B 主平均。
+
+### 候选定义
+
+| 分组 | 在线参数对象 | 初始化和作用 |
+|---|---|---|
+| `logit_affine` | 最终 logit 的增益和偏置 | 零初始化；只改变最终软判决的全局尺度和偏移 |
+| `input_affine` | 接收 IQ 的实值 2×2 仿射变换 | 恒等初始化；补偿全局幅度、IQ 混合和偏置失配 |
+| `input_trend` | 随帧内位置变化的一阶 IQ 仿射趋势 | 恒等初始化；尝试表达前缀到数据段的缓慢变化 |
+| `input_fir` | 接收 IQ 的短残差 FIR | 中心抽头为恒等、其余抽头为零；补偿局部回波/ISI 失配 |
+| `logit_fir` | 最终 logit 的短残差 FIR | 零初始化；补偿判决序列的局部时域偏差 |
+| `pilot_encoder` | 已有 Pilot 条件编码器 | 不新增模块；只微调 Pilot 到帧条件的映射 |
+
+### 小样本 replay 结果
+
+各项均使用 3 seeds × 12 帧、Level B、prefix Pilot=256、Adapt=224、Reward=32、固定
+Pilot 条件来源和相同 Frozen/Online 轨迹；表中 BER 使用百分数。`保留更新`表示经过
+Reward Pilot 验收后真正保留的帧级参数更新，不代表算法已经取得收益。
+
+| 候选 | 诊断条件 | SNR | Frozen BER | Online BER | 保留更新 | 结果 |
+|---|---|---:|---:|---:|---:|---|
+| `input_affine` | acquisition gap=120 s | 10 dB | 5.4941% | 5.4977% | 19/72 | 轻微退化 |
+| `input_affine` | acquisition gap=120 s | 15 dB | 3.8086% | 3.8158% | 19/72 | 轻微退化 |
+| `input_affine` | phase-only | 10 dB | 0.8066% | 0.8066% | 17/72 | 无硬判决变化 |
+| `input_affine` | phase-only | 15 dB | 0.1374% | 0.1374% | 17/72 | 无硬判决变化 |
+| `input_trend` | phase-only | 10 dB | 0.8066% | 0.8102% | 23/72 | 轻微退化 |
+| `input_trend` | phase-only | 15 dB | 0.1374% | 0.1374% | 23/72 | 无收益 |
+| `input_fir` | phase-only | 10 dB | 0.8066% | 0.8066% | 25/72 | 无硬判决变化 |
+| `input_fir` | phase-only | 15 dB | 0.1374% | 0.1374% | 25/72 | 无硬判决变化 |
+| `pilot_encoder` | phase-only | 10 dB | 0.8066% | 0.8066% | 41/72 | 参数更新但输出不变 |
+| `pilot_encoder` | phase-only | 15 dB | 0.1374% | 0.1374% | 41/72 | 参数更新但输出不变 |
+| `logit_fir` | phase-only | 10 dB | 0.8066% | 0.8066% | 31/72 | 0 帧硬判决改变 |
+| `logit_fir` | phase-only | 15 dB | 0.1374% | 0.1374% | 31/72 | 0 帧硬判决改变 |
+
+`logit_affine` 的首轮运行使用了 compare 的默认 bandit 和较大的更新间隔，大多数帧
+选择 `skip`，因此不能作为有效的算法比较；它被保留为可复现实验接口，不据此宣称
+收益。上述候选中，`input_affine` 在 gap=120 s 下的 Data logit 平均绝对变化约为
+`8.05e-3`，`input_trend` 和 `input_fir` 约为 `5e-4`，`logit_fir` 约为 `1.60e-3`；
+这些连续输出变化没有稳定跨过 Data 硬判决阈值。`pilot_encoder` 的 Data logit 平均
+变化约为 `5.39e-11`，说明该条件编码器在当前前向路径中几乎没有可迁移的影响。
+
+### 解释和路线影响
+
+这轮筛选排除了“只要把可调参数移到输入端、输出端或 Pilot 编码器，就会自然得到
+在线收益”的假设。各候选均能在 Adapt Pilot 上更新，且在线审计仍报告
+`data_labels_used_online=false`；但参数变化主要表现为连续 logit 的微调，不能稳定
+改变 Data 硬判决。gap=120 s 的 `input_affine` 还出现了轻微退化，说明在状态老化
+条件下，当前 Pilot BCE 的局部目标可能与数据段残差方向不一致。
+
+因此，继续扫描同一批 Adapter 的学习率、步数或门控阈值没有充分的收益依据。下一候选
+必须改变“Pilot 监督如何产生可外推到 Data 的残差”或“在线参数如何控制物理 warm-start
+与神经残差的组合”，并先在小样本配对 replay 中同时满足：参数确实改变 Data 判决、
+跨 seed 方向一致、Reward Pilot 不依赖 Data 标签。离线训练、Level B 主配置和正式
+5 seeds × 60 帧矩阵在新候选出现稳定正向信号前保持不变。
+
+本轮代码回归覆盖动态挂载、PEFT 分组隔离、恒等初始化和 Adapt Pilot-only 更新；
+诊断配置位于 `configs/diagnostics/eme_long_memory_v2_gap120_input_affine.json` 与
+`configs/diagnostics/eme_long_memory_v2_gap120_logit_affine.json`，均设置
+`diagnostic_only=true` 和 `main_aggregation_allowed=false`。
