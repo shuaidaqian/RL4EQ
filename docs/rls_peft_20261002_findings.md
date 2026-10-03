@@ -388,6 +388,18 @@ seed 同方向”和“Data 硬判决改变”。10 dB 的收益量级很小，0
 若采用该路线，应把“Pilot 重构驱动的 CIR-PEFT 用于 acquisition 状态失配”作为明确
 适用条件，并单独报告主配置持平结果。
 
+为拆分两个因素，又保持主 `cfo_phase_tiny` 配置不变、只切换到 `heldout_edge` 且
+gap=0 做了 5 seeds × 60 帧负对照。结果为：0 dB `0.0000 pp`（5/5 持平），5 dB
+`0.0000 pp`（5/5 持平），10 dB `+0.0004 pp`（仅 1/5 seed 改善），15 dB
+`0.0000 pp`（5/5 持平）。这说明当前收益不是由边界信道范围单独造成，而是来自
+“acquisition 到数据段的状态老化”与边界失配共同形成的可辨识 CIR 残差。
+
+该负对照命令：
+
+```powershell
+.\.venv-gpu\Scripts\python.exe compare.py --config configs/eme_long_memory_v2.json --method-group proposed --pretrained pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --delays 116 --snrs 0 5 10 15 --num-seeds 5 --frames 60 --pilot-total 256 --pilot-layout prefix --state-split heldout_edge --online-groups channel_residual --online-algorithm sgd --online-objective pilot_reconstruction --scheduler fixed --update-interval 1 --resume --output-dir logs/main_channel_recon_heldout_edge_gap0_sgd_5s60f_20261003
+```
+
 主配置复核命令：
 
 ```powershell
