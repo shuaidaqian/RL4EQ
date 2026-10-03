@@ -410,3 +410,42 @@ gap=0 做了 5 seeds × 60 帧负对照。结果为：0 dB `0.0000 pp`（5/5 持
 诊断配置位于 `configs/diagnostics/eme_long_memory_v2_gap120_input_affine.json` 与
 `configs/diagnostics/eme_long_memory_v2_gap120_logit_affine.json`，均设置
 `diagnostic_only=true` 和 `main_aggregation_allowed=false`。
+
+## 与传统均衡器的同条件配对复核（2026-10-03）
+
+为检验这条 PEFT 候选的系统价值，固定上节 `heldout_edge + acquisition_to_data_gap=120 s`
+诊断条件、Level B、delay=116、prefix Pilot=256、`cfo_phase_tiny`，并用同一组 5 seeds ×
+60 帧运行三个传统方法。在线/Frozen 结果来自前述同条件矩阵。环境配置和局部随机数生成器
+按 seed 固定；逐 SNR、seed、frame 对照检查的 `state_instance` 不一致数为 0，因此 BER
+差异是同一接收轨迹上的配对比较。每个传统方法每个 SNR 均有 300 帧。
+
+其中 `CFO+DD-Phase LMMSE-FIR` 和 `CFO+DD-Phase DFE-RLS` 每帧用 Adapt Pilot 拟合线性
+相位/CFO，并作跨帧判决导向跟踪；日志中的相位拟合平均使用 112 个可靠 Pilot 点，估计
+CFO 平均绝对值约为 `5.8e-4` cycles/symbol。两种方法均不使用神经网络、RL、Reward Pilot
+标签或 Data 标签。`SC-FDE-MMSE` 没有启用同等 Pilot 相位/CFO 补偿，单独列作参考，不纳入
+“最强公平传统基线”的选择。
+
+| SNR | Frozen BER | Online BER | 最低 BER 的 Pilot 补偿传统法 | Online 对 Frozen 收益（95% CI） | Online 对传统法收益（95% CI） | 传统比较 seed 方向 |
+|---:|---:|---:|---|---:|---:|---:|
+| 0 dB | 26.0885% | 26.0885% | DFE-RLS 46.5846% | 0.0000 pp `[0.0000, 0.0000]` | +20.4961 pp `[+13.8568, +25.9609]` | 5/5 改善 |
+| 5 dB | 11.2062% | 11.1237% | DFE-RLS 31.4965% | +0.0825 pp `[+0.0286, +0.1536]` | +20.3728 pp `[+12.1276, +29.3151]` | 5/5 改善 |
+| 10 dB | 6.0373% | 5.9796% | LMMSE-FIR 13.1250% | +0.0577 pp `[+0.0130, +0.1146]` | +7.1454 pp `[+1.7109, +12.5964]` | 5/5 改善 |
+| 15 dB | 4.4709% | 4.3954% | LMMSE-FIR 8.2600% | +0.0755 pp `[+0.0286, +0.1302]` | +3.8646 pp `[-0.3438, +9.4349]` | 4/5 改善 |
+
+区间按 10,000 次分层配对 bootstrap 估计：先重采样 seed，再在每个抽中的 seed 内抽取一个
+连续 10 帧块。Online 对 Frozen 的 5/10/15 dB 区间均为正且 5/5 seeds 改善；0 dB 按冻结
+策略不更新。Online 对最强传统法在 0/5/10 dB 的均值和区间均显示优势；15 dB 均值较低，
+但区间跨零且只有 4/5 seeds 改善，证据不足以称为稳定显著优势。
+
+本矩阵记录到 301 次被 Reward Pilot 接受的 PEFT 更新；1,200 条 Online 记录均为
+`data_labels_used_online=false`。这支持“Pilot 重构驱动 CIR-PEFT 在明显 acquisition 状态
+老化时能稳定小幅提升 Frozen 均衡，并在 0/5/10 dB 胜过当前传统实现”的阶段性结论；
+它不改变主配置 gap=0 下几乎持平的事实，也没有证明所有 SNR 和状态条件都能获益。
+传统基线中 15 dB 的不确定性，以及传统实现本身与神经模型的 BER 差距较大，仍需在最终
+主比较前复核，不能只凭本诊断矩阵宣称论文目标已全部完成。
+
+复现实验命令：
+
+```powershell
+.\.venv-gpu\Scripts\python.exe compare.py --config configs/diagnostics/eme_long_memory_v2_gap120_input_affine.json --methods "CFO+DD-Phase LMMSE-FIR" "CFO+DD-Phase DFE-RLS" SC-FDE-MMSE --delays 116 --snrs 0 5 10 15 --num-seeds 5 --frames 60 --pilot-total 256 --pilot-layout prefix --state-split heldout_edge --scheduler fixed --resume --output-dir logs/gap120_traditional_heldout_edge_5s60f_20261003
+```
