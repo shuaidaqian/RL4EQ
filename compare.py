@@ -253,6 +253,7 @@ def main() -> None:
     parser.add_argument("--delays", nargs="*", type=int, default=None)
     parser.add_argument("--snrs", nargs="*", type=float, default=[0, 5, 10, 15])
     parser.add_argument("--num-seeds", type=int, default=1)
+    parser.add_argument("--seed-start", type=int, default=0)
     parser.add_argument("--frames", type=int, default=2)
     parser.add_argument("--pilot-total", type=int, default=None)
     parser.add_argument("--reward-pilot-total", type=int, default=None)
@@ -300,6 +301,7 @@ def main() -> None:
     parser.add_argument("--online-cross-frame-tolerance", type=float, default=None)
     parser.add_argument("--online-phase-smoothing", type=float, default=None)
     parser.add_argument("--online-phase-min-confidence", type=float, default=None)
+    parser.add_argument("--online-freeze-below-snr-db", type=float, default=None)
     parser.add_argument(
         "--online-condition-source",
         choices=["acquisition", "pilot_phase", "pilot_cir_phase"],
@@ -309,6 +311,8 @@ def main() -> None:
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
+    if args.seed_start < 0:
+        parser.error("--seed-start 必须是非负整数。")
     if args.version:
         print("RL4EQ continual-ppo schema-v1")
         return
@@ -330,6 +334,7 @@ def main() -> None:
             "online_cross_frame_rollback_tolerance": args.online_cross_frame_tolerance,
             "online_phase_tracking_smoothing": args.online_phase_smoothing,
             "online_phase_tracking_min_confidence": args.online_phase_min_confidence,
+            "online_adaptation_freeze_below_snr_db": args.online_freeze_below_snr_db,
             "online_condition_source": args.online_condition_source,
             "online_scheduler": args.scheduler,
         },
@@ -367,7 +372,7 @@ def main() -> None:
         )
         for delay in selected_delays
         for snr_db in args.snrs
-        for seed in range(args.num_seeds)
+        for seed in range(args.seed_start, args.seed_start + args.num_seeds)
     }
     if not env_configs:
         raise ValueError("对比实验至少需要一个 delay/SNR/seed 配置。")
@@ -408,7 +413,7 @@ def main() -> None:
     with jsonl.open(mode, encoding="utf-8") as handle:
         for delay in selected_delays:
             for snr_db in args.snrs:
-                for seed in range(args.num_seeds):
+                for seed in range(args.seed_start, args.seed_start + args.num_seeds):
                     env_config = env_configs[(int(delay), float(snr_db), int(seed))]
                     env = CommunicationEnvironment(env_config)
                     start = env.reset_episode()

@@ -1,7 +1,7 @@
 # RLS 在线 PEFT 阶段复核（2026-10-02）
 
-> 最新正式证据为下方的 5 seeds × 60 帧矩阵。此前 3 × 12 帧结果只保留为调试过程，
-> 不再作为方法有效性的主要依据。
+> 最新诊断证据见文末：0/5/10 dB 为 5 seeds × 60 帧，15 dB 已扩为 30 seeds × 60 帧。
+> 文中的较早矩阵保留为实验过程记录，不代表最终样本规模。
 
 ## 目标和边界
 
@@ -449,3 +449,47 @@ CFO 平均绝对值约为 `5.8e-4` cycles/symbol。两种方法均不使用神�
 ```powershell
 .\.venv-gpu\Scripts\python.exe compare.py --config configs/diagnostics/eme_long_memory_v2_gap120_input_affine.json --methods "CFO+DD-Phase LMMSE-FIR" "CFO+DD-Phase DFE-RLS" SC-FDE-MMSE --delays 116 --snrs 0 5 10 15 --num-seeds 5 --frames 60 --pilot-total 256 --pilot-layout prefix --state-split heldout_edge --scheduler fixed --resume --output-dir logs/gap120_traditional_heldout_edge_5s60f_20261003
 ```
+
+## 低 SNR 更新与 15 dB 扩样（2026-10-04）
+
+上一节 0 dB 使用了 `freeze_below_snr_db=5`，因此没有测试参数微调本身能否改善低 SNR。
+本轮只在诊断命令中把阈值覆盖为 `-1 dB`，离线 checkpoint、主配置和在线目标保持不变，
+完成 0 dB 5 seeds × 60 帧。随后把 15 dB 在线/Frozen 和传统基线扩至 30 seeds × 60 帧；
+其余 SNR 保持 5 seeds × 60 帧。比较仍为同 seed、同帧的配对 replay，各 SNR 的
+`state_instance` 不一致数均为 0。
+
+| SNR | seeds × 帧 | Frozen BER | Online BER | Online 对 Frozen 收益（95% CI） | 最强 Pilot 补偿传统方法 BER | Online 对传统方法收益（95% CI） | 收益方向 |
+|---:|---:|---:|---:|---:|---:|---:|---|
+| 0 dB | 5 × 60 | 26.0885% | 26.0556% | +0.0330 pp `[+0.0052, +0.0703]` | DFE-RLS 46.5846% | +20.5291 pp `[+13.8880, +26.2865]` | Frozen 5/5；传统 5/5 改善 |
+| 5 dB | 5 × 60 | 11.2062% | 11.1237% | +0.0825 pp `[+0.0286, +0.1510]` | DFE-RLS 31.4965% | +20.3728 pp `[+12.0990, +29.3802]` | Frozen 5/5；传统 5/5 改善 |
+| 10 dB | 5 × 60 | 6.0373% | 5.9796% | +0.0577 pp `[+0.0130, +0.1146]` | LMMSE-FIR 13.1250% | +7.1454 pp `[+1.7005, +12.4922]` | Frozen 5/5；传统 5/5 改善 |
+| 15 dB | 30 × 60 | 4.7399% | 4.6774% | +0.0625 pp `[+0.0434, +0.0829]` | LMMSE-FIR 8.1230% | +3.4456 pp `[+0.7079, +4.6771]` | Frozen 29/30 改善、1 持平；传统 25/30 改善 |
+
+区间按 30,000 次分层配对 bootstrap 计算：重采样 seed 后，在每个抽中的 seed 内抽一个
+连续 10 帧块。15 dB 的另一个公平 Pilot 补偿基线 DFE-RLS BER 为 `8.4094%`，Online
+相对它的收益为 `+3.7320 pp`，95% CI `[+0.8411, +5.2331]`，27/30 seeds 改善。
+传统方法是配置中预先列出的非神经方法；`CFO+DD-Phase LMMSE-FIR` 和
+`CFO+DD-Phase DFE-RLS` 都用 Adapt Pilot 估计相位/CFO。无 Pilot 相位/CFO 补偿的
+`SC-FDE-MMSE` 不作为公平传统基线。
+
+解除 0 dB 冻结后，Pilot 重构目标在 300 帧中保留了 98 次 PEFT 更新，所有 5 个 seed
+均比 Frozen 略好；5/10/15 dB 分别保留 109/96/577 次更新。所有在线记录仍满足
+`data_labels_used_online=false`。这些结果支持一个明确但有限的结论：在
+`heldout_edge + 120 s acquisition-to-data gap` 下，Pilot 重构驱动的 CIR-PEFT 可在
+所有测试 SNR 稳定超过 Frozen，并在扩大到 30 seeds 后也能超过两个 Pilot 补偿传统基线。
+
+但 Online 相对 Frozen 的绝对收益只有 `0.033–0.083 pp`，属于稳定的小幅提升，不是大幅
+提升；15 dB 传统比较使用了更多 seeds，其他 SNR 的传统区间仍基于 5 seeds。主配置
+`gap=0` 的既有结果依然基本持平，所以不能把这里的诊断收益推广成普通主配置下均有增益。
+目前已证明的是“明显 acquisition 状态老化时有效”，尚未达到不依赖状态失配的通用在线
+微调方案。
+
+0 dB 解冻探针复现命令：
+
+```powershell
+.\.venv-gpu\Scripts\python.exe compare.py --config configs/diagnostics/eme_long_memory_v2_gap120_input_affine.json --methods "Frozen Offline NN" "Pilot-Driven Online Adaptation" --pretrained pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --delays 116 --snrs 0 --num-seeds 5 --frames 60 --pilot-total 256 --pilot-layout prefix --state-split heldout_edge --online-groups channel_residual --online-algorithm sgd --online-objective pilot_reconstruction --online-freeze-below-snr-db -1 --scheduler fixed --update-interval 1 --resume --output-dir logs/gap120_channel_recon_heldout_edge_0db_unfrozen_5s60f_20261003
+```
+
+`compare.py` 现支持 `--seed-start`，便于在 `--resume` 输出目录中追加非重叠 seed。15 dB
+最后一次扩样命令使用 `--num-seeds 10 --seed-start 20 --snrs 15`；更早的 seed 0–19
+已保留在同一在线与传统日志目录中。
