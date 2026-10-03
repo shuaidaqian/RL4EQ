@@ -14,6 +14,7 @@ import torch.nn.functional as F
 
 from agent.cir_estimator import CIRCondition, condition_from_cir
 from agent.unfolded_equalizer import UnfoldedEqualizer
+from env.linear_operator import LinearChannelOperator
 
 
 @dataclass(frozen=True)
@@ -303,6 +304,7 @@ class PilotDrivenOnlineAdapter:
         proximal_weight: float = 0.0,
         hard_example_weighting: bool = False,
         hard_example_temperature: float = 0.5,
+        objective: str = "bce",
     ) -> None:
         self.model = model
         self.groups = set(groups or {"head"})
@@ -312,6 +314,7 @@ class PilotDrivenOnlineAdapter:
         self.proximal_weight = float(proximal_weight)
         self.hard_example_weighting = bool(hard_example_weighting)
         self.hard_example_temperature = float(hard_example_temperature)
+        self.objective = str(objective)
         if self.learning_rate <= 0.0:
             raise ValueError("learning_rate 必须为正数。")
         if self.max_delta_norm <= 0.0:
@@ -320,6 +323,8 @@ class PilotDrivenOnlineAdapter:
             raise ValueError("proximal_weight 不能为负数。")
         if self.hard_example_temperature <= 0.0:
             raise ValueError("hard_example_temperature 必须为正数。")
+        if self.objective not in {"bce", "pilot_reconstruction"}:
+            raise ValueError("objective 必须为 bce 或 pilot_reconstruction。")
 
     def adapt(
         self,
@@ -431,12 +436,22 @@ class PilotDrivenOnlineAdapter:
                     adapt_mask=mask.unsqueeze(0),
                 )
                 selected_logits = logits[0, mask]
-                loss = _weighted_adapt_loss(
-                    selected_logits,
-                    target[mask],
-                    selected_hard_example_weighting,
-                    selected_hard_example_temperature,
-                )
+                if self.objective == "pilot_reconstruction":
+                    loss = _pilot_reconstruction_loss(
+                        self.model,
+                        condition,
+                        tx,
+                        rx,
+                        mask,
+                        tail,
+                    )
+                else:
+                    loss = _weighted_adapt_loss(
+                        selected_logits,
+                        target[mask],
+                        selected_hard_example_weighting,
+                        selected_hard_example_temperature,
+                    )
                 if selected_proximal_weight > 0.0:
                     loss = loss + selected_proximal_weight * _normalized_proximal_penalty(
                         trainable_items,
@@ -466,9 +481,17 @@ class PilotDrivenOnlineAdapter:
                     selected_hard_example_weighting,
                     selected_hard_example_temperature,
                 )
+                objective_after = _pilot_reconstruction_loss(
+                    self.model,
+                    condition,
+                    tx,
+                    rx,
+                    mask,
+                    tail,
+                ) if self.objective == "pilot_reconstruction" else weighted_loss_after
             delta_norm = _delta_norm(self.model, snapshot)
             accepted = (
-                bool(torch.isfinite(loss_after).item())
+                bool(torch.isfinite(objective_after).item())
                 and 1e-12 < delta_norm <= selected_max_delta_norm
             )
             if not accepted:
@@ -546,6 +569,36 @@ def _weighted_adapt_loss(
     if not enabled:
         return per_example.mean()
     return (per_example * hard_example_weights(logits, temperature)).mean()
+
+
+def _pilot_reconstruction_loss(
+    model: UnfoldedEqualizer,
+    condition: CIRCondition,
+    tx: torch.Tensor,
+    rx: torch.Tensor,
+    mask: torch.Tensor,
+    tail: torch.Tensor,
+) -> torch.Tensor:
+    """计算已知 Adapt Pilot 的复数接收重构损失。
+
+    该目标只在显式 channel residual PEFT 探针中启用。未知 Data 区域的发射
+    符号在 ``tx`` 中保持为零，因此不会被当作标签参与优化。
+    """
+
+    adapter = model.online_channel_residual_adapter
+    if adapter is None:
+        raise RuntimeError("pilot_reconstruction 需要已挂载 channel_residual Adapter。")
+    cir = adapter(condition.complex_cir).reshape(-1)
+    tx_flat = tx.reshape(-1)
+    rx_flat = rx.reshape(-1)
+    tail_flat = tail.reshape(-1)
+    operator = LinearChannelOperator(frame_len=tx_flat.numel(), max_delay=cir.numel() - 1)
+    predicted = operator.forward(tx_flat, cir, tail_flat)
+    selected = mask.reshape(-1)
+    if not bool(selected.any()):
+        return torch.zeros((), device=tx.device, dtype=torch.float32)
+    residual = predicted.reshape(-1)[selected] - rx_flat[selected]
+    return torch.mean(torch.abs(residual) ** 2).real
 
 
 def run_pilot_driven_online(
@@ -627,6 +680,7 @@ def run_pilot_driven_online(
                     hard_example_temperature=float(
                         config.get("online_hard_example_temperature", 0.5)
                     ),
+                    objective=str(config.get("online_adaptation_objective", "bce")),
                 )
                 bandit = SafeContextualBandit(seed=90_000 + int(seed)) if scheduler == "bandit" else None
                 allowed_bandit_actions = (
@@ -862,6 +916,7 @@ def run_pilot_driven_online(
                             "hard_example_weighting": bool(adapter.hard_example_weighting),
                             "hard_example_temperature": float(adapter.hard_example_temperature),
                             "online_update_source": "adapt_pilot_only",
+                            "online_adaptation_objective": str(adapter.objective),
                             "adaptation_accepted": bool(accepted),
                             "update_applied": bool(update_applied),
                             "scheduler": scheduler,

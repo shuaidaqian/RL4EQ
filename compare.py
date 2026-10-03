@@ -278,11 +278,22 @@ def main() -> None:
     parser.add_argument("--cir-update", choices=["fixed", "pilot_sparse", "decision_directed"], default="fixed")
     parser.add_argument("--cir-alpha", type=float, default=0.2)
     parser.add_argument("--online-groups", nargs="*", default=None)
+    parser.add_argument(
+        "--online-algorithm",
+        choices=["sgd", "rls"],
+        default=None,
+        help="覆盖配置中的在线参数更新算法。",
+    )
     parser.add_argument("--online-learning-rate", type=float, default=None)
     parser.add_argument("--online-steps", type=int, default=None)
     parser.add_argument("--online-max-delta-norm", type=float, default=None)
     parser.add_argument("--online-rls-max-total-delta-norm", type=float, default=None)
     parser.add_argument("--online-proximal-weight", type=float, default=None)
+    parser.add_argument(
+        "--online-objective",
+        choices=["bce", "pilot_reconstruction"],
+        default=None,
+    )
     parser.add_argument("--online-min-reward-improvement", type=float, default=None)
     parser.add_argument("--online-relative-min-reward-improvement", type=float, default=None)
     parser.add_argument("--online-reward-windows", type=int, default=None)
@@ -307,10 +318,12 @@ def main() -> None:
         config,
         {
             "online_adaptation_learning_rate": args.online_learning_rate,
+            "online_adaptation_algorithm": args.online_algorithm,
             "online_adaptation_steps": args.online_steps,
             "online_adaptation_max_delta_norm": args.online_max_delta_norm,
             "online_rls_max_total_delta_norm": args.online_rls_max_total_delta_norm,
             "online_adaptation_proximal_weight": args.online_proximal_weight,
+            "online_adaptation_objective": args.online_objective,
             "online_adaptation_min_reward_improvement": args.online_min_reward_improvement,
             "online_adaptation_relative_min_reward_improvement": args.online_relative_min_reward_improvement,
             "online_reward_windows": args.online_reward_windows,
@@ -790,6 +803,7 @@ def _build_method_states(
                 hard_example_temperature=float(
                     config.get("online_hard_example_temperature", 0.5)
                 ),
+                objective=str(config.get("online_adaptation_objective", "bce")),
             )
             candidate_specs = _online_candidate_specs(candidate_config, online_groups)
             states[method] = PilotOnlineMethodState(
@@ -1915,6 +1929,7 @@ def _run_pilot_online_method(
             "uses_rl": bool(state.scheduler == "bandit"),
             "scheduler": str(state.scheduler),
             "online_algorithm": "pilot_driven_constrained_peft",
+            "online_adaptation_objective": str(state.adapter.objective),
             "online_update_source": "adapt_pilot_only",
             "reward_pilot_guard": True,
             "cross_frame_reward_guard": True,

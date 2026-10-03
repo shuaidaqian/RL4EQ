@@ -127,6 +127,7 @@ from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from training.online_adaptation import (
     PilotDrivenOnlineAdapter,
     _normalized_proximal_penalty,
+    _pilot_reconstruction_loss,
     hard_example_weights,
     run_pilot_driven_online,
 )
@@ -240,6 +241,69 @@ def test_online_adapter_updates_selected_peft_group_from_adapt_pilot_only():
     ]
     assert changed
     assert all(getattr(model.get_parameter(name), "_peft_group", None) == "head" for name in changed)
+
+
+def test_channel_residual_supports_pilot_reconstruction_objective():
+    torch.manual_seed(31)
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    model.attach_online_channel_residual_adapter()
+    tx = torch.where(
+        torch.arange(32) % 2 == 0,
+        torch.ones(32, dtype=torch.complex64),
+        -torch.ones(32, dtype=torch.complex64),
+    )
+    rx = torch.zeros(32, dtype=torch.complex64)
+    rx[:12] = 1.1 * tx[:12]
+    frame = SimpleNamespace(
+        rx_symbols=rx,
+        tx_symbols=tx,
+        adapt_mask=torch.arange(32) < 12,
+        reward_mask=torch.arange(32) >= 12,
+        data_mask=torch.zeros(32, dtype=torch.bool),
+        model_region_ids=torch.zeros(32, dtype=torch.long),
+    )
+    condition = _identity_condition()
+    before = _pilot_reconstruction_loss(
+        model,
+        condition,
+        tx.unsqueeze(0),
+        rx.unsqueeze(0),
+        frame.adapt_mask.unsqueeze(0),
+        torch.zeros(1, 4, dtype=torch.complex64),
+    )
+    adapter = PilotDrivenOnlineAdapter(
+        model,
+        groups={"channel_residual"},
+        learning_rate=1e-2,
+        steps=2,
+        objective="pilot_reconstruction",
+    )
+    result = adapter.adapt(
+        frame,
+        condition,
+        torch.zeros(1, 4, dtype=torch.complex64),
+    )
+    after = _pilot_reconstruction_loss(
+        model,
+        condition,
+        tx.unsqueeze(0),
+        rx.unsqueeze(0),
+        frame.adapt_mask.unsqueeze(0),
+        torch.zeros(1, 4, dtype=torch.complex64),
+    )
+    assert result.accepted is True
+    assert result.data_labels_used_online is False
+    assert result.parameter_delta_norm > 0.0
+    assert after < before
 
 
 def test_online_adapter_updates_only_pilot_encoder_from_adapt_pilot():

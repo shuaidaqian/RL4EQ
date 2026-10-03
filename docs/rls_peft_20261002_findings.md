@@ -324,6 +324,76 @@ Pilot，Reward Pilot 只用于验收和回滚；没有修改离线 checkpoint，
 在扩大矩阵前同时满足：至少多数 seed 改善、Data 硬判决确实变化、Reward Pilot 不使用
 Data 标签、且低 SNR 不出现系统性退化。
 
+## Pilot 重构目标探针（2026-10-03）
+
+上面的 `channel_residual` 默认使用 Adapt Pilot BCE 更新。为区分“参数对象不合适”和
+“BCE 梯度不适合物理 tap”，新增可选在线目标 `pilot_reconstruction`：用已知 Adapt Pilot
+符号、接收 IQ 和当前可训练 channel residual 的复数重构误差更新参数；未知 Data 区域
+的符号保持为零，不参与目标。默认目标仍为 `bce`，离线训练和已有实验不受影响。
+
+小样本结果如下，均为固定调度、Reward Pilot 验收、3 seeds × 12 帧诊断 replay：
+
+| 状态范围 | SNR | Frozen BER | Online BER | 配对收益 | seed 方向 | 保留更新 |
+|---|---:|---:|---:|---:|---|---:|
+| gap=120 s | 10 dB | 5.4941% | 5.4905% | +0.0036 pp | 1/3 改善，2/3 退化 | 11/36 |
+| gap=120 s | 15 dB | 3.8086% | 3.7941% | +0.0145 pp | 2/3 改善，1/3 持平 | 11/36 |
+| heldout_edge + gap=120 s | 5 dB | 11.2739% | 11.2486% | +0.0253 pp | 2/3 改善，1/3 持平 | 15/36 |
+| heldout_edge + gap=120 s | 10 dB | 6.8757% | 6.8649% | +0.0109 pp | 1/3 改善，2/3 持平 | 9/36 |
+| heldout_edge + gap=120 s | 15 dB | 5.4253% | 5.3928% | +0.0326 pp | 3/3 改善 | 12/36 |
+
+这是一条值得保留的候选路线，但目前只在强状态失配的 15 dB 小样本上同时满足“多数
+seed 同方向”和“Data 硬判决改变”。10 dB 的收益量级很小，0 dB 仍按现有安全策略冻结
+在线更新；因此尚未达到全 SNR 稳定、明确超过 Frozen 的目标，也没有进入主平均。
+
+可复现实验命令：
+
+```powershell
+.\.venv-gpu\Scripts\python.exe compare.py --config configs/diagnostics/eme_long_memory_v2_gap120_input_affine.json --method-group main --pretrained pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --delays 116 --snrs 5 10 15 --num-seeds 3 --frames 12 --pilot-total 256 --pilot-layout prefix --state-split heldout_edge --online-groups channel_residual --online-objective pilot_reconstruction --scheduler fixed --update-interval 1 --resume --output-dir logs/gap120_channel_recon_heldout_edge_fixed_3s12f_20261003
+```
+
+后续只有在该目标先通过 5 seeds × 60 帧的独立诊断矩阵后，才考虑把它接入主比较；
+主配置、离线 checkpoint 和 0 dB 的冻结策略保持不变。
+
+## 5 seeds × 60 帧复核与主配置边界（2026-10-03）
+
+在 `heldout_edge + acquisition_to_data_gap=120 s` 上扩大到 5 seeds × 60 帧后，
+`channel_residual + pilot_reconstruction` 的配对结果为：
+
+| SNR | Frozen BER | Online BER | 配对收益 | seed 方向 | 保留更新 |
+|---:|---:|---:|---:|---|---:|
+| 0 dB | 26.0885% | 26.0885% | 0.0000 pp | 0/5 改善，5/5 持平 | 0/300（按 SNR 冻结） |
+| 5 dB | 11.2062% | 11.1237% | +0.0825 pp | 5/5 改善 | 109/300 |
+| 10 dB | 6.0373% | 5.9796% | +0.0577 pp | 5/5 改善 | 96/300 |
+| 15 dB | 4.4709% | 4.3954% | +0.0755 pp | 5/5 改善 | 96/300 |
+
+按 seed 重采样的收益近似 95% 区间为：5 dB `[+0.0241, +0.1408]` pp，10 dB
+`[+0.0021, +0.1134]` pp；0 dB 没有在线更新，15 dB 的逐 seed 收益也全部为正。
+所有 1200 条 Online 记录的 `data_labels_used_online` 均为 `false`，且每个真正保留的
+更新都改变了 Data 连续 logit。这是目前最强的可复现证据，但状态范围是诊断用的
+`heldout_edge + 120 s gap`，不能直接替换论文主平均。
+
+随后用冻结的主配置 `eme_long_memory_v2/cfo_phase_tiny`、gap=0、同一 checkpoint、
+同样的 5 seeds × 60 帧重新运行，并显式覆盖 `--online-algorithm sgd`，避免配置中的
+旧 RLS 路线混入：
+
+| SNR | Frozen BER | Online BER | 配对收益 | seed 方向 | 保留更新 |
+|---:|---:|---:|---:|---|---:|
+| 0 dB | 21.3841% | 21.3841% | 0.0000 pp | 0/5 改善，5/5 持平 | 0/300（按 SNR 冻结） |
+| 5 dB | 5.7066% | 5.7075% | -0.0009 pp | 0/5 改善，2/5 轻微退化 | 92/300 |
+| 10 dB | 0.9549% | 0.9549% | 0.0000 pp | 0/5 改善，5/5 持平 | 103/300 |
+| 15 dB | 0.1641% | 0.1641% | 0.0000 pp | 0/5 改善，5/5 持平 | 162/300 |
+
+因此，当前创新点已经在“明显状态老化/边界失配”条件下形成了稳定的参数微调收益，
+但在现有主配置的 gap=0 条件下没有收益。不能把诊断收益描述为主配置已完成；主论文
+若采用该路线，应把“Pilot 重构驱动的 CIR-PEFT 用于 acquisition 状态失配”作为明确
+适用条件，并单独报告主配置持平结果。
+
+主配置复核命令：
+
+```powershell
+.\.venv-gpu\Scripts\python.exe compare.py --config configs/eme_long_memory_v2.json --method-group proposed --pretrained pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --delays 116 --snrs 0 5 10 15 --num-seeds 5 --frames 60 --pilot-total 256 --pilot-layout prefix --online-groups channel_residual --online-algorithm sgd --online-objective pilot_reconstruction --scheduler fixed --update-interval 1 --resume --output-dir logs/main_channel_recon_cfo_phase_tiny_sgd_5s60f_20261003
+```
+
 本轮代码回归覆盖动态挂载、PEFT 分组隔离、恒等初始化和 Adapt Pilot-only 更新；
 诊断配置位于 `configs/diagnostics/eme_long_memory_v2_gap120_input_affine.json` 与
 `configs/diagnostics/eme_long_memory_v2_gap120_logit_affine.json`，均设置

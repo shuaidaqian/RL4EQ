@@ -117,3 +117,22 @@ def test_online_cli_overrides_include_physical_state_confidence_gate():
 
     assert config["online_phase_tracking_min_confidence"] == 0.15
     assert config["online_phase_tracking_smoothing"] == 0.4
+
+
+def test_online_cli_overrides_can_select_sgd_reconstruction_objective():
+    import compare
+
+    config = {
+        "online_adaptation_algorithm": "rls",
+        "online_adaptation_objective": "bce",
+    }
+    compare._apply_online_cli_overrides(
+        config,
+        {
+            "online_adaptation_algorithm": "sgd",
+            "online_adaptation_objective": "pilot_reconstruction",
+        },
+    )
+
+    assert config["online_adaptation_algorithm"] == "sgd"
+    assert config["online_adaptation_objective"] == "pilot_reconstruction"
