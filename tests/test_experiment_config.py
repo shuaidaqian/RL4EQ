@@ -615,6 +615,43 @@ def test_compare_records_reward_pilot_override(tmp_path):
     assert summary["effective_channel"]["adapt_pilot_total"] == 80
 
 
+def test_compare_records_acquisition_gap_cli_override(tmp_path):
+    output_dir = tmp_path / "compare_acquisition_gap"
+    command = _compare_command(_write_eme_experiment(tmp_path), output_dir)
+    command.extend(["--acquisition-to-data-gap-seconds", "30"])
+
+    subprocess.run(command, check=True, text=True, capture_output=True)
+
+    summary = json.loads((output_dir / "summary.json").read_text(encoding="utf-8"))
+    rows = [
+        json.loads(line)
+        for line in (output_dir / "frame_metrics.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert summary["effective_channel"]["acquisition_to_data_gap_seconds"] == 30.0
+    assert summary["aggregation_role"] == "diagnostic"
+    assert summary["diagnostic_only"] is True
+    assert summary["main_aggregation_allowed"] is False
+    assert {row["acquisition_to_data_gap_seconds"] for row in rows} == {30.0}
+
+
+def test_compare_resume_rejects_different_acquisition_gap(tmp_path):
+    output_dir = tmp_path / "compare_mixed_acquisition_gap"
+    config_path = _write_eme_experiment(tmp_path)
+    subprocess.run(
+        _compare_command(config_path, output_dir),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+
+    command = _compare_command(config_path, output_dir)
+    command.extend(["--acquisition-to-data-gap-seconds", "30", "--resume"])
+    result = subprocess.run(command, check=False, text=True, capture_output=True)
+
+    assert result.returncode != 0
+    assert "acquisition_to_data_gap_seconds" in result.stderr
+
+
 def test_compare_resume_key_distinguishes_reward_pilot_split():
     import compare
 

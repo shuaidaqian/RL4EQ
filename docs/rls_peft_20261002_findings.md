@@ -505,3 +505,56 @@ CFO 平均绝对值约为 `5.8e-4` cycles/symbol。两种方法均不使用神�
 `compare.py` 现支持 `--seed-start`，便于在 `--resume` 输出目录中追加非重叠 seed。15 dB
 最后一次扩样命令使用 `--num-seeds 10 --seed-start 20 --snrs 15`；更早的 seed 0–19
 已保留在同一在线与传统日志目录中。
+
+## acquisition gap 范围复核（2026-10-04）
+
+为判断 120 s 诊断收益是否能在较短状态老化下复现、以及更强失配能否带来更大收益，
+保持同一离线 checkpoint、Level B `heldout_edge`、116-symbol 延迟、prefix Pilot=256、
+`channel_residual + pilot_reconstruction`、固定调度与 Reward Pilot 验收，仅覆盖本次
+运行的 acquisition 到数据段间隔。所有在线记录的 `data_labels_used_online` 均为 `false`，
+Frozen/Online 对应帧的 `state_instance` 不一致数均为 0。这些间隔属于单独诊断，不进入
+gap=0 主配置平均。
+
+### 5 dB 间隔筛查与复核
+
+| Gap | 样本 | Frozen BER | Online BER | 配对收益 | seed 收益（pp） | 结论 |
+|---:|---:|---:|---:|---:|---|---|
+| 30 s | 3 × 12 帧 | 6.7274% | 6.7202% | +0.0072 pp | +0.0000, +0.0217, +0.0000 | 仅筛查，近乎持平 |
+| 60 s | 3 × 12 帧 | 8.1489% | 8.1199% | +0.0289 pp | +0.0543, +0.0217, +0.0109 | 3/3 同向，进入扩样 |
+| 60 s | 5 × 60 帧 | 8.2990% | 8.2639% | +0.0352 pp `[+0.0078, +0.0703]` | +0.0629, +0.0391, +0.0043, +0.0543, +0.0152 | 5/5 同向，区间为正 |
+| 120 s | 5 × 60 帧 | 11.2062% | 11.1237% | +0.0825 pp `[+0.0286, +0.1510]` | 5/5 改善 | 已有正式诊断结果 |
+| 300 s | 3 × 12 帧 | 21.9582% | 21.9437% | +0.0145 pp `[-0.0347, +0.0477]` | +0.0651, +0.0217, -0.0434 | 2/3 同向，未通过扩样门槛 |
+
+60 s 的 5 × 60 区间由逐帧配对差 `BER_frozen - BER_online` 经 30,000 次分层
+bootstrap 计算：先重采样 seed，再在每个 seed 内抽连续 10 帧块。该结果确认 5 dB 下
+在线 PEFT 有跨 seed 的小幅收益，但绝对改善约为 `0.035 pp`，不属于大幅提升。
+
+30/60 s 的全 SNR 3 × 12 帧筛查中，30 s 的 0 dB 平均看似改善 `0.7053 pp`，但 seed
+收益为 `-0.0109、+2.1484、-0.0217 pp`，完全由一个 seed 拉动，不能视为稳定结果；其余
+档位均接近持平。60 s 下 0/10/15 dB 的平均差为 `+0.0109/-0.0036/+0.0109 pp`，样本
+不足以支持稳定跨 SNR 收益。300 s 时 Frozen BER 已大幅升高，但 PEFT 收益没有同步扩大，
+95% 区间跨零，说明“失配越强、在线微调收益越大”不成立；过强状态老化也会超出当前
+适配能力。
+
+综合现有证据，`heldout_edge + 60–120 s acquisition gap` 是当前值得保留的诊断工作区：
+在 5 dB 下已复现小幅、跨 seed 的收益；120 s 正式矩阵还显示 0/5/10/15 dB 均优于
+Frozen。`gap=0` 仍基本持平，因此这个结论限定在 acquisition 状态有一定老化的条件，
+不能包装成通用在线 PEFT 已解决，也不能声称收益很大。下一步应检查在线帧数增加是否能
+继续扩大 60–120 s 条件下的收益，并同时确认参数更新没有跨帧累积退化。
+
+本轮日志：
+
+- `logs/acqgap30_channel_recon_heldout_edge_3s12f_20261004/`
+- `logs/acqgap60_channel_recon_heldout_edge_3s12f_20261004/`
+- `logs/acqgap60_channel_recon_heldout_edge_5db_5s60f_20261004/`
+- `logs/acqgap300_channel_recon_heldout_edge_5db_3s12f_20261004/`
+
+正式 60 s 复现命令：
+
+```powershell
+.\.venv-gpu\Scripts\python.exe compare.py --config configs/diagnostics/eme_long_memory_v2_gap120_input_affine.json --method-group proposed --pretrained pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --delays 116 --snrs 5 --num-seeds 5 --frames 60 --pilot-total 256 --pilot-layout prefix --state-split heldout_edge --online-groups channel_residual --online-algorithm sgd --online-objective pilot_reconstruction --online-freeze-below-snr-db -1 --scheduler fixed --update-interval 1 --acquisition-to-data-gap-seconds 60 --output-dir logs/acqgap60_channel_recon_heldout_edge_5db_5s60f_20261004
+```
+
+`compare.py` 新增 `--acquisition-to-data-gap-seconds` 本次运行覆盖参数，并在摘要中将该
+运行标记为 `diagnostic_only=true`、`main_aggregation_allowed=false`；resume 会拒绝把不同
+gap 的帧记录混入同一输出目录。

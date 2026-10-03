@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -257,6 +258,12 @@ def main() -> None:
     parser.add_argument("--frames", type=int, default=2)
     parser.add_argument("--pilot-total", type=int, default=None)
     parser.add_argument("--reward-pilot-total", type=int, default=None)
+    parser.add_argument(
+        "--acquisition-to-data-gap-seconds",
+        type=float,
+        default=None,
+        help="仅覆盖本次运行的 acquisition 到首个数据帧间隔。",
+    )
     parser.add_argument("--pilot-layout", default=None)
     parser.add_argument("--state-split", choices=["offline_train", "heldout_edge", "drift"], default=None)
     parser.add_argument(
@@ -313,11 +320,29 @@ def main() -> None:
     args = parser.parse_args()
     if args.seed_start < 0:
         parser.error("--seed-start 必须是非负整数。")
+    if args.acquisition_to_data_gap_seconds is not None and (
+        not math.isfinite(args.acquisition_to_data_gap_seconds)
+        or args.acquisition_to_data_gap_seconds < 0.0
+    ):
+        parser.error("--acquisition-to-data-gap-seconds 必须是有限非负数。")
     if args.version:
         print("RL4EQ continual-ppo schema-v1")
         return
     selected_methods = method_group(args.method_group) if args.method_group else _select_methods(args.methods)
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    if args.acquisition_to_data_gap_seconds is not None:
+        config["acquisition_to_data_gap_seconds"] = args.acquisition_to_data_gap_seconds
+        config["aggregation_role"] = "diagnostic"
+        config["diagnostic_only"] = True
+        config["main_aggregation_allowed"] = False
+        profile_prior = config.get("profile_prior")
+        if isinstance(profile_prior, dict):
+            profile_prior = dict(profile_prior)
+            profile_prior["candidate_id"] = (
+                "B-acquisition-gap-"
+                f"{args.acquisition_to_data_gap_seconds:g}s-diagnostic"
+            )
+            config["profile_prior"] = profile_prior
     _apply_online_cli_overrides(
         config,
         {
@@ -407,6 +432,21 @@ def main() -> None:
             "--resume 检测到不兼容的 profile_name："
             f"已有 {sorted(existing_profiles)}，当前 {expected_profile}。"
         )
+    existing_gaps = {
+        float(
+            row.get(
+                "acquisition_to_data_gap_seconds",
+                row.get("state_instance", {}).get("acquisition_to_data_gap_seconds", 0.0),
+            )
+        )
+        for row in existing_rows
+    }
+    expected_gap = float(effective_channel["acquisition_to_data_gap_seconds"])
+    if existing_gaps and existing_gaps != {expected_gap}:
+        raise ValueError(
+            "--resume 检测到不兼容的 acquisition_to_data_gap_seconds："
+            f"已有 {sorted(existing_gaps)}，当前 {expected_gap:g}。"
+        )
     existing_keys = {_row_key(row) for row in existing_rows}
     rows = list(existing_rows)
     mode = "a" if args.resume else "w"
@@ -492,6 +532,9 @@ def main() -> None:
                             payload["impairment_profile"] = impairment_profile
                             payload["profile_residual_cfo_limit"] = residual_cfo_limit
                             payload["profile_acquisition_cfo_limit"] = acquisition_cfo_limit
+                            payload["acquisition_to_data_gap_seconds"] = float(
+                                env_config.acquisition_to_data_gap_seconds
+                            )
                             payload["reward_pilot_total"] = int(frame.reward_mask.sum().item())
                             payload["adapt_pilot_total"] = int(frame.adapt_mask.sum().item())
                             payload["state_split"] = args.state_split
@@ -538,6 +581,9 @@ def main() -> None:
         "effective_channel": effective_channel,
         "impairment_profile": impairment_profile,
         "state_split": args.state_split,
+        "aggregation_role": str(config.get("aggregation_role", "main")),
+        "diagnostic_only": bool(config.get("diagnostic_only", False)),
+        "main_aggregation_allowed": bool(config.get("main_aggregation_allowed", True)),
         "online_condition_source": config.get("online_condition_source", "pilot_cir_phase"),
         "online_scheduler": args.scheduler,
         "profile_prior": profile_prior,
@@ -2486,7 +2532,7 @@ def _load_existing_rows(jsonl: Path) -> list[dict]:
     return [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def _row_key(row: dict) -> tuple[str, int, float, int, int, int, int, str, str, str]:
+def _row_key(row: dict) -> tuple[str, int, float, int, int, int, int, str, str, str, float]:
     return (
         str(row["method"]),
         int(row["delay"]),
@@ -2498,6 +2544,12 @@ def _row_key(row: dict) -> tuple[str, int, float, int, int, int, int, str, str, 
         str(row.get("pilot_layout", "")),
         str(row.get("impairment_profile", "clean")),
         str(row.get("condition_source", "")),
+        float(
+            row.get(
+                "acquisition_to_data_gap_seconds",
+                row.get("state_instance", {}).get("acquisition_to_data_gap_seconds", 0.0),
+            )
+        ),
     )
 
 
