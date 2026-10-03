@@ -294,6 +294,121 @@ def test_zero_initialized_logit_affine_adapter_is_identity_and_isolated_group():
     assert not any(parameter.requires_grad for parameter in adapter.parameters())
 
 
+def test_zero_initialized_physics_blend_adapter_is_identity_and_isolated_group():
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    checkpoint_keys = set(model.state_dict())
+    adapter = model.attach_online_physics_blend_adapter()
+    assert checkpoint_keys.issubset(set(model.state_dict()))
+    assert set(model.peft.parameters({"physics_blend"})) == set(adapter.parameters())
+    physics_logits = torch.randn(1, 32)
+    neural_logits = torch.randn(1, 32)
+    physics_after, neural_after = adapter(physics_logits, neural_logits)
+    assert torch.allclose(physics_after, physics_logits)
+    assert torch.allclose(neural_after, neural_logits)
+
+    model.set_trainable_groups({"physics_blend"})
+    trainable = model.trainable_parameters()
+    assert trainable
+    assert set(trainable) == set(adapter.parameters())
+    model.set_trainable_groups(set())
+    assert not any(parameter.requires_grad for parameter in adapter.parameters())
+
+
+def test_zero_initialized_physics_residual_adapter_is_identity_and_isolated_group():
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    checkpoint_keys = set(model.state_dict())
+    adapter = model.attach_online_physics_residual_adapter()
+    assert checkpoint_keys.issubset(set(model.state_dict()))
+    assert set(model.peft.parameters({"physics_residual"})) == set(adapter.parameters())
+    features = torch.randn(1, 32, 5)
+    assert torch.allclose(adapter(features), torch.zeros(1, 32, 1))
+
+    model.set_trainable_groups({"physics_residual"})
+    trainable = model.trainable_parameters()
+    assert trainable
+    assert set(trainable) == set(adapter.parameters())
+    model.set_trainable_groups(set())
+    assert not any(parameter.requires_grad for parameter in adapter.parameters())
+
+
+def test_zero_initialized_phase_trend_adapter_is_identity_and_isolated_group():
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    checkpoint_keys = set(model.state_dict())
+    adapter = model.attach_online_phase_trend_adapter()
+    assert checkpoint_keys.issubset(set(model.state_dict()))
+    assert set(model.peft.parameters({"phase_trend"})) == set(adapter.parameters())
+    rx_iq = torch.randn(1, 32, 2)
+    assert torch.allclose(adapter(rx_iq), rx_iq)
+
+    model.set_trainable_groups({"phase_trend"})
+    trainable = model.trainable_parameters()
+    assert trainable
+    assert set(trainable) == set(adapter.parameters())
+    model.set_trainable_groups(set())
+    assert not any(parameter.requires_grad for parameter in adapter.parameters())
+
+
+def test_zero_initialized_channel_residual_adapter_is_identity_and_isolated_group():
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    checkpoint_keys = set(model.state_dict())
+    adapter = model.attach_online_channel_residual_adapter()
+    assert checkpoint_keys.issubset(set(model.state_dict()))
+    assert set(model.peft.parameters({"channel_residual"})) == set(adapter.parameters())
+    cir = torch.randn(1, 5, dtype=torch.complex64)
+    assert torch.allclose(adapter(cir), cir)
+
+    model.set_trainable_groups({"channel_residual"})
+    trainable = model.trainable_parameters()
+    assert trainable
+    assert set(trainable) == set(adapter.parameters())
+    model.set_trainable_groups(set())
+    assert not any(parameter.requires_grad for parameter in adapter.parameters())
+
+
 def test_zero_initialized_input_affine_adapter_is_identity_and_isolated_group():
     from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 

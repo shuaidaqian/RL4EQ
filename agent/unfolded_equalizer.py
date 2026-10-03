@@ -93,6 +93,112 @@ class OnlineLogitAffineAdapter(nn.Module):
         return gain * logits + bias
 
 
+class OnlinePhysicsBlendAdapter(nn.Module):
+    """在线微调物理 warm-start 与神经残差的相对增益。
+
+    两个参数都以零初始化，初始状态严格等价于离线模型。该模块不修改 CIR、
+    phase 或接收信号，只改变前向路径中两条已有 logit 分支的组合比例，使
+    Adapt Pilot 的监督可以直接作用到主导物理 warm-start 误差。
+    """
+
+    def __init__(self, max_physics_delta: float = 0.75, max_neural_delta: float = 1.5):
+        super().__init__()
+        self.max_physics_delta = float(max_physics_delta)
+        self.max_neural_delta = float(max_neural_delta)
+        self.raw_physics_gain = nn.Parameter(torch.zeros((), dtype=torch.float32))
+        self.raw_neural_gain = nn.Parameter(torch.zeros((), dtype=torch.float32))
+        mark_peft_group(self, "physics_blend")
+
+    def forward(
+        self,
+        physics_logits: torch.Tensor,
+        neural_logits: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        physics_gain = 1.0 + self.max_physics_delta * torch.tanh(self.raw_physics_gain)
+        neural_gain = 1.0 + self.max_neural_delta * torch.tanh(self.raw_neural_gain)
+        return (
+            physics_logits * physics_gain.to(physics_logits.dtype),
+            neural_logits * neural_gain.to(neural_logits.dtype),
+        )
+
+
+class OnlinePhysicsResidualAdapter(nn.Module):
+    """在线学习物理迭代残差到判决 logit 的低维 PEFT 映射。
+
+    该模块不估计或替换 CIR/phase，只把当前前向路径已经产生的物理量作为
+    输入，学习一个有界的残差头。参数全部零初始化，挂载时严格等价于离线
+    模型；更新只由 Adapt Pilot 的 BCE 产生，因此可以直接检查它能否把 Pilot
+    上学到的物理失配迁移到 Data 区域。
+    """
+
+    def __init__(self, max_output_delta: float = 4.0):
+        super().__init__()
+        self.max_output_delta = float(max_output_delta)
+        # [物理 logit、proposal 实部、残差实部、残差虚部、归一化位置]
+        self.linear = nn.Linear(5, 1)
+        nn.init.zeros_(self.linear.weight)
+        nn.init.zeros_(self.linear.bias)
+        mark_peft_group(self, "physics_residual")
+
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        raw = self.linear(features)
+        return self.max_output_delta * torch.tanh(raw)
+
+
+class OnlinePhaseTrendAdapter(nn.Module):
+    """在线微调接收 IQ 的公共相位与线性相位趋势。
+
+    这是挂载在神经均衡器输入端的两个可训练 PEFT 参数，而不是 CIR/phase
+    状态估计器：参数从零初始化，Adapt Pilot BCE 直接更新，Reward Pilot 只
+    决定是否保留更新。零初始化保证在线模块关闭时与离线模型完全一致。
+    """
+
+    def __init__(self, max_phase: float = 0.5, max_cfo: float = 0.0012):
+        super().__init__()
+        self.max_phase = float(max_phase)
+        self.max_cfo = float(max_cfo)
+        self.raw_phase = nn.Parameter(torch.zeros((), dtype=torch.float32))
+        self.raw_cfo = nn.Parameter(torch.zeros((), dtype=torch.float32))
+        mark_peft_group(self, "phase_trend")
+
+    def forward(self, rx_iq: torch.Tensor) -> torch.Tensor:
+        frame_len = int(rx_iq.shape[1])
+        position = torch.arange(
+            frame_len,
+            device=rx_iq.device,
+            dtype=rx_iq.dtype,
+        )
+        phase0 = self.max_phase * torch.tanh(self.raw_phase).to(rx_iq.dtype)
+        cfo = self.max_cfo * torch.tanh(self.raw_cfo).to(rx_iq.dtype)
+        phase = phase0 + 2.0 * torch.pi * cfo * position
+        complex_rx = torch.complex(rx_iq[..., 0], rx_iq[..., 1]).to(torch.complex64)
+        corrected = complex_rx * torch.exp(-1j * phase).to(torch.complex64)
+        return torch.stack((corrected.real, corrected.imag), dim=-1).to(rx_iq.dtype)
+
+
+class OnlineChannelResidualAdapter(nn.Module):
+    """在线微调 acquisition CIR 的零初始化复数残差参数。
+
+    该模块是均衡器的一组 PEFT 参数，不调用 CIR 估计器，也不读取 Data 标签。
+    只在前向中给当前条件的 CIR 增加有界、可回滚的复数残差；初始值为零，
+    由 Adapt Pilot BCE 更新，Reward Pilot 决定是否保留。
+    """
+
+    def __init__(self, max_delay: int, max_tap_delta: float = 0.12):
+        super().__init__()
+        self.max_tap_delta = float(max_tap_delta)
+        tap_count = int(max_delay) + 1
+        if tap_count <= 0:
+            raise ValueError("max_delay 必须为非负数。")
+        self.raw_taps = nn.Parameter(torch.zeros(tap_count, 2, dtype=torch.float32))
+        mark_peft_group(self, "channel_residual")
+
+    def forward(self, cir: torch.Tensor) -> torch.Tensor:
+        delta = self.max_tap_delta * torch.tanh(self.raw_taps).to(cir.real.dtype)
+        delta_complex = torch.complex(delta[:, 0], delta[:, 1]).to(cir.dtype)
+        return cir + delta_complex.unsqueeze(0)
+
+
 class OnlineInputAffineAdapter(nn.Module):
     """在线微调接收前端的有界实值仿射 Adapter。
 
@@ -303,6 +409,10 @@ class UnfoldedEqualizer(nn.Module):
         self.damping = nn.Parameter(torch.full((self.config.iterations,), 0.2))
         # 该模块只在在线运行时动态挂载，不进入离线 checkpoint。
         self.online_residual_adapter: ResidualLogitAdapter | None = None
+        self.online_physics_blend_adapter: OnlinePhysicsBlendAdapter | None = None
+        self.online_physics_residual_adapter: OnlinePhysicsResidualAdapter | None = None
+        self.online_phase_trend_adapter: OnlinePhaseTrendAdapter | None = None
+        self.online_channel_residual_adapter: OnlineChannelResidualAdapter | None = None
         self.online_logit_affine_adapter: OnlineLogitAffineAdapter | None = None
         self.online_input_affine_adapter: OnlineInputAffineAdapter | None = None
         self.online_input_trend_adapter: OnlineInputTrendAdapter | None = None
@@ -330,7 +440,17 @@ class UnfoldedEqualizer(nn.Module):
             rx_iq = self.online_input_trend_adapter(rx_iq)
         if self.online_input_fir_adapter is not None:
             rx_iq = self.online_input_fir_adapter(rx_iq)
+        if self.online_channel_residual_adapter is not None:
+            condition = CIRCondition(
+                complex_cir=self.online_channel_residual_adapter(condition.complex_cir),
+                support_probability=condition.support_probability,
+                noise_variance=condition.noise_variance,
+                confidence=condition.confidence,
+                latent_residual=condition.latent_residual,
+            )
         rx_iq = self._apply_phase_correction(rx_iq, condition)
+        if self.online_phase_trend_adapter is not None:
+            rx_iq = self.online_phase_trend_adapter(rx_iq)
         self._last_online_features = None
         pilot_context = None
         if self.config.pilot_conditioned:
@@ -359,10 +479,17 @@ class UnfoldedEqualizer(nn.Module):
                     ].to(hidden.device, hidden.dtype)
                 hidden = block(hidden, adapter_gate=adapter_gate, lora_scale=lora_scale)
             neural_logits = self.head(hidden).squeeze(-1)
+            physics_logits_for_mix = physics_logits
+            neural_logits_for_mix = neural_logits
+            if self.online_physics_blend_adapter is not None:
+                physics_logits_for_mix, neural_logits_for_mix = self.online_physics_blend_adapter(
+                    physics_logits_for_mix,
+                    neural_logits_for_mix,
+                )
             logits = self._apply_head_modulation(
-                float(self.config.neural_residual_scale) * neural_logits
+                float(self.config.neural_residual_scale) * neural_logits_for_mix
                 + self._analytic_logit_skip(proposal, condition)
-                + physics_logits,
+                + physics_logits_for_mix,
                 modulation,
             )
             damping = torch.sigmoid(self.damping[layer])
@@ -372,6 +499,32 @@ class UnfoldedEqualizer(nn.Module):
             # 只在全部展开迭代结束后叠加残差，保证 RLS 的特征不被 Adapter 反向改变。
             self._last_online_features = hidden.detach()
             logits = logits + self.online_residual_adapter(hidden).squeeze(-1)
+        if self.online_physics_residual_adapter is not None:
+            physics_features = torch.stack(
+                (
+                    physics_logits,
+                    proposal.real,
+                    residual.real,
+                    residual.imag,
+                    torch.linspace(
+                        -1.0,
+                        1.0,
+                        logits.shape[1],
+                        device=logits.device,
+                        dtype=logits.dtype,
+                    ).expand(logits.shape[0], -1),
+                ),
+                dim=-1,
+            )
+            physics_features = torch.tanh(
+                physics_features
+                / torch.tensor(
+                    [8.0, 2.0, 2.0, 2.0, 1.0],
+                    device=physics_features.device,
+                    dtype=physics_features.dtype,
+                )
+            )
+            logits = logits + self.online_physics_residual_adapter(physics_features).squeeze(-1)
         if self.online_logit_affine_adapter is not None:
             logits = self.online_logit_affine_adapter(logits)
         if self.online_logit_fir_adapter is not None:
@@ -401,6 +554,50 @@ class UnfoldedEqualizer(nn.Module):
             adapter.train(self.training)
             self.online_logit_affine_adapter = adapter
         return self.online_logit_affine_adapter
+
+    def attach_online_physics_blend_adapter(self) -> OnlinePhysicsBlendAdapter:
+        """动态挂载恒等初始化的物理/神经分支增益 Adapter。"""
+
+        if self.online_physics_blend_adapter is None:
+            adapter = OnlinePhysicsBlendAdapter()
+            reference = next(self.parameters())
+            adapter = adapter.to(device=reference.device, dtype=reference.dtype)
+            adapter.train(self.training)
+            self.online_physics_blend_adapter = adapter
+        return self.online_physics_blend_adapter
+
+    def attach_online_physics_residual_adapter(self) -> OnlinePhysicsResidualAdapter:
+        """动态挂载恒等初始化的物理残差头。"""
+
+        if self.online_physics_residual_adapter is None:
+            adapter = OnlinePhysicsResidualAdapter()
+            reference = next(self.parameters())
+            adapter = adapter.to(device=reference.device, dtype=reference.dtype)
+            adapter.train(self.training)
+            self.online_physics_residual_adapter = adapter
+        return self.online_physics_residual_adapter
+
+    def attach_online_phase_trend_adapter(self) -> OnlinePhaseTrendAdapter:
+        """动态挂载恒等初始化的输入相位趋势 PEFT。"""
+
+        if self.online_phase_trend_adapter is None:
+            adapter = OnlinePhaseTrendAdapter()
+            reference = next(self.parameters())
+            adapter = adapter.to(device=reference.device, dtype=reference.dtype)
+            adapter.train(self.training)
+            self.online_phase_trend_adapter = adapter
+        return self.online_phase_trend_adapter
+
+    def attach_online_channel_residual_adapter(self) -> OnlineChannelResidualAdapter:
+        """动态挂载恒等初始化的信道残差 PEFT。"""
+
+        if self.online_channel_residual_adapter is None:
+            adapter = OnlineChannelResidualAdapter(self.config.max_delay)
+            reference = next(self.parameters())
+            adapter = adapter.to(device=reference.device, dtype=reference.dtype)
+            adapter.train(self.training)
+            self.online_channel_residual_adapter = adapter
+        return self.online_channel_residual_adapter
 
     def attach_online_input_affine_adapter(self) -> OnlineInputAffineAdapter:
         """动态挂载恒等初始化的接收前端参数 Adapter。"""

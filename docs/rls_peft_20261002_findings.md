@@ -289,6 +289,36 @@ Reward Pilot 验收后真正保留的帧级参数更新，不代表算法已经�
 跨 seed 方向一致、Reward Pilot 不依赖 Data 标签。离线训练、Level B 主配置和正式
 5 seeds × 60 帧矩阵在新候选出现稳定正向信号前保持不变。
 
+## 物理分支与结构化 PEFT 诊断（2026-10-03）
+
+为直接检验“主导物理 warm-start 使神经 Adapter 只能改变置信度”的判断，增加了三个
+零初始化、动态挂载的参数组。它们都通过 `PEFTRegistry` 管理，在线梯度只使用 Adapt
+Pilot，Reward Pilot 只用于验收和回滚；没有修改离线 checkpoint，也没有把 CIR/phase
+估计器的输出写回在线参数。
+
+| 参数组 | 可训练对象 | 诊断结果 |
+|---|---|---|
+| `physics_blend` | 物理 warm-start 与神经 residual 两个分支增益 | 3 seeds × 12 帧、gap=120 s、10/15 dB 中有 12/72 帧改变 Data 连续 logit，但 0 帧改变 Data BER |
+| `physics_residual` | `[physics logit, proposal, residual, position]` 到 logit 的 5 维残差头 | 10 dB 有 12/36 帧真正保留更新，全部改变连续 logit，但 0 帧改变 Data BER；15 dB 有 9/36 帧更新，同样 0 帧改变 Data BER |
+| `phase_trend` | 输入端公共相位和线性相位趋势两个 PEFT 参数 | phase-only 单 seed × 12 帧中 5 dB 退化约 0.0109 pp，10/15 dB 无 Data BER 变化 |
+| `channel_residual` | 117 个 CIR tap 的复数残差参数 | 1 seed 探针在 10 dB 有 +0.0543 pp；扩大到 3 seeds 后平均仅 +0.0181 pp，只有 1/3 seed 改善，15 dB 无更新被保留 |
+
+`channel_residual` 是这轮最接近目标的候选，因为它首次在 Data 硬判决上产生了真实变化，
+但 3 seeds 结果仍不足以证明稳定收益，不能进入 Level B 主平均，也不能写成“在线稳定
+超过离线”。当前结果更准确的表述是：在线参数确实可以通过 Pilot 修正部分 acquisition
+信道失配，但小样本 Reward Pilot 的验收在高 SNR 下经常拒绝更新，且跨 seed 方向不一致。
+
+本轮可复现实验命令（均为诊断，不进入主统计）：
+
+```powershell
+.\.venv-gpu\Scripts\python.exe compare.py --config configs/diagnostics/eme_long_memory_v2_gap120_input_affine.json --method-group main --pretrained pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --delays 116 --snrs 10 15 --num-seeds 3 --frames 12 --pilot-total 256 --pilot-layout prefix --online-groups channel_residual --scheduler fixed --update-interval 1 --resume --output-dir logs/gap120_channel_residual_fixed_3s12f_20261003
+```
+
+当前判断没有改变：仅继续调学习率、步数、门控阈值或同类低维 Adapter，缺少能产生稳定
+收益的机制依据。若要继续追求目标，下一步必须改变 Pilot 监督到 Data 的迁移结构，并
+在扩大矩阵前同时满足：至少多数 seed 改善、Data 硬判决确实变化、Reward Pilot 不使用
+Data 标签、且低 SNR 不出现系统性退化。
+
 本轮代码回归覆盖动态挂载、PEFT 分组隔离、恒等初始化和 Adapt Pilot-only 更新；
 诊断配置位于 `configs/diagnostics/eme_long_memory_v2_gap120_input_affine.json` 与
 `configs/diagnostics/eme_long_memory_v2_gap120_logit_affine.json`，均设置
