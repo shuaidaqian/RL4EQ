@@ -122,6 +122,81 @@ def test_compare_resume_key_distinguishes_online_condition_source():
 
     assert compare._row_key(acquisition) != compare._row_key(pilot)
 
+
+def test_pure_peft_contract_reports_parameter_groups_and_label_boundaries():
+    import compare
+
+    config = {
+        "online_adaptation_groups": ["phase_trend", "head"],
+        "online_condition_source": "acquisition",
+    }
+    groups, _ = compare._online_groups_from_config(config, None)
+
+    assert groups == {"phase_trend", "head"}
+    assert compare._online_condition_source_from_config(config, None) == "acquisition"
+
+
+def test_internal_peft_groups_are_distinct_from_cir_state_update():
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    model.attach_online_phase_trend_adapter()
+    model.set_trainable_groups({"phase_trend", "head"})
+
+    trainable = model.trainable_parameters()
+    assert trainable
+    assert all(
+        getattr(parameter, "_peft_group", None) in {"phase_trend", "head"}
+        for parameter in trainable
+    )
+    assert not any(
+        getattr(parameter, "_peft_group", None) == "phase"
+        for parameter in trainable
+    )
+
+
+def test_frozen_and_online_share_explicit_acquisition_condition_source():
+    import compare
+
+    model_config = UnfoldedConfig(
+        frame_len=16,
+        max_delay=2,
+        iterations=1,
+        d_model=16,
+        num_heads=4,
+        pilot_conditioned=True,
+    )
+    config = {
+        "model": model_config.to_dict(),
+        "online_adaptation_groups": ["phase_trend", "head"],
+        "online_condition_source": "acquisition",
+        "online_adaptation_candidates": [
+            {"name": "candidate", "groups": ["phase_trend", "head"]}
+        ],
+    }
+    states = compare._build_method_states(
+        ("Frozen Offline NN", "Pilot-Driven Online Adaptation"),
+        torch.zeros(3, dtype=torch.complex64),
+        torch.tensor([1.0 + 0.0j, 0.0j, 0.0j]),
+        config,
+        delay=2,
+        snr_db=10.0,
+        seed=0,
+        device="cpu",
+        cir_update_mode="fixed",
+        scheduler="fixed",
+    )
+
+    assert states["Frozen Offline NN"].condition_source == "acquisition"
+    assert states["Pilot-Driven Online Adaptation"].condition_source == "acquisition"
+
 from agent.cir_estimator import condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from training.online_adaptation import (

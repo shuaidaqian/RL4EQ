@@ -947,24 +947,22 @@ def _build_method_states(
             model = _build_equalizer(model_config, pretrained_path, device)
             modulation_config = ModulationConfig(num_adapter_gates=len(model.blocks), num_lora_scales=len(model.blocks))
             if method == "Frozen Offline NN":
-                # Frozen 只冻结离线网络参数，不冻结推理时已知的当前帧 Pilot 条件。
-                # 这样它代表“离线训练后的网络直接推理”，而不是过时 acquisition
-                # 状态下的失配诊断组；当前帧 CIR 和 PEFT 参数仍不会在线更新。
+                # Frozen 只冻结离线网络参数；条件来源由配置显式指定，
+                # 以保证 Frozen 与 Online 的纯 PEFT 比较使用同一状态条件。
                 condition_update_mode = "fixed"
-                condition_source = (
-                    _online_condition_source_from_config(
-                        config,
-                        online_condition_source_override,
-                    )
-                    if online_condition_source_override is not None
-                    else "pilot_cir_phase"
+                condition_source = _online_condition_source_from_config(
+                    config,
+                    online_condition_source_override,
                 )
             elif method == "Pilot CIR only":
                 condition_update_mode = "pilot_sparse"
                 condition_source = "pilot_cir_phase"
             else:
                 condition_update_mode = str(cir_update_mode)
-                condition_source = "pilot_cir_phase" if condition_update_mode == "pilot_sparse" else "acquisition"
+                condition_source = _online_condition_source_from_config(
+                    config,
+                    online_condition_source_override,
+                )
             states[method] = NeuralMethodState(
                 cir=acquisition_cir.clone().to(device),
                 receiver_state=ReceiverState(initial_soft_tail.clone().to(device)),
@@ -1626,6 +1624,13 @@ def _run_pilot_online_method(
 
     device = next(state.model.parameters()).device
     frame_device = _frame_to_device(frame, device)
+    online_parameter_groups = tuple(sorted(state.adapter.groups))
+    online_parameter_items = state.model.peft.named_group_parameters(
+        online_parameter_groups
+    )
+    online_parameter_count = int(
+        sum(parameter.numel() for _, parameter in online_parameter_items)
+    )
     cir_before_frame = state.cir.detach().clone()
     updates_frozen = _online_updates_are_frozen(snr_db, state.freeze_online_below_snr_db)
     update_scheduled = _online_update_is_scheduled(frame_index, update_interval)
@@ -2023,7 +2028,9 @@ def _run_pilot_online_method(
             "online_update_scheduled": bool(update_scheduled),
             "online_update_interval": int(update_interval),
             "online_update_skipped": bool(not update_scheduled),
-            "online_condition_update_applied": not updates_frozen,
+            "online_condition_update_applied": bool(
+                state.condition_source != "acquisition" and not updates_frozen
+            ),
             "online_adaptation_freeze_below_snr_db": freeze_below_db,
             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
@@ -2045,6 +2052,14 @@ def _run_pilot_online_method(
             ),
             "online_proximal_weight": float(state.adapter.proximal_weight),
             "peft_update_guarded": True,
+            "online_parameter_groups": list(online_parameter_groups),
+            "online_parameter_count": online_parameter_count,
+            "online_parameter_role": "equalizer_internal_peft",
+            "adapt_pilot_only": True,
+            "reward_pilot_role": "acceptance_and_rollback",
+            "reward_pilot_guard_only": bool(
+                state.scheduler == "fixed" and len(candidates) <= 1
+            ),
             "parameter_delta_norm": float(
                 adaptation.parameter_delta_norm
                 if adaptation is not None and accepted
