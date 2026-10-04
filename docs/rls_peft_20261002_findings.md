@@ -558,3 +558,45 @@ Frozen。`gap=0` 仍基本持平，因此这个结论限定在 acquisition 状�
 `compare.py` 新增 `--acquisition-to-data-gap-seconds` 本次运行覆盖参数，并在摘要中将该
 运行标记为 `diagnostic_only=true`、`main_aggregation_allowed=false`；resume 会拒绝把不同
 gap 的帧记录混入同一输出目录。
+
+### 120 s gap 的长序列复核（5 seeds × 120 帧，2026-10-04）
+
+为确认 120 s 状态老化下的收益是否会随在线帧数增加而扩大，继续使用上一节完全相同的
+离线 checkpoint、Level B `heldout_edge`、5 dB、116-symbol 延迟、prefix Pilot=256、
+`channel_residual + pilot_reconstruction` 和固定调度，仅把在线长度从 60 帧扩展到 120 帧。
+Frozen 与 Online 使用同一 seed、同一帧的接收轨迹；逐帧 `state_instance` 不一致数为 0，
+600 条 Online 记录的 `data_labels_used_online` 均为 `false`。
+
+| 帧区间 | Frozen BER | Online BER | 配对收益（95% CI） | 5 个 seed 方向 |
+|---|---:|---:|---:|---:|
+| 1–60 | 11.2062% | 11.1237% | +0.0825 pp `[+0.0425, +0.1254]` | 5/5 改善 |
+| 61–120 | 11.8832% | 11.6515% | +0.2318 pp `[+0.1454, +0.3863]` | 5/5 改善 |
+| 1–120 | 11.5447% | 11.3876% | +0.1571 pp `[+0.0922, +0.2433]` | 5/5 改善 |
+
+区间采用逐帧配对差的分层 block bootstrap：先重采样 seed，再在每个 seed 内抽取连续 10 帧
+块。后半段收益约为前半段的 2.8 倍，支持“在线参数逐步吸收 acquisition-to-data 状态
+老化信息”的现象；这不是单纯由某一个 seed 拉动，后半段每个 seed 的收益均为正，分别为
+`+0.4123、+0.2756、+0.1345、+0.2192、+0.1172 pp`。
+
+长序列中共保留 207 次 PEFT 更新，85 次记录触发回滚，393 个候选未被保留；被保留更新的
+`parameter_delta_norm` 平均为 `0.01134`、最大为 `0.01993`。前后半段保留更新次数分别为
+109 和 98，说明后半段收益扩大并不是因为更新次数增加，而更可能来自已保留的参数逐步积累。
+同时，回滚比例并不低（85/600），因此现有“Reward Pilot 通过才保留”的验收机制仍需在
+更大矩阵中检查其稳定性，不能把该结果表述成无条件的在线增益。
+
+这组结果把当前证据边界进一步收窄并变得清楚：在 `heldout_edge + 120 s acquisition gap`
+这一诊断工作区，Pilot 重构驱动的 CIR-PEFT 能随在线帧数增加稳定超过冻结离线模型，且收益
+从约 `0.08 pp` 增加到约 `0.23 pp`；但该结论仍不适用于 `gap=0` 主配置，也没有证明在
+300 s 过强失配下同样有效。下一步应优先分析回滚与参数漂移的关系，并评估是否能把可辨识的
+在线目标限制在 CIR/phase residual 等少量物理相关参数上；在此之前不应继续扩大同类
+Adapter 的学习率或容量来追求更大的数字。
+
+本轮日志：
+
+- `logs/gap120_channel_recon_heldout_edge_5db_5s120f_20261004/`
+
+复现实验命令：
+
+```powershell
+.\.venv-gpu\Scripts\python.exe compare.py --config configs/diagnostics/eme_long_memory_v2_gap120_input_affine.json --methods "Frozen Offline NN" "Pilot-Driven Online Adaptation" --pretrained pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --delays 116 --snrs 5 --num-seeds 5 --frames 120 --pilot-total 256 --pilot-layout prefix --state-split heldout_edge --online-groups channel_residual --online-algorithm sgd --online-objective pilot_reconstruction --online-freeze-below-snr-db -1 --scheduler fixed --update-interval 1 --acquisition-to-data-gap-seconds 120 --output-dir logs/gap120_channel_recon_heldout_edge_5db_5s120f_20261004
+```
