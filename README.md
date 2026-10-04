@@ -27,6 +27,7 @@ Level A/B/C 可控信道族
 - Level A 用于课程学习和可达性校准；Level C 只作为压力测试，不混入 Level B 主平均。
 - 接收机是整帧缓冲、非因果块神经均衡器；“在线”指信道运行期间按帧持续适配，不是逐符号即时输出。
 - 当前主比较只保留传统均衡器、`Frozen Offline NN` 和 `Pilot-Driven Online Adaptation`；早期 PPO/调制策略仅作为代码兼容或专项消融，不作为主对照。
+- 当前纯参数微调主路径记录在 [`docs/online_peft_phase_trend_head_route.md`](/D:/Research/RL4EQ/docs/online_peft_phase_trend_head_route.md)：保持 acquisition 条件和 CIR 固定，只用 Adapt Pilot 更新均衡器内部 `phase_trend + head`（67 个参数），Reward Pilot 只做验收/回滚，Data 标签只做最终评估。该路径已完成 5 seeds × 60 frames 的配对 replay，并稳定超过同一 Frozen Offline NN；绝对 BER 和传统 baseline 对照仍需单独报告。
 - 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须包含基于 Pilot 的合理补偿，不能人为打残 baseline。
 - Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真 `BER_data` 评估。
 - 在线 observation、reward、动作选择和调制更新不使用数据标签上界。
