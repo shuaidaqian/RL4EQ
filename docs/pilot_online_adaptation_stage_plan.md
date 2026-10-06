@@ -82,6 +82,11 @@ RLS、input/logit affine、input FIR、physics residual 等候选要么不改变
 
 Data 只能用于事后计算排序相关性和 BER，不能进入候选选择过程。
 
+当前进度：已有窗口 replay 和 `channel_residual + pilot_reconstruction` 诊断结果；统一
+三目标的排序报告尚未完成。现有 `evaluate_peft_window_candidates` 在长记忆物理 warm-start
+下计算成本较高，后续 replay 必须使用固定候选、较短窗口和可复现的分层统计，不能直接扩大
+到大矩阵后再解释排序失败。
+
 ### 阶段 B：状态条件化 PEFT
 
 由 Adapt Pilot 产生低维状态 embedding，至少包含：
@@ -95,10 +100,17 @@ Data 只能用于事后计算排序相关性和 BER，不能进入候选选择�
 embedding 只调制 `channel_residual`、Adapter、FiLM 或 LoRA 等受限参数，不能退化成
 只恢复 CIR/phase 而不修改均衡器参数。
 
+当前进度：新增了只读的 `agent/pilot_state.py`，可生成 6 维状态摘要/有界 embedding，
+并记录到 compare 审计字段。该 embedding 目前不改变在线动作；其中 CIR residual 和重构误差
+仍是审计占位值，尚未接入 PEFT 调制，不能视为状态条件化已经完成。
+
 ### 阶段 C：漂移检测与异步更新
 
 使用 Pilot-only 统计量进行 CUSUM、Page-Hinkley、Hotelling 或等价变点检测。未检测到
 状态老化时保持参数；检测到老化时才产生候选更新。检测器不能读取 Data BER。
+
+当前进度：已实现 `PilotDriftDetector` 的无标签基础模块，但尚未接入主在线更新门控。
+在 Pilot-only replay 通过排序门槛前，不启用该门控，也不以其审计字段宣称在线收益。
 
 ### 阶段 D：多帧 Reward 验收
 
@@ -127,4 +139,3 @@ Adapt Pilot
 这条路线已经在状态老化诊断区显示小幅、跨 seed、随帧数增强的收益，但尚未证明在
 `gap=0` 主配置中稳定超过 Frozen Offline NN，因此下一阶段必须先完成 Pilot-only replay
 排序门槛，再决定是否进入正式主矩阵。
-

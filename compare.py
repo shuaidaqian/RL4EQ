@@ -20,6 +20,7 @@ from agent.cir_estimator import (
     pilot_sparse_cir_update,
     track_pilot_physical_state,
 )
+from agent.pilot_state import PilotStateEmbedding, build_pilot_state_summary
 from agent.discrete_safe_policy import DiscreteSafePolicy, initialize_safe_discrete_policy_prior, safe_modulation_actions
 from agent.modulation import ModulationConfig, ModulationState
 from agent.safe_contextual_bandit import SafeContextualBandit, SafeUpdateAction
@@ -1319,6 +1320,16 @@ def _run_pilot_rls_method(
         cfo_residual=float(state.acquisition_cfo),
         phase_features=phase_features,
     )
+    pilot_state_summary = build_pilot_state_summary(
+        cir=state.cir,
+        reference_cir=state.cir,
+        phase0=0.0,
+        cfo_cycles_per_symbol=float(state.acquisition_cfo),
+        noise_variance=condition.noise_variance,
+        confidence=condition.confidence,
+        reconstruction_error=0.0,
+    )
+    pilot_state_embedding = PilotStateEmbedding()(pilot_state_summary)
     adapt_symbols = frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64)
     adapt_mask = frame_device.adapt_mask.unsqueeze(0).bool()
     old_weight = state.rls_adapter.module.linear.weight.detach().clone()
@@ -1372,6 +1383,16 @@ def _run_pilot_rls_method(
         reward_mask=frame_device.reward_mask,
         reward_symbols=reward_view.reward_symbols,
     )
+    pilot_state_summary = build_pilot_state_summary(
+        cir=state.cir,
+        reference_cir=state.cir,
+        phase0=0.0,
+        cfo_cycles_per_symbol=float(state.acquisition_cfo),
+        noise_variance=condition.noise_variance,
+        confidence=condition.confidence,
+        reconstruction_error=0.0,
+    )
+    pilot_state_embedding = PilotStateEmbedding()(pilot_state_summary)
     accepted = bool(
         adaptation.accepted
         and reward_window_accepted
@@ -1461,10 +1482,20 @@ def _run_pilot_rls_method(
             "reward_pilot_hard_errors_after": reward_hard_errors_after,
             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
+            "pilot_state_embedding": [float(value) for value in pilot_state_embedding.tolist()],
+            "pilot_state_cir_residual_norm": float(pilot_state_summary.cir_residual_norm),
+            "pilot_state_noise_variance": float(pilot_state_summary.noise_variance),
+            "pilot_state_reconstruction_error": float(pilot_state_summary.reconstruction_error),
+            "pilot_state_drift_gate_applied": False,
             "reward_pilot_min_improvement": float(state.min_reward_improvement),
             "reward_pilot_relative_min_improvement": float(
                 state.relative_min_reward_improvement
             ),
+            "pilot_state_embedding": [float(value) for value in pilot_state_embedding.tolist()],
+            "pilot_state_cir_residual_norm": float(pilot_state_summary.cir_residual_norm),
+            "pilot_state_noise_variance": float(pilot_state_summary.noise_variance),
+            "pilot_state_reconstruction_error": float(pilot_state_summary.reconstruction_error),
+            "pilot_state_drift_gate_applied": False,
             "data_labels_used_online": False,
         },
     )
@@ -1634,6 +1665,20 @@ def _run_pilot_online_method(
         sum(parameter.numel() for _, parameter in online_parameter_items)
     )
     cir_before_frame = state.cir.detach().clone()
+    pilot_state_summary = build_pilot_state_summary(
+        cir=state.cir,
+        reference_cir=state.cir,
+        phase0=float(state.physical_state.phase0 if state.physical_state is not None else 0.0),
+        cfo_cycles_per_symbol=float(
+            state.physical_state.cfo_cycles_per_symbol
+            if state.physical_state is not None
+            else state.acquisition_cfo
+        ),
+        noise_variance=0.0,
+        confidence=float(state.physical_state.confidence if state.physical_state is not None else 0.0),
+        reconstruction_error=0.0,
+    )
+    pilot_state_embedding = PilotStateEmbedding()(pilot_state_summary)
     updates_frozen = _online_updates_are_frozen(snr_db, state.freeze_online_below_snr_db)
     update_scheduled = _online_update_is_scheduled(frame_index, update_interval)
     rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
@@ -2100,6 +2145,13 @@ def _run_pilot_online_method(
                 else state.acquisition_cfo
             ),
             "pilot_phase_confidence": float(state.physical_state.confidence if state.physical_state is not None else 0.0),
+            # 这些字段只用于后续 Pilot-only replay 和漂移门控校准；当前不改变动作。
+            "pilot_state_embedding": [float(value) for value in pilot_state_embedding.tolist()],
+            "pilot_state_cir_residual_norm": float(pilot_state_summary.cir_residual_norm),
+            "pilot_state_noise_variance": float(pilot_state_summary.noise_variance),
+            "pilot_state_reconstruction_error": float(pilot_state_summary.reconstruction_error),
+            "pilot_state_drift_distance_to_frame_start": float(cir_drift),
+            "pilot_state_drift_gate_applied": False,
         },
     )
 
