@@ -42,6 +42,7 @@ class ReceiverFrameView:
     rx_symbols: torch.Tensor
     adapt_symbols: torch.Tensor
     adapt_mask: torch.Tensor
+    reward_symbols: torch.Tensor
     model_region_ids: torch.Tensor
 
 
@@ -66,10 +67,13 @@ class Frame:
     def receiver_view(self) -> ReceiverFrameView:
         adapt_symbols = torch.zeros_like(self.tx_symbols)
         adapt_symbols[self.adapt_mask] = self.tx_symbols[self.adapt_mask]
+        reward_symbols = torch.zeros_like(self.tx_symbols)
+        reward_symbols[self.reward_mask] = self.tx_symbols[self.reward_mask]
         return ReceiverFrameView(
             rx_symbols=self.rx_symbols.clone(),
             adapt_symbols=adapt_symbols,
             adapt_mask=self.adapt_mask.clone(),
+            reward_symbols=reward_symbols,
             model_region_ids=self.model_region_ids.clone(),
         )
 

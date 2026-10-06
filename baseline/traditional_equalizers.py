@@ -311,13 +311,7 @@ def _estimate_cir_with_cfo_grid(
 
 
 def _known_tx_design(tx: torch.Tensor, max_delay: int) -> torch.Tensor:
-    rows = []
-    for pos in range(max_delay, tx.numel()):
-        row = torch.zeros(max_delay + 1, dtype=torch.complex64, device=tx.device)
-        for delay in range(max_delay + 1):
-            row[delay] = tx[pos - delay]
-        rows.append(row)
-    return torch.stack(rows, dim=0)
+    return tx.unfold(0, max_delay + 1, 1).flip(-1).contiguous()
 
 
 def _pilot_reference_from_cir(receiver_view, cir: torch.Tensor, soft_tail: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:

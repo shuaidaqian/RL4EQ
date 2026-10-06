@@ -76,6 +76,7 @@ def test_pilot_based_cfo_correction_reduces_known_rotation_on_pilots():
         rx_symbols=rx,
         adapt_symbols=adapt_symbols,
         adapt_mask=adapt_mask,
+        reward_symbols=torch.zeros_like(tx),
         model_region_ids=torch.zeros(frame_len, dtype=torch.long),
     )
 
@@ -359,6 +360,7 @@ def test_cfo_correction_uses_cir_reference_under_isi():
         rx_symbols=rx,
         adapt_symbols=adapt_symbols,
         adapt_mask=adapt_mask,
+        reward_symbols=torch.zeros_like(tx),
         model_region_ids=torch.zeros(frame_len, dtype=torch.long),
     )
 

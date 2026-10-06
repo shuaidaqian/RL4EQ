@@ -136,3 +136,18 @@ Frozen Offline NN，但尚未证明收益随帧数增加而扩大。
 Offline NN 的在线 PEFT 主路径。尚未完成的是“同时明显超过传统非神经 baseline 且达到
 较低绝对 BER”的系统目标；也未证明收益会随在线帧数扩大。下一阶段应保持本路线不变，
 分别做传统 baseline 对照和 `State + PEFT` 消融，把参数微调增量与状态恢复增量分开报告。
+
+## 2026-10-06 信息边界修复
+
+复核实现后发现，旧版 Reward Pilot 守门器曾通过 `frame.bits[reward_mask]` 读取仿真真值，
+再计算 Reward Pilot BCE 和硬错误。这会把“留出验收”错误地实现成标签上界，不能作为在线
+方法的合规证据。现已修复为：接收端只暴露已知的 `Adapt Pilot`/`Reward Pilot` 发送符号，
+在线更新只使用 Adapt Pilot，Reward Pilot 只使用其已知发送符号进行验收、拒绝和回滚，
+Data 区域标签只保留在最终离线 BER 评估字段中。
+
+修复后的 smoke replay 已确认：`condition_source=pilot_cir_phase`、
+`data_labels_used_online=false`、`online_parameter_groups=[head, phase_trend]`，
+在线更新可以正常接受或回滚。相关协议、守门和传统基线测试共 88 项全部通过。
+
+因此，修复前的 5 seeds × 60 frames 数字只能作为历史诊断，不能直接作为最终论文结果；
+需要在修复后的协议下重新运行正式统计矩阵。离线 checkpoint 不变，下一轮只重跑在线评估。

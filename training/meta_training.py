@@ -81,6 +81,7 @@ def build_meta_episode(frame: Frame, device: torch.device | None = None) -> Meta
         rx_symbols=view.rx_symbols.to(target_device),
         adapt_symbols=view.adapt_symbols.to(target_device),
         adapt_mask=view.adapt_mask.to(target_device),
+        reward_symbols=view.reward_symbols.to(target_device),
         model_region_ids=view.model_region_ids.to(target_device),
     )
     max_delay = int(frame.tail_symbols.numel()) if frame.tail_symbols is not None else 40

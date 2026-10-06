@@ -84,15 +84,38 @@ def test_reward_pilot_hard_ber_guard_rejects_more_bit_errors():
     assert compare._accept_reward_pilot_hard_ber(
         logits_before=torch.tensor([-2.0, 2.0, -2.0, 2.0]),
         logits_after=torch.tensor([-2.0, -2.0, -2.0, 2.0]),
-        labels=torch.tensor([0.0, 1.0, 0.0, 1.0]),
         reward_mask=torch.ones(4, dtype=torch.bool),
+        labels=torch.tensor([0.0, 1.0, 0.0, 1.0]),
     ) is False
 
     assert compare._accept_reward_pilot_hard_ber(
         logits_before=torch.tensor([-2.0, 2.0, -2.0, 2.0]),
         logits_after=torch.tensor([-3.0, 3.0, -2.0, 2.0]),
-        labels=torch.tensor([0.0, 1.0, 0.0, 1.0]),
         reward_mask=torch.ones(4, dtype=torch.bool),
+        labels=torch.tensor([0.0, 1.0, 0.0, 1.0]),
+    ) is True
+
+
+def test_reward_pilot_hard_guard_uses_pilot_symbols_instead_of_data_labels():
+    import torch
+    import compare
+
+    before = torch.tensor([-2.0, 2.0])
+    after = torch.tensor([-3.0, 1.0])
+    mask = torch.ones(2, dtype=torch.bool)
+    reward_symbols = torch.tensor([1.0, -1.0], dtype=torch.complex64)
+    assert compare._accept_reward_pilot_hard_ber(
+        before,
+        after,
+        reward_mask=mask,
+        reward_symbols=reward_symbols,
+    ) is True
+    assert compare._accept_reward_pilot_hard_ber(
+        before,
+        after,
+        reward_mask=mask,
+        reward_symbols=reward_symbols,
+        labels=torch.tensor([0.0, 1.0]),
     ) is True
 
 

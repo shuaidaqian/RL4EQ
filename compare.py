@@ -1345,20 +1345,22 @@ def _run_pilot_rls_method(
         )
     logits_before = logits_before.squeeze(0)
     candidate_logits = logits_after.squeeze(0)
+    reward_view = frame_device.receiver_view()
+    reward_labels = (reward_view.reward_symbols.real > 0.0).to(frame_device.bits.dtype)
     reward_before = _masked_bce(
         logits_before,
-        frame_device.bits,
+        reward_labels,
         frame_device.reward_mask,
     )
     reward_after = _masked_bce(
         candidate_logits,
-        frame_device.bits,
+        reward_labels,
         frame_device.reward_mask,
     )
     reward_window_accepted, reward_window_gains = _accept_windowed_reward_update(
         logits_before,
         candidate_logits,
-        frame_device.bits,
+        reward_labels,
         frame_device.reward_mask,
         min_improvement=float(state.min_reward_improvement),
         windows=int(state.reward_pilot_windows),
@@ -1367,8 +1369,8 @@ def _run_pilot_rls_method(
     reward_hard_ber_accepted = _accept_reward_pilot_hard_ber(
         logits_before,
         candidate_logits,
-        frame_device.bits,
-        frame_device.reward_mask,
+        reward_mask=frame_device.reward_mask,
+        reward_symbols=reward_view.reward_symbols,
     )
     accepted = bool(
         adaptation.accepted
@@ -1401,13 +1403,13 @@ def _run_pilot_rls_method(
     reward_hard_errors_before = int(
         (
             (logits_before[frame_device.reward_mask] >= 0.0)
-            != (frame_device.bits[frame_device.reward_mask] >= 0.5)
+            != (reward_labels[frame_device.reward_mask] >= 0.5)
         ).sum().item()
     )
     reward_hard_errors_after = int(
         (
             (candidate_logits[frame_device.reward_mask] >= 0.0)
-            != (frame_device.bits[frame_device.reward_mask] >= 0.5)
+            != (reward_labels[frame_device.reward_mask] >= 0.5)
         ).sum().item()
     )
     tail_len = state.receiver_state.soft_tail.numel()
@@ -1704,11 +1706,13 @@ def _run_pilot_online_method(
                     adapt_symbols=adapt_symbols,
                     adapt_mask=adapt_mask,
                 )
+            reward_view = frame_device.receiver_view()
+            reward_labels = (reward_view.reward_symbols.real > 0.0).to(frame_device.bits.dtype)
             cir_reward_loss_before = float(
-                _masked_bce(previous_logits.squeeze(0), frame_device.bits, frame_device.reward_mask).detach().cpu()
+                _masked_bce(previous_logits.squeeze(0), reward_labels, frame_device.reward_mask).detach().cpu()
             )
             cir_reward_loss_after = float(
-                _masked_bce(candidate_logits.squeeze(0), frame_device.bits, frame_device.reward_mask).detach().cpu()
+                _masked_bce(candidate_logits.squeeze(0), reward_labels, frame_device.reward_mask).detach().cpu()
             )
             cir_update_accepted = _accept_pilot_cir_update(cir_reward_loss_before, cir_reward_loss_after)
             state.cir = candidate_cir if cir_update_accepted else previous_cir
@@ -1745,8 +1749,11 @@ def _run_pilot_online_method(
             adapt_mask=adapt_mask,
         )
     before = before_logits.squeeze(0)
-    reward_before = _masked_bce(before, frame_device.bits, frame_device.reward_mask)
-    adapt_loss_before = _masked_bce(before, frame_device.bits, frame_device.adapt_mask)
+    receiver_view = frame_device.receiver_view()
+    reward_labels = (receiver_view.reward_symbols.real > 0.0).to(frame_device.bits.dtype)
+    adapt_labels = (receiver_view.adapt_symbols.real > 0.0).to(frame_device.bits.dtype)
+    reward_before = _masked_bce(before, reward_labels, frame_device.reward_mask)
+    adapt_loss_before = _masked_bce(before, adapt_labels, frame_device.adapt_mask)
     phase_slope = float(
         torch.diff(phase_features.reshape(-1)).abs().mean().detach().cpu()
         if phase_features is not None and phase_features.numel() > 1
@@ -1790,7 +1797,7 @@ def _run_pilot_online_method(
         previous_good_reward_loss = float(
             _masked_bce(
                 previous_good,
-                frame_device.bits,
+                reward_labels,
                 frame_device.reward_mask,
             ).detach().cpu()
         )
@@ -1802,8 +1809,8 @@ def _run_pilot_online_method(
         ):
             state.model.peft.restore(state.last_pre_update_snapshot)
             before = previous_good
-            reward_before = _masked_bce(before, frame_device.bits, frame_device.reward_mask)
-            adapt_loss_before = _masked_bce(before, frame_device.bits, frame_device.adapt_mask)
+            reward_before = _masked_bce(before, reward_labels, frame_device.reward_mask)
+            adapt_loss_before = _masked_bce(before, adapt_labels, frame_device.adapt_mask)
             cross_frame_rollback = True
             state.last_pre_update_snapshot = None
             state.last_pre_update_groups = frozenset()
@@ -1879,12 +1886,12 @@ def _run_pilot_online_method(
                 adapt_mask=adapt_mask,
             )
         after = after_logits.squeeze(0)
-        reward_after = _masked_bce(after, frame_device.bits, frame_device.reward_mask)
+        reward_after = _masked_bce(after, reward_labels, frame_device.reward_mask)
         reward_value = float(reward_after.detach().cpu())
         window_accept, window_gains = _accept_windowed_reward_update(
             best_reward_logits,
             after,
-            frame_device.bits,
+            reward_labels,
             frame_device.reward_mask,
             state.min_reward_improvement,
             windows=state.reward_pilot_windows,
@@ -1893,8 +1900,8 @@ def _run_pilot_online_method(
         hard_ber_accept = _accept_reward_pilot_hard_ber(
             best_reward_logits,
             after,
-            frame_device.bits,
-            frame_device.reward_mask,
+            reward_mask=frame_device.reward_mask,
+            reward_symbols=receiver_view.reward_symbols,
         )
         if adaptation.accepted and window_accept and hard_ber_accept:
             best_snapshot = state.model.peft.snapshot(candidate_groups)
@@ -2041,10 +2048,10 @@ def _run_pilot_online_method(
             "reward_pilot_window_gains": best_reward_window_gains,
             "reward_pilot_hard_ber_guard": True,
             "reward_pilot_hard_ber_before": int(
-                ((before[frame_device.reward_mask] >= 0.0) != (frame_device.bits[frame_device.reward_mask] >= 0.5)).sum().item()
+                ((before[frame_device.reward_mask] >= 0.0) != (reward_labels[frame_device.reward_mask] >= 0.5)).sum().item()
             ),
             "reward_pilot_hard_ber_after": int(
-                ((final[frame_device.reward_mask] >= 0.0) != (frame_device.bits[frame_device.reward_mask] >= 0.5)).sum().item()
+                ((final[frame_device.reward_mask] >= 0.0) != (reward_labels[frame_device.reward_mask] >= 0.5)).sum().item()
             ),
             "online_min_reward_improvement": float(state.min_reward_improvement),
             "online_relative_min_reward_improvement": float(
@@ -2305,17 +2312,23 @@ def _accept_windowed_reward_update(
 def _accept_reward_pilot_hard_ber(
     logits_before: torch.Tensor,
     logits_after: torch.Tensor,
-    labels: torch.Tensor,
     reward_mask: torch.Tensor,
+    reward_symbols: torch.Tensor | None = None,
+    labels: torch.Tensor | None = None,
 ) -> bool:
     """要求候选更新在留出 Reward Pilot 上不增加硬判决错误数。"""
 
     mask = reward_mask.reshape(-1).to(device=logits_before.device, dtype=torch.bool)
     if not bool(mask.any()):
         return False
-    target = labels.reshape(-1).to(device=logits_before.device, dtype=logits_before.dtype)
-    before_errors = ((logits_before.reshape(-1)[mask] >= 0.0) != (target[mask] >= 0.5)).sum()
-    after_errors = ((logits_after.reshape(-1)[mask] >= 0.0) != (target[mask] >= 0.5)).sum()
+    if reward_symbols is None:
+        if labels is None:
+            raise ValueError("Reward Pilot 守门需要已知 Pilot 符号。")
+        expected_positive = labels.reshape(-1).to(device=logits_before.device)[mask] >= 0.5
+    else:
+        expected_positive = reward_symbols.reshape(-1).real.to(device=logits_before.device)[mask] >= 0.0
+    before_errors = ((logits_before.reshape(-1)[mask] >= 0.0) != expected_positive).sum()
+    after_errors = ((logits_after.reshape(-1)[mask] >= 0.0) != expected_positive).sum()
     return bool(after_errors <= before_errors)
 
 
