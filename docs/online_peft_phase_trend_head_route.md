@@ -151,3 +151,43 @@ Data 区域标签只保留在最终离线 BER 评估字段中。
 
 因此，修复前的 5 seeds × 60 frames 数字只能作为历史诊断，不能直接作为最终论文结果；
 需要在修复后的协议下重新运行正式统计矩阵。离线 checkpoint 不变，下一轮只重跑在线评估。
+
+## 修复协议后的正式复测
+
+在上述信息边界修复后，使用同一离线 checkpoint、Level B、delay=116、prefix
+Pilot=256、Reward Pilot=32、5 seeds × 60 frames 重新完成四个主 SNR。所有 2,400
+条记录均通过协议审计：`condition_source=pilot_cir_phase`、`cir_update_applied=false`、
+`adapt_pilot_only=true`、`reward_pilot_guard_only=true`、`data_labels_used_online=false`，
+在线参数组固定为 `head + phase_trend`。
+
+| SNR | Frozen BER | Online BER | 配对收益 | seed 同方向 | 95% seed CI | 保留更新 | 回滚 |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 dB | 21.3841% | 21.1285% | +0.2556 pp | 5/5 | [+0.1619, +0.3281] pp | 225/300 | 115/300 |
+| 5 dB | 5.7066% | 5.6415% | +0.0651 pp | 4/5 | [+0.0113, +0.1554] pp | 87/300 | 61/300 |
+| 10 dB | 0.9549% | 0.9345% | +0.0204 pp | 2/5 | [-0.0143, +0.0668] pp | 81/300 | 37/300 |
+| 15 dB | 0.1641% | 0.1593% | +0.0048 pp | 3/5 | [+0.0004, +0.0113] pp | 97/300 | 2/300 |
+
+该结果说明当前 `phase_trend + head` 在线微调没有达到“稳定、明显超过离线模型”的目标：
+绝对 BER 已经由 Pilot 状态条件恢复到较低水平，但参数微调增量在 5/10/15 dB 很小，
+10 dB 的 seed 级区间还跨过 0。当前路线的下一步不是修改离线训练，而是进行受控 PEFT
+参数组筛选，优先测试能直接改变输出映射的 `logit_affine` 和 `input_affine`，仍使用
+同一 Adapt Pilot 更新、Reward Pilot 验收回滚和 Data-only 最终评估协议。
+
+## PEFT 参数组短筛选
+
+在不改变 checkpoint 的前提下，使用修复后的信息边界完成了 3 seeds × 12 frames 的
+参数组筛选。四个 SNR 均使用 `pilot_cir_phase` 条件和固定 Reward Pilot 守门。
+
+| 参数组/目标 | 0 dB | 5 dB | 10 dB | 15 dB | 结论 |
+|---|---:|---:|---:|---:|---|
+| `phase_trend + head` + BCE | +0.26 pp（正式 5×60） | +0.07 pp（正式 5×60） | +0.02 pp（正式 5×60） | +0.00 pp（正式 5×60） | 最稳定，但收益很小 |
+| `logit_affine` + BCE | -0.029 pp | +0.004 pp | 0.000 pp | 0.000 pp | 淘汰 |
+| `input_affine` + BCE | 0.000 pp | -0.004 pp | 0.000 pp | 0.000 pp | 淘汰 |
+| `physics_residual` + BCE | -0.315 pp | +0.007 pp | 0.000 pp | 0.000 pp | 淘汰 |
+| `channel_residual` + Pilot reconstruction | 0.000 pp | 0.000 pp | +0.011 pp | 0.000 pp | 有局部信号，但不稳定 |
+
+短筛选结果说明：当前瓶颈不是简单地扩大可训练参数数量。低 SNR 时，Pilot BCE 容易
+过拟合 Adapt Pilot；高 SNR 时 Frozen 模型已接近误码下限，参数变化很难改变硬判决。
+`channel_residual + pilot_reconstruction` 是最有研究价值的下一候选，但在当前短矩阵
+中仍不足以进入正式主结果。后续应优先改进在线目标的跨 Pilot 窗口稳健性或更新时机，
+而不是重新设计离线训练。
