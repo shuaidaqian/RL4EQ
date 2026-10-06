@@ -1,0 +1,130 @@
+# Pilot-only 在线适配阶段性路线
+
+日期：2026-10-06
+
+## 目标
+
+保持离线 checkpoint、Level B 信道和 prefix Pilot 总长度不变，寻找一种真正修改
+均衡器内部 PEFT 参数、且能把 Adapt Pilot 的自监督改善迁移到 Data 段 BER 的在线方法。
+在线过程继续遵守以下边界：Adapt Pilot 用于参数更新，Reward Pilot 只用于验收和回滚，
+Data 标签只用于离线最终评估。
+
+## 固定协议
+
+- checkpoint：`pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`
+- profile：`eme_long_memory_v2`，Level B，最大记忆 `116`
+- 主 SNR：`0/5/10/15 dB`
+- Pilot：prefix，总长度 `256`，Adapt `224`，Reward `32`
+- 在线条件和信道轨迹必须在 Frozen/Online 之间配对
+- 离线 checkpoint 不重训
+- 主配置 `gap=0` 与状态老化诊断分开报告
+
+## 已完成的 replay 事实
+
+### 1. 单帧 BCE 与普通 PEFT
+
+`phase_trend + head` 在主配置 5 seeds × 60 frames 上只有小幅收益，且 10 dB 区间跨零。
+RLS、input/logit affine、input FIR、physics residual 等候选要么不改变 Data 硬判决，
+要么在低 SNR 或状态失配下退化。继续调学习率、步数或参数范数没有足够依据。
+
+### 2. Reward 代理失配
+
+已有 Pilot replay 诊断显示，单帧 Reward Pilot loss 对后续 Data BER 的 Spearman 相关在窗口
+2/4/8 上分别为 `0.037/-0.227/-0.151`；只看已接受 PEFT 事件仍为
+`-0.116/-0.104/-0.170`。因此当前不能接入 Contextual Bandit：动作选择器无法修复
+不能稳定排序候选好坏的 reward。
+
+### 3. 物理重构目标
+
+`channel_residual + pilot_reconstruction` 是唯一已经在 Data 硬判决上产生可重复变化的
+候选。保持 checkpoint 不变，在 `heldout_edge + acquisition_to_data_gap=120 s` 下的
+5 seeds × 60 frames 结果为：
+
+| SNR | Frozen BER | Online BER | 配对收益 | seed 方向 |
+|---:|---:|---:|---:|---:|
+| 0 dB | 26.0885% | 26.0885% | 0.0000 pp | 0/5，按协议冻结 |
+| 5 dB | 11.2062% | 11.1237% | +0.0825 pp | 5/5 |
+| 10 dB | 6.0373% | 5.9796% | +0.0577 pp | 5/5 |
+| 15 dB | 4.4709% | 4.3954% | +0.0755 pp | 5/5 |
+
+120 s、5 dB 扩展到 120 帧后，前 60 帧收益约 `+0.0825 pp`，后 60 帧约 `+0.2318 pp`，
+说明该候选在明显 acquisition 状态老化时具有随帧数积累的收益。
+
+但这不是主配置已完成的证明：`gap=0` 仍基本持平，0 dB 长时间更新会退化，300 s 过强
+失配也不稳定。因此当前只能把它定义为“状态老化诊断工作区的候选主线”。
+
+## 决策门槛
+
+每个候选必须同时满足以下条件，才允许进入正式 5 seeds × 60 frames 主矩阵：
+
+1. Pilot-only replay 的候选排序在多个窗口上对后续 Data BER 呈正相关，目标门槛为
+   Spearman `>=0.6`；
+2. 至少 4/5 seed 的 Data 配对收益为正；
+3. Data 硬判决确实发生变化，而不是只有连续 logit 变化；
+4. 低 SNR 不出现系统性退化；
+5. 在线审计确认 `data_labels_used_online=false`；
+6. 参数更新受单步和累计 trust-region 约束，并可由 Reward Pilot 回滚。
+
+当前 `channel_residual + pilot_reconstruction` 通过了第 2、3、5、6 条的部分诊断，
+但尚未通过主配置和 Pilot-only 排序门槛，因此暂不引入 Bandit。
+
+## 后续实施顺序
+
+### 阶段 A：统一 Pilot-only replay
+
+在相同的候选、相同帧窗口和相同初始模型快照下比较：
+
+- 单帧 Adapt Pilot BCE；
+- 多帧 Adapt/Reward Pilot 累积目标；
+- Adapt Pilot 复数信道重构目标；
+- 重构目标与软判决目标的联合目标；
+- 参数 proximal/trust-region 惩罚。
+
+Data 只能用于事后计算排序相关性和 BER，不能进入候选选择过程。
+
+### 阶段 B：状态条件化 PEFT
+
+由 Adapt Pilot 产生低维状态 embedding，至少包含：
+
+- CIR residual 或主要 tap 变化；
+- residual CFO 与慢相位趋势；
+- 噪声水平；
+- Pilot 重构残差；
+- 状态置信度。
+
+embedding 只调制 `channel_residual`、Adapter、FiLM 或 LoRA 等受限参数，不能退化成
+只恢复 CIR/phase 而不修改均衡器参数。
+
+### 阶段 C：漂移检测与异步更新
+
+使用 Pilot-only 统计量进行 CUSUM、Page-Hinkley、Hotelling 或等价变点检测。未检测到
+状态老化时保持参数；检测到老化时才产生候选更新。检测器不能读取 Data BER。
+
+### 阶段 D：多帧 Reward 验收
+
+Reward Pilot 采用连续短窗口的一致性验收：累计改善、单帧最大退化、参数距离和置信度
+同时满足条件才接受，否则回滚。低 SNR 需要更严格门控或冻结策略。
+
+### 阶段 E：正式矩阵
+
+只有 A-D 的短 replay 通过门槛后，才在固定 Level B 主配置执行 5 seeds × 60 frames。
+若主配置仍无增益，则如实保留“在线状态老化诊断有效、gap=0 主配置 PEFT 未完成”的结论，
+不使用更强失配结果替代主配置结论。
+
+## 当前结论
+
+现在不应继续扩大普通 BCE、phase/head、RLS 或输入/输出仿射候选，也不应直接引入
+Contextual Bandit。当前最有根据的路线是：
+
+```text
+Adapt Pilot
+  -> Pilot 重构得到 CIR residual / CFO / phase / noise / confidence
+  -> 状态条件化 channel-residual PEFT
+  -> 漂移检测决定是否更新
+  -> 多帧 Reward Pilot 验收与回滚
+```
+
+这条路线已经在状态老化诊断区显示小幅、跨 seed、随帧数增强的收益，但尚未证明在
+`gap=0` 主配置中稳定超过 Frozen Offline NN，因此下一阶段必须先完成 Pilot-only replay
+排序门槛，再决定是否进入正式主矩阵。
+
