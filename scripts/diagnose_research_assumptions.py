@@ -57,6 +57,12 @@ def main() -> None:
     parser.add_argument("--action-space", choices=["focused_peft", "low_dim_modulation"], default="focused_peft")
     parser.add_argument("--alignment-surrogate", default="reward_ber_delta")
     parser.add_argument("--window-size", type=int, default=4)
+    parser.add_argument(
+        "--objectives",
+        nargs="*",
+        default=["bce"],
+        choices=["bce", "pilot_reconstruction", "joint"],
+    )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
@@ -66,6 +72,14 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     model_config = _load_model_config(config, pretrained)
     base_model = _build_equalizer(model_config, pretrained, args.device)
+    selected_groups = set(args.peft_groups)
+    if "channel_residual" in selected_groups:
+        base_model.attach_online_channel_residual_adapter()
+    if "phase_trend" in selected_groups:
+        base_model.attach_online_phase_trend_adapter()
+    if "head" in selected_groups:
+        # head 已由离线模型提供，只需保留分组选择。
+        pass
 
     modulation_rows = []
     peft_rows = []
@@ -92,10 +106,18 @@ def main() -> None:
                         window_frames = []
                         window_start_tail = soft_tail.detach().clone()
                         window_index = 0
-                        peft_candidates = [
-                            {"name": "identity", "groups": set(), "lr": 0.0, "steps": 0},
-                            *_focused_peft_candidates(args.peft_lr, args.peft_steps),
-                        ]
+                        peft_candidates = [{"name": "identity", "groups": set(), "lr": 0.0, "steps": 0}]
+                        if "channel_residual" in selected_groups:
+                            peft_candidates.append(
+                                {
+                                    "name": "channel_residual",
+                                    "groups": {"channel_residual"},
+                                    "lr": args.peft_lr,
+                                    "steps": args.peft_steps,
+                                }
+                            )
+                        else:
+                            peft_candidates.extend(_focused_peft_candidates(args.peft_lr, args.peft_steps))
                         for frame_index in range(1, int(args.frames) + 1):
                             frame = env.next_frame()
                             condition = condition_from_cir(cir, float(snr_db))
@@ -161,13 +183,41 @@ def main() -> None:
 
                             soft_tail = _next_identity_tail(base_model, frame, condition, soft_tail, args.device)
                             if len(window_frames) >= max(1, int(args.window_size)):
+                                for objective in args.objectives:
+                                    window_rows = evaluate_peft_window_candidates(
+                                        model=base_model,
+                                        frames=window_frames,
+                                        condition=condition,
+                                        soft_tail=window_start_tail,
+                                        candidates=peft_candidates,
+                                        window_index=window_index,
+                                        objective=objective,
+                                    )
+                                    for row in window_rows:
+                                        row.update(
+                                            {
+                                                "level": "B",
+                                                "delay": int(delay),
+                                                "snr_db": float(snr_db),
+                                                "pilot_total": int(pilot_total),
+                                                "pilot_layout": str(layout),
+                                                "seed": int(seed),
+                                            }
+                                        )
+                                    window_peft_rows.extend(window_rows)
+                                window_frames = []
+                                window_start_tail = soft_tail.detach().clone()
+                                window_index += 1
+                        if window_frames:
+                            for objective in args.objectives:
                                 window_rows = evaluate_peft_window_candidates(
                                     model=base_model,
                                     frames=window_frames,
-                                    condition=condition,
+                                    condition=condition_from_cir(cir, float(snr_db)),
                                     soft_tail=window_start_tail,
                                     candidates=peft_candidates,
                                     window_index=window_index,
+                                    objective=objective,
                                 )
                                 for row in window_rows:
                                     row.update(
@@ -181,30 +231,6 @@ def main() -> None:
                                         }
                                     )
                                 window_peft_rows.extend(window_rows)
-                                window_frames = []
-                                window_start_tail = soft_tail.detach().clone()
-                                window_index += 1
-                        if window_frames:
-                            window_rows = evaluate_peft_window_candidates(
-                                model=base_model,
-                                frames=window_frames,
-                                condition=condition_from_cir(cir, float(snr_db)),
-                                soft_tail=window_start_tail,
-                                candidates=peft_candidates,
-                                window_index=window_index,
-                            )
-                            for row in window_rows:
-                                row.update(
-                                    {
-                                        "level": "B",
-                                        "delay": int(delay),
-                                        "snr_db": float(snr_db),
-                                        "pilot_total": int(pilot_total),
-                                        "pilot_layout": str(layout),
-                                        "seed": int(seed),
-                                    }
-                                )
-                            window_peft_rows.extend(window_rows)
 
     alignment_source = peft_rows if args.action_space == "focused_peft" else modulation_rows
     alignment_rows = [row for row in alignment_source if row["action_name"] != "identity"]

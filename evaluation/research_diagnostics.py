@@ -24,6 +24,7 @@ from agent.unfolded_equalizer import UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate
 from baseline.traditional_equalizers import TRADITIONAL_BASELINES, TraditionalPhaseState, estimate_acquisition_cir_with_cfo, run_traditional_equalizer
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
+from env.linear_operator import LinearChannelOperator
 from evaluation.metrics import spearman_reward_data
 from training.meta_training import _estimate_cir_from_known_frame
 
@@ -506,9 +507,12 @@ def apply_adapt_only_peft_update(
     groups: set[str],
     lr: float,
     steps: int,
+    objective: str = "bce",
 ) -> dict:
     """只用 Adapt Pilot loss 对指定 PEFT 参数做真实梯度更新。"""
 
+    if objective not in {"bce", "pilot_reconstruction", "joint"}:
+        raise ValueError("objective 必须为 bce、pilot_reconstruction 或 joint。")
     device = next(model.parameters()).device
     frame = _frame_to_device(frame, device)
     condition = _condition_to_device(condition, device)
@@ -536,7 +540,19 @@ def apply_adapt_only_peft_update(
     optimizer = torch.optim.AdamW(trainable, lr=float(lr))
     for _ in range(int(steps)):
         logits = _model_logits(model, frame, condition, tail)
-        loss = _masked_bce(logits, frame.bits, frame.adapt_mask)
+        adapt_loss = _masked_bce(logits, frame.bits, frame.adapt_mask)
+        reconstruction_loss = (
+            _pilot_reconstruction_loss_for_diagnostic(model, frame, condition, tail)
+            if objective in {"pilot_reconstruction", "joint"}
+            else torch.zeros((), device=device)
+        )
+        loss = (
+            reconstruction_loss
+            if objective == "pilot_reconstruction"
+            else 0.5 * adapt_loss + 0.5 * reconstruction_loss
+            if objective == "joint"
+            else adapt_loss
+        )
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(trainable, 1.0)
@@ -572,9 +588,34 @@ def apply_adapt_only_peft_update(
         "data_ber_improvement": float(data_before - data_after),
         "peft_delta_norm": float(peft_delta_norm),
         "action_delta_norm": float(peft_delta_norm),
+        "objective": str(objective),
         "diagnostic_uses_data_labels": True,
         "online_update_uses_data_labels": False,
     }
+
+
+def _pilot_reconstruction_loss_for_diagnostic(
+    model: UnfoldedEqualizer,
+    frame,
+    condition: CIRCondition,
+    soft_tail: torch.Tensor,
+) -> torch.Tensor:
+    """计算 Adapt Pilot 复数重构误差，不读取 Reward/Data 标签。"""
+
+    adapter = model.online_channel_residual_adapter
+    if adapter is None:
+        raise RuntimeError("pilot_reconstruction 需要 channel_residual Adapter。")
+    receiver_view = frame.receiver_view()
+    device = next(model.parameters()).device
+    rx = receiver_view.rx_symbols.to(device).to(torch.complex64).reshape(-1)
+    tx = receiver_view.adapt_symbols.to(device).to(torch.complex64).reshape(-1)
+    mask = receiver_view.adapt_mask.to(device).bool().reshape(-1)
+    cir = adapter(condition.complex_cir).reshape(-1)
+    tail = soft_tail.to(device).to(torch.complex64).reshape(-1)
+    operator = LinearChannelOperator(frame_len=tx.numel(), max_delay=cir.numel() - 1)
+    predicted = operator.forward(tx, cir, tail).reshape(-1)
+    residual = predicted[mask] - rx[mask]
+    return torch.mean(torch.abs(residual) ** 2).real
 
 
 def evaluate_peft_window_candidates(
@@ -584,6 +625,7 @@ def evaluate_peft_window_candidates(
     soft_tail: torch.Tensor,
     candidates: Iterable[dict],
     window_index: int = 0,
+    objective: str = "bce",
 ) -> list[dict]:
     """扫描“同一 PEFT 动作持续作用一个窗口”的真实候选效果。
 
@@ -591,6 +633,8 @@ def evaluate_peft_window_candidates(
     soft tail 会持续演化。Data BER 只用于离线诊断动作有效性。
     """
 
+    if objective not in {"bce", "pilot_reconstruction", "joint"}:
+        raise ValueError("objective 必须为 bce、pilot_reconstruction 或 joint。")
     rows = []
     frames_local = list(frames)
     device = next(model.parameters()).device
@@ -613,6 +657,7 @@ def evaluate_peft_window_candidates(
                     groups=groups,
                     lr=lr,
                     steps=steps,
+                    objective=objective,
                 )
             else:
                 result = _identity_peft_result(candidate_model, frame, condition, candidate_tail)
@@ -641,6 +686,7 @@ def evaluate_peft_window_candidates(
                 "data_ber_after": _mean([float(item["data_ber_after"]) for item in frame_results]),
                 "peft_delta_norm": _mean(peft_delta_norms),
                 "action_delta_norm": _mean(peft_delta_norms),
+                "objective": str(objective),
                 "diagnostic_uses_data_labels": True,
                 "online_update_uses_data_labels": False,
             }
@@ -906,5 +952,23 @@ def _retag_unfolded_peft_groups(model: UnfoldedEqualizer) -> None:
             group = "ffn_lora"
         elif ".adapter." in name:
             group = "adapter"
+        elif name.startswith("online_channel_residual_adapter."):
+            group = "channel_residual"
+        elif name.startswith("online_phase_trend_adapter."):
+            group = "phase_trend"
+        elif name.startswith("online_physics_blend_adapter."):
+            group = "physics_blend"
+        elif name.startswith("online_physics_residual_adapter."):
+            group = "physics_residual"
+        elif name.startswith("online_logit_affine_adapter."):
+            group = "logit_affine"
+        elif name.startswith("online_input_affine_adapter."):
+            group = "input_affine"
+        elif name.startswith("online_input_trend_adapter."):
+            group = "input_trend"
+        elif name.startswith("online_input_fir_adapter."):
+            group = "input_fir"
+        elif name.startswith("online_logit_fir_adapter."):
+            group = "logit_fir"
         if group is not None:
             setattr(parameter, "_peft_group", group)

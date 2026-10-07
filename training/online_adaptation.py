@@ -323,8 +323,8 @@ class PilotDrivenOnlineAdapter:
             raise ValueError("proximal_weight 不能为负数。")
         if self.hard_example_temperature <= 0.0:
             raise ValueError("hard_example_temperature 必须为正数。")
-        if self.objective not in {"bce", "pilot_reconstruction"}:
-            raise ValueError("objective 必须为 bce 或 pilot_reconstruction。")
+        if self.objective not in {"bce", "pilot_reconstruction", "joint"}:
+            raise ValueError("objective 必须为 bce、pilot_reconstruction、joint 或 windowed_bce。")
 
     def adapt(
         self,
@@ -436,6 +436,17 @@ class PilotDrivenOnlineAdapter:
                     adapt_mask=mask.unsqueeze(0),
                 )
                 selected_logits = logits[0, mask]
+                if self.objective in {"pilot_reconstruction", "joint"}:
+                    reconstruction = _pilot_reconstruction_loss(
+                        self.model,
+                        condition,
+                        tx,
+                        rx,
+                        mask,
+                        tail,
+                    )
+                else:
+                    reconstruction = torch.zeros((), device=tx.device, dtype=torch.float32)
                 if self.objective == "pilot_reconstruction":
                     loss = _pilot_reconstruction_loss(
                         self.model,
@@ -445,6 +456,13 @@ class PilotDrivenOnlineAdapter:
                         mask,
                         tail,
                     )
+                elif self.objective == "joint":
+                    loss = 0.5 * _weighted_adapt_loss(
+                        selected_logits,
+                        target[mask],
+                        selected_hard_example_weighting,
+                        selected_hard_example_temperature,
+                    ) + 0.5 * reconstruction
                 else:
                     loss = _weighted_adapt_loss(
                         selected_logits,
@@ -481,14 +499,16 @@ class PilotDrivenOnlineAdapter:
                     selected_hard_example_weighting,
                     selected_hard_example_temperature,
                 )
-                objective_after = _pilot_reconstruction_loss(
-                    self.model,
-                    condition,
-                    tx,
-                    rx,
-                    mask,
-                    tail,
-                ) if self.objective == "pilot_reconstruction" else weighted_loss_after
+                objective_after = (
+                    _pilot_reconstruction_loss(self.model, condition, tx, rx, mask, tail)
+                    if self.objective == "pilot_reconstruction"
+                    else (
+                        0.5 * weighted_loss_after
+                        + 0.5 * _pilot_reconstruction_loss(self.model, condition, tx, rx, mask, tail)
+                        if self.objective == "joint"
+                        else weighted_loss_after
+                    )
+                )
             delta_norm = _delta_norm(self.model, snapshot)
             accepted = (
                 bool(torch.isfinite(objective_after).item())

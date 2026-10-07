@@ -94,6 +94,14 @@ Data 只能用于事后计算排序相关性和 BER，不能进入候选选择�
 `channel_residual + pilot_reconstruction` 日志没有保存所有候选的未采用分数，不能据此
 伪造三目标的公平排序结论；下一轮必须生成带完整候选分数的短 replay。
 
+2026-10-07 实现进展：新增 `objective` 选项支持 `bce`、`pilot_reconstruction` 和 `joint`
+三种 Adapt Pilot 更新目标；诊断窗口会从相同模型快照分别评估 identity 与
+`channel_residual` 候选，并记录目标名称、Reward 指标、参数增量和事后 Data 指标。
+动态 `channel_residual` Adapter 的 PEFT 分组恢复也已补齐。单帧三目标接口探针已成功，
+但 1 seed × 4 SNR × 4 帧的窗口探针因完整物理 warm-start 和模型复制开销过大被中止，
+没有产生正式统计，不能据此判断哪种目标通过排序门槛。下一步先优化为单 SNR、单窗口的
+最小 replay，再逐步扩样。
+
 ### 阶段 B：状态条件化 PEFT
 
 由 Adapt Pilot 产生低维状态 embedding，至少包含：

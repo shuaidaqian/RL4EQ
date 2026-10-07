@@ -380,6 +380,22 @@ def test_peft_adapt_update_reports_parameter_delta_norm():
     assert result["peft_delta_norm"] >= 0.0
 
 
+def test_peft_objective_rejects_unknown_name():
+    from evaluation.research_diagnostics import apply_adapt_only_peft_update
+
+    with pytest.raises(ValueError, match="objective"):
+        apply_adapt_only_peft_update(
+            model=_tiny_model(),
+            frame=_tiny_identity_frame(),
+            condition=_tiny_condition(),
+            soft_tail=torch.zeros(4, dtype=torch.complex64),
+            groups={"head"},
+            lr=1e-3,
+            steps=1,
+            objective="unknown",
+        )
+
+
 def test_peft_window_candidate_scan_keeps_data_as_diagnostic_only():
     from evaluation.research_diagnostics import evaluate_peft_window_candidates
 
