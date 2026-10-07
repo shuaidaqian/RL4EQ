@@ -102,6 +102,17 @@ Data 只能用于事后计算排序相关性和 BER，不能进入候选选择�
 没有产生正式统计，不能据此判断哪种目标通过排序门槛。下一步先优化为单 SNR、单窗口的
 最小 replay，再逐步扩样。
 
+2026-10-07 短 replay 复核：在固定 Level B、delay=116、SNR=10 dB、Pilot=256、
+3 seeds、2 帧窗口下，对 `bce`、`pilot_reconstruction`、`joint` 分别扫描
+`channel_residual` 的保守/标准/快速三档学习率。三种目标均没有产生 Data 硬判决改善，
+因此每个窗口的 Data 改善序列为常数，Spearman 排序相关性不可定义；不能把该结果记为
+通过排序门槛。Pilot reward 偶尔偏好快速更新，但 Data 三档候选仍持平，说明当前
+`channel_residual` Adapter 的更新幅度或作用位置不足以在短窗口改变均衡输出。新增
+`scripts/summarize_pilot_objective_replay.py` 按目标独立汇总结果，避免把逐帧 head/LoRA
+候选的相关性混入 channel residual 窗口结论。下一步应先记录连续 Data loss/logit 改变量，
+确认更新是否实际影响数据段，再决定是否增加步数或调整 Adapter 调制位置；在此之前不进入
+正式 5 seeds × 60 frames，也不引入 Contextual Bandit。
+
 ### 阶段 B：状态条件化 PEFT
 
 由 Adapt Pilot 产生低维状态 embedding，至少包含：

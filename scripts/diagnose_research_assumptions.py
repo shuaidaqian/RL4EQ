@@ -11,6 +11,7 @@ import argparse
 import copy
 import json
 import sys
+from dataclasses import replace
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -64,6 +65,12 @@ def main() -> None:
         choices=["bce", "pilot_reconstruction", "joint"],
     )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--physics-warm-start-iterations",
+        type=int,
+        default=None,
+        help="仅诊断运行时覆盖物理 warm-start 迭代次数，不修改 checkpoint。",
+    )
     args = parser.parse_args()
 
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
@@ -71,6 +78,13 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     model_config = _load_model_config(config, pretrained)
+    if args.physics_warm_start_iterations is not None:
+        if args.physics_warm_start_iterations < 0:
+            raise ValueError("physics warm-start 迭代次数不能为负数。")
+        model_config = replace(
+            model_config,
+            physics_warm_start_iterations=int(args.physics_warm_start_iterations),
+        )
     base_model = _build_equalizer(model_config, pretrained, args.device)
     selected_groups = set(args.peft_groups)
     if "channel_residual" in selected_groups:
@@ -108,14 +122,7 @@ def main() -> None:
                         window_index = 0
                         peft_candidates = [{"name": "identity", "groups": set(), "lr": 0.0, "steps": 0}]
                         if "channel_residual" in selected_groups:
-                            peft_candidates.append(
-                                {
-                                    "name": "channel_residual",
-                                    "groups": {"channel_residual"},
-                                    "lr": args.peft_lr,
-                                    "steps": args.peft_steps,
-                                }
-                            )
+                            peft_candidates.extend(_channel_residual_candidates(args.peft_lr, args.peft_steps))
                         else:
                             peft_candidates.extend(_focused_peft_candidates(args.peft_lr, args.peft_steps))
                         for frame_index in range(1, int(args.frames) + 1):
@@ -154,7 +161,12 @@ def main() -> None:
                                 }
                             )
                             peft_rows.append(identity_row)
-                            for candidate in _focused_peft_candidates(args.peft_lr, args.peft_steps):
+                            candidates_for_frame = (
+                                _channel_residual_candidates(args.peft_lr, args.peft_steps)
+                                if "channel_residual" in selected_groups
+                                else _focused_peft_candidates(args.peft_lr, args.peft_steps)
+                            )
+                            for candidate in candidates_for_frame:
                                 peft_model = copy.deepcopy(base_model)
                                 peft_result = apply_adapt_only_peft_update(
                                     model=peft_model,
@@ -322,6 +334,18 @@ def _focused_peft_candidates(base_lr: float, base_steps: int) -> list[dict]:
         {"name": "peft_adapter_lora_conservative", "groups": {"adapter", "attention_lora", "ffn_lora"}, "lr": 5e-5, "steps": steps},
         {"name": "peft_adapter_lora_light", "groups": {"adapter", "attention_lora", "ffn_lora"}, "lr": lr, "steps": steps},
         {"name": "peft_adapter_lora_head_light", "groups": {"adapter_lora"}, "lr": lr, "steps": steps},
+    ]
+
+
+def _channel_residual_candidates(base_lr: float, base_steps: int) -> list[dict]:
+    """返回同一 Adapter 的多档安全步长，供 Pilot-only 排序诊断使用。"""
+
+    steps = max(1, int(base_steps))
+    lr = float(base_lr)
+    return [
+        {"name": "channel_residual_conservative", "groups": {"channel_residual"}, "lr": lr * 0.5, "steps": steps},
+        {"name": "channel_residual", "groups": {"channel_residual"}, "lr": lr, "steps": steps},
+        {"name": "channel_residual_fast", "groups": {"channel_residual"}, "lr": lr * 2.0, "steps": steps},
     ]
 
 
