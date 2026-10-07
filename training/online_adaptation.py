@@ -1052,3 +1052,65 @@ def _delta_norm(model: UnfoldedEqualizer, snapshot: dict[str, torch.Tensor]) -> 
     for name, value in snapshot.items():
         total = total + (lookup[name].detach().cpu() - value.cpu()).float().pow(2).sum()
     return float(torch.sqrt(total).item())
+@dataclass(frozen=True)
+class RewardWindowDecision:
+    """多帧 Reward Pilot 验收结果。"""
+
+    accepted: bool
+    cumulative_improvement: float
+    worst_frame_improvement: float
+    parameter_delta_norm: float
+    reason: str
+
+
+class RewardWindowGate:
+    """用多个 Reward Pilot 帧验收一次 PEFT 更新。
+
+    该门控只读取 Reward Pilot 的 loss/BER 和参数距离，不读取 Data 标签。
+    调用方负责在 ``accepted=False`` 时恢复参数快照。
+    """
+
+    def __init__(
+        self,
+        *,
+        min_cumulative_improvement: float = 0.0,
+        max_single_frame_regression: float = 0.0,
+        max_parameter_delta_norm: float = 0.5,
+        min_accepted_frames: int = 1,
+    ) -> None:
+        if max_single_frame_regression < 0.0:
+            raise ValueError("max_single_frame_regression 不能为负数。")
+        if max_parameter_delta_norm <= 0.0:
+            raise ValueError("max_parameter_delta_norm 必须为正数。")
+        if min_accepted_frames < 1:
+            raise ValueError("min_accepted_frames 必须至少为 1。")
+        self.min_cumulative_improvement = float(min_cumulative_improvement)
+        self.max_single_frame_regression = float(max_single_frame_regression)
+        self.max_parameter_delta_norm = float(max_parameter_delta_norm)
+        self.min_accepted_frames = int(min_accepted_frames)
+
+    def evaluate(
+        self,
+        reward_improvements: list[float] | tuple[float, ...],
+        parameter_delta_norm: float,
+    ) -> RewardWindowDecision:
+        """根据 Reward Pilot 窗口统计决定接受或回滚。"""
+
+        values = [float(value) for value in reward_improvements]
+        delta = float(parameter_delta_norm)
+        if not values:
+            return RewardWindowDecision(False, 0.0, 0.0, delta, "empty_reward_window")
+        if not all(torch.isfinite(torch.tensor(value)) for value in values):
+            return RewardWindowDecision(False, float("nan"), float("nan"), delta, "non_finite_reward")
+        cumulative = float(sum(values))
+        worst = float(min(values))
+        if delta <= 0.0 or delta > self.max_parameter_delta_norm:
+            return RewardWindowDecision(False, cumulative, worst, delta, "trust_region_violation")
+        if worst < -self.max_single_frame_regression:
+            return RewardWindowDecision(False, cumulative, worst, delta, "single_frame_regression")
+        accepted_frames = sum(value >= 0.0 for value in values)
+        if accepted_frames < self.min_accepted_frames:
+            return RewardWindowDecision(False, cumulative, worst, delta, "insufficient_improving_frames")
+        if cumulative < self.min_cumulative_improvement:
+            return RewardWindowDecision(False, cumulative, worst, delta, "insufficient_cumulative_improvement")
+        return RewardWindowDecision(True, cumulative, worst, delta, "accepted")

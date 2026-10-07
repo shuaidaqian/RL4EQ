@@ -124,6 +124,16 @@ Adapter 已真正影响数据段输出。随后固定 5 seeds、4 个主 SNR、4
 不能直接作为接受条件。下一步应实现多帧 Reward 验收、最大退化约束和 trust-region 回滚，
 再在更长帧数上确认在线收益是否稳定。
 
+2026-10-08 多帧 Reward 验收原型：新增 `RewardWindowGate` 和
+`scripts/replay_reward_gate.py`。replay 时首帧只用 Adapt Pilot 更新一次
+`physics_residual`，后续两帧冻结参数，只用 Reward Pilot 的 loss/BER 做累计验收；
+Data 标签只做事后评估。4 个主 SNR × 5 seed 的短矩阵中，三档更新的接受率约为 60%。
+门控能够拒绝一部分出现单帧 Reward 退化的候选，但接受组的 Data BER 改善仍接近 0，
+只有 Data BCE 出现小幅正向变化，说明当前门控主要提供稳定性保护，还没有把 Reward
+验收稳定转化为 BER 收益。该结果不满足正式 5 seed × 60 frame 的成功门槛，暂不引入
+Contextual Bandit；下一步需在更长 Reward 窗口和 acquisition 状态老化场景中验证，
+并比较接受/回滚后的连续指标与 Frozen 基线。
+
 ### 阶段 B：状态条件化 PEFT
 
 由 Adapt Pilot 产生低维状态 embedding，至少包含：

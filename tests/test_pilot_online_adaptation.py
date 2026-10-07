@@ -4,6 +4,39 @@ import pytest
 import torch
 
 
+def test_reward_window_gate_accepts_stable_multi_frame_improvement():
+    from training.online_adaptation import RewardWindowGate
+
+    gate = RewardWindowGate(min_cumulative_improvement=1e-4, max_parameter_delta_norm=0.1)
+    decision = gate.evaluate([0.00008, 0.00005, 0.00002], parameter_delta_norm=0.01)
+    assert decision.accepted is True
+    assert decision.reason == "accepted"
+    assert decision.cumulative_improvement == pytest.approx(0.00015)
+
+
+def test_reward_window_gate_rejects_single_frame_regression():
+    from training.online_adaptation import RewardWindowGate
+
+    gate = RewardWindowGate(max_single_frame_regression=0.0, max_parameter_delta_norm=0.1)
+    decision = gate.evaluate([0.001, -0.00001, 0.001], parameter_delta_norm=0.01)
+    assert decision.accepted is False
+    assert decision.reason == "single_frame_regression"
+
+
+def test_reward_window_gate_rejects_trust_region_violation_and_empty_window():
+    from training.online_adaptation import RewardWindowGate
+
+    gate = RewardWindowGate(max_parameter_delta_norm=0.1)
+    assert gate.evaluate([0.1], parameter_delta_norm=0.2).reason == "trust_region_violation"
+    assert gate.evaluate([], parameter_delta_norm=0.0).reason == "empty_reward_window"
+
+
+def test_reward_gate_replay_script_is_present():
+    from pathlib import Path
+
+    assert Path("scripts/replay_reward_gate.py").exists()
+
+
 def test_online_snr_layer_can_freeze_unreliable_peft_updates():
     import compare
 

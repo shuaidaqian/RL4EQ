@@ -725,6 +725,107 @@ def evaluate_peft_window_candidates(
     return rows
 
 
+def evaluate_frozen_peft_reward_window(
+    model: UnfoldedEqualizer,
+    adapt_frame,
+    reward_frames: list,
+    condition: CIRCondition,
+    soft_tail: torch.Tensor,
+    candidate: dict,
+    gate,
+    objective: str = "bce",
+) -> dict:
+    """应用一次 Adapt Pilot 更新后，用后续 Reward Pilot 帧验收并可回滚。
+
+    该函数模拟部署时的时序：候选只在 ``adapt_frame`` 上更新一次，随后冻结参数，
+    ``reward_frames`` 只计算验收统计。Data 标签仅用于返回离线诊断指标。
+    """
+
+    if objective not in {"bce", "pilot_reconstruction", "joint"}:
+        raise ValueError("objective 必须为 bce、pilot_reconstruction 或 joint。")
+    if not reward_frames:
+        raise ValueError("reward_frames 不能为空。")
+    device = next(model.parameters()).device
+    groups = set(candidate.get("groups", set()))
+    candidate_model = copy.deepcopy(model)
+    tail = soft_tail.detach().clone().to(device)
+    baseline_tail = soft_tail.detach().clone().to(device)
+    adaptation = (
+        apply_adapt_only_peft_update(
+            model=candidate_model,
+            frame=adapt_frame,
+            condition=condition,
+            soft_tail=tail,
+            groups=groups,
+            lr=float(candidate.get("lr", 0.0)),
+            steps=int(candidate.get("steps", 0)),
+            objective=objective,
+        )
+        if groups and int(candidate.get("steps", 0)) > 0
+        else _identity_peft_result(candidate_model, adapt_frame, condition, tail)
+    )
+    reward_improvements = []
+    reward_ber_improvements = []
+    data_rows = []
+    baseline_model = copy.deepcopy(model)
+    for frame in reward_frames:
+        frame_device = _frame_to_device(frame, device)
+        condition_device = _condition_to_device(condition, device)
+        tail_batch = tail.unsqueeze(0).to(torch.complex64)
+        baseline_tail_batch = baseline_tail.unsqueeze(0).to(torch.complex64)
+        with torch.no_grad():
+            logits = _model_logits(candidate_model, frame_device, condition_device, tail_batch)
+            baseline_logits = _model_logits(baseline_model, frame_device, condition_device, baseline_tail_batch)
+        reward_loss = _masked_bce(logits, frame_device.bits, frame_device.reward_mask)
+        baseline_reward_loss = _masked_bce(baseline_logits, frame_device.bits, frame_device.reward_mask)
+        reward_ber = bit_error_rate(logits[frame_device.reward_mask], frame_device.bits[frame_device.reward_mask])
+        baseline_reward_ber = bit_error_rate(
+            baseline_logits[frame_device.reward_mask], frame_device.bits[frame_device.reward_mask]
+        )
+        reward_improvements.append(float((baseline_reward_loss - reward_loss).detach().cpu()))
+        reward_ber_improvements.append(float(baseline_reward_ber - reward_ber))
+        data_rows.append(
+            {
+                "data_ber": bit_error_rate(logits[frame_device.data_mask], frame_device.bits[frame_device.data_mask]),
+                "baseline_data_ber": bit_error_rate(
+                    baseline_logits[frame_device.data_mask], frame_device.bits[frame_device.data_mask]
+                ),
+                "data_bce": float(_masked_bce(logits, frame_device.bits, frame_device.data_mask).detach().cpu()),
+                "baseline_data_bce": float(
+                    _masked_bce(baseline_logits, frame_device.bits, frame_device.data_mask).detach().cpu()
+                ),
+                "reward_loss": float(reward_loss.detach().cpu()),
+                "reward_ber": float(reward_ber),
+            }
+        )
+        tail = _next_soft_tail_from_logits(logits, tail.numel()).detach()
+        baseline_tail = _next_soft_tail_from_logits(baseline_logits, baseline_tail.numel()).detach()
+    decision = gate.evaluate(reward_improvements, float(adaptation.get("peft_delta_norm", 0.0)))
+    return {
+        "action_name": str(candidate.get("name", "identity")),
+        "updated_groups": sorted(groups) if groups else ["identity"],
+        "adaptation_accepted": bool(decision.accepted),
+        "gate_reason": decision.reason,
+        "gate_cumulative_improvement": float(decision.cumulative_improvement),
+        "gate_worst_frame_improvement": float(decision.worst_frame_improvement),
+        "reward_ber_improvement": _mean(reward_ber_improvements),
+        "data_ber_mean": _mean([float(row["data_ber"]) for row in data_rows]),
+        "baseline_data_ber_mean": _mean([float(row["baseline_data_ber"]) for row in data_rows]),
+        "data_ber_improvement": _mean(
+            [float(row["baseline_data_ber"] - row["data_ber"]) for row in data_rows]
+        ),
+        "data_bce_mean": _mean([float(row["data_bce"]) for row in data_rows]),
+        "baseline_data_bce_mean": _mean([float(row["baseline_data_bce"]) for row in data_rows]),
+        "data_bce_improvement": _mean(
+            [float(row["baseline_data_bce"] - row["data_bce"]) for row in data_rows]
+        ),
+        "data_labels_used_online": False,
+        "diagnostic_uses_data_labels": True,
+        "parameter_delta_norm": float(adaptation.get("peft_delta_norm", 0.0)),
+        "reward_frame_count": len(reward_frames),
+    }
+
+
 def _identity_peft_result(
     model: UnfoldedEqualizer,
     frame,

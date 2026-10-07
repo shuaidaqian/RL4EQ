@@ -453,6 +453,30 @@ def test_peft_window_candidate_scan_keeps_data_as_diagnostic_only():
     assert all(row["online_update_uses_data_labels"] is False for row in rows)
 
 
+def test_frozen_peft_reward_window_reports_gate_decision_without_online_data_labels():
+    from evaluation.research_diagnostics import evaluate_frozen_peft_reward_window
+    from training.online_adaptation import RewardWindowGate
+
+    frames = [_tiny_identity_frame(frame_index=idx) for idx in range(3)]
+    row = evaluate_frozen_peft_reward_window(
+        model=_tiny_model(),
+        adapt_frame=frames[0],
+        reward_frames=frames[1:],
+        condition=_tiny_condition(),
+        soft_tail=torch.zeros(4, dtype=torch.complex64),
+        candidate={"name": "head", "groups": {"head"}, "lr": 1e-4, "steps": 1},
+        gate=RewardWindowGate(max_parameter_delta_norm=1.0),
+    )
+    assert row["reward_frame_count"] == 2
+    assert row["gate_reason"]
+    assert row["data_labels_used_online"] is False
+    assert row["diagnostic_uses_data_labels"] is True
+    assert "baseline_data_ber_mean" in row
+    assert "data_ber_improvement" in row
+    assert "baseline_data_bce_mean" in row
+    assert "data_bce_improvement" in row
+
+
 def test_level_b_difficulty_scan_reports_only_traditional_baselines(tmp_path):
     from evaluation.research_diagnostics import run_level_b_difficulty_scan
 
