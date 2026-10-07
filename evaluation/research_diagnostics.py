@@ -523,6 +523,7 @@ def apply_adapt_only_peft_update(
     reward_ber_before = bit_error_rate(before_logits[frame.reward_mask], frame.bits[frame.reward_mask])
     reward_margin_before = _masked_margin(before_logits, frame.reward_mask)
     data_before = bit_error_rate(before_logits[frame.data_mask], frame.bits[frame.data_mask])
+    data_bce_before = _masked_bce(before_logits, frame.bits, frame.data_mask)
 
     model.train()
     model.set_trainable_groups(groups)
@@ -565,6 +566,22 @@ def apply_adapt_only_peft_update(
     reward_ber_after = bit_error_rate(after_logits[frame.reward_mask], frame.bits[frame.reward_mask])
     reward_margin_after = _masked_margin(after_logits, frame.reward_mask)
     data_after = bit_error_rate(after_logits[frame.data_mask], frame.bits[frame.data_mask])
+    data_bce_after = _masked_bce(after_logits, frame.bits, frame.data_mask)
+    data_logits_before = before_logits[frame.data_mask].float()
+    data_logits_after = after_logits[frame.data_mask].float()
+    data_logits_delta = data_logits_after - data_logits_before
+    if data_logits_before.numel() == 0:
+        data_logits_abs_mean_delta = torch.zeros((), device=device)
+        data_logits_direction_change_fraction = torch.zeros((), device=device)
+        data_soft_abs_mean_delta = torch.zeros((), device=device)
+    else:
+        data_logits_abs_mean_delta = torch.mean(torch.abs(data_logits_delta))
+        data_logits_direction_change_fraction = torch.mean(
+            (torch.sign(data_logits_before) != torch.sign(data_logits_after)).float()
+        )
+        data_soft_before = torch.sigmoid(data_logits_before)
+        data_soft_after = torch.sigmoid(data_logits_after)
+        data_soft_abs_mean_delta = torch.mean(torch.abs(data_soft_after - data_soft_before))
     peft_delta_sq = torch.zeros((), device=device)
     named = dict(model.named_parameters())
     for name, value in before.items():
@@ -586,6 +603,12 @@ def apply_adapt_only_peft_update(
         "data_ber_before": float(data_before),
         "data_ber_after": float(data_after),
         "data_ber_improvement": float(data_before - data_after),
+        "data_bce_before": float(data_bce_before.detach().cpu()),
+        "data_bce_after": float(data_bce_after.detach().cpu()),
+        "data_bce_improvement": float((data_bce_before - data_bce_after).detach().cpu()),
+        "data_logits_abs_mean_delta": float(data_logits_abs_mean_delta.detach().cpu()),
+        "data_logits_direction_change_fraction": float(data_logits_direction_change_fraction.detach().cpu()),
+        "data_soft_abs_mean_delta": float(data_soft_abs_mean_delta.detach().cpu()),
         "peft_delta_norm": float(peft_delta_norm),
         "action_delta_norm": float(peft_delta_norm),
         "objective": str(objective),
@@ -684,6 +707,14 @@ def evaluate_peft_window_candidates(
                 "data_ber_improvement": _mean([float(item["data_ber_improvement"]) for item in frame_results]),
                 "data_ber_before": _mean([float(item["data_ber_before"]) for item in frame_results]),
                 "data_ber_after": _mean([float(item["data_ber_after"]) for item in frame_results]),
+                "data_bce_before": _mean([float(item["data_bce_before"]) for item in frame_results]),
+                "data_bce_after": _mean([float(item["data_bce_after"]) for item in frame_results]),
+                "data_bce_improvement": _mean([float(item["data_bce_improvement"]) for item in frame_results]),
+                "data_logits_abs_mean_delta": _mean([float(item["data_logits_abs_mean_delta"]) for item in frame_results]),
+                "data_logits_direction_change_fraction": _mean(
+                    [float(item["data_logits_direction_change_fraction"]) for item in frame_results]
+                ),
+                "data_soft_abs_mean_delta": _mean([float(item["data_soft_abs_mean_delta"]) for item in frame_results]),
                 "peft_delta_norm": _mean(peft_delta_norms),
                 "action_delta_norm": _mean(peft_delta_norms),
                 "objective": str(objective),
@@ -726,6 +757,12 @@ def _identity_peft_result(
         "data_ber_before": float(data_ber),
         "data_ber_after": float(data_ber),
         "data_ber_improvement": 0.0,
+        "data_bce_before": float(_masked_bce(logits, frame.bits, frame.data_mask).detach().cpu()),
+        "data_bce_after": float(_masked_bce(logits, frame.bits, frame.data_mask).detach().cpu()),
+        "data_bce_improvement": 0.0,
+        "data_logits_abs_mean_delta": 0.0,
+        "data_logits_direction_change_fraction": 0.0,
+        "data_soft_abs_mean_delta": 0.0,
         "peft_delta_norm": 0.0,
         "action_delta_norm": 0.0,
         "diagnostic_uses_data_labels": True,

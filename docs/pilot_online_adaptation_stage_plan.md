@@ -113,6 +113,17 @@ Data 只能用于事后计算排序相关性和 BER，不能进入候选选择�
 确认更新是否实际影响数据段，再决定是否增加步数或调整 Adapter 调制位置；在此之前不进入
 正式 5 seeds × 60 frames，也不引入 Contextual Bandit。
 
+2026-10-07 主路径 PEFT 探针：新增并测试了已有的 `physics_residual` 与
+`physics_blend` 在线 Adapter。`physics_blend` 仍只产生约 `1e-7` 级 Data logits 变化；
+`physics_residual` 位于最终 logits 主路径，3 seeds × 2 帧探针中产生约 `3.7e-4` 的
+平均 logits 变化、约 3.7% 的方向改变，并出现约 1.15 pp 的 Data BER 改善，证明
+Adapter 已真正影响数据段输出。随后固定 5 seeds、4 个主 SNR、4 帧、窗口 2 的短统计：
+`physics_residual` 标准档在 0/5/10/15 dB 的平均 Data BER 改善约为
+`0.92/1.84/1.80/2.01 pp`，Data BCE、soft output 和 logits 均同步发生可观测变化。
+但 Reward Pilot loss 在所有候选上几乎都下降，无法区分 Data 好坏更新；Reward loss 单指标
+不能直接作为接受条件。下一步应实现多帧 Reward 验收、最大退化约束和 trust-region 回滚，
+再在更长帧数上确认在线收益是否稳定。
+
 ### 阶段 B：状态条件化 PEFT
 
 由 Adapt Pilot 产生低维状态 embedding，至少包含：

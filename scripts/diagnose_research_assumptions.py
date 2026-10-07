@@ -73,6 +73,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if ("physics_residual" in args.peft_groups or "physics_blend" in args.peft_groups) and any(
+        objective != "bce" for objective in args.objectives
+    ):
+        parser.error("physics_residual/physics_blend 探针当前只支持 bce 目标。")
+
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     pretrained = Path(args.pretrained)
     output_dir = Path(args.output_dir)
@@ -89,6 +94,10 @@ def main() -> None:
     selected_groups = set(args.peft_groups)
     if "channel_residual" in selected_groups:
         base_model.attach_online_channel_residual_adapter()
+    if "physics_residual" in selected_groups:
+        base_model.attach_online_physics_residual_adapter()
+    if "physics_blend" in selected_groups:
+        base_model.attach_online_physics_blend_adapter()
     if "phase_trend" in selected_groups:
         base_model.attach_online_phase_trend_adapter()
     if "head" in selected_groups:
@@ -123,6 +132,10 @@ def main() -> None:
                         peft_candidates = [{"name": "identity", "groups": set(), "lr": 0.0, "steps": 0}]
                         if "channel_residual" in selected_groups:
                             peft_candidates.extend(_channel_residual_candidates(args.peft_lr, args.peft_steps))
+                        elif "physics_residual" in selected_groups:
+                            peft_candidates.extend(_single_group_candidates("physics_residual", args.peft_lr, args.peft_steps))
+                        elif "physics_blend" in selected_groups:
+                            peft_candidates.extend(_single_group_candidates("physics_blend", args.peft_lr, args.peft_steps))
                         else:
                             peft_candidates.extend(_focused_peft_candidates(args.peft_lr, args.peft_steps))
                         for frame_index in range(1, int(args.frames) + 1):
@@ -164,6 +177,10 @@ def main() -> None:
                             candidates_for_frame = (
                                 _channel_residual_candidates(args.peft_lr, args.peft_steps)
                                 if "channel_residual" in selected_groups
+                                else _single_group_candidates("physics_residual", args.peft_lr, args.peft_steps)
+                                if "physics_residual" in selected_groups
+                                else _single_group_candidates("physics_blend", args.peft_lr, args.peft_steps)
+                                if "physics_blend" in selected_groups
                                 else _focused_peft_candidates(args.peft_lr, args.peft_steps)
                             )
                             for candidate in candidates_for_frame:
@@ -346,6 +363,18 @@ def _channel_residual_candidates(base_lr: float, base_steps: int) -> list[dict]:
         {"name": "channel_residual_conservative", "groups": {"channel_residual"}, "lr": lr * 0.5, "steps": steps},
         {"name": "channel_residual", "groups": {"channel_residual"}, "lr": lr, "steps": steps},
         {"name": "channel_residual_fast", "groups": {"channel_residual"}, "lr": lr * 2.0, "steps": steps},
+    ]
+
+
+def _single_group_candidates(group: str, base_lr: float, base_steps: int) -> list[dict]:
+    """为指定主路径 PEFT 组生成三档更新幅度。"""
+
+    steps = max(1, int(base_steps))
+    lr = float(base_lr)
+    return [
+        {"name": f"{group}_conservative", "groups": {group}, "lr": lr * 0.5, "steps": steps},
+        {"name": group, "groups": {group}, "lr": lr, "steps": steps},
+        {"name": f"{group}_fast", "groups": {group}, "lr": lr * 2.0, "steps": steps},
     ]
 
 

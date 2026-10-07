@@ -226,6 +226,19 @@ def test_focused_peft_candidates_are_lightweight_and_non_redundant():
     assert candidates[4]["groups"] == {"adapter_lora"}
 
 
+def test_main_path_peft_candidates_have_three_safe_scales():
+    from scripts.diagnose_research_assumptions import _single_group_candidates
+
+    candidates = _single_group_candidates("physics_residual", base_lr=1e-4, base_steps=1)
+    assert [item["name"] for item in candidates] == [
+        "physics_residual_conservative",
+        "physics_residual",
+        "physics_residual_fast",
+    ]
+    assert [item["lr"] for item in candidates] == [5e-5, 1e-4, 2e-4]
+    assert all(item["groups"] == {"physics_residual"} for item in candidates)
+
+
 def test_reward_selected_actions_fall_back_to_identity_without_positive_reward():
     from evaluation.research_diagnostics import summarize_reward_selected_actions
 
@@ -354,6 +367,19 @@ def test_peft_adapt_update_does_not_depend_on_reward_or_data_labels():
     assert result_a["adapt_steps"] == 1
     assert result_a["diagnostic_uses_data_labels"] is True
     assert result_a["online_update_uses_data_labels"] is False
+    for key in (
+        "data_bce_before",
+        "data_bce_after",
+        "data_bce_improvement",
+        "data_logits_abs_mean_delta",
+        "data_logits_direction_change_fraction",
+        "data_soft_abs_mean_delta",
+    ):
+        assert key in result_a
+        assert key in result_b
+    assert result_a["data_logits_abs_mean_delta"] >= 0.0
+    assert 0.0 <= result_a["data_logits_direction_change_fraction"] <= 1.0
+    assert result_a["data_soft_abs_mean_delta"] >= 0.0
     for (name_a, param_a), (name_b, param_b) in zip(first.named_parameters(), second.named_parameters()):
         assert name_a == name_b
         assert torch.allclose(param_a, param_b, atol=1e-6)
@@ -418,6 +444,10 @@ def test_peft_window_candidate_scan_keeps_data_as_diagnostic_only():
     assert all(row["window_size"] == 2 for row in rows)
     assert all("reward_loss_improvement" in row for row in rows)
     assert all("data_ber_improvement" in row for row in rows)
+    assert all("data_bce_improvement" in row for row in rows)
+    assert all("data_logits_abs_mean_delta" in row for row in rows)
+    assert all("data_logits_direction_change_fraction" in row for row in rows)
+    assert all("data_soft_abs_mean_delta" in row for row in rows)
     assert all("peft_delta_norm" in row for row in rows)
     assert all(row["diagnostic_uses_data_labels"] is True for row in rows)
     assert all(row["online_update_uses_data_labels"] is False for row in rows)
