@@ -195,3 +195,11 @@ Adapt Pilot
 这条路线已经在状态老化诊断区显示小幅、跨 seed、随帧数增强的收益，但尚未证明在
 `gap=0` 主配置中稳定超过 Frozen Offline NN，因此下一阶段必须先完成 Pilot-only replay
 排序门槛，再决定是否进入正式主矩阵。
+
+2026-10-08 联合 Reward 验收复核：在 gap=120s、4 个主 SNR、5 seed、4 帧 Reward
+窗口上加入 Reward BER 和 margin 的联合条件后，接受/拒绝结果与 loss-only 门控完全一致。
+逐帧统计显示 BER/margin 改善与 loss 基本同向，15 dB 还会因 Pilot 量化出现大量 0，
+因此简单增加指标没有提升 Data 收益筛选能力。当前将多帧 Gate 定位为“防止明显退化的
+回滚保护”，不再把它当作 Data BER 收益选择器；默认主候选移除快速档，只保留保守和标准
+`physics_residual`，快速档仅在显式压力诊断时启用。下一阶段应在更长状态老化轨迹上比较
+接受但 Data 未改善的比例，并继续寻找能预测 Data 变化的 Pilot-only 状态特征。

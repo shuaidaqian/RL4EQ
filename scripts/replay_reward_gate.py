@@ -43,6 +43,8 @@ def main() -> None:
     parser.add_argument("--window-size", type=int, default=2)
     parser.add_argument("--max-single-frame-regression", type=float, default=0.0)
     parser.add_argument("--min-cumulative-improvement", type=float, default=0.0)
+    parser.add_argument("--joint-metrics", action="store_true")
+    parser.add_argument("--include-fast", action="store_true")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
     if args.frames < 2:
@@ -55,8 +57,9 @@ def main() -> None:
     candidates = [
         ("physics_residual_conservative", args.lr * 0.5),
         ("physics_residual", args.lr),
-        ("physics_residual_fast", args.lr * 2.0),
     ]
+    if args.include_fast:
+        candidates.append(("physics_residual_fast", args.lr * 2.0))
     for snr in args.snrs:
         for seed in args.seeds:
             env = CommunicationEnvironment(
@@ -80,6 +83,11 @@ def main() -> None:
                     max_single_frame_regression=args.max_single_frame_regression,
                     max_parameter_delta_norm=0.5,
                     min_accepted_frames=args.window_size,
+                    min_cumulative_ber_improvement=0.0,
+                    min_cumulative_margin_improvement=0.0,
+                    max_single_frame_ber_regression=0.0,
+                    max_single_frame_margin_regression=0.0,
+                    require_joint_metrics=bool(args.joint_metrics),
                 )
                 result = evaluate_frozen_peft_reward_window(
                     model=base_model,

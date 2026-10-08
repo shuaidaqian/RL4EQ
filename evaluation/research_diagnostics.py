@@ -766,6 +766,7 @@ def evaluate_frozen_peft_reward_window(
     )
     reward_improvements = []
     reward_ber_improvements = []
+    reward_margin_improvements = []
     data_rows = []
     baseline_model = copy.deepcopy(model)
     for frame in reward_frames:
@@ -782,8 +783,11 @@ def evaluate_frozen_peft_reward_window(
         baseline_reward_ber = bit_error_rate(
             baseline_logits[frame_device.reward_mask], frame_device.bits[frame_device.reward_mask]
         )
+        reward_margin = _masked_margin(logits, frame_device.reward_mask)
+        baseline_reward_margin = _masked_margin(baseline_logits, frame_device.reward_mask)
         reward_improvements.append(float((baseline_reward_loss - reward_loss).detach().cpu()))
         reward_ber_improvements.append(float(baseline_reward_ber - reward_ber))
+        reward_margin_improvements.append(float((reward_margin - baseline_reward_margin).detach().cpu()))
         data_rows.append(
             {
                 "data_ber": bit_error_rate(logits[frame_device.data_mask], frame_device.bits[frame_device.data_mask]),
@@ -800,7 +804,12 @@ def evaluate_frozen_peft_reward_window(
         )
         tail = _next_soft_tail_from_logits(logits, tail.numel()).detach()
         baseline_tail = _next_soft_tail_from_logits(baseline_logits, baseline_tail.numel()).detach()
-    decision = gate.evaluate(reward_improvements, float(adaptation.get("peft_delta_norm", 0.0)))
+    decision = gate.evaluate(
+        reward_improvements,
+        float(adaptation.get("peft_delta_norm", 0.0)),
+        reward_ber_improvements=reward_ber_improvements,
+        reward_margin_improvements=reward_margin_improvements,
+    )
     return {
         "action_name": str(candidate.get("name", "identity")),
         "updated_groups": sorted(groups) if groups else ["identity"],
@@ -809,6 +818,7 @@ def evaluate_frozen_peft_reward_window(
         "gate_cumulative_improvement": float(decision.cumulative_improvement),
         "gate_worst_frame_improvement": float(decision.worst_frame_improvement),
         "reward_ber_improvement": _mean(reward_ber_improvements),
+        "reward_margin_improvement": _mean(reward_margin_improvements),
         "data_ber_mean": _mean([float(row["data_ber"]) for row in data_rows]),
         "baseline_data_ber_mean": _mean([float(row["baseline_data_ber"]) for row in data_rows]),
         "data_ber_improvement": _mean(

@@ -475,6 +475,7 @@ def test_frozen_peft_reward_window_reports_gate_decision_without_online_data_lab
     assert "data_ber_improvement" in row
     assert "baseline_data_bce_mean" in row
     assert "data_bce_improvement" in row
+    assert "reward_margin_improvement" in row
 
 
 def test_level_b_difficulty_scan_reports_only_traditional_baselines(tmp_path):

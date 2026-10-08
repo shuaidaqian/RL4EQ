@@ -31,6 +31,28 @@ def test_reward_window_gate_rejects_trust_region_violation_and_empty_window():
     assert gate.evaluate([], parameter_delta_norm=0.0).reason == "empty_reward_window"
 
 
+def test_reward_window_gate_joint_metrics_require_ber_and_margin_alignment():
+    from training.online_adaptation import RewardWindowGate
+
+    gate = RewardWindowGate(require_joint_metrics=True, max_parameter_delta_norm=0.1)
+    missing = gate.evaluate([0.1], parameter_delta_norm=0.01)
+    assert missing.reason == "missing_joint_metrics"
+    rejected = gate.evaluate(
+        [0.1, 0.1],
+        parameter_delta_norm=0.01,
+        reward_ber_improvements=[0.0, -0.01],
+        reward_margin_improvements=[0.1, 0.1],
+    )
+    assert rejected.reason == "single_frame_ber_regression"
+    accepted = gate.evaluate(
+        [0.1, 0.1],
+        parameter_delta_norm=0.01,
+        reward_ber_improvements=[0.01, 0.0],
+        reward_margin_improvements=[0.1, 0.0],
+    )
+    assert accepted.accepted is True
+
+
 def test_reward_gate_replay_script_is_present():
     from pathlib import Path
 

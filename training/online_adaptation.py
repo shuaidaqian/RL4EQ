@@ -1074,25 +1074,39 @@ class RewardWindowGate:
         self,
         *,
         min_cumulative_improvement: float = 0.0,
+        min_cumulative_ber_improvement: float = 0.0,
+        min_cumulative_margin_improvement: float = 0.0,
         max_single_frame_regression: float = 0.0,
+        max_single_frame_ber_regression: float = 0.0,
+        max_single_frame_margin_regression: float = 0.0,
         max_parameter_delta_norm: float = 0.5,
         min_accepted_frames: int = 1,
+        require_joint_metrics: bool = False,
     ) -> None:
         if max_single_frame_regression < 0.0:
             raise ValueError("max_single_frame_regression 不能为负数。")
+        if max_single_frame_ber_regression < 0.0 or max_single_frame_margin_regression < 0.0:
+            raise ValueError("单帧 BER/margin 退化阈值不能为负数。")
         if max_parameter_delta_norm <= 0.0:
             raise ValueError("max_parameter_delta_norm 必须为正数。")
         if min_accepted_frames < 1:
             raise ValueError("min_accepted_frames 必须至少为 1。")
         self.min_cumulative_improvement = float(min_cumulative_improvement)
+        self.min_cumulative_ber_improvement = float(min_cumulative_ber_improvement)
+        self.min_cumulative_margin_improvement = float(min_cumulative_margin_improvement)
         self.max_single_frame_regression = float(max_single_frame_regression)
+        self.max_single_frame_ber_regression = float(max_single_frame_ber_regression)
+        self.max_single_frame_margin_regression = float(max_single_frame_margin_regression)
         self.max_parameter_delta_norm = float(max_parameter_delta_norm)
         self.min_accepted_frames = int(min_accepted_frames)
+        self.require_joint_metrics = bool(require_joint_metrics)
 
     def evaluate(
         self,
         reward_improvements: list[float] | tuple[float, ...],
         parameter_delta_norm: float,
+        reward_ber_improvements: list[float] | tuple[float, ...] | None = None,
+        reward_margin_improvements: list[float] | tuple[float, ...] | None = None,
     ) -> RewardWindowDecision:
         """根据 Reward Pilot 窗口统计决定接受或回滚。"""
 
@@ -1104,10 +1118,23 @@ class RewardWindowGate:
             return RewardWindowDecision(False, float("nan"), float("nan"), delta, "non_finite_reward")
         cumulative = float(sum(values))
         worst = float(min(values))
+        ber_values = None if reward_ber_improvements is None else [float(value) for value in reward_ber_improvements]
+        margin_values = None if reward_margin_improvements is None else [float(value) for value in reward_margin_improvements]
         if delta <= 0.0 or delta > self.max_parameter_delta_norm:
             return RewardWindowDecision(False, cumulative, worst, delta, "trust_region_violation")
         if worst < -self.max_single_frame_regression:
             return RewardWindowDecision(False, cumulative, worst, delta, "single_frame_regression")
+        if self.require_joint_metrics:
+            if ber_values is None or margin_values is None or len(ber_values) != len(values) or len(margin_values) != len(values):
+                return RewardWindowDecision(False, cumulative, worst, delta, "missing_joint_metrics")
+            if min(ber_values) < -self.max_single_frame_ber_regression:
+                return RewardWindowDecision(False, cumulative, worst, delta, "single_frame_ber_regression")
+            if min(margin_values) < -self.max_single_frame_margin_regression:
+                return RewardWindowDecision(False, cumulative, worst, delta, "single_frame_margin_regression")
+            if sum(ber_values) < self.min_cumulative_ber_improvement:
+                return RewardWindowDecision(False, cumulative, worst, delta, "insufficient_cumulative_ber_improvement")
+            if sum(margin_values) < self.min_cumulative_margin_improvement:
+                return RewardWindowDecision(False, cumulative, worst, delta, "insufficient_cumulative_margin_improvement")
         accepted_frames = sum(value >= 0.0 for value in values)
         if accepted_frames < self.min_accepted_frames:
             return RewardWindowDecision(False, cumulative, worst, delta, "insufficient_improving_frames")
