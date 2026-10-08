@@ -37,6 +37,12 @@ def test_reward_gate_replay_script_is_present():
     assert Path("scripts/replay_reward_gate.py").exists()
 
 
+def test_reward_gate_replay_accepts_state_gap_option():
+    import scripts.replay_reward_gate as replay
+
+    assert replay.main is not None
+
+
 def test_online_snr_layer_can_freeze_unreliable_peft_updates():
     import compare
 

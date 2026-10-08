@@ -134,6 +134,15 @@ Data 标签只做事后评估。4 个主 SNR × 5 seed 的短矩阵中，三档�
 Contextual Bandit；下一步需在更长 Reward 窗口和 acquisition 状态老化场景中验证，
 并比较接受/回滚后的连续指标与 Frozen 基线。
 
+2026-10-08 状态老化长窗口复核：在 `acquisition_to_data_gap_seconds=120`、Level B、
+4 个主 SNR、5 seeds、首帧 Adapt 更新后连续 4 帧 Reward 验收的 replay 中，三档
+`physics_residual` 接受率约为 45%。10 dB 候选全部因单帧 Reward 退化被回滚，说明
+长窗口确实提高了保护强度；接受组 Data BCE 有小幅正向变化，但 Data BER 改善仍接近 0，
+只有 0 dB 标准档出现极小收益。当前结论是“多帧门控能够减少不稳定更新，但 Reward
+验收尚未稳定转化为 BER 收益”，不满足正式 5 seed × 60 frame 成功门槛。下一步应优化
+Reward 统计与候选更新方向（例如使用 Reward loss + margin/BER 的联合验收、限制快速档），
+再决定是否进入正式长矩阵；暂不引入 Contextual Bandit。
+
 ### 阶段 B：状态条件化 PEFT
 
 由 Adapt Pilot 产生低维状态 embedding，至少包含：

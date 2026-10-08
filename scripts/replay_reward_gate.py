@@ -37,6 +37,7 @@ def main() -> None:
     parser.add_argument("--frames", type=int, default=3)
     parser.add_argument("--delay", type=int, default=116)
     parser.add_argument("--pilot-total", type=int, default=256)
+    parser.add_argument("--gap-seconds", type=float, default=0.0)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--steps", type=int, default=1)
     parser.add_argument("--window-size", type=int, default=2)
@@ -66,6 +67,7 @@ def main() -> None:
                     total_pilot=args.pilot_total,
                     layout="prefix",
                     seed=90_000 + int(seed),
+                    acquisition_to_data_gap_seconds=float(args.gap_seconds),
                 )
             )
             start = env.reset_episode()
@@ -89,13 +91,22 @@ def main() -> None:
                     gate=gate,
                     objective="bce",
                 )
-                result.update({"snr_db": float(snr), "seed": int(seed), "delay": args.delay, "frames": args.frames})
+                result.update(
+                    {
+                        "snr_db": float(snr),
+                        "seed": int(seed),
+                        "delay": args.delay,
+                        "frames": args.frames,
+                        "acquisition_to_data_gap_seconds": float(args.gap_seconds),
+                    }
+                )
                 rows.append(result)
     payload = {
         "metric": "frozen_peft_multi_frame_reward_gate",
         "rows": rows,
         "data_labels_used_online": False,
         "diagnostic_uses_data_labels": True,
+        "acquisition_to_data_gap_seconds": float(args.gap_seconds),
     }
     target = Path(args.output)
     target.parent.mkdir(parents=True, exist_ok=True)
