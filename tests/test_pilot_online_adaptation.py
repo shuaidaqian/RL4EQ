@@ -57,6 +57,7 @@ def test_reward_gate_replay_script_is_present():
     from pathlib import Path
 
     assert Path("scripts/replay_reward_gate.py").exists()
+    assert Path("scripts/replay_rolling_reward_gate.py").exists()
 
 
 def test_reward_gate_replay_accepts_state_gap_option():
