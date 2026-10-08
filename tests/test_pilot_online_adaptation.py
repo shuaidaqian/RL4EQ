@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
 import torch
@@ -58,6 +59,13 @@ def test_reward_gate_replay_script_is_present():
 
     assert Path("scripts/replay_reward_gate.py").exists()
     assert Path("scripts/replay_rolling_reward_gate.py").exists()
+
+
+def test_rolling_replay_exposes_pilot_drift_gate_controls():
+    source = Path("scripts/replay_rolling_reward_gate.py").read_text(encoding="utf-8")
+    assert "PilotDriftDetector" in source
+    assert "pilot_state_drift_detected" in source
+    assert "data_labels_used_online" in source
 
 
 def test_reward_gate_replay_accepts_state_gap_option():

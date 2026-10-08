@@ -833,6 +833,10 @@ def evaluate_frozen_peft_reward_window(
         "diagnostic_uses_data_labels": True,
         "parameter_delta_norm": float(adaptation.get("peft_delta_norm", 0.0)),
         "reward_frame_count": len(reward_frames),
+        # 供滚动 replay 接回候选状态；写日志前由调用方移除这两个内部字段。
+        "_candidate_model": candidate_model,
+        "_final_soft_tail": tail.detach(),
+        "_baseline_soft_tail": baseline_tail.detach(),
     }
 
 

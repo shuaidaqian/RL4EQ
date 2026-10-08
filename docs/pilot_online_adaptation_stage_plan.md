@@ -219,3 +219,13 @@ Adapt Pilot
 硬 BER 基本持平。保守档整体 BER 略有下降，标准档略有上升，说明滚动窗口比一次冻结
 更接近在线微调目标，但收益仍不足以进入正式 5 seed × 60 frame。下一步应围绕标准档
 优化状态条件化和窗口接受策略，并继续报告 Data BCE 与 BER 的配对结果。
+
+2026-10-09 漂移门控接入滚动 replay：使用 `PilotStateEmbedding` 和
+`PilotDriftDetector` 对 CIR residual、噪声和置信度构造无标签状态距离；首窗口只建立
+基线，后续只有检测到漂移才尝试 `physics_residual` 更新。修正候选之间共享 CIR、模型
+和 soft-tail 的隔离问题后，在 gap=120s、4 个主 SNR、5 seeds、20 帧矩阵中，两档候选
+的漂移触发率均为约 45%，标准档接受率约 63%。标准档接受窗口的 Data BCE 在 0/5/10 dB
+均为正，硬 BER 基本持平；保守档整体 BER 略有下降。在线审计显示所有窗口均未使用 Data
+标签。该结果证明“漂移检测 + 滚动 Reward 回滚”链路可运行并能减少无漂移更新，但仍未
+达到稳定 BER 优势，下一步应把真实 Adapt Pilot 重构误差和 phase/CFO 变化接入状态摘要，
+再验证状态条件化 PEFT 是否能把连续收益转成硬 BER 收益。
