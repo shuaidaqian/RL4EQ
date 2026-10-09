@@ -229,3 +229,16 @@ Adapt Pilot
 标签。该结果证明“漂移检测 + 滚动 Reward 回滚”链路可运行并能减少无漂移更新，但仍未
 达到稳定 BER 优势，下一步应把真实 Adapt Pilot 重构误差和 phase/CFO 变化接入状态摘要，
 再验证状态条件化 PEFT 是否能把连续收益转成硬 BER 收益。
+
+2026-10-09 真实 Pilot 状态与条件化步长：滚动 replay 已接入当前 Adapt Pilot 的实际
+相位残差向量、CIR 线性重构相对误差和由重构误差修正后的置信度。状态条件化选项
+`--state-conditioned` 只根据漂移距离、Pilot 重构误差和置信度缩放
+`physics_residual` 的 PEFT 学习率，仍不读取 Reward/Data 标签；Reward Pilot 继续只负责
+验收、拒绝和回滚。固定 gap=120 s、Level B、window=2、5/10 dB、3 seeds、8 帧的短矩阵
+中，5 dB 标准档接受率约 16.7%、10 dB 全部回滚，Data BCE 变化为正但硬 BER 仍为 0；
+随后在相同配置下扩展到 5/10 dB、3 seeds、20 帧，对照固定步长与条件化步长：两者的
+漂移触发率、接受率和 Data 硬 BER 完全相同，条件化平均学习率约为固定值的 0.74/0.80，
+但 Data BCE 略低。因此该阶段验证了真实状态接入和审计链路，没有通过“稳定 BER 超过
+Frozen”的门槛，也不能替代正式 5 seeds × 60 frames 主矩阵。下一步应优先寻找能在
+Pilot-only 上区分 Data 收益的更新方向或验收特征；在此之前不扩大正式矩阵，也不引入
+Contextual Bandit。

@@ -21,7 +21,9 @@ if str(REPO_ROOT) not in sys.path:
 
 from agent.cir_estimator import condition_from_cir
 from agent.pilot_state import PilotDriftDetector, PilotStateEmbedding, build_pilot_state_summary
+from baseline.traditional_equalizers import estimate_phase_residual_vector
 from env.comm_env import CommEnvConfig, CommunicationEnvironment
+from env.linear_operator import LinearChannelOperator
 from evaluation.research_diagnostics import evaluate_frozen_peft_reward_window
 from training.meta_training import _estimate_cir_from_known_frame
 from training.online_adaptation import RewardWindowGate
@@ -45,11 +47,19 @@ def main() -> None:
     parser.add_argument("--window-size", type=int, default=2)
     parser.add_argument("--drift-threshold", type=float, default=0.25)
     parser.add_argument("--min-drift-confidence", type=float, default=0.15)
+    parser.add_argument("--state-conditioned", action="store_true")
+    parser.add_argument("--min-lr-scale", type=float, default=0.25)
+    parser.add_argument("--max-lr-scale", type=float, default=1.0)
+    parser.add_argument("--reconstruction-scale", type=float, default=0.05)
     parser.add_argument("--disable-drift-gate", action="store_true")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
     if args.frames < args.window_size + 1:
         raise ValueError("frames 必须大于一个更新帧和一个 Reward 窗口。")
+    if not 0.0 <= args.min_lr_scale <= args.max_lr_scale:
+        raise ValueError("学习率缩放范围必须满足 0 <= min <= max。")
+    if args.reconstruction_scale <= 0.0:
+        raise ValueError("reconstruction_scale 必须为正数。")
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     model_config = _load_model_config(config, Path(args.pretrained))
     rows = []
@@ -90,18 +100,33 @@ def main() -> None:
                     window_frames = frames[cursor : cursor + args.window_size + 1]
                     current_frame = window_frames[0]
                     condition = condition_from_cir(cir, float(snr))
+                    pilot_state = estimate_pilot_observable_state(
+                        current_frame=current_frame,
+                        cir=cir,
+                        soft_tail=soft_tail,
+                        condition=condition,
+                    )
                     summary = build_pilot_state_summary(
                         cir=cir,
                         reference_cir=reference_cir,
-                        phase0=0.0,
-                        cfo_cycles_per_symbol=0.0,
+                        phase0=pilot_state["phase0"],
+                        cfo_cycles_per_symbol=pilot_state["cfo_cycles_per_symbol"],
                         noise_variance=condition.noise_variance,
-                        confidence=condition.confidence,
-                        reconstruction_error=0.0,
+                        confidence=pilot_state["confidence"],
+                        reconstruction_error=pilot_state["reconstruction_error"],
                     )
                     embedding = state_embedding(summary)
                     drift_detected, drift_distance = drift_detector.update(embedding, summary.confidence)
                     drift_gate_applied = not args.disable_drift_gate
+                    lr_scale = state_conditioned_lr_scale(
+                        drift_distance=drift_distance,
+                        drift_threshold=args.drift_threshold,
+                        reconstruction_error=summary.reconstruction_error,
+                        reconstruction_scale=args.reconstruction_scale,
+                        confidence=summary.confidence,
+                        min_scale=args.min_lr_scale,
+                        max_scale=args.max_lr_scale,
+                    ) if args.state_conditioned else 1.0
                     baseline = copy.deepcopy(model)
                     gate = RewardWindowGate(
                         max_parameter_delta_norm=0.5,
@@ -131,7 +156,7 @@ def main() -> None:
                             candidate={
                                 "name": candidate_name,
                                 "groups": {"physics_residual"},
-                                "lr": lr,
+                                "lr": lr * lr_scale,
                                 "steps": args.steps,
                             },
                             gate=gate,
@@ -162,6 +187,12 @@ def main() -> None:
                             "pilot_state_drift_distance": float(drift_distance),
                             "pilot_state_drift_gate_applied": bool(drift_gate_applied),
                             "pilot_state_confidence": float(summary.confidence),
+                            "pilot_state_phase0": float(summary.phase0),
+                            "pilot_state_cfo_cycles_per_symbol": float(summary.cfo_cycles_per_symbol),
+                            "pilot_state_reconstruction_error": float(summary.reconstruction_error),
+                            "state_conditioned_lr_enabled": bool(args.state_conditioned),
+                            "state_conditioned_lr_scale": float(lr_scale),
+                            "effective_peft_lr": float(lr * lr_scale),
                             "data_labels_used_online": False,
                         }
                     )
@@ -189,6 +220,62 @@ def main() -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"saved {target}")
+
+
+def estimate_pilot_observable_state(*, current_frame, cir, soft_tail, condition) -> dict[str, float]:
+    """仅用当前帧 Adapt Pilot 估计相位和信道重构状态。"""
+
+    view = current_frame.receiver_view()
+    phase = estimate_phase_residual_vector(view, cir, soft_tail, blocks=4)
+    phase = torch.as_tensor(phase, dtype=torch.float32).reshape(-1)
+    if phase.numel() < 16:
+        raise ValueError("phase residual vector 必须包含 4 个 block 的统计量。")
+    receiver = view.rx_symbols.to(cir.device).to(torch.complex64).reshape(-1)
+    pilots = view.adapt_symbols.to(cir.device).to(torch.complex64).reshape(-1)
+    mask = view.adapt_mask.to(cir.device).bool().reshape(-1)
+    tail = soft_tail.to(cir.device).to(torch.complex64).reshape(-1)
+    operator = LinearChannelOperator(frame_len=pilots.numel(), max_delay=cir.numel() - 1)
+    reconstruction = operator.forward(pilots, cir.to(pilots.device), tail)
+    residual = reconstruction[mask] - receiver[mask]
+    signal_energy = torch.mean(torch.abs(receiver[mask]) ** 2).clamp_min(1e-8)
+    relative_error = torch.mean(torch.abs(residual) ** 2) / signal_energy
+    reconstruction_error = float(relative_error.detach().cpu())
+    estimator_confidence = float(torch.as_tensor(condition.confidence).float().mean().detach().cpu())
+    confidence = estimator_confidence / (1.0 + reconstruction_error)
+    return {
+        "phase0": float(phase[0].item()),
+        "cfo_cycles_per_symbol": float(phase[1].item()),
+        "phase_residual_variance": float(phase[2::4].mean().item()),
+        "phase_residual_energy": float(phase[3::4].mean().item()),
+        "reconstruction_error": reconstruction_error,
+        "confidence": max(0.0, min(1.0, confidence)),
+    }
+
+
+def state_conditioned_lr_scale(
+    *,
+    drift_distance: float,
+    drift_threshold: float,
+    reconstruction_error: float,
+    reconstruction_scale: float,
+    confidence: float,
+    min_scale: float,
+    max_scale: float,
+) -> float:
+    """根据 Pilot 漂移强度、重构残差和置信度调节候选学习率。"""
+
+    if drift_threshold <= 0.0 or reconstruction_scale <= 0.0:
+        raise ValueError("漂移阈值和重构尺度必须为正数。")
+    if not 0.0 <= min_scale <= max_scale:
+        raise ValueError("学习率缩放范围必须满足 0 <= min <= max。")
+    drift_strength = max(0.0, min(1.0, float(drift_distance) / float(drift_threshold)))
+    reconstruction_strength = max(
+        0.0,
+        min(1.0, float(reconstruction_error) / float(reconstruction_scale)),
+    )
+    state_strength = 0.5 * drift_strength + 0.5 * reconstruction_strength
+    confidence_strength = max(0.0, min(1.0, float(confidence)))
+    return float(min_scale + (max_scale - min_scale) * state_strength * confidence_strength)
 
 
 if __name__ == "__main__":

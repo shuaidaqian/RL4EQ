@@ -66,6 +66,41 @@ def test_rolling_replay_exposes_pilot_drift_gate_controls():
     assert "PilotDriftDetector" in source
     assert "pilot_state_drift_detected" in source
     assert "data_labels_used_online" in source
+    assert "estimate_phase_residual_vector" in source
+    assert "LinearChannelOperator" in source
+    assert "state_conditioned_lr_scale" in source
+
+
+def test_state_conditioned_lr_scale_uses_only_pilot_state_strength():
+    from scripts.replay_rolling_reward_gate import state_conditioned_lr_scale
+
+    assert state_conditioned_lr_scale(
+        drift_distance=0.0,
+        drift_threshold=0.25,
+        reconstruction_error=0.0,
+        reconstruction_scale=0.05,
+        confidence=1.0,
+        min_scale=0.25,
+        max_scale=1.0,
+    ) == pytest.approx(0.25)
+    assert state_conditioned_lr_scale(
+        drift_distance=0.25,
+        drift_threshold=0.25,
+        reconstruction_error=0.05,
+        reconstruction_scale=0.05,
+        confidence=1.0,
+        min_scale=0.25,
+        max_scale=1.0,
+    ) == pytest.approx(1.0)
+    assert state_conditioned_lr_scale(
+        drift_distance=0.25,
+        drift_threshold=0.25,
+        reconstruction_error=0.05,
+        reconstruction_scale=0.05,
+        confidence=0.0,
+        min_scale=0.25,
+        max_scale=1.0,
+    ) == pytest.approx(0.25)
 
 
 def test_reward_gate_replay_accepts_state_gap_option():
