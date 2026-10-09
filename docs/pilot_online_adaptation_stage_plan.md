@@ -242,3 +242,15 @@ Adapt Pilot
 Frozen”的门槛，也不能替代正式 5 seeds × 60 frames 主矩阵。下一步应优先寻找能在
 Pilot-only 上区分 Data 收益的更新方向或验收特征；在此之前不扩大正式矩阵，也不引入
 Contextual Bandit。
+
+2026-10-10 Pilot-only 候选方向排序 replay：在固定 checkpoint、Level B、delay=116、
+prefix Pilot=256、gap=120 s 的同一轨迹上，对 `physics_residual`、`channel_residual`、
+`head`、identity 和低维 `PilotResidualRLSAdapter` 进行候选扫描。候选更新只读取
+Adapt Pilot；Data 只在 replay 输出中用于事后验证。3 seeds × 2 SNR × 4 帧结果中，
+Adapt BCE、Reward loss、Pilot 重构改善与 Data BER 的 Spearman 分别为约
+`-0.113`、`0.043`、`-0.117`，均未达到 `0.6` 门槛。RLS smoke 中 Adapt BCE 改善约
+`1.6e-2`，但 Data BCE 退化约 `-1.06e-1`，说明“Pilot 拟合更好”不代表数据均衡更好；
+RLS 当前不能作为主路线。`channel_residual` 和 `physics_residual` 能稳定改变 Data
+连续输出，但尚未稳定改变硬 BER。因此当前瓶颈确认是更新方向与 Data 目标失配，不是
+单纯学习率或 Reward 窗口长度问题。下一步应优先设计能约束均衡器判决边界的 Pilot-only
+更新目标，再重新做排序验证；不引入 Contextual Bandit，也不扩大正式 5 seed × 60 帧矩阵。

@@ -103,6 +103,18 @@ def test_state_conditioned_lr_scale_uses_only_pilot_state_strength():
     ) == pytest.approx(0.25)
 
 
+def test_pilot_candidate_ranking_replay_has_label_boundary():
+    from pathlib import Path
+
+    source = Path("scripts/replay_pilot_candidate_ranking.py").read_text(encoding="utf-8")
+    assert "apply_adapt_only_peft_update" in source
+    assert "data_labels_used_online" in source
+    assert "diagnostic_uses_data_labels" in source
+    assert "frame.data_mask" not in source
+    assert "PilotResidualRLSAdapter" in source
+    assert "rls_residual" in source
+
+
 def test_reward_gate_replay_accepts_state_gap_option():
     import scripts.replay_reward_gate as replay
 
