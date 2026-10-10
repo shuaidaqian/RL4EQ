@@ -1,0 +1,196 @@
+{
+  "schema_version": "eme-long-memory-online-peft-v1",
+  "channel_profile": "eme_long_memory_v2",
+  "profile_name": "eme_long_memory_v2",
+  "profile_frozen_before_proposed": true,
+  "frozen_candidate_id": "LM-B1",
+  "level": "B",
+  "main_level": "B",
+  "aggregation_role": "main",
+  "main_aggregation_allowed": true,
+  "max_delay_seconds": 0.0116,
+  "sample_rate_hz": 10000.0,
+  "symbol_rate_hz": 10000.0,
+  "samples_per_symbol": 1,
+  "frame_len": 1024,
+  "max_delay": 116,
+  "main_delays": [
+    116
+  ],
+  "main_snrs": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "snrs_main": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "snrs_pressure": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "pilot_layout": "prefix",
+  "pilot_total": 256,
+  "reward_pilot_total": 32,
+  "pilot_sweep_totals": [
+    64,
+    96,
+    128,
+    160,
+    256
+  ],
+  "strong_path_count": [
+    12,
+    24
+  ],
+  "diffuse_energy_ratio": [
+    0.2,
+    0.35
+  ],
+  "coherence_time_seconds": 1200.0,
+  "acquisition_to_data_gap_seconds": 0.0,
+  "rho_frame": 0.999914670307452,
+  "rho": 0.999914670307452,
+  "include_anomalous_scatterer": false,
+  "eme_physical_fields_passthrough": "implemented",
+  "impairment_profile": "cfo_phase_tiny",
+  "residual_cfo_limit": 0.0012,
+  "acquisition_cfo_limit": 0.004,
+  "optional_impairments": {
+    "cfo": true,
+    "phase_perturbation": true,
+    "nonlinearity": false,
+    "coding": false,
+    "higher_order_modulation": false
+  },
+  "model_validation_sequence_state": true,
+  "training_tail_mode": "online_soft",
+  "tail_update_alpha": 0.5,
+  "online_adaptation_groups": [
+    "phase_trend"
+  ],
+  "online_adaptation_algorithm": "sgd",
+  "online_adaptation_objective": "pilot_signal_reconstruction",
+  "online_adaptation_learning_rate": 0.005,
+  "online_adaptation_steps": 5,
+  "online_adaptation_max_delta_norm": 0.05,
+  "online_adaptation_proximal_weight": 0.01,
+  "online_adaptation_freeze_below_snr_db": 5.0,
+  "online_adaptation_min_reward_improvement": 0.0005,
+  "online_adaptation_relative_min_reward_improvement": 0.0,
+  "online_reward_windows": 2,
+  "online_cross_frame_rollback_tolerance": 1e-05,
+  "online_condition_source": "acquisition",
+  "online_scheduler": "fixed",
+  "online_update_role": "adapt_pilot_parameter_update_reward_pilot_guard",
+  "online_adaptation_candidates": [
+    {
+      "name": "phase_signal_conservative",
+      "groups": [
+        "phase_trend"
+      ],
+      "learning_rate_scale": 0.25,
+      "steps": 5,
+      "max_delta_scale": 0.5
+    },
+    {
+      "name": "phase_signal_standard",
+      "groups": [
+        "phase_trend"
+      ],
+      "learning_rate_scale": 0.5,
+      "steps": 5,
+      "max_delta_scale": 1.0
+    },
+    {
+      "name": "phase_signal_fast",
+      "groups": [
+        "phase_trend"
+      ],
+      "learning_rate_scale": 1.0,
+      "steps": 5,
+      "max_delta_scale": 1.0
+    }
+  ],
+  "offline_state_split": "offline_train",
+  "online_state_splits": {
+    "offline_train": {
+      "strong_path_count": [
+        12,
+        18
+      ],
+      "diffuse_energy_ratio": [
+        0.2,
+        0.28
+      ],
+      "cfo_abs_range": [
+        0.0002,
+        0.0006
+      ],
+      "phase_noise_std_range": [
+        0.0002,
+        0.0006
+      ]
+    },
+    "heldout_edge": {
+      "strong_path_count": [
+        19,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.29,
+        0.35
+      ],
+      "cfo_abs_range": [
+        0.0006,
+        0.0008
+      ],
+      "phase_noise_std_range": [
+        0.0006,
+        0.0008
+      ]
+    },
+    "drift": {
+      "strong_path_count": [
+        12,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.2,
+        0.35
+      ],
+      "cfo_abs_range": [
+        0.0002,
+        0.0008
+      ],
+      "phase_noise_std_range": [
+        0.0002,
+        0.0008
+      ]
+    }
+  },
+  "model": {
+    "frame_len": 1024,
+    "max_delay": 116,
+    "iterations": 4,
+    "d_model": 64,
+    "num_heads": 4,
+    "adapter_rank": 8,
+    "lora_rank": 8,
+    "conditioner_uses_cir_summary": true,
+    "pilot_conditioned": true,
+    "enable_phase_correction_branch": true,
+    "phase_correction_segments": 4,
+    "phase_correction_initial_scale": 1.0,
+    "analytic_logit_skip_scale": 0.0,
+    "physics_warm_start_iterations": 8,
+    "physics_warm_start_scale": 1.0,
+    "neural_residual_scale": 0.1
+  }
+}
