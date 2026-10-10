@@ -113,6 +113,65 @@ def test_pilot_candidate_ranking_replay_has_label_boundary():
     assert "frame.data_mask" not in source
     assert "PilotResidualRLSAdapter" in source
     assert "rls_residual" in source
+    assert "physics_boundary" in source
+    assert "physics_selective_boundary" in source
+
+
+def test_boundary_adapt_loss_emphasizes_low_confidence_pilot_logits():
+    from evaluation.research_diagnostics import _boundary_adapt_loss
+
+    low = torch.tensor([0.1], requires_grad=True)
+    high = torch.tensor([4.0], requires_grad=True)
+    target = torch.ones(1)
+    low_loss = _boundary_adapt_loss(low, target)
+    high_loss = _boundary_adapt_loss(high, target)
+    low_loss.backward()
+    high_loss.backward()
+    assert low_loss.item() > high_loss.item()
+    assert abs(float(low.grad.item())) > abs(float(high.grad.item()))
+
+
+def test_selective_boundary_loss_is_finite_for_confident_and_boundary_pilots():
+    from evaluation.research_diagnostics import _selective_boundary_adapt_loss
+
+    logits = torch.tensor([-8.0, -0.2, 0.1, 8.0], requires_grad=True)
+    targets = torch.tensor([0.0, 1.0, 0.0, 1.0])
+    loss = _selective_boundary_adapt_loss(logits, targets)
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert torch.isfinite(logits.grad).all()
+
+
+def test_online_adapter_accepts_boundary_objectives():
+    torch.manual_seed(41)
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=True,
+        )
+    )
+    frame = SimpleNamespace(
+        rx_symbols=torch.randn(32, dtype=torch.complex64),
+        tx_symbols=torch.where(torch.arange(32) % 2 == 0, torch.ones(32, dtype=torch.complex64), -torch.ones(32, dtype=torch.complex64)),
+        adapt_mask=torch.arange(32) < 12,
+        reward_mask=torch.arange(32) >= 12,
+        data_mask=torch.zeros(32, dtype=torch.bool),
+        model_region_ids=torch.zeros(32, dtype=torch.long),
+    )
+    for objective in ("boundary", "selective_boundary"):
+        adapter = PilotDrivenOnlineAdapter(
+            model,
+            groups={"head"},
+            learning_rate=1e-3,
+            steps=1,
+            objective=objective,
+        )
+        result = adapter.adapt(frame, _identity_condition(), torch.zeros(1, 4, dtype=torch.complex64))
+        assert result.data_labels_used_online is False
 
 
 def test_reward_gate_replay_accepts_state_gap_option():

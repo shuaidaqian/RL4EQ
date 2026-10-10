@@ -323,8 +323,8 @@ class PilotDrivenOnlineAdapter:
             raise ValueError("proximal_weight 不能为负数。")
         if self.hard_example_temperature <= 0.0:
             raise ValueError("hard_example_temperature 必须为正数。")
-        if self.objective not in {"bce", "pilot_reconstruction", "joint"}:
-            raise ValueError("objective 必须为 bce、pilot_reconstruction、joint 或 windowed_bce。")
+        if self.objective not in {"bce", "boundary", "selective_boundary", "pilot_reconstruction", "joint"}:
+            raise ValueError("objective 必须为 bce、boundary、selective_boundary、pilot_reconstruction 或 joint。")
 
     def adapt(
         self,
@@ -463,6 +463,10 @@ class PilotDrivenOnlineAdapter:
                         selected_hard_example_weighting,
                         selected_hard_example_temperature,
                     ) + 0.5 * reconstruction
+                elif self.objective == "boundary":
+                    loss = _boundary_adapt_loss(selected_logits, target[mask])
+                elif self.objective == "selective_boundary":
+                    loss = _selective_boundary_adapt_loss(selected_logits, target[mask])
                 else:
                     loss = _weighted_adapt_loss(
                         selected_logits,
@@ -499,16 +503,20 @@ class PilotDrivenOnlineAdapter:
                     selected_hard_example_weighting,
                     selected_hard_example_temperature,
                 )
-                objective_after = (
-                    _pilot_reconstruction_loss(self.model, condition, tx, rx, mask, tail)
-                    if self.objective == "pilot_reconstruction"
-                    else (
-                        0.5 * weighted_loss_after
-                        + 0.5 * _pilot_reconstruction_loss(self.model, condition, tx, rx, mask, tail)
-                        if self.objective == "joint"
-                        else weighted_loss_after
+                if self.objective == "pilot_reconstruction":
+                    objective_after = _pilot_reconstruction_loss(
+                        self.model, condition, tx, rx, mask, tail
                     )
-                )
+                elif self.objective == "joint":
+                    objective_after = 0.5 * weighted_loss_after + 0.5 * _pilot_reconstruction_loss(
+                        self.model, condition, tx, rx, mask, tail
+                    )
+                elif self.objective == "boundary":
+                    objective_after = _boundary_adapt_loss(after_selected, target_selected)
+                elif self.objective == "selective_boundary":
+                    objective_after = _selective_boundary_adapt_loss(after_selected, target_selected)
+                else:
+                    objective_after = weighted_loss_after
             delta_norm = _delta_norm(self.model, snapshot)
             accepted = (
                 bool(torch.isfinite(objective_after).item())
@@ -589,6 +597,52 @@ def _weighted_adapt_loss(
     if not enabled:
         return per_example.mean()
     return (per_example * hard_example_weights(logits, temperature)).mean()
+
+
+def _boundary_adapt_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    temperature: float = 0.5,
+    margin: float = 1.0,
+    margin_weight: float = 0.05,
+) -> torch.Tensor:
+    """在 Adapt Pilot 上强调低置信度样本并限制安全判决边界。"""
+
+    if temperature <= 0.0 or margin < 0.0 or margin_weight < 0.0:
+        raise ValueError("boundary 目标参数非法。")
+    if logits.numel() == 0:
+        return torch.zeros((), device=logits.device, dtype=logits.dtype)
+    per_example = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+    weights = 1.0 + torch.exp(-logits.detach().abs() / float(temperature))
+    signed_logits = logits * (2.0 * targets - 1.0)
+    margin_penalty = F.relu(float(margin) - signed_logits).mean()
+    return (per_example * weights).mean() + float(margin_weight) * margin_penalty
+
+
+def _selective_boundary_adapt_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    threshold: float = 1.0,
+    temperature: float = 0.25,
+    margin: float = 1.0,
+    margin_weight: float = 0.1,
+) -> torch.Tensor:
+    """只对接近判决边界的 Adapt Pilot 施加主要梯度。"""
+
+    if threshold <= 0.0 or temperature <= 0.0 or margin < 0.0 or margin_weight < 0.0:
+        raise ValueError("selective_boundary 参数非法。")
+    if logits.numel() == 0:
+        return torch.zeros((), device=logits.device, dtype=logits.dtype)
+    confidence_weight = torch.sigmoid((float(threshold) - logits.detach().abs()) / float(temperature))
+    per_example = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+    signed_logits = logits * (2.0 * targets - 1.0)
+    margin_penalty = F.relu(float(margin) - signed_logits)
+    denominator = confidence_weight.sum().clamp_min(1e-6)
+    return (confidence_weight * per_example).sum() / denominator + float(margin_weight) * (
+        confidence_weight * margin_penalty
+    ).sum() / denominator
 
 
 def _pilot_reconstruction_loss(

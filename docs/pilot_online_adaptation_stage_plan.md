@@ -243,6 +243,16 @@ Frozen”的门槛，也不能替代正式 5 seeds × 60 frames 主矩阵。下�
 Pilot-only 上区分 Data 收益的更新方向或验收特征；在此之前不扩大正式矩阵，也不引入
 Contextual Bandit。
 
+2026-10-10 选择性边界目标复核：在 Adapt Pilot BCE 的基础上加入只对低绝对值 logit
+施加主要梯度的 `selective_boundary` 目标，并同步接入实际
+`PilotDrivenOnlineAdapter`（默认不启用）。该目标包含有界边界样本权重和有限 margin
+惩罚，高置信度 Pilot 基本保持冻结。固定 gap=120 s、Level B、3 seeds × 2 SNR × 4
+帧候选 replay 中，`selective_boundary` 与 Data BER 的 Spearman 约为 `0.024`，仍低于
+`0.6`；各候选的 Data 硬 BER 也没有稳定改善。由此确认仅重新加权 Adapt Pilot 判决
+边界仍不能解决 Pilot 到 Data 的目标失配。该目标保留为可复现实验选项，但不进入主
+在线策略，也不启动正式 5 seed × 60 帧矩阵。下一步应转向“状态/时间一致性约束”或
+显式的 Data 无标签物理一致性，先证明 Pilot-only 代理能够排序后再继续。
+
 2026-10-10 Pilot-only 候选方向排序 replay：在固定 checkpoint、Level B、delay=116、
 prefix Pilot=256、gap=120 s 的同一轨迹上，对 `physics_residual`、`channel_residual`、
 `head`、identity 和低维 `PilotResidualRLSAdapter` 进行候选扫描。候选更新只读取

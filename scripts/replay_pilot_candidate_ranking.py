@@ -27,6 +27,8 @@ from env.linear_operator import LinearChannelOperator
 from evaluation.metrics import spearman_reward_data
 from evaluation.research_diagnostics import (
     _condition_to_device,
+    _boundary_adapt_loss,
+    _selective_boundary_adapt_loss,
     _frame_to_device,
     _model_logits,
     _pilot_reconstruction_loss_for_diagnostic,
@@ -68,10 +70,14 @@ def _candidate_specs(lr: float, steps: int) -> list[dict]:
     return [
         {"name": "identity", "groups": set(), "lr": 0.0, "steps": 0, "objective": "bce"},
         {"name": "physics_bce", "groups": {"physics_residual"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "physics_boundary", "groups": {"physics_residual"}, "lr": lr, "steps": steps, "objective": "boundary"},
+        {"name": "physics_selective_boundary", "groups": {"physics_residual"}, "lr": lr, "steps": steps, "objective": "selective_boundary"},
         {"name": "rls_residual", "groups": {"online_residual"}, "lr": 0.0, "steps": 1, "objective": "bce", "algorithm": "rls"},
         {"name": "channel_reconstruction", "groups": {"channel_residual"}, "lr": lr, "steps": steps, "objective": "pilot_reconstruction"},
         {"name": "channel_joint", "groups": {"channel_residual"}, "lr": lr, "steps": steps, "objective": "joint"},
         {"name": "head_bce", "groups": {"head"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "head_boundary", "groups": {"head"}, "lr": lr, "steps": steps, "objective": "boundary"},
+        {"name": "head_selective_boundary", "groups": {"head"}, "lr": lr, "steps": steps, "objective": "selective_boundary"},
     ]
 
 
@@ -139,6 +145,18 @@ def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict) -> 
     adapt_after = torch.nn.functional.binary_cross_entropy_with_logits(
         after[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
     )
+    boundary_before = _boundary_adapt_loss(
+        before[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
+    )
+    boundary_after = _boundary_adapt_loss(
+        after[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
+    )
+    selective_boundary_before = _selective_boundary_adapt_loss(
+        before[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
+    )
+    selective_boundary_after = _selective_boundary_adapt_loss(
+        after[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
+    )
     data_mask = frame_device.data_mask.bool()
     if bool(data_mask.any()):
         data_before_bce = torch.nn.functional.binary_cross_entropy_with_logits(
@@ -161,6 +179,10 @@ def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict) -> 
         "objective": candidate["objective"],
         "updated_groups": sorted(candidate["groups"]),
         "adapt_bce_improvement": float((adapt_before - adapt_after).detach().cpu()),
+        "boundary_loss_improvement": float((boundary_before - boundary_after).detach().cpu()),
+        "selective_boundary_loss_improvement": float(
+            (selective_boundary_before - selective_boundary_after).detach().cpu()
+        ),
         "pilot_reconstruction_improvement": float((reconstruction_before - reconstruction_after).detach().cpu()),
         "pilot_reconstruction_error_after": float(reconstruction_after.detach().cpu()),
         "reward_loss_improvement": float(result.get("reward_loss_improvement", 0.0)),
@@ -215,7 +237,7 @@ def main() -> None:
                 for candidate in _candidate_specs(args.lr, args.steps):
                     rows.append({**base, **_evaluate_candidate(model, frame, condition, tail, candidate)})
     summary = []
-    for score_name in ("adapt_bce_improvement", "reward_loss_improvement", "pilot_reconstruction_improvement", "data_bce_improvement"):
+    for score_name in ("adapt_bce_improvement", "boundary_loss_improvement", "selective_boundary_loss_improvement", "reward_loss_improvement", "pilot_reconstruction_improvement", "data_bce_improvement"):
         by_trial = {}
         for row in rows:
             key = (row["snr_db"], row["seed"], row["frame_index"])

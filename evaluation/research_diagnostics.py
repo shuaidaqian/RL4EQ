@@ -511,8 +511,8 @@ def apply_adapt_only_peft_update(
 ) -> dict:
     """只用 Adapt Pilot loss 对指定 PEFT 参数做真实梯度更新。"""
 
-    if objective not in {"bce", "pilot_reconstruction", "joint"}:
-        raise ValueError("objective 必须为 bce、pilot_reconstruction 或 joint。")
+    if objective not in {"bce", "boundary", "selective_boundary", "pilot_reconstruction", "joint"}:
+        raise ValueError("objective 必须为 bce、boundary、selective_boundary、pilot_reconstruction 或 joint。")
     device = next(model.parameters()).device
     frame = _frame_to_device(frame, device)
     condition = _condition_to_device(condition, device)
@@ -541,7 +541,14 @@ def apply_adapt_only_peft_update(
     optimizer = torch.optim.AdamW(trainable, lr=float(lr))
     for _ in range(int(steps)):
         logits = _model_logits(model, frame, condition, tail)
-        adapt_loss = _masked_bce(logits, frame.bits, frame.adapt_mask)
+        adapt_logits = logits[frame.adapt_mask]
+        adapt_targets = frame.bits[frame.adapt_mask].float()
+        if objective == "boundary":
+            adapt_loss = _boundary_adapt_loss(adapt_logits, adapt_targets)
+        elif objective == "selective_boundary":
+            adapt_loss = _selective_boundary_adapt_loss(adapt_logits, adapt_targets)
+        else:
+            adapt_loss = _masked_bce(logits, frame.bits, frame.adapt_mask)
         reconstruction_loss = (
             _pilot_reconstruction_loss_for_diagnostic(model, frame, condition, tail)
             if objective in {"pilot_reconstruction", "joint"}
@@ -641,6 +648,52 @@ def _pilot_reconstruction_loss_for_diagnostic(
     return torch.mean(torch.abs(residual) ** 2).real
 
 
+def _boundary_adapt_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    temperature: float = 0.5,
+    margin: float = 1.0,
+    margin_weight: float = 0.05,
+) -> torch.Tensor:
+    """只在 Adapt Pilot 上强调低置信度样本的安全判决边界。"""
+
+    if temperature <= 0.0 or margin < 0.0 or margin_weight < 0.0:
+        raise ValueError("boundary 目标的 temperature、margin 和 margin_weight 参数非法。")
+    if logits.numel() == 0:
+        return torch.zeros((), device=logits.device, dtype=logits.dtype)
+    per_example = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+    weights = 1.0 + torch.exp(-logits.detach().abs() / float(temperature))
+    signed_logits = logits * (2.0 * targets - 1.0)
+    margin_penalty = F.relu(float(margin) - signed_logits).mean()
+    return (per_example * weights).mean() + float(margin_weight) * margin_penalty
+
+
+def _selective_boundary_adapt_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    threshold: float = 1.0,
+    temperature: float = 0.25,
+    margin: float = 1.0,
+    margin_weight: float = 0.1,
+) -> torch.Tensor:
+    """只对接近判决边界的 Adapt Pilot 施加主要更新。"""
+
+    if threshold <= 0.0 or temperature <= 0.0 or margin < 0.0 or margin_weight < 0.0:
+        raise ValueError("selective_boundary 参数非法。")
+    if logits.numel() == 0:
+        return torch.zeros((), device=logits.device, dtype=logits.dtype)
+    confidence_weight = torch.sigmoid((float(threshold) - logits.detach().abs()) / float(temperature))
+    per_example = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+    signed_logits = logits * (2.0 * targets - 1.0)
+    margin_penalty = F.relu(float(margin) - signed_logits)
+    denominator = confidence_weight.sum().clamp_min(1e-6)
+    return (confidence_weight * per_example).sum() / denominator + float(margin_weight) * (
+        confidence_weight * margin_penalty
+    ).sum() / denominator
+
+
 def evaluate_peft_window_candidates(
     model: UnfoldedEqualizer,
     frames: list,
@@ -656,8 +709,8 @@ def evaluate_peft_window_candidates(
     soft tail 会持续演化。Data BER 只用于离线诊断动作有效性。
     """
 
-    if objective not in {"bce", "pilot_reconstruction", "joint"}:
-        raise ValueError("objective 必须为 bce、pilot_reconstruction 或 joint。")
+    if objective not in {"bce", "boundary", "selective_boundary", "pilot_reconstruction", "joint"}:
+        raise ValueError("objective 必须为 bce、boundary、selective_boundary、pilot_reconstruction 或 joint。")
     rows = []
     frames_local = list(frames)
     device = next(model.parameters()).device
@@ -741,8 +794,8 @@ def evaluate_frozen_peft_reward_window(
     ``reward_frames`` 只计算验收统计。Data 标签仅用于返回离线诊断指标。
     """
 
-    if objective not in {"bce", "pilot_reconstruction", "joint"}:
-        raise ValueError("objective 必须为 bce、pilot_reconstruction 或 joint。")
+    if objective not in {"bce", "boundary", "selective_boundary", "pilot_reconstruction", "joint"}:
+        raise ValueError("objective 必须为 bce、boundary、selective_boundary、pilot_reconstruction 或 joint。")
     if not reward_frames:
         raise ValueError("reward_frames 不能为空。")
     device = next(model.parameters()).device
