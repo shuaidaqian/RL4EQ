@@ -115,6 +115,23 @@ def test_pilot_candidate_ranking_replay_has_label_boundary():
     assert "rls_residual" in source
     assert "physics_boundary" in source
     assert "physics_selective_boundary" in source
+    assert "phase_trend_bce" in source
+    assert "input_trend_bce" in source
+    assert "input_affine_bce" in source
+    assert "input_fir_bce" in source
+    assert "logit_affine_bce" in source
+    assert "logit_fir_bce" in source
+    assert "conditioner_film_bce" in source
+    assert "adapter_bce" in source
+    assert "attention_lora_bce" in source
+    assert "ffn_lora_bce" in source
+    assert "pilot_encoder_bce" in source
+    diagnostics_source = Path("evaluation/research_diagnostics.py").read_text(encoding="utf-8")
+    assert 'name.startswith("pilot_encoder.")' in diagnostics_source
+    assert "data_logits_direction_change_fraction" in source
+    compare_source = Path("compare.py").read_text(encoding="utf-8")
+    assert "online-drift-gate-threshold" in compare_source
+    assert "pilot_signal_reconstruction" in compare_source
     rolling_source = Path("scripts/replay_rolling_reward_gate.py").read_text(encoding="utf-8")
     assert "PilotTemporalConsistency" in rolling_source
     assert "temporal_consistency_gate" in rolling_source
@@ -175,6 +192,49 @@ def test_online_adapter_accepts_boundary_objectives():
         )
         result = adapter.adapt(frame, _identity_condition(), torch.zeros(1, 4, dtype=torch.complex64))
         assert result.data_labels_used_online is False
+
+
+def test_online_adapter_accepts_phase_signal_reconstruction_without_data_labels():
+    torch.manual_seed(42)
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=32,
+            max_delay=4,
+            iterations=1,
+            d_model=24,
+            num_heads=4,
+            pilot_conditioned=False,
+        )
+    )
+    model.attach_online_phase_trend_adapter()
+    frame = SimpleNamespace(
+        rx_symbols=torch.randn(32, dtype=torch.complex64),
+        tx_symbols=torch.where(
+            torch.arange(32) % 2 == 0,
+            torch.ones(32, dtype=torch.complex64),
+            -torch.ones(32, dtype=torch.complex64),
+        ),
+        adapt_mask=torch.arange(32) < 12,
+        reward_mask=torch.arange(32) >= 12,
+        data_mask=torch.zeros(32, dtype=torch.bool),
+        model_region_ids=torch.zeros(32, dtype=torch.long),
+    )
+    adapter = PilotDrivenOnlineAdapter(
+        model,
+        groups={"phase_trend"},
+        learning_rate=1e-3,
+        steps=1,
+        objective="pilot_signal_reconstruction",
+        optimizer="adamw",
+    )
+    result = adapter.adapt(
+        frame,
+        _identity_condition(),
+        torch.zeros(1, 4, dtype=torch.complex64),
+    )
+    assert result.data_labels_used_online is False
+    assert torch.isfinite(torch.tensor(result.adapt_loss_before))
+    assert torch.isfinite(torch.tensor(result.adapt_loss_after))
 
 
 def test_pilot_temporal_consistency_requires_two_aligned_drift_steps():

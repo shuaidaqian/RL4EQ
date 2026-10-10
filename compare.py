@@ -295,12 +295,18 @@ def main() -> None:
     )
     parser.add_argument("--online-learning-rate", type=float, default=None)
     parser.add_argument("--online-steps", type=int, default=None)
+    parser.add_argument(
+        "--online-optimizer",
+        choices=["sgd", "adamw"],
+        default=None,
+        help="选择在线 PEFT 梯度优化器；默认沿用配置中的 sgd。",
+    )
     parser.add_argument("--online-max-delta-norm", type=float, default=None)
     parser.add_argument("--online-rls-max-total-delta-norm", type=float, default=None)
     parser.add_argument("--online-proximal-weight", type=float, default=None)
     parser.add_argument(
         "--online-objective",
-        choices=["bce", "pilot_reconstruction"],
+        choices=["bce", "pilot_reconstruction", "pilot_signal_reconstruction"],
         default=None,
     )
     parser.add_argument("--online-min-reward-improvement", type=float, default=None)
@@ -310,6 +316,12 @@ def main() -> None:
     parser.add_argument("--online-phase-smoothing", type=float, default=None)
     parser.add_argument("--online-phase-min-confidence", type=float, default=None)
     parser.add_argument("--online-freeze-below-snr-db", type=float, default=None)
+    parser.add_argument(
+        "--online-drift-gate-threshold",
+        type=float,
+        default=None,
+        help="仅当 Adapt Pilot 估计的 CIR 相对残差达到该阈值时才尝试 PEFT 更新。",
+    )
     parser.add_argument(
         "--online-condition-source",
         choices=["acquisition", "pilot_phase", "pilot_cir_phase"],
@@ -350,6 +362,7 @@ def main() -> None:
             "online_adaptation_learning_rate": args.online_learning_rate,
             "online_adaptation_algorithm": args.online_algorithm,
             "online_adaptation_steps": args.online_steps,
+            "online_adaptation_optimizer": args.online_optimizer,
             "online_adaptation_max_delta_norm": args.online_max_delta_norm,
             "online_rls_max_total_delta_norm": args.online_rls_max_total_delta_norm,
             "online_adaptation_proximal_weight": args.online_proximal_weight,
@@ -361,6 +374,7 @@ def main() -> None:
             "online_phase_tracking_smoothing": args.online_phase_smoothing,
             "online_phase_tracking_min_confidence": args.online_phase_min_confidence,
             "online_adaptation_freeze_below_snr_db": args.online_freeze_below_snr_db,
+            "online_drift_gate_threshold": args.online_drift_gate_threshold,
             "online_condition_source": args.online_condition_source,
             "online_scheduler": args.scheduler,
         },
@@ -712,6 +726,7 @@ class PilotOnlineMethodState:
     consecutive_rejections: int = 0
     previous_parameter_delta_norm: float = 0.0
     bandit_action_cost: float = 0.000001
+    drift_gate_threshold: float | None = None
 
 
 @dataclass
@@ -856,6 +871,7 @@ def _build_method_states(
                     config.get("online_hard_example_temperature", 0.5)
                 ),
                 objective=str(config.get("online_adaptation_objective", "bce")),
+                optimizer=str(config.get("online_adaptation_optimizer", "sgd")),
             )
             candidate_specs = _online_candidate_specs(candidate_config, online_groups)
             states[method] = PilotOnlineMethodState(
@@ -902,6 +918,11 @@ def _build_method_states(
                     else None
                 ),
                 bandit_action_cost=float(config.get("online_bandit_action_cost", 0.000001)),
+                drift_gate_threshold=(
+                    float(config["online_drift_gate_threshold"])
+                    if config.get("online_drift_gate_threshold") is not None
+                    else None
+                ),
             )
         elif method == "RL-Modulated Neural Block Equalizer":
             torch.manual_seed(_method_seed("rl_modulated", seed, delay, snr_db))
@@ -1681,6 +1702,9 @@ def _run_pilot_online_method(
     pilot_state_embedding = PilotStateEmbedding()(pilot_state_summary)
     updates_frozen = _online_updates_are_frozen(snr_db, state.freeze_online_below_snr_db)
     update_scheduled = _online_update_is_scheduled(frame_index, update_interval)
+    pilot_drift_distance = 0.0
+    pilot_drift_gate_applied = False
+    pilot_drift_gate_allows_update = True
     rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
     region_ids = frame_device.model_region_ids.unsqueeze(0).long()
     adapt_symbols = frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64)
@@ -1784,6 +1808,33 @@ def _run_pilot_online_method(
         cfo_residual=float(state.acquisition_cfo),
         phase_features=phase_features,
     )
+    if (
+        state.drift_gate_threshold is not None
+        and update_scheduled
+        and not updates_frozen
+    ):
+        # 只用 Adapt Pilot 估计当前 CIR 与 acquisition 条件的差异，作为
+        # “是否值得尝试参数微调”的门控；候选 CIR 不会写回 state.cir。
+        pilot_estimated_cir = pilot_sparse_cir_update(
+            frame_device,
+            state.cir,
+            state.receiver_state.soft_tail,
+            max_paths=24,
+            alpha=1.0,
+            cfo_hint=float(state.acquisition_cfo),
+        ).to(device)
+        pilot_drift_distance = float(
+            (
+                torch.linalg.vector_norm(pilot_estimated_cir - state.cir)
+                / torch.linalg.vector_norm(state.cir).clamp_min(1e-8)
+            )
+            .detach()
+            .cpu()
+        )
+        pilot_drift_gate_applied = True
+        pilot_drift_gate_allows_update = pilot_drift_distance >= float(
+            state.drift_gate_threshold
+        )
     with torch.no_grad():
         before_logits, _ = state.model(
             rx_iq,
@@ -1874,6 +1925,8 @@ def _run_pilot_online_method(
         if update_scheduled
         else ()
     )
+    if pilot_drift_gate_applied and not pilot_drift_gate_allows_update:
+        candidates = ()
     selected_action = SafeUpdateAction(
         "fixed",
         frozenset(state.adapter.groups),
@@ -2151,7 +2204,14 @@ def _run_pilot_online_method(
             "pilot_state_noise_variance": float(pilot_state_summary.noise_variance),
             "pilot_state_reconstruction_error": float(pilot_state_summary.reconstruction_error),
             "pilot_state_drift_distance_to_frame_start": float(cir_drift),
-            "pilot_state_drift_gate_applied": False,
+            "pilot_state_drift_gate_applied": bool(pilot_drift_gate_applied),
+            "pilot_state_drift_gate_threshold": (
+                float(state.drift_gate_threshold)
+                if state.drift_gate_threshold is not None
+                else None
+            ),
+            "pilot_state_drift_gate_distance": float(pilot_drift_distance),
+            "pilot_state_drift_gate_allows_update": bool(pilot_drift_gate_allows_update),
         },
     )
 

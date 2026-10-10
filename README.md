@@ -12,7 +12,7 @@
 Level A/B/C 可控信道族
 -> 全程 Pilot 条件课程监督预训练
 -> 整帧缓冲、非因果神经块均衡器
--> Adapt Pilot 驱动安全 Contextual Bandit 在线调度
+-> Adapt Pilot 驱动受限 PEFT 在线微调
 -> Reward Pilot 安全门控与跨帧 soft-tail 递推
 -> 跨帧延迟效应成立时才替换为安全 Recurrent Double DQN
 -> 与传统非神经、非 RL baseline 公平比较
@@ -27,12 +27,12 @@ Level A/B/C 可控信道族
 - Level A 用于课程学习和可达性校准；Level C 只作为压力测试，不混入 Level B 主平均。
 - 接收机是整帧缓冲、非因果块神经均衡器；“在线”指信道运行期间按帧持续适配，不是逐符号即时输出。
 - 当前主比较只保留传统均衡器、`Frozen Offline NN` 和 `Pilot-Driven Online Adaptation`；早期 PPO/调制策略仅作为代码兼容或专项消融，不作为主对照。
-- 当前纯参数微调主路径记录在 [`docs/online_peft_phase_trend_head_route.md`](/D:/Research/RL4EQ/docs/online_peft_phase_trend_head_route.md)：保持 acquisition 条件和 CIR 固定，只用 Adapt Pilot 更新均衡器内部 `phase_trend + head`（67 个参数），Reward Pilot 只做验收/回滚，Data 标签只做最终评估。该路径已完成 5 seeds × 60 frames 的配对 replay，并稳定超过同一 Frozen Offline NN；绝对 BER 和传统 baseline 对照仍需单独报告。
+- 当前纯参数微调诊断记录在 [`docs/pilot_position_scan_and_signal_reconstruction_20261010.md`](/D:/Research/RL4EQ/docs/pilot_position_scan_and_signal_reconstruction_20261010.md)：保持离线 checkpoint 不变，只用 Adapt Pilot 更新 `phase_trend`，并以复数 Pilot 信号重构代替单纯 BCE；Reward Pilot 只做验收/回滚，Data 标签只做最终评估。该方法在 gap=120/600 s 的状态老化压力测试中能产生配对 BER 收益，但主 gap=0 的 0/5/10/15 dB 还没有稳定超过 Frozen Offline NN，不能写成已完成的主路线。
 - 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须包含基于 Pilot 的合理补偿，不能人为打残 baseline。
 - Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真 `BER_data` 评估。
 - 在线 observation、reward、动作选择和调制更新不使用数据标签上界。
 - 当前 RL 路线采用离散安全动作和窗口级 reward；逐帧连续 modulation 不再作为主实施路线。
-- 当前在线均衡主线是安全 Contextual Bandit 调度 Adapt Pilot 驱动的受限 PEFT 更新；Bandit 不直接生成高维参数增量。只有跨帧延迟效应得到多 seed、多 SNR 证据时，才考虑安全 Recurrent Double DQN。
+- 当前在线均衡主线是 Adapt Pilot 驱动的受限 PEFT 更新和 Reward Pilot 验收；由于 Pilot-only reward 尚未在多个 SNR/seed 上稳定排序 Data 收益，Contextual Bandit 暂不进入主比较。Bandit 不直接生成高维参数增量，只有排序门槛通过后才考虑接入。
 - 为隔离在线微调本身的增量，可用 `compare.py --online-condition-source acquisition` 固定 acquisition 条件；该消融仍只用 Adapt Pilot 更新 PEFT、只用 Reward Pilot 验收/回滚。默认主线为 `pilot_cir_phase`。
 - 所有神经方法共享同一 `tail_update_alpha` 跨帧 soft-tail 递推；Frozen 与 Online 的差异不能再来自不一致的尾状态更新。
 - Data Oracle 不恢复。

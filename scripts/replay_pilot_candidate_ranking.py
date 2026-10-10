@@ -32,6 +32,7 @@ from evaluation.research_diagnostics import (
     _frame_to_device,
     _model_logits,
     _pilot_reconstruction_loss_for_diagnostic,
+    _pilot_signal_reconstruction_loss_for_diagnostic,
     apply_adapt_only_peft_update,
 )
 from training.meta_training import _estimate_cir_from_known_frame
@@ -75,6 +76,18 @@ def _candidate_specs(lr: float, steps: int) -> list[dict]:
         {"name": "rls_residual", "groups": {"online_residual"}, "lr": 0.0, "steps": 1, "objective": "bce", "algorithm": "rls"},
         {"name": "channel_reconstruction", "groups": {"channel_residual"}, "lr": lr, "steps": steps, "objective": "pilot_reconstruction"},
         {"name": "channel_joint", "groups": {"channel_residual"}, "lr": lr, "steps": steps, "objective": "joint"},
+        {"name": "phase_trend_bce", "groups": {"phase_trend"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "phase_trend_signal_reconstruction", "groups": {"phase_trend"}, "lr": lr, "steps": steps, "objective": "pilot_signal_reconstruction"},
+        {"name": "input_trend_bce", "groups": {"input_trend"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "input_affine_bce", "groups": {"input_affine"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "input_fir_bce", "groups": {"input_fir"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "logit_affine_bce", "groups": {"logit_affine"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "logit_fir_bce", "groups": {"logit_fir"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "conditioner_film_bce", "groups": {"conditioner_film"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "adapter_bce", "groups": {"adapter"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "attention_lora_bce", "groups": {"attention_lora"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "ffn_lora_bce", "groups": {"ffn_lora"}, "lr": lr, "steps": steps, "objective": "bce"},
+        {"name": "pilot_encoder_bce", "groups": {"pilot_encoder"}, "lr": lr, "steps": steps, "objective": "bce"},
         {"name": "head_bce", "groups": {"head"}, "lr": lr, "steps": steps, "objective": "bce"},
         {"name": "head_boundary", "groups": {"head"}, "lr": lr, "steps": steps, "objective": "boundary"},
         {"name": "head_selective_boundary", "groups": {"head"}, "lr": lr, "steps": steps, "objective": "selective_boundary"},
@@ -88,7 +101,11 @@ def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict) -> 
     candidate_model = copy.deepcopy(model)
     before_tail = soft_tail.unsqueeze(0).to(device).to(torch.complex64)
     before = _model_logits(candidate_model, frame_device, condition_device, before_tail)
-    if candidate_model.online_channel_residual_adapter is not None:
+    if candidate["objective"] == "pilot_signal_reconstruction":
+        reconstruction_before = _pilot_signal_reconstruction_loss_for_diagnostic(
+            candidate_model, frame_device, condition_device, soft_tail
+        )
+    elif candidate_model.online_channel_residual_adapter is not None:
         reconstruction_before = _pilot_reconstruction_loss_for_diagnostic(
             candidate_model, frame_device, condition_device, soft_tail
         )
@@ -130,7 +147,11 @@ def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict) -> 
         "peft_delta_norm": 0.0,
         }
     after = _model_logits(candidate_model, frame_device, condition_device, before_tail)
-    if candidate_model.online_channel_residual_adapter is not None:
+    if candidate["objective"] == "pilot_signal_reconstruction":
+        reconstruction_after = _pilot_signal_reconstruction_loss_for_diagnostic(
+            candidate_model, frame_device, condition_device, soft_tail
+        )
+    elif candidate_model.online_channel_residual_adapter is not None:
         reconstruction_after = _pilot_reconstruction_loss_for_diagnostic(
             candidate_model, frame_device, condition_device, soft_tail
         )
@@ -188,8 +209,21 @@ def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict) -> 
         "reward_loss_improvement": float(result.get("reward_loss_improvement", 0.0)),
         "data_ber_improvement": float((data_before_ber - data_after_ber).detach().cpu()),
         "data_bce_improvement": float((data_before_bce - data_after_bce).detach().cpu()),
-        "data_logits_abs_mean_delta": float(result.get("data_logits_abs_mean_delta", 0.0)),
-        "data_soft_abs_mean_delta": float(result.get("data_soft_abs_mean_delta", 0.0)),
+        "data_logits_abs_mean_delta": float(
+            torch.mean(torch.abs(after[data_mask] - before[data_mask])).detach().cpu()
+            if bool(data_mask.any())
+            else 0.0
+        ),
+        "data_logits_direction_change_fraction": float(
+            torch.mean((torch.sign(before[data_mask]) != torch.sign(after[data_mask])).float()).detach().cpu()
+            if bool(data_mask.any())
+            else 0.0
+        ),
+        "data_soft_abs_mean_delta": float(
+            torch.mean(torch.abs(torch.sigmoid(after[data_mask]) - torch.sigmoid(before[data_mask]))).detach().cpu()
+            if bool(data_mask.any())
+            else 0.0
+        ),
         "peft_delta_norm": float(result.get("peft_delta_norm", 0.0)),
         "data_labels_used_online": False,
         "diagnostic_uses_data_labels": True,
@@ -209,8 +243,23 @@ def main() -> None:
     parser.add_argument("--gap-seconds", type=float, default=120.0)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--steps", type=int, default=1)
+    parser.add_argument(
+        "--candidates",
+        nargs="+",
+        default=None,
+        help="只运行指定候选；省略时运行全部作用位置和监督目标。",
+    )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
+    all_candidates = _candidate_specs(args.lr, args.steps)
+    if args.candidates is None:
+        selected_candidates = all_candidates
+    else:
+        known = {str(item["name"]): item for item in all_candidates}
+        unknown = sorted(set(args.candidates) - set(known))
+        if unknown:
+            raise ValueError(f"未知候选：{unknown}；可选候选为 {sorted(known)}")
+        selected_candidates = [known[name] for name in args.candidates]
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     model_config = _load_model_config(config, Path(args.pretrained))
     rows = []
@@ -227,6 +276,12 @@ def main() -> None:
                 model = _build_equalizer(model_config, Path(args.pretrained), args.device)
                 model.attach_online_physics_residual_adapter()
                 model.attach_online_channel_residual_adapter()
+                model.attach_online_phase_trend_adapter()
+                model.attach_online_input_trend_adapter()
+                model.attach_online_input_affine_adapter()
+                model.attach_online_input_fir_adapter()
+                model.attach_online_logit_affine_adapter()
+                model.attach_online_logit_fir_adapter()
                 tail = start.initial_soft_tail.to(args.device)
                 condition = condition_from_cir(cir, float(snr))
                 state = _pilot_state(frame, cir, tail, condition)
@@ -234,7 +289,7 @@ def main() -> None:
                     "snr_db": float(snr), "seed": int(seed), "frame_index": int(frame_index),
                     **state, "data_labels_used_online": False,
                 }
-                for candidate in _candidate_specs(args.lr, args.steps):
+                for candidate in selected_candidates:
                     rows.append({**base, **_evaluate_candidate(model, frame, condition, tail, candidate)})
     summary = []
     for score_name in ("adapt_bce_improvement", "boundary_loss_improvement", "selective_boundary_loss_improvement", "reward_loss_improvement", "pilot_reconstruction_improvement", "data_bce_improvement"):

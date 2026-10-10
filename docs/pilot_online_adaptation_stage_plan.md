@@ -68,6 +68,26 @@ RLS、input/logit affine、input FIR、physics residual 等候选要么不改变
 当前 `channel_residual + pilot_reconstruction` 通过了第 2、3、5、6 条的部分诊断，
 但尚未通过主配置和 Pilot-only 排序门槛，因此暂不引入 Bandit。
 
+## 阶段性更新
+
+## 2026-10-10 作用位置与信号重构复核
+
+本轮统一 replay 已补齐输入/输出 Adapter、内部 conditioner/LoRA/head 和
+`pilot_encoder` 候选，并修正了诊断前向没有传入 Adapt Pilot context 的问题。新增的
+`phase_trend + pilot_signal_reconstruction` 在 gap=120 s 的小样本 Pilot-only replay 中
+得到 Data BCE Spearman `0.617`，但硬 BER 只有 2/6 个 seed-SNR 组合改善；因此仍未达到
+正式矩阵门槛。真实逐帧流程在 gap=120/600 s 的强老化诊断中有明显配对收益，而 gap=0
+主配置在 10/15 dB 仍有轻微退化。
+
+`compare.py` 现在支持 `--online-optimizer adamw` 和
+`--online-drift-gate-threshold`。前者用于对齐 replay 与真实在线流程，后者只用 Adapt
+Pilot 估计 CIR 相对残差来决定是否尝试 PEFT 更新，不写回模型条件。详细数值和复现命令
+见 [`docs/pilot_position_scan_and_signal_reconstruction_20261010.md`](/D:/Research/RL4EQ/docs/pilot_position_scan_and_signal_reconstruction_20261010.md)。
+
+当前不进入 Contextual Bandit，也不重新训练离线 checkpoint；下一步只对 signal
+reconstruction + drift gate 做强老化 5 seeds × 60 frames 验证，确认是否能把诊断收益
+变成稳定方法。
+
 ## 后续实施顺序
 
 ### 阶段 A：统一 Pilot-only replay

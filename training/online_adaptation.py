@@ -305,6 +305,7 @@ class PilotDrivenOnlineAdapter:
         hard_example_weighting: bool = False,
         hard_example_temperature: float = 0.5,
         objective: str = "bce",
+        optimizer: str = "sgd",
     ) -> None:
         self.model = model
         self.groups = set(groups or {"head"})
@@ -315,6 +316,7 @@ class PilotDrivenOnlineAdapter:
         self.hard_example_weighting = bool(hard_example_weighting)
         self.hard_example_temperature = float(hard_example_temperature)
         self.objective = str(objective)
+        self.optimizer = str(optimizer)
         if self.learning_rate <= 0.0:
             raise ValueError("learning_rate 必须为正数。")
         if self.max_delta_norm <= 0.0:
@@ -323,8 +325,20 @@ class PilotDrivenOnlineAdapter:
             raise ValueError("proximal_weight 不能为负数。")
         if self.hard_example_temperature <= 0.0:
             raise ValueError("hard_example_temperature 必须为正数。")
-        if self.objective not in {"bce", "boundary", "selective_boundary", "pilot_reconstruction", "joint"}:
-            raise ValueError("objective 必须为 bce、boundary、selective_boundary、pilot_reconstruction 或 joint。")
+        if self.objective not in {
+            "bce",
+            "boundary",
+            "selective_boundary",
+            "pilot_reconstruction",
+            "pilot_signal_reconstruction",
+            "joint",
+        }:
+            raise ValueError(
+                "objective 必须为 bce、boundary、selective_boundary、pilot_reconstruction、"
+                "pilot_signal_reconstruction 或 joint。"
+            )
+        if self.optimizer not in {"sgd", "adamw"}:
+            raise ValueError("optimizer 必须为 sgd 或 adamw。")
 
     def adapt(
         self,
@@ -403,7 +417,10 @@ class PilotDrivenOnlineAdapter:
             self.model.train(was_training)
             return OnlineAdaptationResult(False, pilot_count, 0.0, 0.0, 0.0, False)
 
-        optimizer = torch.optim.SGD(trainable, lr=selected_learning_rate)
+        if self.optimizer == "adamw":
+            optimizer = torch.optim.AdamW(trainable, lr=selected_learning_rate)
+        else:
+            optimizer = torch.optim.SGD(trainable, lr=selected_learning_rate)
         trainable_items = [(name, parameter) for name, parameter in self.model.named_parameters() if name in snapshot]
         try:
             with torch.no_grad():
@@ -445,10 +462,8 @@ class PilotDrivenOnlineAdapter:
                         mask,
                         tail,
                     )
-                else:
-                    reconstruction = torch.zeros((), device=tx.device, dtype=torch.float32)
-                if self.objective == "pilot_reconstruction":
-                    loss = _pilot_reconstruction_loss(
+                elif self.objective == "pilot_signal_reconstruction":
+                    reconstruction = _pilot_signal_reconstruction_loss(
                         self.model,
                         condition,
                         tx,
@@ -456,6 +471,12 @@ class PilotDrivenOnlineAdapter:
                         mask,
                         tail,
                     )
+                else:
+                    reconstruction = torch.zeros((), device=tx.device, dtype=torch.float32)
+                if self.objective == "pilot_reconstruction":
+                    loss = reconstruction
+                elif self.objective == "pilot_signal_reconstruction":
+                    loss = reconstruction
                 elif self.objective == "joint":
                     loss = 0.5 * _weighted_adapt_loss(
                         selected_logits,
@@ -503,9 +524,13 @@ class PilotDrivenOnlineAdapter:
                     selected_hard_example_weighting,
                     selected_hard_example_temperature,
                 )
-                if self.objective == "pilot_reconstruction":
-                    objective_after = _pilot_reconstruction_loss(
-                        self.model, condition, tx, rx, mask, tail
+                if self.objective in {"pilot_reconstruction", "pilot_signal_reconstruction"}:
+                    objective_after = (
+                        _pilot_reconstruction_loss(self.model, condition, tx, rx, mask, tail)
+                        if self.objective == "pilot_reconstruction"
+                        else _pilot_signal_reconstruction_loss(
+                            self.model, condition, tx, rx, mask, tail
+                        )
                     )
                 elif self.objective == "joint":
                     objective_after = 0.5 * weighted_loss_after + 0.5 * _pilot_reconstruction_loss(
@@ -675,6 +700,40 @@ def _pilot_reconstruction_loss(
     return torch.mean(torch.abs(residual) ** 2).real
 
 
+def _pilot_signal_reconstruction_loss(
+    model: UnfoldedEqualizer,
+    condition: CIRCondition,
+    tx: torch.Tensor,
+    rx: torch.Tensor,
+    mask: torch.Tensor,
+    tail: torch.Tensor,
+) -> torch.Tensor:
+    """用 Adapt Pilot 的复数信号重构误差更新输入相位趋势 Adapter。
+
+    先通过在线 phase_trend 参数校正接收 IQ，再用当前 acquisition CIR 和已知
+    Pilot 符号重构接收信号。整个目标只访问 Adapt Pilot 的 tx/rx/mask，不读取
+    Reward Pilot 或 Data 标签；它让待更新参数直接对应帧内公共相位和 CFO 趋势。
+    """
+
+    adapter = model.online_phase_trend_adapter
+    if adapter is None:
+        raise RuntimeError("pilot_signal_reconstruction 需要已挂载 phase_trend Adapter。")
+    rx_flat = rx.reshape(-1).to(torch.complex64)
+    rx_iq = torch.stack((rx_flat.real, rx_flat.imag), dim=-1).unsqueeze(0).float()
+    corrected_iq = adapter(rx_iq).squeeze(0)
+    corrected = torch.complex(corrected_iq[:, 0], corrected_iq[:, 1]).to(torch.complex64)
+    cir = condition.complex_cir.reshape(-1).to(torch.complex64)
+    tx_flat = tx.reshape(-1).to(torch.complex64)
+    tail_flat = tail.reshape(-1).to(torch.complex64)
+    operator = LinearChannelOperator(frame_len=tx_flat.numel(), max_delay=cir.numel() - 1)
+    predicted = operator.forward(tx_flat, cir, tail_flat).reshape(-1)
+    selected = mask.reshape(-1).bool()
+    if not bool(selected.any()):
+        return torch.zeros((), device=tx.device, dtype=torch.float32)
+    residual = corrected[selected] - predicted[selected]
+    return torch.mean(torch.abs(residual) ** 2).real
+
+
 def run_pilot_driven_online(
     config_path: str | Path,
     frames: int,
@@ -755,6 +814,7 @@ def run_pilot_driven_online(
                         config.get("online_hard_example_temperature", 0.5)
                     ),
                     objective=str(config.get("online_adaptation_objective", "bce")),
+                    optimizer=str(config.get("online_adaptation_optimizer", "sgd")),
                 )
                 bandit = SafeContextualBandit(seed=90_000 + int(seed)) if scheduler == "bandit" else None
                 allowed_bandit_actions = (

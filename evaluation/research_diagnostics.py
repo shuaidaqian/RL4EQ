@@ -511,8 +511,18 @@ def apply_adapt_only_peft_update(
 ) -> dict:
     """只用 Adapt Pilot loss 对指定 PEFT 参数做真实梯度更新。"""
 
-    if objective not in {"bce", "boundary", "selective_boundary", "pilot_reconstruction", "joint"}:
-        raise ValueError("objective 必须为 bce、boundary、selective_boundary、pilot_reconstruction 或 joint。")
+    if objective not in {
+        "bce",
+        "boundary",
+        "selective_boundary",
+        "pilot_reconstruction",
+        "pilot_signal_reconstruction",
+        "joint",
+    }:
+        raise ValueError(
+            "objective 必须为 bce、boundary、selective_boundary、pilot_reconstruction、"
+            "pilot_signal_reconstruction 或 joint。"
+        )
     device = next(model.parameters()).device
     frame = _frame_to_device(frame, device)
     condition = _condition_to_device(condition, device)
@@ -552,11 +562,13 @@ def apply_adapt_only_peft_update(
         reconstruction_loss = (
             _pilot_reconstruction_loss_for_diagnostic(model, frame, condition, tail)
             if objective in {"pilot_reconstruction", "joint"}
+            else _pilot_signal_reconstruction_loss_for_diagnostic(model, frame, condition, tail)
+            if objective == "pilot_signal_reconstruction"
             else torch.zeros((), device=device)
         )
         loss = (
             reconstruction_loss
-            if objective == "pilot_reconstruction"
+            if objective in {"pilot_reconstruction", "pilot_signal_reconstruction"}
             else 0.5 * adapt_loss + 0.5 * reconstruction_loss
             if objective == "joint"
             else adapt_loss
@@ -645,6 +657,33 @@ def _pilot_reconstruction_loss_for_diagnostic(
     operator = LinearChannelOperator(frame_len=tx.numel(), max_delay=cir.numel() - 1)
     predicted = operator.forward(tx, cir, tail).reshape(-1)
     residual = predicted[mask] - rx[mask]
+    return torch.mean(torch.abs(residual) ** 2).real
+
+
+def _pilot_signal_reconstruction_loss_for_diagnostic(
+    model: UnfoldedEqualizer,
+    frame,
+    condition: CIRCondition,
+    soft_tail: torch.Tensor,
+) -> torch.Tensor:
+    """计算 phase_trend Adapter 校正后的 Adapt Pilot 复数重构误差。"""
+
+    adapter = model.online_phase_trend_adapter
+    if adapter is None:
+        raise RuntimeError("pilot_signal_reconstruction 需要 phase_trend Adapter。")
+    receiver_view = frame.receiver_view()
+    device = next(model.parameters()).device
+    rx = receiver_view.rx_symbols.to(device).to(torch.complex64).reshape(-1)
+    tx = receiver_view.adapt_symbols.to(device).to(torch.complex64).reshape(-1)
+    mask = receiver_view.adapt_mask.to(device).bool().reshape(-1)
+    rx_iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0)
+    corrected_iq = adapter(rx_iq).squeeze(0)
+    corrected = torch.complex(corrected_iq[:, 0], corrected_iq[:, 1]).to(torch.complex64)
+    cir = condition.complex_cir.to(device).to(torch.complex64).reshape(-1)
+    tail = soft_tail.to(device).to(torch.complex64).reshape(-1)
+    operator = LinearChannelOperator(frame_len=tx.numel(), max_delay=cir.numel() - 1)
+    predicted = operator.forward(tx, cir, tail).reshape(-1)
+    residual = corrected[mask] - predicted[mask]
     return torch.mean(torch.abs(residual) ** 2).real
 
 
@@ -1084,7 +1123,24 @@ def _signed_cfo_for_seed(cfo_abs: float, seed: int) -> float:
 def _model_logits(model: UnfoldedEqualizer, frame, condition: CIRCondition, tail: torch.Tensor) -> torch.Tensor:
     rx_iq = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0).float()
     region_ids = frame.model_region_ids.unsqueeze(0).long()
-    logits, _ = model(rx_iq, condition, region_ids, tail)
+    # pilot_conditioned 模型必须收到当前帧的 Adapt Pilot；这里明确构造接收端
+    # 可见的 Pilot 符号和 mask，不能把 Reward/Data 标签传入前向。
+    if hasattr(frame, "receiver_view"):
+        receiver_view = frame.receiver_view()
+        adapt_symbols = receiver_view.adapt_symbols.unsqueeze(0)
+        adapt_mask = receiver_view.adapt_mask.unsqueeze(0)
+    else:
+        adapt_symbols = torch.zeros_like(frame.tx_symbols).unsqueeze(0)
+        adapt_symbols[:, frame.adapt_mask] = frame.tx_symbols[frame.adapt_mask]
+        adapt_mask = frame.adapt_mask.unsqueeze(0)
+    logits, _ = model(
+        rx_iq,
+        condition,
+        region_ids,
+        tail,
+        adapt_symbols=adapt_symbols,
+        adapt_mask=adapt_mask,
+    )
     return logits.squeeze(0)
 
 
@@ -1149,6 +1205,8 @@ def _retag_unfolded_peft_groups(model: UnfoldedEqualizer) -> None:
         group = None
         if name.startswith("conditioner."):
             group = "conditioner_film"
+        elif name.startswith("pilot_encoder."):
+            group = "pilot_encoder"
         elif name.startswith("head."):
             group = "head"
         elif ".attn_lora." in name:
