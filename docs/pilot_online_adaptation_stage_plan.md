@@ -296,3 +296,15 @@ RLS 当前不能作为主路线。`channel_residual` 和 `physics_residual` 能�
 连续输出，但尚未稳定改变硬 BER。因此当前瓶颈确认是更新方向与 Data 目标失配，不是
 单纯学习率或 Reward 窗口长度问题。下一步应优先设计能约束均衡器判决边界的 Pilot-only
 更新目标，再重新做排序验证；不引入 Contextual Bandit，也不扩大正式 5 seed × 60 帧矩阵。
+
+2026-10-10 Reward Pilot 信号重构守门复核：在固定 gap=600 s、Level B、delay=116、
+5/10 dB、5 seeds × 60 frames 矩阵中，新增 Reward Pilot 复数信号重构误差守门。该守门
+只用已知 Adapt/Reward Pilot 符号和接收 IQ 做动作后验收，误差计算使用 `torch.no_grad()`，
+不参与 Adapt Pilot 梯度；Data 标签仍只用于最终统计。5 dB Frozen/Online 为
+`29.0881%/28.5430%`，配对收益 `+0.5451 pp`，4/5 seed 为正；10 dB 为
+`26.6133%/26.1068%`，配对收益 `+0.5065 pp`，4/5 seed 为正。600 个 Online 帧中
+保留 135 次 PEFT 更新、跨帧回滚 102 次；每个 SNR 仍有 1/5 seed 负收益。
+
+与未加入信号守门的同配置矩阵相比，负 seed 数没有减少，平均收益略低，说明该守门只能
+作为物理一致性保护，不能作为 Data BER 的排序器。当前不把它写成主路线成功，也不启动
+Contextual Bandit；gap=0 主配置仍需单独验证，现有结果不能替代主成功门槛。

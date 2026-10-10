@@ -132,6 +132,9 @@ def test_pilot_candidate_ranking_replay_has_label_boundary():
     compare_source = Path("compare.py").read_text(encoding="utf-8")
     assert "online-drift-gate-threshold" in compare_source
     assert "pilot_signal_reconstruction" in compare_source
+    assert "online-require-reward-signal-reconstruction" in compare_source
+    assert "reward_signal_reconstruction_candidates_rejected" in compare_source
+    assert "with torch.no_grad():" in compare_source
     rolling_source = Path("scripts/replay_rolling_reward_gate.py").read_text(encoding="utf-8")
     assert "PilotTemporalConsistency" in rolling_source
     assert "temporal_consistency_gate" in rolling_source

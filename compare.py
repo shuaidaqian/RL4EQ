@@ -37,6 +37,7 @@ from baseline.traditional_equalizers import (
     run_traditional_equalizer,
 )
 from env.comm_env import CommunicationEnvironment, ReceiverState
+from env.linear_operator import LinearChannelOperator
 from env.experiment_config import (
     build_comm_env_config,
     effective_channel_metadata,
@@ -312,6 +313,12 @@ def main() -> None:
     parser.add_argument("--online-min-reward-improvement", type=float, default=None)
     parser.add_argument("--online-relative-min-reward-improvement", type=float, default=None)
     parser.add_argument("--online-reward-windows", type=int, default=None)
+    parser.add_argument(
+        "--online-require-reward-signal-reconstruction",
+        action="store_true",
+        help="要求 Reward Pilot 的复数信号重构误差不退化后才保留 PEFT 更新。",
+    )
+    parser.add_argument("--online-reward-signal-tolerance", type=float, default=None)
     parser.add_argument("--online-cross-frame-tolerance", type=float, default=None)
     parser.add_argument("--online-phase-smoothing", type=float, default=None)
     parser.add_argument("--online-phase-min-confidence", type=float, default=None)
@@ -370,6 +377,10 @@ def main() -> None:
             "online_adaptation_min_reward_improvement": args.online_min_reward_improvement,
             "online_adaptation_relative_min_reward_improvement": args.online_relative_min_reward_improvement,
             "online_reward_windows": args.online_reward_windows,
+            "online_require_reward_signal_reconstruction": (
+                True if args.online_require_reward_signal_reconstruction else None
+            ),
+            "online_reward_signal_tolerance": args.online_reward_signal_tolerance,
             "online_cross_frame_rollback_tolerance": args.online_cross_frame_tolerance,
             "online_phase_tracking_smoothing": args.online_phase_smoothing,
             "online_phase_tracking_min_confidence": args.online_phase_min_confidence,
@@ -727,6 +738,8 @@ class PilotOnlineMethodState:
     previous_parameter_delta_norm: float = 0.0
     bandit_action_cost: float = 0.000001
     drift_gate_threshold: float | None = None
+    require_reward_signal_reconstruction: bool = False
+    reward_signal_tolerance: float = 0.0
 
 
 @dataclass
@@ -922,6 +935,12 @@ def _build_method_states(
                     float(config["online_drift_gate_threshold"])
                     if config.get("online_drift_gate_threshold") is not None
                     else None
+                ),
+                require_reward_signal_reconstruction=bool(
+                    config.get("online_require_reward_signal_reconstruction", False)
+                ),
+                reward_signal_tolerance=float(
+                    config.get("online_reward_signal_tolerance", 0.0)
                 ),
             )
         elif method == "RL-Modulated Neural Block Equalizer":
@@ -1850,6 +1869,18 @@ def _run_pilot_online_method(
     adapt_labels = (receiver_view.adapt_symbols.real > 0.0).to(frame_device.bits.dtype)
     reward_before = _masked_bce(before, reward_labels, frame_device.reward_mask)
     adapt_loss_before = _masked_bce(before, adapt_labels, frame_device.adapt_mask)
+    reward_signal_before = None
+    if state.require_reward_signal_reconstruction:
+        reward_signal_before = float(
+            _reward_signal_reconstruction_loss(
+                state.model,
+                frame_device,
+                condition,
+                tail,
+            )
+            .detach()
+            .cpu()
+        )
     phase_slope = float(
         torch.diff(phase_features.reshape(-1)).abs().mean().detach().cpu()
         if phase_features is not None and phase_features.numel() > 1
@@ -1963,6 +1994,10 @@ def _run_pilot_online_method(
     best_reward_window_gains: list[float] = []
     best_name = "skip"
     best_after = before
+    best_reward_signal_after = reward_signal_before
+    reward_signal_candidates_evaluated = 0
+    reward_signal_candidates_passed = 0
+    reward_signal_candidates_rejected = 0
     for candidate in candidates:
         state.model.peft.restore(base_snapshot)
         adaptation = state.adapter.adapt(
@@ -1986,6 +2021,29 @@ def _run_pilot_online_method(
         after = after_logits.squeeze(0)
         reward_after = _masked_bce(after, reward_labels, frame_device.reward_mask)
         reward_value = float(reward_after.detach().cpu())
+        reward_signal_after = None
+        reward_signal_accept = True
+        if state.require_reward_signal_reconstruction:
+            reward_signal_candidates_evaluated += 1
+            reward_signal_after = float(
+                _reward_signal_reconstruction_loss(
+                    state.model,
+                    frame_device,
+                    condition,
+                    tail,
+                )
+                .detach()
+                .cpu()
+            )
+            reward_signal_accept = bool(
+                reward_signal_before is not None
+                and reward_signal_after
+                <= reward_signal_before + float(state.reward_signal_tolerance)
+            )
+            if reward_signal_accept:
+                reward_signal_candidates_passed += 1
+            else:
+                reward_signal_candidates_rejected += 1
         window_accept, window_gains = _accept_windowed_reward_update(
             best_reward_logits,
             after,
@@ -2001,7 +2059,12 @@ def _run_pilot_online_method(
             reward_mask=frame_device.reward_mask,
             reward_symbols=receiver_view.reward_symbols,
         )
-        if adaptation.accepted and window_accept and hard_ber_accept:
+        if (
+            adaptation.accepted
+            and window_accept
+            and hard_ber_accept
+            and reward_signal_accept
+        ):
             best_snapshot = state.model.peft.snapshot(candidate_groups)
             best_result = adaptation
             best_reward = reward_value
@@ -2009,6 +2072,7 @@ def _run_pilot_online_method(
             best_reward_window_gains = window_gains
             best_name = str(candidate["name"])
             best_after = after
+            best_reward_signal_after = reward_signal_after
     state.model.peft.restore(base_snapshot)
     update_applied = bool(candidates) and selected_action.name != "skip"
     if best_snapshot is None:
@@ -2139,6 +2203,33 @@ def _run_pilot_online_method(
             "online_adaptation_freeze_below_snr_db": freeze_below_db,
             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
+            "reward_signal_reconstruction_before": reward_signal_before,
+            "reward_signal_reconstruction_after": best_reward_signal_after,
+            "reward_signal_reconstruction_guard": bool(
+                state.require_reward_signal_reconstruction
+            ),
+            "reward_signal_reconstruction_guard_passed": bool(
+                not state.require_reward_signal_reconstruction
+                or (
+                    reward_signal_before is not None
+                    and best_reward_signal_after is not None
+                    and best_reward_signal_after
+                    <= reward_signal_before + float(state.reward_signal_tolerance)
+                )
+            ),
+            "online_reward_signal_tolerance": float(state.reward_signal_tolerance),
+            "reward_signal_reconstruction_candidates_evaluated": int(
+                reward_signal_candidates_evaluated
+            ),
+            "reward_signal_reconstruction_candidates_passed": int(
+                reward_signal_candidates_passed
+            ),
+            "reward_signal_reconstruction_candidates_rejected": int(
+                reward_signal_candidates_rejected
+            ),
+            "reward_signal_reconstruction_guard_rejected": bool(
+                reward_signal_candidates_rejected > 0
+            ),
             "data_bce_before_eval_only": float(data_bce_before.detach().cpu()),
             "data_bce_after_eval_only": float(data_bce_after.detach().cpu()),
             "data_logit_delta_mean_abs_eval_only": float(data_logit_delta.detach().cpu()),
@@ -2419,6 +2510,48 @@ def _accept_windowed_reward_update(
         for gain, relative_gain in zip(gains, relative_gains)
     )
     return accepted, gains
+
+
+def _reward_signal_reconstruction_loss(
+    model: UnfoldedEqualizer,
+    frame,
+    condition: CIRCondition,
+    tail: torch.Tensor,
+) -> torch.Tensor:
+    """计算 Reward Pilot 上的复数信号重构误差。
+
+    该守门只使用当前 Reward Pilot 的已知符号和接收信号。Adapt 与 Reward
+    符号可用于构造 Reward 位置之前的已知卷积输入，Data 区域始终置零；
+    因此它只用于动作后的验收，不参与参数梯度更新。
+    """
+
+    # 该指标只用于动作后的验收，必须与 Adapt Pilot 梯度路径隔离。
+    with torch.no_grad():
+        view = frame.receiver_view()
+        device = next(model.parameters()).device
+        rx = view.rx_symbols.to(device).to(torch.complex64).reshape(-1)
+        known_tx = (
+            view.adapt_symbols.to(device).to(torch.complex64)
+            + view.reward_symbols.to(device).to(torch.complex64)
+        ).reshape(-1)
+        reward_mask = view.reward_symbols.to(device).abs().reshape(-1) > 0.0
+        if not bool(reward_mask.any()):
+            return torch.zeros((), device=device, dtype=torch.float32)
+        corrected = rx
+        phase_adapter = model.online_phase_trend_adapter
+        if phase_adapter is not None:
+            rx_iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0)
+            corrected_iq = phase_adapter(rx_iq).squeeze(0)
+            corrected = torch.complex(corrected_iq[:, 0], corrected_iq[:, 1]).to(torch.complex64)
+        cir = condition.complex_cir.to(device).to(torch.complex64)
+        channel_adapter = model.online_channel_residual_adapter
+        if channel_adapter is not None:
+            cir = channel_adapter(cir)
+        tail = tail.to(device).to(torch.complex64).reshape(-1)
+        operator = LinearChannelOperator(frame_len=known_tx.numel(), max_delay=cir.numel() - 1)
+        predicted = operator.forward(known_tx, cir.reshape(-1), tail).reshape(-1)
+        residual = corrected[reward_mask] - predicted[reward_mask]
+        return torch.mean(torch.abs(residual) ** 2).real
 
 
 def _accept_reward_pilot_hard_ber(
