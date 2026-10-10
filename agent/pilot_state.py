@@ -128,3 +128,45 @@ class PilotDriftDetector:
         drift = float(confidence) >= self.min_confidence and distance >= self.threshold
         return bool(drift), distance
 
+
+class PilotTemporalConsistency:
+    """检查连续 Adapt Pilot 状态漂移是否保持同一方向。"""
+
+    def __init__(self, min_distance: float = 0.05, min_cosine: float = 0.25) -> None:
+        if min_distance < 0.0:
+            raise ValueError("min_distance 不能为负数。")
+        if not -1.0 <= min_cosine <= 1.0:
+            raise ValueError("min_cosine 必须位于 [-1, 1]。")
+        self.min_distance = float(min_distance)
+        self.min_cosine = float(min_cosine)
+        self._previous: torch.Tensor | None = None
+        self._last_delta: torch.Tensor | None = None
+
+    def reset(self) -> None:
+        self._previous = None
+        self._last_delta = None
+
+    def update(self, embedding: torch.Tensor) -> tuple[bool, float, float]:
+        """返回 ``(是否连续一致, 当前距离, 方向余弦)``。"""
+
+        current = torch.as_tensor(embedding, dtype=torch.float32).reshape(-1).detach().cpu()
+        if current.numel() != 6 or not torch.isfinite(current).all():
+            raise ValueError("Pilot 状态 embedding 必须是 6 维有限数。")
+        if self._previous is None:
+            self._previous = current
+            return False, 0.0, 0.0
+        delta = current - self._previous
+        distance = float(torch.linalg.vector_norm(delta).item())
+        self._previous = current
+        if self._last_delta is None:
+            self._last_delta = delta
+            return False, distance, 0.0
+        previous_norm = torch.linalg.vector_norm(self._last_delta)
+        current_norm = torch.linalg.vector_norm(delta)
+        if float(previous_norm) <= 1e-8 or float(current_norm) <= 1e-8:
+            cosine = 0.0
+        else:
+            cosine = float(torch.dot(delta, self._last_delta).item() / (current_norm * previous_norm).item())
+        self._last_delta = delta
+        consistent = distance >= self.min_distance and cosine >= self.min_cosine
+        return bool(consistent), distance, cosine

@@ -20,7 +20,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from agent.cir_estimator import condition_from_cir
-from agent.pilot_state import PilotDriftDetector, PilotStateEmbedding, build_pilot_state_summary
+from agent.pilot_state import (
+    PilotDriftDetector,
+    PilotStateEmbedding,
+    PilotTemporalConsistency,
+    build_pilot_state_summary,
+)
 from baseline.traditional_equalizers import estimate_phase_residual_vector
 from env.comm_env import CommEnvConfig, CommunicationEnvironment
 from env.linear_operator import LinearChannelOperator
@@ -52,6 +57,9 @@ def main() -> None:
     parser.add_argument("--max-lr-scale", type=float, default=1.0)
     parser.add_argument("--reconstruction-scale", type=float, default=0.05)
     parser.add_argument("--disable-drift-gate", action="store_true")
+    parser.add_argument("--temporal-consistency-gate", action="store_true")
+    parser.add_argument("--temporal-min-distance", type=float, default=0.05)
+    parser.add_argument("--temporal-min-cosine", type=float, default=0.25)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
     if args.frames < args.window_size + 1:
@@ -94,6 +102,10 @@ def main() -> None:
                     min_confidence=args.min_drift_confidence,
                 )
                 state_embedding = PilotStateEmbedding()
+                temporal_consistency = PilotTemporalConsistency(
+                    min_distance=args.temporal_min_distance,
+                    min_cosine=args.temporal_min_cosine,
+                )
                 window_index = 0
                 cursor = 0
                 while cursor + args.window_size < len(frames):
@@ -117,7 +129,12 @@ def main() -> None:
                     )
                     embedding = state_embedding(summary)
                     drift_detected, drift_distance = drift_detector.update(embedding, summary.confidence)
+                    temporal_consistent, temporal_distance, temporal_cosine = temporal_consistency.update(embedding)
                     drift_gate_applied = not args.disable_drift_gate
+                    temporal_gate_applied = bool(args.temporal_consistency_gate)
+                    update_allowed = (not drift_gate_applied or bool(drift_detected)) and (
+                        not temporal_gate_applied or bool(temporal_consistent)
+                    )
                     lr_scale = state_conditioned_lr_scale(
                         drift_distance=drift_distance,
                         drift_threshold=args.drift_threshold,
@@ -133,7 +150,7 @@ def main() -> None:
                         min_accepted_frames=args.window_size,
                         max_single_frame_regression=0.0,
                     )
-                    if drift_gate_applied and not drift_detected:
+                    if drift_gate_applied and not update_allowed:
                         result = evaluate_frozen_peft_reward_window(
                             model=model,
                             adapt_frame=window_frames[0],
@@ -145,7 +162,11 @@ def main() -> None:
                             objective="bce",
                         )
                         result["adaptation_accepted"] = False
-                        result["gate_reason"] = "no_pilot_drift"
+                        result["gate_reason"] = (
+                            "no_temporal_consistency"
+                            if drift_detected and temporal_gate_applied and not temporal_consistent
+                            else "no_pilot_drift"
+                        )
                     else:
                         result = evaluate_frozen_peft_reward_window(
                             model=model,
@@ -186,6 +207,11 @@ def main() -> None:
                             "pilot_state_drift_detected": bool(drift_detected),
                             "pilot_state_drift_distance": float(drift_distance),
                             "pilot_state_drift_gate_applied": bool(drift_gate_applied),
+                            "pilot_state_temporal_consistent": bool(temporal_consistent),
+                            "pilot_state_temporal_distance": float(temporal_distance),
+                            "pilot_state_temporal_cosine": float(temporal_cosine),
+                            "pilot_state_temporal_gate_applied": bool(temporal_gate_applied),
+                            "pilot_state_update_allowed": bool(update_allowed),
                             "pilot_state_confidence": float(summary.confidence),
                             "pilot_state_phase0": float(summary.phase0),
                             "pilot_state_cfo_cycles_per_symbol": float(summary.cfo_cycles_per_symbol),

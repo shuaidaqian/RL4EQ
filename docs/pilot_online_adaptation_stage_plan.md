@@ -243,6 +243,16 @@ Frozen”的门槛，也不能替代正式 5 seeds × 60 frames 主矩阵。下�
 Pilot-only 上区分 Data 收益的更新方向或验收特征；在此之前不扩大正式矩阵，也不引入
 Contextual Bandit。
 
+2026-10-10 跨帧状态一致性门控：新增 `PilotTemporalConsistency`，比较连续 Adapt
+Pilot 状态 embedding 的漂移距离和方向余弦；只有连续漂移方向一致时才允许尝试
+`physics_residual` PEFT 更新。该门控只读取 Pilot 状态，不改变 checkpoint，也不把
+Reward Pilot 当训练标签。固定 gap=120 s、Level B、window=2、5/10 dB、3 seeds、20
+帧 replay 中，严格阈值下状态一致率约为 16.7%/27.8%，更新允许率相同，标准候选接受率
+约为 5.6%/16.7%，Data BCE 正向幅度小于无时间门控，硬 BER 仍为 0；放宽方向阈值后
+允许率约为 22.2%/27.8%，结论不变。该方法能够减少单帧异常更新，但没有形成收益，
+因此暂定位为稳定性保护，不进入主成功路线。当前多个 Pilot-only 目标和门控都未达到
+Spearman `0.6` 及稳定硬 BER 门槛，正式 5 seed × 60 帧矩阵继续暂停。
+
 2026-10-10 选择性边界目标复核：在 Adapt Pilot BCE 的基础上加入只对低绝对值 logit
 施加主要梯度的 `selective_boundary` 目标，并同步接入实际
 `PilotDrivenOnlineAdapter`（默认不启用）。该目标包含有界边界样本权重和有限 margin

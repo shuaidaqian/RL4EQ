@@ -115,6 +115,9 @@ def test_pilot_candidate_ranking_replay_has_label_boundary():
     assert "rls_residual" in source
     assert "physics_boundary" in source
     assert "physics_selective_boundary" in source
+    rolling_source = Path("scripts/replay_rolling_reward_gate.py").read_text(encoding="utf-8")
+    assert "PilotTemporalConsistency" in rolling_source
+    assert "temporal_consistency_gate" in rolling_source
 
 
 def test_boundary_adapt_loss_emphasizes_low_confidence_pilot_logits():
@@ -172,6 +175,23 @@ def test_online_adapter_accepts_boundary_objectives():
         )
         result = adapter.adapt(frame, _identity_condition(), torch.zeros(1, 4, dtype=torch.complex64))
         assert result.data_labels_used_online is False
+
+
+def test_pilot_temporal_consistency_requires_two_aligned_drift_steps():
+    from agent.pilot_state import PilotTemporalConsistency
+
+    detector = PilotTemporalConsistency(min_distance=0.05, min_cosine=0.5)
+    first = torch.zeros(6)
+    second = first.clone()
+    second[0] = 0.1
+    third = second.clone()
+    third[0] = 0.2
+    assert detector.update(first)[0] is False
+    assert detector.update(second)[0] is False
+    consistent, distance, cosine = detector.update(third)
+    assert consistent is True
+    assert distance == pytest.approx(0.1)
+    assert cosine == pytest.approx(1.0)
 
 
 def test_reward_gate_replay_accepts_state_gap_option():
