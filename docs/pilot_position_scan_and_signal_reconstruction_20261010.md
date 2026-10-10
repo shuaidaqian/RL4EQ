@@ -82,6 +82,22 @@ Reward Pilot 做窗口验收：
 主 gap=0 场景仍没有稳定超过 Frozen；10/15 dB 还有轻微退化。当前 checkpoint 在无明显
 状态老化时已经接近其可达性能，Adapt Pilot 的自监督重构不能保证额外收益。
 
+### gap=600 s，5 seeds × 60 帧压力矩阵
+
+使用同一 `phase_trend + pilot_signal_reconstruction`、AdamW、5 步、漂移门限 `0.7`，
+并由 Reward Pilot 逐帧验收和回滚：
+
+| SNR | Frozen BER | Online BER | 平均配对收益 | 正收益 seed |
+|---:|---:|---:|---:|---:|
+| 5 dB | `29.0881%` | `28.4683%` | `+0.6198 pp` | `4/5` |
+| 10 dB | `26.6133%` | `25.8537%` | `+0.7595 pp` | `4/5` |
+
+5 dB 的 seed 配对收益（pp）为 `+0.577/+0.675/+0.762/-0.855/+1.940`，10 dB 为
+`-0.347/+1.022/+1.699/+0.135/+1.289`。前后 30 帧均值显示，多数 seed 的收益在后半段
+保持或扩大，但单帧仍有较大正负摆动；总计 600 帧中 158 帧真正保留 PEFT 更新、116 帧
+触发回滚。该结果证明路线在强 acquisition 老化下有可重复的平均收益，但仍未满足
+“每个配置和至少 5/5 seed 稳定超过 Frozen”的主目标，也不应作为 gap=0 主平均结果。
+
 ## 漂移门控
 
 `compare.py` 新增 `--online-drift-gate-threshold`。它用 Adapt Pilot 估计 CIR 相对
@@ -105,10 +121,11 @@ Adapt Pilot 信号重构
 
 它已经在强状态老化诊断中产生明显的配对 BER 收益，但还没有满足“主 gap=0、多个 SNR 和
 seed 稳定超过 Frozen Offline”的目标。因此本阶段只提交可复现的目标、作用位置和门控
-接口，不把诊断收益写成主论文成功结果。下一步应在不改 checkpoint 的前提下，先用漂移
-门控和更保守的 signal-reconstruction 更新做 5 seeds × 60 frames 的 gap=600 压力矩阵；
-若能稳定通过，再单独设计能观测 residual CFO/慢相位的主配置实验，最后才考虑是否有
-足够证据把该方法提升为主路线。
+接口，不把诊断收益写成主论文成功结果。5 seeds × 60 frames 的 gap=600 压力矩阵已经
+完成但仍有 1/5 seed 负收益。下一步要把 Reward Pilot 的验收从单纯 logits loss/硬 BER
+扩展为同一 Reward Pilot 上的信号重构一致性与跨帧最坏退化约束，先解决这个负 seed，
+再单独设计能观测 residual CFO/慢相位的主配置实验；在此之前不把该方法提升为主路线，
+也不接入 Contextual Bandit。
 
 ## 复现实验命令
 

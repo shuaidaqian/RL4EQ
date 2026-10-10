@@ -86,7 +86,9 @@ Pilot 估计 CIR 相对残差来决定是否尝试 PEFT 更新，不写回模型
 
 当前不进入 Contextual Bandit，也不重新训练离线 checkpoint；下一步只对 signal
 reconstruction + drift gate 做强老化 5 seeds × 60 frames 验证，确认是否能把诊断收益
-变成稳定方法。
+变成稳定方法。该矩阵现已完成：gap=600 s 下 5/10 dB 平均分别改善 `+0.6198/+0.7595 pp`，
+但两个 SNR 都只有 4/5 seed 正收益，下一步需把 Reward Pilot 验收扩展到信号重构一致性和
+跨帧最坏退化约束，先解决负 seed 后再回到主配置。
 
 ## 后续实施顺序
 
