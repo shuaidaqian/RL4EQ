@@ -19,14 +19,14 @@
 - acquisition 到数据帧间隔：600 s（状态老化压力测试）
 - SNR：5、10 dB
 - Adapt 更新：`phase_trend`，Pilot 复数信号重构，AdamW，5 步
-- 候选幅度：学习率比例 `0.25/0.5/1.0`，参数上限比例 `0.5/1.0/1.0`
+- 候选幅度：学习率比例 `0.125/0.25/0.5`，参数上限比例 `0.25/0.5/1.0`
 - 漂移门：Pilot CIR 相对残差 `0.7`
 - Reward 验收：两个 Reward 子窗口、Reward 硬 BER 不增加、Reward 复数信号重构误差不增加
 - 跨帧回滚：开启
 
 可复现配置：[`configs/online_phase_signal_multiscale.json`](../configs/online_phase_signal_multiscale.json)
 
-## 3 seed × 10 帧结果
+## 原始候选的 3 seed × 10 帧结果
 
 逐帧日志：[`logs/phase_signal_multiscale_gap600_3s2snr10f_20261011`](../logs/phase_signal_multiscale_gap600_3s2snr10f_20261011)
 
@@ -42,6 +42,22 @@
 短窗口平均改善为 5 dB `+0.742 pp`、10 dB `+0.347 pp`。单帧候选选择记录显示，
 Reward Pilot 会在不同帧选择 `conservative`、`standard` 或 `fast`，而不是始终使用
 最大更新；这正是固定学习率方案没有的自适应幅度控制。
+
+## fast 候选失败复核与安全幅度修正
+
+补充的 5 seed × 4 帧 replay 发现，原始 `fast` 候选在 5 dB、seed 4 的第 3 帧虽然通过
+Reward Pilot，却把该帧 Data BER 从约 21% 推到约 50%；下一帧触发跨帧回滚，但无法撤销
+已经发生的 Data 错误。因此原始三档候选不能作为推荐配置。
+
+随后把三档改为 `conservative/standard/moderate`，对应学习率比例
+`0.125/0.25/0.5` 和参数上限比例 `0.25/0.5/1.0`。安全幅度版本的 5 seed × 4 帧结果为：
+
+| SNR | seed 正收益数 | 平均配对改善 | 最坏 seed | 判断 |
+|---:|---:|---:|---:|---|
+| 5 dB | 4/5 | +0.9375 pp | 0 pp | 短窗口通过 |
+| 10 dB | 2/5 | +0.2018 pp | -0.2604 pp | 仍需长窗口复核 |
+
+该结果只说明限制更新幅度能消除已发现的灾难性坏帧，不能替代正式 5 seed × 60 帧门槛。
 
 ## 对照结果
 
@@ -66,7 +82,7 @@ Pilot 更新 Adapter 参数，Reward Pilot 负责候选选择和回滚。它在�
 
 ## 下一步
 
-1. 使用同一配置运行 gap=600 s 的 `5 seed × 60 帧 × 5/10 dB` 正式矩阵。
+1. 使用安全幅度配置运行 gap=600 s 的 `5 seed × 60 帧 × 5/10 dB` 正式矩阵。
 2. 要求每个 SNR 至少 4/5 seed 正收益，且平均改善为正；同时检查最坏 seed 的 Data BCE、
    Reward 回滚和 `data_labels_used_online=false`。
 3. 通过后，再在 gap=0 的 0/5/10/15 dB 主矩阵验证是否仍有额外收益；不通过则把结果
@@ -88,4 +104,3 @@ Pilot 更新 Adapter 参数，Reward Pilot 负责候选选择和回滚。它在�
   --online-cross-frame-tolerance 0 --update-interval 1 --resume `
   --output-dir logs/phase_signal_multiscale_gap600_3s2snr10f_20261011
 ```
-

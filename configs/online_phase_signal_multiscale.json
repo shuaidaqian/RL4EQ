@@ -95,25 +95,25 @@
       "groups": [
         "phase_trend"
       ],
-      "learning_rate_scale": 0.25,
+      "learning_rate_scale": 0.125,
       "steps": 5,
-      "max_delta_scale": 0.5
+      "max_delta_scale": 0.25
     },
     {
       "name": "phase_signal_standard",
       "groups": [
         "phase_trend"
       ],
-      "learning_rate_scale": 0.5,
+      "learning_rate_scale": 0.25,
       "steps": 5,
       "max_delta_scale": 1.0
     },
     {
-      "name": "phase_signal_fast",
+      "name": "phase_signal_moderate",
       "groups": [
         "phase_trend"
       ],
-      "learning_rate_scale": 1.0,
+      "learning_rate_scale": 0.5,
       "steps": 5,
       "max_delta_scale": 1.0
     }
