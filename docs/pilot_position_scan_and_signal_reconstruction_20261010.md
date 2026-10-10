@@ -82,6 +82,32 @@ Reward Pilot 做窗口验收：
 主 gap=0 场景仍没有稳定超过 Frozen；10/15 dB 还有轻微退化。当前 checkpoint 在无明显
 状态老化时已经接近其可达性能，Adapt Pilot 的自监督重构不能保证额外收益。
 
+### gap=0，加入信号守门后的 5 seeds × 60 帧主配置复核
+
+为检验守门能否解决主配置的高 SNR 退化，固定 checkpoint、Level B、prefix Pilot=256，
+对 Frozen 和 Online 各运行 0/5/10/15 dB、5 seeds、60 帧。0 dB 按现有
+`online_adaptation_freeze_below_snr_db=5` 规则冻结 PEFT；5/10/15 dB 使用
+`phase_trend + pilot_signal_reconstruction`、AdamW、5 步和 Reward Signal 守门。
+
+| SNR | Frozen BER | Online BER | 平均配对收益 | 正收益 seed |
+|---:|---:|---:|---:|---:|
+| 0 dB | `21.3841%` | `21.3841%` | `0.0000 pp` | `0/5`（冻结） |
+| 5 dB | `5.7066%` | `5.6823%` | `+0.0243 pp` | `4/5` |
+| 10 dB | `0.9549%` | `0.9314%` | `+0.0234 pp` | `3/5` |
+| 15 dB | `0.1641%` | `0.1476%` | `+0.0165 pp` | `4/5` |
+
+5 dB 的 seed 配对收益（pp）为 `+0.024/-0.119/+0.104/+0.041/+0.072`，10 dB 为
+`-0.035/-0.124/+0.234/+0.024/+0.017`，15 dB 为 `-0.002/+0.000/+0.074/+0.002/+0.009`。
+5/10/15 dB 共评估 900 个候选，信号守门分别拒绝 39/40/36 个候选，最终保留 163 次
+PEFT 更新并触发 100 次跨帧回滚。守门确实减少了部分更新，但 10 dB 仍有 2/5 seed
+退化，收益量级也只有约 `0.02 pp`；因此主配置仍不能称为稳定、明显超过 Frozen。
+
+该矩阵的配对日志位于
+`logs/phase_signal_gap0_signalguard_5s60f_20261010/summary.json` 和
+`frame_metrics.jsonl`。由于本次只选择 Frozen/Online 两个方法，`summary.json` 的
+`diagnostic_only=true` 是评估契约的正常标记，结果用于主配置审计，不写入传统 baseline
+主平均。
+
 ### gap=600 s，5 seeds × 60 帧压力矩阵
 
 使用同一 `phase_trend + pilot_signal_reconstruction`、AdamW、5 步、漂移门限 `0.7`，
@@ -146,10 +172,10 @@ Adapt Pilot 信号重构
 
 它已经在强状态老化诊断中产生明显的配对 BER 收益，但还没有满足“主 gap=0、多个 SNR 和
 seed 稳定超过 Frozen Offline”的目标。因此本阶段只提交可复现的目标、作用位置和门控
-接口，不把诊断收益写成主论文成功结果。加入信号重构守门后，gap=600 压力矩阵仍有
-1/5 seed 负收益，守门没有解决 Pilot 到 Data 的稳定排序问题。下一步应优先寻找能在
-Pilot-only 上稳定预测 Data 变化的状态特征或更新方向，再单独设计能观测 residual CFO/
-慢相位的主配置实验；在此之前不把该方法提升为主路线，也不接入 Contextual Bandit。
+接口，不把诊断收益写成主论文成功结果。gap=600 压力矩阵和 gap=0 主配置复核都显示
+仍存在负收益 seed，且主配置平均收益只有约 `0.02 pp`。下一步应优先寻找能在
+Pilot-only 上稳定预测 Data 变化的状态特征或更新方向，再验证 residual CFO/慢相位场景；
+在此之前不把该方法提升为主路线，也不接入 Contextual Bandit。
 
 ## 复现实验命令
 
@@ -197,4 +223,21 @@ Pilot-only 上稳定预测 Data 变化的状态特征或更新方向，再单独
   --scheduler fixed --update-interval 1 `
   --online-min-reward-improvement 0 --online-reward-windows 2 `
   --resume --output-dir logs/phase_signal_gap600_signalguard_5s60f_20261010
+```
+
+```powershell
+.\.venv-gpu\Scripts\python.exe compare.py `
+  --config configs/eme_long_memory_v2.json `
+  --methods "Frozen Offline NN" "Pilot-Driven Online Adaptation" `
+  --pretrained pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt `
+  --delays 116 --snrs 0 5 10 15 --num-seeds 5 --frames 60 `
+  --pilot-total 256 --pilot-layout prefix --acquisition-to-data-gap-seconds 0 `
+  --online-groups phase_trend --online-algorithm sgd `
+  --online-objective pilot_signal_reconstruction --online-optimizer adamw `
+  --online-learning-rate 5e-3 --online-steps 5 `
+  --online-require-reward-signal-reconstruction `
+  --online-reward-signal-tolerance 0 `
+  --scheduler fixed --update-interval 1 `
+  --online-min-reward-improvement 0 --online-reward-windows 2 `
+  --resume --output-dir logs/phase_signal_gap0_signalguard_5s60f_20261010
 ```

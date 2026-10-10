@@ -308,3 +308,13 @@ RLS 当前不能作为主路线。`channel_residual` 和 `physics_residual` 能�
 与未加入信号守门的同配置矩阵相比，负 seed 数没有减少，平均收益略低，说明该守门只能
 作为物理一致性保护，不能作为 Data BER 的排序器。当前不把它写成主路线成功，也不启动
 Contextual Bandit；gap=0 主配置仍需单独验证，现有结果不能替代主成功门槛。
+
+2026-10-10 gap=0 主配置 5 seeds × 60 frames 复核：固定 checkpoint、Level B、prefix
+Pilot=256，对 Frozen/Online 运行 0/5/10/15 dB。0 dB 按现有 SNR 冻结规则保持不更新；
+5/10/15 dB 使用 `phase_trend + pilot_signal_reconstruction`、AdamW 和 Reward Signal
+守门。配对平均收益分别为 `0.0000/+0.0243/+0.0234/+0.0165 pp`；5 dB 为 4/5 seed
+正收益，10 dB 为 3/5，15 dB 为 4/5。900 个可更新候选中守门拒绝 115 个，最终保留
+163 次 PEFT 更新并触发 100 次跨帧回滚。主配置收益只有约 `0.02 pp`，且仍有负收益
+seed，确认当前方法没有完成“在线稳定、明显超过离线”的目标。下一步不再扩大同一目标的
+矩阵，而是设计能由 Adapt Pilot 直接约束均衡器判决边界、并在 Pilot-only replay 上
+稳定排序 Data 变化的受限 PEFT 方向；在排序门槛通过前继续不引入 Contextual Bandit。
