@@ -722,6 +722,7 @@ class PilotOnlineMethodState:
     cir: torch.Tensor
     receiver_state: ReceiverState
     pretrained_loaded: bool
+    reference_cir: torch.Tensor | None = None
     acquisition_cfo: float = 0.0
     acquisition_phase_features: torch.Tensor | None = None
     cir_update_mode: str = "fixed"
@@ -758,6 +759,8 @@ class PilotOnlineMethodState:
     reward_logit_change_tolerance: float | None = None
     # 延迟提交：当前帧只生成候选，下一帧用新的 Reward Pilot 验收后才写入模型。
     defer_peft_commit: bool = False
+    # 状态 embedding 条件化默认关闭；打开时只改变在线 Adapter 的调制路径。
+    state_embedding_conditioned: bool = False
     pending_peft_snapshot: object | None = None
     pending_peft_base_snapshot: object | None = None
     pending_peft_groups: frozenset[str] = frozenset()
@@ -914,6 +917,7 @@ def _build_method_states(
                 model=model,
                 adapter=adapter,
                 cir=acquisition_cir.clone().to(device),
+                reference_cir=acquisition_cir.clone().to(device),
                 receiver_state=ReceiverState(initial_soft_tail.clone().to(device)),
                 pretrained_loaded=pretrained_path is not None,
                 acquisition_cfo=float(acquisition_cfo),
@@ -971,6 +975,9 @@ def _build_method_states(
                     else None
                 ),
                 defer_peft_commit=bool(config.get("online_defer_peft_commit", False)),
+                state_embedding_conditioned=bool(
+                    config.get("online_state_embedding_conditioned", False)
+                ),
             )
         elif method == "RL-Modulated Neural Block Equalizer":
             torch.manual_seed(_method_seed("rl_modulated", seed, delay, snr_db))
@@ -1814,6 +1821,7 @@ def _run_pilot_online_method(
                     tail,
                     adapt_symbols=adapt_symbols,
                     adapt_mask=adapt_mask,
+                    online_state_embedding=online_state_embedding,
                 )
                 candidate_logits, _ = state.model(
                     rx_iq,
@@ -1822,6 +1830,7 @@ def _run_pilot_online_method(
                     tail,
                     adapt_symbols=adapt_symbols,
                     adapt_mask=adapt_mask,
+                    online_state_embedding=online_state_embedding,
                 )
             reward_view = frame_device.receiver_view()
             reward_labels = (reward_view.reward_symbols.real > 0.0).to(frame_device.bits.dtype)
@@ -1855,6 +1864,30 @@ def _run_pilot_online_method(
         snr_db,
         cfo_residual=float(state.acquisition_cfo),
         phase_features=phase_features,
+    )
+    # 这里的状态只来自当前 Adapt Pilot 可见量；Data 标签不会进入 embedding。
+    pilot_state_summary = build_pilot_state_summary(
+        cir=state.cir,
+        reference_cir=(
+            state.reference_cir
+            if state.reference_cir is not None
+            else state.cir
+        ),
+        phase0=float(state.physical_state.phase0 if state.physical_state is not None else 0.0),
+        cfo_cycles_per_symbol=float(
+            state.physical_state.cfo_cycles_per_symbol
+            if state.physical_state is not None
+            else state.acquisition_cfo
+        ),
+        noise_variance=condition.noise_variance,
+        confidence=condition.confidence,
+        reconstruction_error=0.0,
+    )
+    pilot_state_embedding = PilotStateEmbedding()(pilot_state_summary)
+    online_state_embedding = (
+        pilot_state_embedding.unsqueeze(0).to(device)
+        if state.state_embedding_conditioned
+        else None
     )
     if (
         state.drift_gate_threshold is not None
@@ -1891,6 +1924,7 @@ def _run_pilot_online_method(
             tail,
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            online_state_embedding=online_state_embedding,
         )
     before = before_logits.squeeze(0)
     receiver_view = frame_device.receiver_view()
@@ -1906,6 +1940,7 @@ def _run_pilot_online_method(
                 frame_device,
                 condition,
                 tail,
+                state_embedding=online_state_embedding,
             )
             .detach()
             .cpu()
@@ -1955,6 +1990,7 @@ def _run_pilot_online_method(
                 tail,
                 adapt_symbols=adapt_symbols,
                 adapt_mask=adapt_mask,
+                online_state_embedding=online_state_embedding,
             )
         previous_good = previous_good_logits.squeeze(0)
         previous_good_reward_loss = float(
@@ -2000,6 +2036,7 @@ def _run_pilot_online_method(
                 tail,
                 adapt_symbols=adapt_symbols,
                 adapt_mask=adapt_mask,
+                online_state_embedding=online_state_embedding,
             )
         pending_logits = pending_logits_value.squeeze(0)
         pending_update_reward_loss_before = float(reward_before.detach().cpu())
@@ -2047,6 +2084,7 @@ def _run_pilot_online_method(
                     frame_device,
                     condition,
                     tail,
+                    state_embedding=online_state_embedding,
                 )
                 .detach()
                 .cpu()
@@ -2148,6 +2186,7 @@ def _run_pilot_online_method(
             frame_device,
             condition,
             tail,
+            state_embedding=online_state_embedding,
             groups=set(candidate["groups"]),
             learning_rate=state.adapter.learning_rate * float(candidate["learning_rate_scale"]),
             steps=int(candidate["steps"]),
@@ -2161,6 +2200,7 @@ def _run_pilot_online_method(
                 tail,
                 adapt_symbols=adapt_symbols,
                 adapt_mask=adapt_mask,
+                online_state_embedding=online_state_embedding,
             )
         after = after_logits.squeeze(0)
         reward_after = _masked_bce(after, reward_labels, frame_device.reward_mask)
@@ -2190,6 +2230,7 @@ def _run_pilot_online_method(
                     frame_device,
                     condition,
                     tail,
+                    state_embedding=online_state_embedding,
                 )
                 .detach()
                 .cpu()
@@ -2333,6 +2374,7 @@ def _run_pilot_online_method(
             "online_update_source": "adapt_pilot_only",
             "reward_pilot_guard": True,
             "cross_frame_reward_guard": True,
+            "online_state_embedding_conditioned": bool(state.state_embedding_conditioned),
             "previous_good_reward_loss": previous_good_reward_loss,
             "rollback": bool(cross_frame_rollback),
             "defer_peft_commit": bool(state.defer_peft_commit),
@@ -2720,6 +2762,7 @@ def _reward_signal_reconstruction_loss(
     frame,
     condition: CIRCondition,
     tail: torch.Tensor,
+    state_embedding: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """计算 Reward Pilot 上的复数信号重构误差。
 
@@ -2744,7 +2787,10 @@ def _reward_signal_reconstruction_loss(
         phase_adapter = model.online_phase_trend_adapter
         if phase_adapter is not None:
             rx_iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0)
-            corrected_iq = phase_adapter(rx_iq).squeeze(0)
+            corrected_iq = phase_adapter(
+                rx_iq,
+                state_embedding=state_embedding,
+            ).squeeze(0)
             corrected = torch.complex(corrected_iq[:, 0], corrected_iq[:, 1]).to(torch.complex64)
         cir = condition.complex_cir.to(device).to(torch.complex64)
         channel_adapter = model.online_channel_residual_adapter

@@ -153,24 +153,65 @@ class OnlinePhaseTrendAdapter(nn.Module):
     决定是否保留更新。零初始化保证在线模块关闭时与离线模型完全一致。
     """
 
-    def __init__(self, max_phase: float = 0.5, max_cfo: float = 0.0012):
+    def __init__(
+        self,
+        max_phase: float = 0.5,
+        max_cfo: float = 0.0012,
+        state_embedding_dim: int = 6,
+    ):
         super().__init__()
         self.max_phase = float(max_phase)
         self.max_cfo = float(max_cfo)
         self.raw_phase = nn.Parameter(torch.zeros((), dtype=torch.float32))
         self.raw_cfo = nn.Parameter(torch.zeros((), dtype=torch.float32))
+        if int(state_embedding_dim) <= 0:
+            raise ValueError("state_embedding_dim 必须为正数。")
+        self.state_embedding_dim = int(state_embedding_dim)
+        # 零初始化保证条件化功能打开时仍与冻结离线模型完全一致；
+        # Adapt Pilot 梯度可以通过这两个线性映射学习“状态到参数”的调制。
+        self.state_to_phase_cfo = nn.Linear(self.state_embedding_dim, 2)
+        nn.init.zeros_(self.state_to_phase_cfo.weight)
+        nn.init.zeros_(self.state_to_phase_cfo.bias)
         mark_peft_group(self, "phase_trend")
 
-    def forward(self, rx_iq: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        rx_iq: torch.Tensor,
+        state_embedding: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         frame_len = int(rx_iq.shape[1])
         position = torch.arange(
             frame_len,
             device=rx_iq.device,
             dtype=rx_iq.dtype,
         )
-        phase0 = self.max_phase * torch.tanh(self.raw_phase).to(rx_iq.dtype)
-        cfo = self.max_cfo * torch.tanh(self.raw_cfo).to(rx_iq.dtype)
-        phase = phase0 + 2.0 * torch.pi * cfo * position
+        phase_raw = self.raw_phase
+        cfo_raw = self.raw_cfo
+        if state_embedding is not None:
+            embedding = torch.as_tensor(
+                state_embedding,
+                device=rx_iq.device,
+                dtype=rx_iq.dtype,
+            )
+            if embedding.ndim == 1:
+                embedding = embedding.unsqueeze(0)
+            if embedding.ndim != 2 or embedding.shape[-1] != self.state_embedding_dim:
+                raise ValueError(
+                    "state_embedding 必须是 [batch, state_embedding_dim] 或一维状态向量。"
+                )
+            if embedding.shape[0] not in {1, rx_iq.shape[0]}:
+                raise ValueError("state_embedding 的 batch 维度必须为 1 或与 rx_iq 一致。")
+            modulation = self.state_to_phase_cfo(embedding)
+            if modulation.shape[0] == 1 and rx_iq.shape[0] != 1:
+                modulation = modulation.expand(rx_iq.shape[0], -1)
+            phase_raw = phase_raw + modulation[:, 0]
+            cfo_raw = cfo_raw + modulation[:, 1]
+        phase0 = self.max_phase * torch.tanh(phase_raw).to(rx_iq.dtype)
+        cfo = self.max_cfo * torch.tanh(cfo_raw).to(rx_iq.dtype)
+        if phase0.ndim == 0:
+            phase0 = phase0.reshape(1)
+            cfo = cfo.reshape(1)
+        phase = phase0.unsqueeze(-1) + 2.0 * torch.pi * cfo.unsqueeze(-1) * position
         complex_rx = torch.complex(rx_iq[..., 0], rx_iq[..., 1]).to(torch.complex64)
         corrected = complex_rx * torch.exp(-1j * phase).to(torch.complex64)
         return torch.stack((corrected.real, corrected.imag), dim=-1).to(rx_iq.dtype)
@@ -433,6 +474,7 @@ class UnfoldedEqualizer(nn.Module):
         modulation: ModulationState | None = None,
         adapt_symbols: torch.Tensor | None = None,
         adapt_mask: torch.Tensor | None = None,
+        online_state_embedding: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.online_input_affine_adapter is not None:
             rx_iq = self.online_input_affine_adapter(rx_iq)
@@ -450,7 +492,10 @@ class UnfoldedEqualizer(nn.Module):
             )
         rx_iq = self._apply_phase_correction(rx_iq, condition)
         if self.online_phase_trend_adapter is not None:
-            rx_iq = self.online_phase_trend_adapter(rx_iq)
+            rx_iq = self.online_phase_trend_adapter(
+                rx_iq,
+                state_embedding=online_state_embedding,
+            )
         self._last_online_features = None
         pilot_context = None
         if self.config.pilot_conditioned:

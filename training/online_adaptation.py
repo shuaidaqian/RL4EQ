@@ -346,6 +346,7 @@ class PilotDrivenOnlineAdapter:
         condition: CIRCondition,
         soft_tail: torch.Tensor,
         *,
+        state_embedding: torch.Tensor | None = None,
         groups: set[str] | None = None,
         learning_rate: float | None = None,
         steps: int | None = None,
@@ -431,6 +432,7 @@ class PilotDrivenOnlineAdapter:
                     tail,
                     adapt_symbols=adapt_symbols,
                     adapt_mask=mask.unsqueeze(0),
+                    online_state_embedding=state_embedding,
                 )
                 before_selected = before_logits[0, mask]
                 target_selected = target[mask]
@@ -451,6 +453,7 @@ class PilotDrivenOnlineAdapter:
                     tail,
                     adapt_symbols=adapt_symbols,
                     adapt_mask=mask.unsqueeze(0),
+                    online_state_embedding=state_embedding,
                 )
                 selected_logits = logits[0, mask]
                 if self.objective in {"pilot_reconstruction", "joint"}:
@@ -470,6 +473,7 @@ class PilotDrivenOnlineAdapter:
                         rx,
                         mask,
                         tail,
+                        state_embedding=state_embedding,
                     )
                 else:
                     reconstruction = torch.zeros((), device=tx.device, dtype=torch.float32)
@@ -512,6 +516,7 @@ class PilotDrivenOnlineAdapter:
                     tail,
                     adapt_symbols=adapt_symbols,
                     adapt_mask=mask.unsqueeze(0),
+                    online_state_embedding=state_embedding,
                 )
                 after_selected = after_logits[0, mask]
                 target_selected = target[mask]
@@ -529,7 +534,13 @@ class PilotDrivenOnlineAdapter:
                         _pilot_reconstruction_loss(self.model, condition, tx, rx, mask, tail)
                         if self.objective == "pilot_reconstruction"
                         else _pilot_signal_reconstruction_loss(
-                            self.model, condition, tx, rx, mask, tail
+                            self.model,
+                            condition,
+                            tx,
+                            rx,
+                            mask,
+                            tail,
+                            state_embedding=state_embedding,
                         )
                     )
                 elif self.objective == "joint":
@@ -707,6 +718,7 @@ def _pilot_signal_reconstruction_loss(
     rx: torch.Tensor,
     mask: torch.Tensor,
     tail: torch.Tensor,
+    state_embedding: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """用 Adapt Pilot 的复数信号重构误差更新输入相位趋势 Adapter。
 
@@ -720,7 +732,10 @@ def _pilot_signal_reconstruction_loss(
         raise RuntimeError("pilot_signal_reconstruction 需要已挂载 phase_trend Adapter。")
     rx_flat = rx.reshape(-1).to(torch.complex64)
     rx_iq = torch.stack((rx_flat.real, rx_flat.imag), dim=-1).unsqueeze(0).float()
-    corrected_iq = adapter(rx_iq).squeeze(0)
+    corrected_iq = adapter(
+        rx_iq,
+        state_embedding=state_embedding,
+    ).squeeze(0)
     corrected = torch.complex(corrected_iq[:, 0], corrected_iq[:, 1]).to(torch.complex64)
     cir = condition.complex_cir.reshape(-1).to(torch.complex64)
     tx_flat = tx.reshape(-1).to(torch.complex64)
