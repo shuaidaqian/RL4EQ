@@ -101,6 +101,42 @@ python scripts\summarize_online_matrix.py `
 这说明把真正的 Pilot 状态观测接入 embedding 后，15 dB 的短 replay 已经明显
 改善；但它仍然不是 5 seed × 60 帧结论，正式矩阵必须在该修正版代码上重新运行。
 
+## 修正版正式 5 seed × 60 帧矩阵（2026-10-12）
+
+修正版正式矩阵已经完成，固定参数为：
+
+- Level B、delay=116、prefix Pilot 总长度 256、Reward Pilot 32；
+- acquisition 到首个数据帧间隔 600 s；
+- 5 个 seed、每个 seed 60 帧，SNR 为 0/5/10/15 dB；
+- `phase_signal_moderate`、AdamW、每帧更新、Reward Signal 重构守门；
+- 离线 checkpoint 仍为 `pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`；
+- 在线更新只作用于 `phase_trend` Adapter，`data_labels_used_online=false`。
+
+汇总日志：
+`logs/state_embedding_observed_formal_5s60f_0_5_10_15db_20261012`。
+
+| SNR | Frozen BER | Online BER | 平均改善 | 正收益 seed | 最差 seed 改善 |
+|---:|---:|---:|---:|---:|---:|
+| 0 dB | 38.9644% | 38.9644% | +0.0000 pp | 0/5 | 0.0000 pp |
+| 5 dB | 29.0881% | 28.5326% | +0.5556 pp | 4/5 | -0.0304 pp |
+| 10 dB | 26.6133% | 25.8576% | +0.7556 pp | 4/5 | -0.3559 pp |
+| 15 dB | 25.0955% | 24.5933% | +0.5022 pp | 4/5 | -0.1497 pp |
+
+这次矩阵确认了两点：
+
+1. Adapt Pilot 驱动的 Adapter 微调确实能把平均收益转移到 Data 段，5/10/15 dB
+   的平均 BER 均低于冻结离线模型；0 dB 继续冻结，避免低信噪比 Pilot 误更新。
+2. 当前 moderate 配置还不能称为“逐 seed 稳定超过离线模型”。每个可更新 SNR
+   都有一个负收益 seed，主要问题是 Reward Pilot 通过的候选仍可能在后续 Data
+   段产生小幅反向变化。因此下一步应优先收紧候选更新幅度和 Reward 接受阈值，
+   而不是修改离线 checkpoint。
+
+审计检查：2400 条帧记录中 `data_labels_used_online` 全部为 `false`。当前正式
+日志里的 `pilot_state_cir_residual_norm` 仍为 0，说明物理 CIR residual 在低置信度
+时被安全门控，当前有效的状态条件主要来自 Pilot 估计的 CFO、噪声和置信度；这项
+观测路径需要在后续小样本 replay 中单独修正和验证，不能把它误写成已经稳定利用了
+CIR residual。
+
 ### Data BER 结果
 
 改善定义为 `(Frozen BER - Online BER) × 100`，单位为百分点。
