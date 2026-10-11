@@ -86,6 +86,38 @@ Reward Pilot 在这个状态实例上仍可能接受与 Data 方向不完全一�
 证明了安全幅度多尺度 PEFT 在状态老化场景下有可重复的平均收益，但还没有证明所有主 SNR
 都稳定超过离线模型。
 
+## gap=0 主场景复核
+
+随后在同一 checkpoint、同一 Level B 信道和同一 5 seed × 60 帧设置下完成了主场景
+`gap=0` 的 0/5/10/15 dB 矩阵：
+
+| SNR | Frozen 平均 BER | Online 平均 BER | 平均改善 | 正收益 seed | 最差 seed 改善 | 实际 PEFT 更新 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0 dB | 21.3841% | 21.3841% | 0 pp | 0/5 | 0 pp | 0/300（低 SNR 冻结） |
+| 5 dB | 5.7066% | 5.6723% | +0.0343 pp | 4/5 | 0 pp | 4/300 |
+| 10 dB | 0.9549% | 0.9549% | 0 pp | 0/5 | 0 pp | 1/300 |
+| 15 dB | 0.1641% | 0.1641% | 0 pp | 0/5 | 0 pp | 0/300 |
+
+逐帧日志目录为：
+
+- [`logs/phase_signal_multiscale_gap0_5seed_0db_60f_20261011`](../logs/phase_signal_multiscale_gap0_5seed_0db_60f_20261011)
+- [`logs/phase_signal_multiscale_gap0_5seed_5db_60f_20261011`](../logs/phase_signal_multiscale_gap0_5seed_5db_60f_20261011)
+- [`logs/phase_signal_multiscale_gap0_5seed_10db_60f_20261011`](../logs/phase_signal_multiscale_gap0_5seed_10db_60f_20261011)
+- [`logs/phase_signal_multiscale_gap0_5seed_15db_60f_20261011`](../logs/phase_signal_multiscale_gap0_5seed_15db_60f_20261011)
+- 汇总表：[`logs/phase_signal_multiscale_gap0_formal_5seed_60f_20261011.md`](../logs/phase_signal_multiscale_gap0_formal_5seed_60f_20261011.md)
+
+这不是实现失效：gap=0 时 Pilot 状态距离通常只有约 0.1–0.3，而当前漂移门阈值为 0.7，
+所以大多数帧按设计不尝试参数更新。把阈值直接降到 0.1 的 10 dB、5 seed × 10 帧
+诊断反而得到平均 `-0.0026 pp`、仅 2/5 seed 正收益，说明“每帧都更新”会把噪声和
+Reward 排序误差引入 Data 段，不能作为默认修复。诊断日志为
+[`logs/phase_signal_gate01_gap0_5seed_10db_10f_20261011`](../logs/phase_signal_gate01_gap0_5seed_10db_10f_20261011)。
+
+因此当前证据支持的创新边界是：离线 checkpoint 固定，在线只在检测到状态老化时用
+Adapt Pilot 更新内部 `phase_trend` Adapter，并由 Reward Pilot 做多尺度选择、验收和回滚。
+在没有明显状态变化的 gap=0 场景，持平本身是安全行为；不能把它写成每个 SNR 都有额外
+收益。若论文必须要求 gap=0 下每个 SNR 都严格下降 BER，就需要重新定义在线目标或引入
+更强的 Pilot 可观测状态，而不是继续放宽当前漂移门。
+
 ## 对照结果
 
 ### 固定 `physics_residual` 候选的正式主配置短矩阵
@@ -109,14 +141,14 @@ Pilot 更新 Adapter 参数，Reward Pilot 负责候选选择和回滚。它在�
 
 ## 下一步
 
-1. 在固定 checkpoint 和同一安全幅度配置下运行 gap=0 的 0/5/10/15 dB、5 seed × 60 帧
-   主矩阵，确认压力场景收益是否能迁移到主论文设置。
-2. 主矩阵每个 SNR 要求至少 4/5 seed 正收益、平均改善为正，并检查最差 seed 的连续
-   Data BCE、坏帧和回滚记录。
-3. 如果 gap=0 不能达到门槛，最终创新点只表述为“面向状态老化的 Reward-selected
-   multi-scale PEFT”，不宣称普遍超过离线模型；如果通过，再补齐 0/5/10/15 dB 的统一
-   主结果表。
-4. 在 gap=0 主矩阵通过前不接入 Contextual Bandit，也不重新训练离线 checkpoint。
+1. 把 gap=120 s 作为主攻的中等状态老化场景，运行 0/5/10/15 dB、5 seed × 60 帧，
+   检查收益是否从 gap=600 s 平稳过渡到主场景附近。
+2. 主论文结果同时报告 gap=0 sanity check 和 gap=120/600 的状态老化结果；每个老化
+   场景继续要求至少 4/5 seed 正收益、平均改善为正，并检查最差 seed 的连续 Data BCE、
+   坏帧和回滚记录。
+3. 最终创新点暂定为“面向状态老化的 Reward-selected multi-scale PEFT”，不宣称在
+   无状态变化的 gap=0 下普遍超过已适配的离线模型。
+4. 在 gap=120 主矩阵通过前不接入 Contextual Bandit，也不重新训练离线 checkpoint。
 
 ## 复现命令
 
