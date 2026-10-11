@@ -56,6 +56,11 @@ python scripts\summarize_online_matrix.py `
 
 ## 正式 5 seed × 60 帧矩阵
 
+在首版正式矩阵之后，代码又补上了一个必要的观测修正：即使 `cir_update_mode`
+固定为 acquisition，Adapt Pilot 仍会独立拟合当前 Pilot 的 CIR residual、phase/CFO
+和 confidence，只把它们送入 embedding，不写回均衡器的主干条件。首版正式表格仍
+对应修正前的日志；修正后的正式矩阵需要重新运行后才能作为最终统计。
+
 小样本阶段确认 `phase_signal_moderate` 是唯一实际通过 Reward 守门并被选中的
 候选后，正式矩阵只保留这个候选，以避免把没有被选中的分支重复计算。正式运行
 使用主路线的参数：不指定额外 state split、`pilot_cir_phase`、AdamW、CIR 漂移
@@ -80,6 +85,21 @@ python scripts\summarize_online_matrix.py `
 因此状态条件化 PEFT 已经证明能把一部分收益稳定转移到在线阶段，但还不能把
 当前配置宣称为四个 SNR 全部稳定超过离线模型。下一轮应专门处理 15 dB 的误放行
 更新，再决定是否把条件化打开写入主配置。
+
+## Pilot 状态观测修正后的 replay
+
+修正后使用同一 checkpoint、Level B、gap=600 s、3 seed × 6 帧，四个 SNR 的
+初步结果为：
+
+| SNR | 平均改善 | 正收益 seed | 最差 seed |
+|---:|---:|---:|---:|
+| 0 dB | +0.0000 pp | 0/3 | 0.0000 pp |
+| 5 dB | +0.8898 pp | 2/3 | 0.0000 pp |
+| 10 dB | +0.7885 pp | 2/3 | 0.0000 pp |
+| 15 dB | +3.9424 pp | 3/3 | +0.3906 pp |
+
+这说明把真正的 Pilot 状态观测接入 embedding 后，15 dB 的短 replay 已经明显
+改善；但它仍然不是 5 seed × 60 帧结论，正式矩阵必须在该修正版代码上重新运行。
 
 ### Data BER 结果
 
@@ -119,8 +139,8 @@ python scripts\summarize_online_matrix.py `
 
 ## 下一步
 
-正式矩阵已经完成。下一步只针对剩余负收益 seed 做安全验收诊断，固定这版代码和
-checkpoint，不重新设计离线训练。重点检查：
+正式矩阵需要在状态观测修正版上重跑。固定这版代码和 checkpoint，不重新设计
+离线训练。重点检查：
 
 1. 0 dB 是否因 Pilot 噪声而需要继续冻结；
 2. 5/10/15 dB 是否保持每个 seed 非负收益；

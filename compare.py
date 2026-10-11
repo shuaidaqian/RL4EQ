@@ -1768,9 +1768,10 @@ def _run_pilot_online_method(
     cir_reward_loss_before = None
     cir_reward_loss_after = None
     tracked_state = None
-    if state.cir_update_mode == "pilot_sparse" and not updates_frozen:
-        previous_cir = state.cir.clone()
-        tracked_state = track_pilot_physical_state(
+    # 即使当前实验不允许把 Pilot CIR 写回条件，也先用 Adapt Pilot 观测
+    # 当前物理状态，供状态 embedding 调制 PEFT；这不会改变冻结主干条件。
+    if not updates_frozen:
+        observed_state = track_pilot_physical_state(
             frame_device,
             state.cir,
             state.receiver_state.soft_tail,
@@ -1779,7 +1780,11 @@ def _run_pilot_online_method(
             smoothing=float(state.phase_tracking_smoothing),
             min_confidence=float(state.phase_tracking_min_confidence),
         )
-        state.physical_state = tracked_state
+        tracked_state = observed_state
+        if state.cir_update_mode == "pilot_sparse":
+            state.physical_state = observed_state
+    if state.cir_update_mode == "pilot_sparse" and not updates_frozen:
+        previous_cir = state.cir.clone()
         candidate_cir = state.cir
         if update_scheduled and _pilot_state_reliable(
             tracked_state,
@@ -1866,21 +1871,40 @@ def _run_pilot_online_method(
         phase_features=phase_features,
     )
     # 这里的状态只来自当前 Adapt Pilot 可见量；Data 标签不会进入 embedding。
+    embedding_cir = state.cir
+    embedding_state = tracked_state if tracked_state is not None else state.physical_state
+    if (
+        state.state_embedding_conditioned
+        and not updates_frozen
+        and _pilot_state_reliable(embedding_state, state.phase_tracking_min_confidence)
+    ):
+        embedding_cir = pilot_sparse_cir_update(
+            frame_device,
+            state.cir,
+            state.receiver_state.soft_tail,
+            max_paths=24,
+            alpha=1.0,
+            cfo_hint=float(embedding_state.cfo_cycles_per_symbol),
+        ).to(device)
     pilot_state_summary = build_pilot_state_summary(
-        cir=state.cir,
+        cir=embedding_cir,
         reference_cir=(
             state.reference_cir
             if state.reference_cir is not None
             else state.cir
         ),
-        phase0=float(state.physical_state.phase0 if state.physical_state is not None else 0.0),
+        phase0=float(embedding_state.phase0 if embedding_state is not None else 0.0),
         cfo_cycles_per_symbol=float(
-            state.physical_state.cfo_cycles_per_symbol
-            if state.physical_state is not None
+            embedding_state.cfo_cycles_per_symbol
+            if embedding_state is not None
             else state.acquisition_cfo
         ),
         noise_variance=condition.noise_variance,
-        confidence=condition.confidence,
+        confidence=(
+            embedding_state.confidence
+            if embedding_state is not None
+            else condition.confidence
+        ),
         reconstruction_error=0.0,
     )
     pilot_state_embedding = PilotStateEmbedding()(pilot_state_summary)
