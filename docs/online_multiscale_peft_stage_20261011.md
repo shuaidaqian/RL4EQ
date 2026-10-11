@@ -59,6 +59,33 @@ Reward Pilot，却把该帧 Data BER 从约 21% 推到约 50%；下一帧触发�
 
 该结果只说明限制更新幅度能消除已发现的灾难性坏帧，不能替代正式 5 seed × 60 帧门槛。
 
+## gap=600 s 正式 5 seed × 60 帧结果
+
+安全幅度配置已经完成 Level B、`delay=116`、prefix Pilot、5 个 seed、60 帧的正式压力
+矩阵。5 dB 和 10 dB 分开运行，Frozen 与 Online 使用相同的信道实例逐帧配对。原始逐帧
+日志和自动汇总如下：
+
+- 5 dB：[`logs/phase_signal_multiscale_gap600_5seed_5db_60f_20261011`](../logs/phase_signal_multiscale_gap600_5seed_5db_60f_20261011)
+- 10 dB：[`logs/phase_signal_multiscale_gap600_5seed_10db_60f_20261011`](../logs/phase_signal_multiscale_gap600_5seed_10db_60f_20261011)
+- 汇总脚本：[`scripts/summarize_online_matrix.py`](../scripts/summarize_online_matrix.py)
+- 汇总表：[`logs/phase_signal_multiscale_gap600_formal_5seed_60f_20261011.md`](../logs/phase_signal_multiscale_gap600_formal_5seed_60f_20261011.md)
+
+| SNR | Frozen 平均 BER | Online 平均 BER | 平均改善 | 正收益 seed | 最差 seed 改善 | 结论 |
+|---:|---:|---:|---:|---:|---:|---|
+| 5 dB | 29.0881% | 28.8793% | +0.2088 pp | 4/5 | -1.2305 pp | 平均门槛通过，但仍有明显 seed 差异 |
+| 10 dB | 26.6133% | 26.0951% | +0.5182 pp | 4/5 | -0.0043 pp | 平均和稳定性门槛通过 |
+
+两组矩阵都满足“至少 4/5 seed 正收益且平均改善为正”，并且所有逐帧记录的
+`data_labels_used_online` 都是 `false`。5 dB 的 seed 3 平均退化约 1.23 个百分点，说明
+Reward Pilot 在这个状态实例上仍可能接受与 Data 方向不完全一致的更新；10 dB 的最差 seed
+基本持平，稳定性更好。5 dB 在线最大单帧 BER 为 87.37%，Frozen 最大单帧 BER 为 84.51%；
+因此跨帧回滚能限制后续损害，但不能保证当前帧没有坏帧。
+
+这两组结果的 `summary.json` 标记为 `aggregation_role=diagnostic`，因为它们使用了
+`acquisition_to_data_gap_seconds=600` 的压力场景，不能混入主论文的 gap=0 平均值。它们
+证明了安全幅度多尺度 PEFT 在状态老化场景下有可重复的平均收益，但还没有证明所有主 SNR
+都稳定超过离线模型。
+
 ## 对照结果
 
 ### 固定 `physics_residual` 候选的正式主配置短矩阵
@@ -82,12 +109,14 @@ Pilot 更新 Adapter 参数，Reward Pilot 负责候选选择和回滚。它在�
 
 ## 下一步
 
-1. 使用安全幅度配置运行 gap=600 s 的 `5 seed × 60 帧 × 5/10 dB` 正式矩阵。
-2. 要求每个 SNR 至少 4/5 seed 正收益，且平均改善为正；同时检查最坏 seed 的 Data BCE、
-   Reward 回滚和 `data_labels_used_online=false`。
-3. 通过后，再在 gap=0 的 0/5/10/15 dB 主矩阵验证是否仍有额外收益；不通过则把结果
-   明确限定为“对状态老化有效”，不把短窗口收益夸大为普遍在线增益。
-4. 在上述门槛通过前不接入 Contextual Bandit，也不重新训练离线 checkpoint。
+1. 在固定 checkpoint 和同一安全幅度配置下运行 gap=0 的 0/5/10/15 dB、5 seed × 60 帧
+   主矩阵，确认压力场景收益是否能迁移到主论文设置。
+2. 主矩阵每个 SNR 要求至少 4/5 seed 正收益、平均改善为正，并检查最差 seed 的连续
+   Data BCE、坏帧和回滚记录。
+3. 如果 gap=0 不能达到门槛，最终创新点只表述为“面向状态老化的 Reward-selected
+   multi-scale PEFT”，不宣称普遍超过离线模型；如果通过，再补齐 0/5/10/15 dB 的统一
+   主结果表。
+4. 在 gap=0 主矩阵通过前不接入 Contextual Bandit，也不重新训练离线 checkpoint。
 
 ## 复现命令
 
