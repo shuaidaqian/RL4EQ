@@ -65,8 +65,10 @@ python scripts\summarize_online_matrix.py `
 | 未条件化对照 | 10 dB | 2/3 | +0.1374 pp | 0.0000 pp |
 | 状态条件化 | 10 dB | 3/3 | +0.2604 pp | +0.0434 pp |
 
-这说明在当前小样本中，状态条件化让每个 seed 都有非负收益，并提高了平均收益。
-它仍然不是正式统计结论，因为尚未覆盖 0/15 dB，也尚未完成 5 seed × 60 帧。
+这说明在当前小样本中，状态条件化让 5/10 dB 的每个 seed 都有非负收益，并提高了平均收益。
+随后补做的 0/15 dB 结果为：0 dB 平均改善 0.0000 pp（按安全策略冻结），15 dB
+平均改善 +0.3400 pp，15 dB 为 3/3 seed 正收益。它仍然不是正式统计结论，因为
+尚未完成 5 seed × 60 帧。
 
 ### 连续输出和梯度路径检查
 
@@ -98,6 +100,6 @@ python scripts\summarize_online_matrix.py `
 3. Reward Pilot 的候选排序是否仍能带来 Data 连续指标改善；
 4. 是否仍满足 `data_labels_used_online=false`。
 
-只有正式矩阵通过后，才讨论把
+目前四个主 SNR 的小样本检查已经完成。只有正式矩阵通过后，才讨论把
 `online_state_embedding_conditioned=true` 纳入主配置，并继续评估是否需要更换
 Adapter 对象或引入其他调度策略。
