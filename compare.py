@@ -319,6 +319,17 @@ def main() -> None:
         help="要求 Reward Pilot 的复数信号重构误差不退化后才保留 PEFT 更新。",
     )
     parser.add_argument("--online-reward-signal-tolerance", type=float, default=None)
+    parser.add_argument(
+        "--online-reward-logit-change-tolerance",
+        type=float,
+        default=None,
+        help="限制候选在 Reward Pilot 上的平均 logits 改变量；用于拦截当前帧过大的 PEFT 更新。",
+    )
+    parser.add_argument(
+        "--online-defer-peft-commit",
+        action="store_true",
+        help="候选先留在当前帧之后，用下一帧 Reward Pilot 复核通过后再提交 Adapter 更新。",
+    )
     parser.add_argument("--online-cross-frame-tolerance", type=float, default=None)
     parser.add_argument("--online-phase-smoothing", type=float, default=None)
     parser.add_argument("--online-phase-min-confidence", type=float, default=None)
@@ -381,6 +392,8 @@ def main() -> None:
                 True if args.online_require_reward_signal_reconstruction else None
             ),
             "online_reward_signal_tolerance": args.online_reward_signal_tolerance,
+            "online_reward_logit_change_tolerance": args.online_reward_logit_change_tolerance,
+            "online_defer_peft_commit": True if args.online_defer_peft_commit else None,
             "online_cross_frame_rollback_tolerance": args.online_cross_frame_tolerance,
             "online_phase_tracking_smoothing": args.online_phase_smoothing,
             "online_phase_tracking_min_confidence": args.online_phase_min_confidence,
@@ -740,6 +753,16 @@ class PilotOnlineMethodState:
     drift_gate_threshold: float | None = None
     require_reward_signal_reconstruction: bool = False
     reward_signal_tolerance: float = 0.0
+    # Reward Pilot 输出变化守门：限制一次 PEFT 候选对留出 Pilot logits 的平均改变量。
+    # 设为 None 时关闭，避免把 Data 标签引入在线决策。
+    reward_logit_change_tolerance: float | None = None
+    # 延迟提交：当前帧只生成候选，下一帧用新的 Reward Pilot 验收后才写入模型。
+    defer_peft_commit: bool = False
+    pending_peft_snapshot: object | None = None
+    pending_peft_base_snapshot: object | None = None
+    pending_peft_groups: frozenset[str] = frozenset()
+    pending_peft_name: str = "skip"
+    pending_peft_logit_delta: float = 0.0
 
 
 @dataclass
@@ -942,6 +965,12 @@ def _build_method_states(
                 reward_signal_tolerance=float(
                     config.get("online_reward_signal_tolerance", 0.0)
                 ),
+                reward_logit_change_tolerance=(
+                    float(config["online_reward_logit_change_tolerance"])
+                    if config.get("online_reward_logit_change_tolerance") is not None
+                    else None
+                ),
+                defer_peft_commit=bool(config.get("online_defer_peft_commit", False)),
             )
         elif method == "RL-Modulated Neural Block Equalizer":
             torch.manual_seed(_method_seed("rl_modulated", seed, delay, snr_db))
@@ -1908,6 +1937,13 @@ def _run_pilot_online_method(
     }
     cross_frame_rollback = False
     previous_good_reward_loss = None
+    pending_update_present = state.pending_peft_snapshot is not None
+    pending_update_committed = False
+    pending_update_rejected = False
+    pending_update_reward_loss_before = None
+    pending_update_reward_loss_after = None
+    pending_update_logit_delta = 0.0
+    pending_update_name = state.pending_peft_name if pending_update_present else "skip"
     if state.last_pre_update_snapshot is not None:
         current_snapshot = state.model.peft.snapshot(state.last_pre_update_groups)
         state.model.peft.restore(state.last_pre_update_snapshot)
@@ -1941,6 +1977,110 @@ def _run_pilot_online_method(
             cross_frame_rollback = True
             state.last_pre_update_snapshot = None
             state.last_pre_update_groups = frozenset()
+    # 延迟提交模式把候选留到下一帧，用新的 Reward Pilot 再验收一次。
+    # 如果上一帧已经触发跨帧回滚，待提交候选依赖的参数基线已经不存在，必须丢弃。
+    if cross_frame_rollback and pending_update_present:
+        state.pending_peft_snapshot = None
+        state.pending_peft_base_snapshot = None
+        state.pending_peft_groups = frozenset()
+        state.pending_peft_name = "skip"
+        state.pending_peft_logit_delta = 0.0
+        pending_update_rejected = True
+        pending_update_present = False
+    if pending_update_present:
+        pending_groups = state.pending_peft_groups
+        current_pending_base = state.model.peft.snapshot(pending_groups)
+        pending_snapshot = state.pending_peft_snapshot
+        state.model.peft.restore(pending_snapshot)
+        with torch.no_grad():
+            pending_logits_value, _ = state.model(
+                rx_iq,
+                condition,
+                region_ids,
+                tail,
+                adapt_symbols=adapt_symbols,
+                adapt_mask=adapt_mask,
+            )
+        pending_logits = pending_logits_value.squeeze(0)
+        pending_update_reward_loss_before = float(reward_before.detach().cpu())
+        pending_update_reward_loss_after = float(
+            _masked_bce(
+                pending_logits,
+                reward_labels,
+                frame_device.reward_mask,
+            ).detach().cpu()
+        )
+        pending_update_logit_delta = float(
+            torch.mean(
+                torch.abs(pending_logits[frame_device.reward_mask] - before[frame_device.reward_mask])
+            )
+            .detach()
+            .cpu()
+        )
+        pending_window_accept, _ = _accept_windowed_reward_update(
+            before,
+            pending_logits,
+            reward_labels,
+            frame_device.reward_mask,
+            state.min_reward_improvement,
+            # 候选生成帧已经做过多窗口筛选；跨帧确认使用整个 Reward Pilot
+            # 的聚合损失，避免把短窗口噪声误当成状态失配。
+            windows=1,
+            relative_min_improvement=state.relative_min_reward_improvement,
+        )
+        pending_hard_ber_accept = _accept_reward_pilot_hard_ber(
+            before,
+            pending_logits,
+            reward_mask=frame_device.reward_mask,
+            reward_symbols=receiver_view.reward_symbols,
+        )
+        pending_logit_accept = bool(
+            state.reward_logit_change_tolerance is None
+            or pending_update_logit_delta <= float(state.reward_logit_change_tolerance)
+        )
+        pending_signal_accept = True
+        pending_signal_after = None
+        if state.require_reward_signal_reconstruction:
+            pending_signal_after = float(
+                _reward_signal_reconstruction_loss(
+                    state.model,
+                    frame_device,
+                    condition,
+                    tail,
+                )
+                .detach()
+                .cpu()
+            )
+            pending_signal_accept = bool(
+                reward_signal_before is not None
+                and pending_signal_after
+                <= reward_signal_before + float(state.reward_signal_tolerance)
+            )
+        pending_accept = bool(
+            pending_window_accept
+            and pending_hard_ber_accept
+            and pending_logit_accept
+            and pending_signal_accept
+            and state.pending_peft_base_snapshot is not None
+        )
+        state.model.peft.restore(current_pending_base)
+        if pending_accept:
+            state.model.peft.restore(pending_snapshot)
+            before = pending_logits
+            reward_before = _masked_bce(before, reward_labels, frame_device.reward_mask)
+            adapt_loss_before = _masked_bce(before, adapt_labels, frame_device.adapt_mask)
+            if pending_signal_after is not None:
+                reward_signal_before = pending_signal_after
+            state.last_pre_update_snapshot = state.pending_peft_base_snapshot
+            state.last_pre_update_groups = pending_groups
+            pending_update_committed = True
+        else:
+            pending_update_rejected = True
+        state.pending_peft_snapshot = None
+        state.pending_peft_base_snapshot = None
+        state.pending_peft_groups = frozenset()
+        state.pending_peft_name = "skip"
+        state.pending_peft_logit_delta = 0.0
     candidates = state.candidate_specs or (
         {
             "name": "default",
@@ -1995,9 +2135,13 @@ def _run_pilot_online_method(
     best_name = "skip"
     best_after = before
     best_reward_signal_after = reward_signal_before
+    best_reward_logit_delta = 0.0
     reward_signal_candidates_evaluated = 0
     reward_signal_candidates_passed = 0
     reward_signal_candidates_rejected = 0
+    reward_logit_candidates_evaluated = 0
+    reward_logit_candidates_passed = 0
+    reward_logit_candidates_rejected = 0
     for candidate in candidates:
         state.model.peft.restore(base_snapshot)
         adaptation = state.adapter.adapt(
@@ -2021,6 +2165,21 @@ def _run_pilot_online_method(
         after = after_logits.squeeze(0)
         reward_after = _masked_bce(after, reward_labels, frame_device.reward_mask)
         reward_value = float(reward_after.detach().cpu())
+        reward_logit_delta = float(
+            torch.mean(torch.abs(after[frame_device.reward_mask] - before[frame_device.reward_mask]))
+            .detach()
+            .cpu()
+        )
+        reward_logit_accept = True
+        if state.reward_logit_change_tolerance is not None:
+            reward_logit_candidates_evaluated += 1
+            reward_logit_accept = bool(
+                reward_logit_delta <= float(state.reward_logit_change_tolerance)
+            )
+            if reward_logit_accept:
+                reward_logit_candidates_passed += 1
+            else:
+                reward_logit_candidates_rejected += 1
         reward_signal_after = None
         reward_signal_accept = True
         if state.require_reward_signal_reconstruction:
@@ -2063,6 +2222,7 @@ def _run_pilot_online_method(
             adaptation.accepted
             and window_accept
             and hard_ber_accept
+            and reward_logit_accept
             and reward_signal_accept
         ):
             best_snapshot = state.model.peft.snapshot(candidate_groups)
@@ -2073,11 +2233,26 @@ def _run_pilot_online_method(
             best_name = str(candidate["name"])
             best_after = after
             best_reward_signal_after = reward_signal_after
+            best_reward_logit_delta = reward_logit_delta
     state.model.peft.restore(base_snapshot)
     update_applied = bool(candidates) and selected_action.name != "skip"
+    pending_update_scheduled = False
     if best_snapshot is None:
         adaptation = None
         accepted = not update_applied
+        final = before
+        reward_after = reward_before
+    elif state.defer_peft_commit:
+        # 当前帧只使用提交前的模型输出，候选参数交给下一帧的 Reward Pilot 复核。
+        state.model.peft.restore(base_snapshot)
+        state.pending_peft_snapshot = best_snapshot
+        state.pending_peft_base_snapshot = base_snapshot
+        state.pending_peft_groups = frozenset(candidate_groups)
+        state.pending_peft_name = best_name
+        state.pending_peft_logit_delta = float(best_reward_logit_delta)
+        pending_update_scheduled = True
+        adaptation = best_result
+        accepted = False
         final = before
         reward_after = reward_before
     else:
@@ -2160,6 +2335,15 @@ def _run_pilot_online_method(
             "cross_frame_reward_guard": True,
             "previous_good_reward_loss": previous_good_reward_loss,
             "rollback": bool(cross_frame_rollback),
+            "defer_peft_commit": bool(state.defer_peft_commit),
+            "pending_update_present": bool(pending_update_present),
+            "pending_update_name": str(pending_update_name),
+            "pending_update_scheduled": bool(pending_update_scheduled),
+            "pending_update_committed": bool(pending_update_committed),
+            "pending_update_rejected": bool(pending_update_rejected),
+            "pending_update_reward_loss_before": pending_update_reward_loss_before,
+            "pending_update_reward_loss_after": pending_update_reward_loss_after,
+            "pending_update_logit_delta": float(pending_update_logit_delta),
             "adapt_pilot_count": int(
                 adaptation.adapt_pilot_count
                 if adaptation is not None
@@ -2229,6 +2413,25 @@ def _run_pilot_online_method(
             ),
             "reward_signal_reconstruction_guard_rejected": bool(
                 reward_signal_candidates_rejected > 0
+            ),
+            "reward_logit_change_before": 0.0,
+            "reward_logit_change_after": float(best_reward_logit_delta),
+            "reward_logit_change_guard": bool(
+                state.reward_logit_change_tolerance is not None
+            ),
+            "reward_logit_change_guard_passed": bool(
+                state.reward_logit_change_tolerance is None
+                or best_reward_logit_delta <= float(state.reward_logit_change_tolerance)
+            ),
+            "online_reward_logit_change_tolerance": state.reward_logit_change_tolerance,
+            "reward_logit_change_candidates_evaluated": int(
+                reward_logit_candidates_evaluated
+            ),
+            "reward_logit_change_candidates_passed": int(
+                reward_logit_candidates_passed
+            ),
+            "reward_logit_change_candidates_rejected": int(
+                reward_logit_candidates_rejected
             ),
             "data_bce_before_eval_only": float(data_bce_before.detach().cpu()),
             "data_bce_after_eval_only": float(data_bce_after.detach().cpu()),

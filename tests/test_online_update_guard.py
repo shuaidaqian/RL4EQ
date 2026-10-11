@@ -159,3 +159,15 @@ def test_online_cli_overrides_can_select_sgd_reconstruction_objective():
 
     assert config["online_adaptation_algorithm"] == "sgd"
     assert config["online_adaptation_objective"] == "pilot_reconstruction"
+
+
+def test_online_cli_override_can_defer_peft_commit():
+    import compare
+
+    config = {}
+    compare._apply_online_cli_overrides(
+        config,
+        {"online_defer_peft_commit": True},
+    )
+
+    assert config["online_defer_peft_commit"] is True

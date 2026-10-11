@@ -18,7 +18,8 @@ def _read_rows(log_dir: Path) -> list[dict[str, Any]]:
     if not path.exists():
         raise FileNotFoundError(f"找不到逐帧日志：{path}")
     rows: list[dict[str, Any]] = []
-    with path.open("r", encoding="utf-8") as handle:
+    # PowerShell 的 Set-Content 可能写入 UTF-8 BOM，这里兼容带 BOM 的日志副本。
+    with path.open("r", encoding="utf-8-sig") as handle:
         for line_no, line in enumerate(handle, start=1):
             line = line.strip()
             if not line:
