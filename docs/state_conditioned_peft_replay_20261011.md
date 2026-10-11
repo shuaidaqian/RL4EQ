@@ -54,6 +54,33 @@ python scripts\summarize_online_matrix.py `
   --markdown logs\state_embedding_replay_summary_20261011.md
 ```
 
+## 正式 5 seed × 60 帧矩阵
+
+小样本阶段确认 `phase_signal_moderate` 是唯一实际通过 Reward 守门并被选中的
+候选后，正式矩阵只保留这个候选，以避免把没有被选中的分支重复计算。正式运行
+使用主路线的参数：不指定额外 state split、`pilot_cir_phase`、AdamW、CIR 漂移
+门限 0.7、Reward Signal 守门、每帧调度。
+
+结果日志目录：
+`logs/state_embedding_formal_moderate_5s60f_0_5_10_15db_20261011`。
+
+| SNR | Frozen BER | Online BER | 平均改善 | 正收益 seed | 最差 seed 改善 |
+|---:|---:|---:|---:|---:|---:|
+| 0 dB | 38.9644% | 38.9644% | +0.0000 pp | 0/5 | 0.0000 pp |
+| 5 dB | 29.0881% | 28.0269% | +1.0612 pp | 4/5 | -0.0629 pp |
+| 10 dB | 26.6133% | 25.6415% | +0.9718 pp | 5/5 | +0.0716 pp |
+| 15 dB | 25.0955% | 25.0712% | +0.0243 pp | 3/5 | -1.0677 pp |
+
+这份正式结果达到两个阶段性结论：
+
+1. 10 dB 已经满足“5/5 seed 稳定超过冻结离线模型”；
+2. 5 dB 平均收益明显，但仍有 1 个轻微负收益 seed；15 dB 平均几乎持平，且有
+   2 个负收益 seed；0 dB 继续冻结更安全。
+
+因此状态条件化 PEFT 已经证明能把一部分收益稳定转移到在线阶段，但还不能把
+当前配置宣称为四个 SNR 全部稳定超过离线模型。下一轮应专门处理 15 dB 的误放行
+更新，再决定是否把条件化打开写入主配置。
+
 ### Data BER 结果
 
 改善定义为 `(Frozen BER - Online BER) × 100`，单位为百分点。
@@ -92,14 +119,18 @@ python scripts\summarize_online_matrix.py `
 
 ## 下一步
 
-固定这版代码和 checkpoint，运行正式的 5 seed × 60 帧矩阵，SNR 使用主场景的
-0/5/10/15 dB。重点检查：
+正式矩阵已经完成。下一步只针对剩余负收益 seed 做安全验收诊断，固定这版代码和
+checkpoint，不重新设计离线训练。重点检查：
 
 1. 0 dB 是否因 Pilot 噪声而需要继续冻结；
 2. 5/10/15 dB 是否保持每个 seed 非负收益；
 3. Reward Pilot 的候选排序是否仍能带来 Data 连续指标改善；
 4. 是否仍满足 `data_labels_used_online=false`。
 
-目前四个主 SNR 的小样本检查已经完成。只有正式矩阵通过后，才讨论把
-`online_state_embedding_conditioned=true` 纳入主配置，并继续评估是否需要更换
-Adapter 对象或引入其他调度策略。
+诊断重点：
+
+1. 15 dB 是否能通过更严格的 Reward Pilot 窗口或更小的 moderate 更新幅度消除
+   负收益 seed；
+2. 5 dB 的轻微负收益是否能在不牺牲平均收益的情况下消除；
+3. 只有 0/5/10/15 dB 都达到逐 seed 非负且平均明显改善，才讨论把
+   `online_state_embedding_conditioned=true` 纳入主配置。
