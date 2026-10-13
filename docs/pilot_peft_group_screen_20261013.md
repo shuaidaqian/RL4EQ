@@ -1,0 +1,59 @@
+# Pilot-only PEFT 参数组筛选
+
+日期：2026-10-13
+
+## 目的
+
+在不改变离线 checkpoint 的前提下，检查普通 `pilot_encoder`、Adapter 和 LoRA
+参数组是否能够被 Adapt Pilot 的真实梯度更新有效调制，并观察这种变化是否传到
+Data 段输出。该实验是参数位置筛选，不是主实验统计，也不使用 Data 标签做在线
+更新、候选选择或回滚。
+
+## 固定条件
+
+- checkpoint：`pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`
+- 信道：Level B，`delay=116`
+- acquisition 到 Data 的间隔：`600 s`
+- Pilot：prefix，总长度 256
+- SNR：5、10、15 dB
+- seed：0、1、2
+- 每条轨迹：2 帧
+- 更新：Adapt Pilot BCE，AdamW，1 步，学习率 `1e-4`
+- 候选：identity、`pilot_encoder`、`adapter`、`attention_lora`、`ffn_lora`
+
+原始结果：
+`logs/pilot_peft_group_screen_3s3snr2f_gap600_20261013.json`
+
+## 结果
+
+| 参数组 | Data logits 平均绝对变化 | Data soft output 变化 | Data BCE 改善 | Data BER 改善次数 |
+|---|---:|---:|---:|---:|
+| `pilot_encoder` | `1.76e-6` | 约 `0` | `-1.60e-9` | `0/18` |
+| `adapter` | `7.51e-6` | 约 `0` | `-6.26e-9` | `0/18` |
+| `attention_lora` | `4.78e-6` | 约 `0` | `+4.62e-8` | `0/18` |
+| `ffn_lora` | `6.80e-6` | 约 `0` | `+4.94e-8` | `0/18` |
+
+每个参数组包含 18 个 seed-SNR-frame 候选。所有候选的 Data 硬 BER 都没有改变，
+因此无法计算有意义的候选排序相关性；排序诊断返回 `NaN`，不是通过门槛。
+
+## 结论边界
+
+这组结果说明：在当前 checkpoint、当前 Adapt Pilot、自监督 BCE 和受限单步更新
+预算下，普通 Adapter、两类 LoRA 以及 `pilot_encoder` 的梯度路径对 Data 输出几乎
+不起作用。它们不能作为下一轮正式主路线。
+
+这不是对这些参数组在任意学习率、步数或目标下的普遍否定；它只排除了当前安全
+微调预算下的低效配置。继续盲目增大学习率或步数会重新引入 Pilot 过拟合风险，
+必须先用连续指标和独立 Reward Pilot 守门验证。
+
+当前保留的可行候选仍是 `phase_trend + head`，以及在强状态老化下有信号但尚不
+稳定的 `channel_residual + pilot_reconstruction`。前者已有小幅稳定增量，后者
+需要改善 Pilot-only 排序后才可进入正式矩阵。
+
+## 协议审计
+
+- 在线更新只读取 Adapt Pilot；
+- Reward Pilot 只用于验收、拒绝和回滚；
+- Data 标签仅用于本文件中的事后诊断；
+- `data_labels_used_online=false`；
+- 离线 checkpoint 未修改。
