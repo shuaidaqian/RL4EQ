@@ -74,3 +74,18 @@ Data 段输出。该实验是参数位置筛选，不是主实验统计，也不
 `0.000868`；因此当前更值得保留的是 phase 的信号重构目标，而不是把 BCE 或 head
 参数加入在线更新。所有候选的 Pilot-only 排序相关仍低于 `0.6`，不能进入
 Contextual Bandit 或正式主矩阵。
+
+## `channel_residual` 复核
+
+又做了 3 seed × 3 SNR × 2 帧的信道残差小样本 replay，比较
+`channel_reconstruction`、`channel_joint` 和已有的 `phase_trend` 信号重构。
+更新使用 Adapt Pilot，学习率 `1e-4`，1 步。
+
+`channel_reconstruction` 的 Pilot 重构改善约 `1.57e-4`，Data BCE 平均改善约
+`2.31e-5`，但 18 个候选中硬 BER 没有一次改善。`channel_joint` 的 Data BCE
+平均改善约 `2.48e-5`，Data BER 平均恶化约 `2.17e-4`。Pilot 重构改善与 Data
+BER 改善的 Spearman 相关为 `-0.041`，没有通过 `0.6` 门槛。
+
+因此，当前信道残差参数能够拟合 Pilot 观测，却不能可靠地选择 Data 判决方向。
+它暂不进入正式主矩阵；需要先改变 Pilot 覆盖或设计新的可验证状态特征，不能靠
+继续放大更新步数来掩盖排序失败。
