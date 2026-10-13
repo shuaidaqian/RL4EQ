@@ -78,6 +78,8 @@ def _candidate_specs(lr: float, steps: int) -> list[dict]:
         {"name": "channel_joint", "groups": {"channel_residual"}, "lr": lr, "steps": steps, "objective": "joint"},
         {"name": "phase_trend_bce", "groups": {"phase_trend"}, "lr": lr, "steps": steps, "objective": "bce"},
         {"name": "phase_trend_signal_reconstruction", "groups": {"phase_trend"}, "lr": lr, "steps": steps, "objective": "pilot_signal_reconstruction"},
+        {"name": "phase_trend_head_signal_reconstruction", "groups": {"phase_trend", "head"}, "lr": lr, "steps": steps, "objective": "pilot_signal_reconstruction"},
+        {"name": "phase_trend_head_bce", "groups": {"phase_trend", "head"}, "lr": lr, "steps": steps, "objective": "bce"},
         {"name": "input_trend_bce", "groups": {"input_trend"}, "lr": lr, "steps": steps, "objective": "bce"},
         {"name": "input_affine_bce", "groups": {"input_affine"}, "lr": lr, "steps": steps, "objective": "bce"},
         {"name": "input_fir_bce", "groups": {"input_fir"}, "lr": lr, "steps": steps, "objective": "bce"},

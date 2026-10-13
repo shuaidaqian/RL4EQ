@@ -57,3 +57,20 @@ Data 段输出。该实验是参数位置筛选，不是主实验统计，也不
 - Data 标签仅用于本文件中的事后诊断；
 - `data_labels_used_online=false`；
 - 离线 checkpoint 未修改。
+
+## `phase_trend + head` 组合复核
+
+为确认增加输出头参数是否能增强已有的 phase 路径，补做了 3 seed × 3 SNR × 4 帧
+的 Pilot-only replay。配置为 AdamW、5 步、学习率 `5e-3`，比较单独 phase、
+`phase_trend + head` 和 identity。
+
+结果显示，`phase_trend + head + pilot_signal_reconstruction` 与单独
+`phase_trend + pilot_signal_reconstruction` 的所有输出指标完全一致：Data BCE
+平均改善 `0.003646`，Data BER 平均改善 `0.000651`，36 个候选中 10 个硬 BER
+改善。组合没有带来可识别的额外作用，说明当前信号重构目标的梯度主要落在
+`phase_trend`，head 没有提供新的有效方向。
+
+单独 `phase_trend + BCE` 的 Data BCE 平均恶化 `0.001530`，Data BER 平均恶化
+`0.000868`；因此当前更值得保留的是 phase 的信号重构目标，而不是把 BCE 或 head
+参数加入在线更新。所有候选的 Pilot-only 排序相关仍低于 `0.6`，不能进入
+Contextual Bandit 或正式主矩阵。
