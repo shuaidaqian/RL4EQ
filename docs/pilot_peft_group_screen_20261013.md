@@ -89,3 +89,29 @@ BER 改善的 Spearman 相关为 `-0.041`，没有通过 `0.6` 门槛。
 因此，当前信道残差参数能够拟合 Pilot 观测，却不能可靠地选择 Data 判决方向。
 它暂不进入正式主矩阵；需要先改变 Pilot 覆盖或设计新的可验证状态特征，不能靠
 继续放大更新步数来掩盖排序失败。
+
+## Pilot 总长度扫描
+
+为确认问题是否只是 Pilot 太短，诊断脚本现在支持一次扫描多个 `--pilot-total`，
+并在每行记录 Pilot 总长度。固定 Reward Pilot 为 32，比较 prefix Pilot 总长度
+64、128、160、256；其余条件为 Level B、gap=600 s、3 seed、5/10/15 dB、2 帧，
+`phase_trend + pilot_signal_reconstruction`，AdamW，5 步，学习率 `5e-3`。
+
+| Pilot 总长度 | Data BCE 平均改善 | Data BER 平均改善 | Data BER 正收益次数 |
+|---:|---:|---:|---:|
+| 64 | `-0.000662` | `-0.000248` | `5/18` |
+| 128 | `+0.003545` | `-0.000434` | `4/18` |
+| 160 | `+0.000256` | `-0.000473` | `4/18` |
+| 256 | `+0.005314` | `-0.000217` | `3/18` |
+
+256 个 Pilot 的 Data BCE 改善最大，但 5 dB 仍为 `-0.002604`，15 dB 没有硬 BER
+改善；128 个 Pilot 在 10 dB 有正向结果，但 15 dB 的 6 个候选全部没有 BER 改善。
+由于每个长度只保留一个真实更新候选，Pilot-only Spearman 不能在长度内计算，不能
+把这次扫描写成排序通过。
+
+原始结果：
+`logs/pilot_length_phase_signal_screen_fixedreward_3s3snr2f_gap600_20261014.json`
+
+结论是：单纯增加 prefix Pilot 总长度不能解决 Pilot 到 Data 的方向失配。下一步应
+改变状态到参数的映射或使用能覆盖 Data 相关状态的观测方式，而不是继续扩大同一
+长度扫描或接入 Bandit。

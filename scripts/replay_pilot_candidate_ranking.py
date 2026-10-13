@@ -255,8 +255,15 @@ def main() -> None:
     parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
     parser.add_argument("--frames", type=int, default=4)
     parser.add_argument("--delay", type=int, default=116)
-    parser.add_argument("--pilot-total", type=int, default=256)
+    parser.add_argument(
+        "--pilot-total",
+        nargs="+",
+        type=int,
+        default=[256],
+        help="Pilot 总长度；可一次提供多个长度用于诊断扫描。",
+    )
     parser.add_argument("--gap-seconds", type=float, default=120.0)
+    parser.add_argument("--reward-pilot-total", type=int, default=None)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--steps", type=int, default=1)
     parser.add_argument(
@@ -279,39 +286,42 @@ def main() -> None:
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     model_config = _load_model_config(config, Path(args.pretrained))
     rows = []
-    for snr in args.snrs:
-        for seed in args.seeds:
-            env = CommunicationEnvironment(CommEnvConfig(
-                level="B", max_delay=args.delay, snr_db=float(snr), total_pilot=args.pilot_total,
-                layout="prefix", seed=90_000 + int(seed), acquisition_to_data_gap_seconds=float(args.gap_seconds),
-            ))
-            start = env.reset_episode()
-            cir = _estimate_cir_from_known_frame(start.acquisition, args.delay).to(args.device)
-            frames = [env.next_frame() for _ in range(args.frames)]
-            for frame_index, frame in enumerate(frames):
-                model = _build_equalizer(model_config, Path(args.pretrained), args.device)
-                model.attach_online_physics_residual_adapter()
-                model.attach_online_channel_residual_adapter()
-                model.attach_online_phase_trend_adapter()
-                model.attach_online_input_trend_adapter()
-                model.attach_online_input_affine_adapter()
-                model.attach_online_input_fir_adapter()
-                model.attach_online_logit_affine_adapter()
-                model.attach_online_logit_fir_adapter()
-                tail = start.initial_soft_tail.to(args.device)
-                condition = condition_from_cir(cir, float(snr))
-                state = _pilot_state(frame, cir, tail, condition)
-                base = {
-                    "snr_db": float(snr), "seed": int(seed), "frame_index": int(frame_index),
-                    **state, "data_labels_used_online": False,
-                }
-                for candidate in selected_candidates:
-                    rows.append({**base, **_evaluate_candidate(model, frame, condition, tail, candidate)})
+    for pilot_total in args.pilot_total:
+        for snr in args.snrs:
+            for seed in args.seeds:
+                env = CommunicationEnvironment(CommEnvConfig(
+                    level="B", max_delay=args.delay, snr_db=float(snr), total_pilot=int(pilot_total),
+                    layout="prefix", seed=90_000 + int(seed), acquisition_to_data_gap_seconds=float(args.gap_seconds),
+                    reward_pilot_total=args.reward_pilot_total,
+                ))
+                start = env.reset_episode()
+                cir = _estimate_cir_from_known_frame(start.acquisition, args.delay).to(args.device)
+                frames = [env.next_frame() for _ in range(args.frames)]
+                for frame_index, frame in enumerate(frames):
+                    model = _build_equalizer(model_config, Path(args.pretrained), args.device)
+                    model.attach_online_physics_residual_adapter()
+                    model.attach_online_channel_residual_adapter()
+                    model.attach_online_phase_trend_adapter()
+                    model.attach_online_input_trend_adapter()
+                    model.attach_online_input_affine_adapter()
+                    model.attach_online_input_fir_adapter()
+                    model.attach_online_logit_affine_adapter()
+                    model.attach_online_logit_fir_adapter()
+                    tail = start.initial_soft_tail.to(args.device)
+                    condition = condition_from_cir(cir, float(snr))
+                    state = _pilot_state(frame, cir, tail, condition)
+                    base = {
+                        "pilot_total": int(pilot_total),
+                        "snr_db": float(snr), "seed": int(seed), "frame_index": int(frame_index),
+                        **state, "data_labels_used_online": False,
+                    }
+                    for candidate in selected_candidates:
+                        rows.append({**base, **_evaluate_candidate(model, frame, condition, tail, candidate)})
     summary = []
     for score_name in ("adapt_bce_improvement", "boundary_loss_improvement", "selective_boundary_loss_improvement", "reward_loss_improvement", "pilot_reconstruction_improvement", "data_bce_improvement"):
         by_trial = {}
         for row in rows:
-            key = (row["snr_db"], row["seed"], row["frame_index"])
+            key = (row["pilot_total"], row["snr_db"], row["seed"], row["frame_index"])
             by_trial.setdefault(key, []).append(row)
         scores, targets = [], []
         for values in by_trial.values():
@@ -322,7 +332,14 @@ def main() -> None:
             targets.extend(float(item["data_ber_improvement"]) for item in values)
         result = spearman_reward_data(scores, targets, threshold=0.6)
         summary.append({"score": score_name, "spearman": float(result.correlation), "n": int(result.n), "gate_pass": bool(result.passed)})
-    payload = {"metric": "pilot_candidate_ranking_replay", "rows": rows, "summary": summary, "data_labels_used_online": False, "diagnostic_uses_data_labels": True}
+    payload = {
+        "metric": "pilot_candidate_ranking_replay",
+        "pilot_totals": [int(value) for value in args.pilot_total],
+        "rows": rows,
+        "summary": summary,
+        "data_labels_used_online": False,
+        "diagnostic_uses_data_labels": True,
+    }
     target = Path(args.output)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, indent=2, ensure_ascii=False, allow_nan=True), encoding="utf-8")

@@ -116,6 +116,9 @@ def test_pilot_candidate_ranking_replay_has_label_boundary():
     assert "physics_boundary" in source
     assert "physics_selective_boundary" in source
     assert "phase_trend_bce" in source
+    assert '"pilot_total"' in source
+    assert "reward_pilot_total" in source
+    assert "nargs=\"+\"" in source
     assert "input_trend_bce" in source
     assert "input_affine_bce" in source
     assert "input_fir_bce" in source
