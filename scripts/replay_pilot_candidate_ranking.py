@@ -94,7 +94,7 @@ def _candidate_specs(lr: float, steps: int) -> list[dict]:
     ]
 
 
-def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict) -> dict:
+def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict, *, pilot_holdout_mask=None) -> dict:
     device = next(model.parameters()).device
     frame_device = _frame_to_device(frame, device)
     condition_device = _condition_to_device(condition, device)
@@ -178,6 +178,19 @@ def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict) -> 
     selective_boundary_after = _selective_boundary_adapt_loss(
         after[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
     )
+    pilot_holdout_improvement = 0.0
+    if pilot_holdout_mask is not None:
+        holdout_mask = torch.as_tensor(pilot_holdout_mask, device=device).bool().reshape(-1)
+        if holdout_mask.numel() != before.numel() or not bool(holdout_mask.any()):
+            raise ValueError("pilot_holdout_mask 必须与帧长度一致且至少包含一个符号。")
+        holdout_targets = frame_device.bits[holdout_mask].float()
+        holdout_before = torch.nn.functional.binary_cross_entropy_with_logits(
+            before[holdout_mask], holdout_targets
+        )
+        holdout_after = torch.nn.functional.binary_cross_entropy_with_logits(
+            after[holdout_mask], holdout_targets
+        )
+        pilot_holdout_improvement = float((holdout_before - holdout_after).detach().cpu())
     data_mask = frame_device.data_mask.bool()
     if bool(data_mask.any()):
         data_before_bce = torch.nn.functional.binary_cross_entropy_with_logits(
@@ -204,6 +217,7 @@ def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict) -> 
         "selective_boundary_loss_improvement": float(
             (selective_boundary_before - selective_boundary_after).detach().cpu()
         ),
+        "pilot_holdout_loss_improvement": float(pilot_holdout_improvement),
         "pilot_reconstruction_improvement": float((reconstruction_before - reconstruction_after).detach().cpu()),
         "pilot_reconstruction_error_after": float(reconstruction_after.detach().cpu()),
         "reward_loss_improvement": float(result.get("reward_loss_improvement", 0.0)),
