@@ -105,7 +105,7 @@ def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict, *, 
         reconstruction_before = _pilot_signal_reconstruction_loss_for_diagnostic(
             candidate_model, frame_device, condition_device, soft_tail
         )
-    elif candidate_model.online_channel_residual_adapter is not None:
+    elif candidate["objective"] in {"pilot_reconstruction", "joint"} and candidate_model.online_channel_residual_adapter is not None:
         reconstruction_before = _pilot_reconstruction_loss_for_diagnostic(
             candidate_model, frame_device, condition_device, soft_tail
         )
@@ -151,7 +151,7 @@ def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict, *, 
         reconstruction_after = _pilot_signal_reconstruction_loss_for_diagnostic(
             candidate_model, frame_device, condition_device, soft_tail
         )
-    elif candidate_model.online_channel_residual_adapter is not None:
+    elif candidate["objective"] in {"pilot_reconstruction", "joint"} and candidate_model.online_channel_residual_adapter is not None:
         reconstruction_after = _pilot_reconstruction_loss_for_diagnostic(
             candidate_model, frame_device, condition_device, soft_tail
         )
