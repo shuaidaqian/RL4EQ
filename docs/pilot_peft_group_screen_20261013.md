@@ -115,3 +115,28 @@ BER 改善的 Spearman 相关为 `-0.041`，没有通过 `0.6` 门槛。
 结论是：单纯增加 prefix Pilot 总长度不能解决 Pilot 到 Data 的方向失配。下一步应
 改变状态到参数的映射或使用能覆盖 Data 相关状态的观测方式，而不是继续扩大同一
 长度扫描或接入 Bandit。
+
+## 状态条件化 replay 的因果复核
+
+此前候选排序脚本虽然记录了状态量，但没有把状态 embedding 传入候选模型前向，
+因此补做了同一固定条件下的有/无状态条件化对照。两组均为 Level B、gap=600 s、
+Pilot=256、Reward=32、3 seed、5/10/15 dB、2 帧，单一候选为
+`phase_trend + pilot_signal_reconstruction`，AdamW，5 步，学习率 `5e-3`。
+
+| 设置 | Data BCE 平均改善 | Data BER 平均改善 | 正 BER 候选 | logits 平均变化 | 参数变化范数 |
+|---|---:|---:|---:|---:|---:|
+| 不使用 state embedding | `+0.005314` | `-0.000217` | `3/18` | `0.3021` | `0.0283` |
+| 使用真实 Adapt Pilot state embedding | `+0.003587` | `-0.000868` | `2/18` | `0.4274` | `0.0387` |
+
+状态条件化确实让参数和 Data logits 变化更大，但没有改善硬 BER 稳定性；5 dB 下
+两种设置都为负，状态条件化为 `-0.003906`，15 dB 也没有正 BER 候选。这个结果
+说明“状态 embedding 已经接入梯度路径”不等于“状态 embedding 能把更新方向变成
+Data 方向”，不能据此扩大正式矩阵。
+
+原始结果：
+
+- `logs/pilot_unconditioned_replay_3s3snr2f_gap600_20261014.json`
+- `logs/pilot_state_conditioned_replay_3s3snr2f_gap600_20261014.json`
+
+同时修正了诊断脚本的真实状态传递和设备一致性问题。在线主流程未改变，离线
+checkpoint 未改变，Data 标签仍只用于事后诊断。

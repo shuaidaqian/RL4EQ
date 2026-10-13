@@ -20,7 +20,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from agent.cir_estimator import condition_from_cir
+from agent.cir_estimator import condition_from_cir, pilot_sparse_cir_update
+from agent.pilot_state import PilotStateEmbedding, build_pilot_state_summary
 from baseline.traditional_equalizers import estimate_phase_residual_vector
 from env.comm_env import CommEnvConfig, CommunicationEnvironment
 from env.linear_operator import LinearChannelOperator
@@ -96,16 +97,35 @@ def _candidate_specs(lr: float, steps: int) -> list[dict]:
     ]
 
 
-def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict, *, pilot_holdout_mask=None) -> dict:
+def _evaluate_candidate(
+    model,
+    frame,
+    condition,
+    soft_tail,
+    candidate: dict,
+    *,
+    pilot_holdout_mask=None,
+    state_embedding: torch.Tensor | None = None,
+) -> dict:
     device = next(model.parameters()).device
     frame_device = _frame_to_device(frame, device)
     condition_device = _condition_to_device(condition, device)
     candidate_model = copy.deepcopy(model)
     before_tail = soft_tail.unsqueeze(0).to(device).to(torch.complex64)
-    before = _model_logits(candidate_model, frame_device, condition_device, before_tail)
+    before = _model_logits(
+        candidate_model,
+        frame_device,
+        condition_device,
+        before_tail,
+        state_embedding=state_embedding,
+    )
     if candidate["objective"] == "pilot_signal_reconstruction":
         reconstruction_before = _pilot_signal_reconstruction_loss_for_diagnostic(
-            candidate_model, frame_device, condition_device, soft_tail
+            candidate_model,
+            frame_device,
+            condition_device,
+            soft_tail,
+            state_embedding=state_embedding,
         )
     elif candidate["objective"] in {"pilot_reconstruction", "joint"} and candidate_model.online_channel_residual_adapter is not None:
         reconstruction_before = _pilot_reconstruction_loss_for_diagnostic(
@@ -138,6 +158,7 @@ def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict, *, 
             lr=float(candidate["lr"]),
             steps=int(candidate["steps"]),
             objective=str(candidate["objective"]),
+            state_embedding=state_embedding,
         )
     else:
         result = {
@@ -148,10 +169,20 @@ def _evaluate_candidate(model, frame, condition, soft_tail, candidate: dict, *, 
         "data_soft_abs_mean_delta": 0.0,
         "peft_delta_norm": 0.0,
         }
-    after = _model_logits(candidate_model, frame_device, condition_device, before_tail)
+    after = _model_logits(
+        candidate_model,
+        frame_device,
+        condition_device,
+        before_tail,
+        state_embedding=state_embedding,
+    )
     if candidate["objective"] == "pilot_signal_reconstruction":
         reconstruction_after = _pilot_signal_reconstruction_loss_for_diagnostic(
-            candidate_model, frame_device, condition_device, soft_tail
+            candidate_model,
+            frame_device,
+            condition_device,
+            soft_tail,
+            state_embedding=state_embedding,
         )
     elif candidate["objective"] in {"pilot_reconstruction", "joint"} and candidate_model.online_channel_residual_adapter is not None:
         reconstruction_after = _pilot_reconstruction_loss_for_diagnostic(
@@ -272,6 +303,7 @@ def main() -> None:
         default=None,
         help="只运行指定候选；省略时运行全部作用位置和监督目标。",
     )
+    parser.add_argument("--state-conditioned", action="store_true", help="把 Adapt Pilot 状态 embedding 传入 phase_trend Adapter。")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
     all_candidates = _candidate_specs(args.lr, args.steps)
@@ -310,13 +342,44 @@ def main() -> None:
                     tail = start.initial_soft_tail.to(args.device)
                     condition = condition_from_cir(cir, float(snr))
                     state = _pilot_state(frame, cir, tail, condition)
+                    state_embedding = None
+                    if args.state_conditioned:
+                        embedding_cir = pilot_sparse_cir_update(
+                            _frame_to_device(frame, args.device),
+                            cir,
+                            tail.to(args.device),
+                            max_paths=24,
+                            alpha=1.0,
+                            cfo_hint=float(state["cfo_cycles_per_symbol"]),
+                        ).to(args.device)
+                        state_summary = build_pilot_state_summary(
+                            cir=embedding_cir,
+                            reference_cir=cir,
+                            phase0=float(state["phase0"]),
+                            cfo_cycles_per_symbol=float(state["cfo_cycles_per_symbol"]),
+                            noise_variance=condition.noise_variance,
+                            confidence=float(state["confidence"]),
+                            reconstruction_error=float(state["reconstruction_error"]),
+                        )
+                        state_embedding = PilotStateEmbedding()(state_summary).to(args.device)
                     base = {
                         "pilot_total": int(pilot_total),
+                        "state_conditioned": bool(args.state_conditioned),
                         "snr_db": float(snr), "seed": int(seed), "frame_index": int(frame_index),
                         **state, "data_labels_used_online": False,
                     }
                     for candidate in selected_candidates:
-                        rows.append({**base, **_evaluate_candidate(model, frame, condition, tail, candidate)})
+                        rows.append({
+                            **base,
+                            **_evaluate_candidate(
+                                model,
+                                frame,
+                                condition,
+                                tail,
+                                candidate,
+                                state_embedding=state_embedding,
+                            ),
+                        })
     summary = []
     for score_name in ("adapt_bce_improvement", "boundary_loss_improvement", "selective_boundary_loss_improvement", "reward_loss_improvement", "pilot_reconstruction_improvement", "data_bce_improvement"):
         by_trial = {}

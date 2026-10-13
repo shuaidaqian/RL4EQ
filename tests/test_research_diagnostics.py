@@ -406,6 +406,36 @@ def test_peft_adapt_update_reports_parameter_delta_norm():
     assert result["peft_delta_norm"] >= 0.0
 
 
+def test_pilot_signal_reconstruction_state_embedding_updates_conditioner_weights():
+    from evaluation.research_diagnostics import apply_adapt_only_peft_update
+
+    frame = _tiny_identity_frame()
+    phase = torch.tensor(0.1)
+    received = frame.tx_symbols * torch.exp(1j * phase)
+    frame = frame.with_channel_output(
+        received,
+        torch.zeros(4, dtype=torch.complex64),
+        torch.tensor([1.0 + 0.0j, 0.0j, 0.0j, 0.0j, 0.0j]),
+    )
+    model = _tiny_model()
+    adapter = model.attach_online_phase_trend_adapter()
+    before = adapter.state_to_phase_cfo.weight.detach().clone()
+    result = apply_adapt_only_peft_update(
+        model=model,
+        frame=frame,
+        condition=_tiny_condition(),
+        soft_tail=torch.zeros(4, dtype=torch.complex64),
+        groups={"phase_trend"},
+        lr=1e-2,
+        steps=2,
+        objective="pilot_signal_reconstruction",
+        state_embedding=torch.tensor([0.4, -0.2, 0.1, 0.5, 0.8, 0.3]),
+    )
+
+    assert result["peft_delta_norm"] > 0.0
+    assert not torch.allclose(adapter.state_to_phase_cfo.weight, before)
+
+
 def test_peft_objective_rejects_unknown_name():
     from evaluation.research_diagnostics import apply_adapt_only_peft_update
 

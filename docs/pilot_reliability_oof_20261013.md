@@ -101,3 +101,15 @@ Adapt/Reward Pilot 充分观测的状态决定。简单增加 Reward 窗口、�
    5 seed × 60 帧；
 6. 如果子窗口分离仍不能预测 Data，必须如实保留当前结论：当前 Pilot 长度和模型结构不足以
    支撑“在线稳定超过离线”的研究声明，需要增加 Pilot 覆盖或改变均衡器可适配位置。
+
+## 状态条件化范围更正（2026-10-14）
+
+代码审计发现，上述候选 replay 虽然记录了 Pilot 状态特征，但候选模型前向和
+`apply_adapt_only_peft_update` 没有收到状态 embedding。因此这些 OOF 结果测试的是
+无状态条件化的 `phase_trend` 候选；它们不能作为“状态条件化 Adapter 已被 Pilot-only
+排序验证”的证据。上述排序器泛化失败仍然有效，但只对其实际运行的候选和目标成立。
+
+现在诊断路径支持显式传入 Adapt Pilot 状态 embedding，并新增了同条件有/无状态对照。
+该对照仍未通过硬 BER 稳定性门槛，详见
+[`pilot_peft_group_screen_20261013.md`](pilot_peft_group_screen_20261013.md) 的
+“状态条件化 replay 的因果复核”。

@@ -129,6 +129,8 @@ def test_pilot_candidate_ranking_replay_has_label_boundary():
     assert "attention_lora_bce" in source
     assert "ffn_lora_bce" in source
     assert "pilot_encoder_bce" in source
+    assert "--state-conditioned" in source
+    assert "state_embedding=state_embedding" in source
     diagnostics_source = Path("evaluation/research_diagnostics.py").read_text(encoding="utf-8")
     assert 'name.startswith("pilot_encoder.")' in diagnostics_source
     assert "data_logits_direction_change_fraction" in source

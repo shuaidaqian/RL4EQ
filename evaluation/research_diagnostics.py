@@ -508,6 +508,7 @@ def apply_adapt_only_peft_update(
     lr: float,
     steps: int,
     objective: str = "bce",
+    state_embedding: torch.Tensor | None = None,
 ) -> dict:
     """只用 Adapt Pilot loss 对指定 PEFT 参数做真实梯度更新。"""
 
@@ -528,7 +529,7 @@ def apply_adapt_only_peft_update(
     condition = _condition_to_device(condition, device)
     tail = soft_tail.to(device).unsqueeze(0).to(torch.complex64)
     model.eval()
-    before_logits = _model_logits(model, frame, condition, tail)
+    before_logits = _model_logits(model, frame, condition, tail, state_embedding=state_embedding)
     reward_before = _masked_bce(before_logits, frame.bits, frame.reward_mask)
     reward_ber_before = bit_error_rate(before_logits[frame.reward_mask], frame.bits[frame.reward_mask])
     reward_margin_before = _masked_margin(before_logits, frame.reward_mask)
@@ -550,7 +551,7 @@ def apply_adapt_only_peft_update(
     }
     optimizer = torch.optim.AdamW(trainable, lr=float(lr))
     for _ in range(int(steps)):
-        logits = _model_logits(model, frame, condition, tail)
+        logits = _model_logits(model, frame, condition, tail, state_embedding=state_embedding)
         adapt_logits = logits[frame.adapt_mask]
         adapt_targets = frame.bits[frame.adapt_mask].float()
         if objective == "boundary":
@@ -562,7 +563,9 @@ def apply_adapt_only_peft_update(
         reconstruction_loss = (
             _pilot_reconstruction_loss_for_diagnostic(model, frame, condition, tail)
             if objective in {"pilot_reconstruction", "joint"}
-            else _pilot_signal_reconstruction_loss_for_diagnostic(model, frame, condition, tail)
+            else _pilot_signal_reconstruction_loss_for_diagnostic(
+                model, frame, condition, tail, state_embedding=state_embedding
+            )
             if objective == "pilot_signal_reconstruction"
             else torch.zeros((), device=device)
         )
@@ -580,7 +583,7 @@ def apply_adapt_only_peft_update(
 
     model.eval()
     model.set_trainable_groups(set())
-    after_logits = _model_logits(model, frame, condition, tail)
+    after_logits = _model_logits(model, frame, condition, tail, state_embedding=state_embedding)
     reward_after = _masked_bce(after_logits, frame.bits, frame.reward_mask)
     reward_ber_after = bit_error_rate(after_logits[frame.reward_mask], frame.bits[frame.reward_mask])
     reward_margin_after = _masked_margin(after_logits, frame.reward_mask)
@@ -665,6 +668,7 @@ def _pilot_signal_reconstruction_loss_for_diagnostic(
     frame,
     condition: CIRCondition,
     soft_tail: torch.Tensor,
+    state_embedding: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """计算 phase_trend Adapter 校正后的 Adapt Pilot 复数重构误差。"""
 
@@ -677,7 +681,7 @@ def _pilot_signal_reconstruction_loss_for_diagnostic(
     tx = receiver_view.adapt_symbols.to(device).to(torch.complex64).reshape(-1)
     mask = receiver_view.adapt_mask.to(device).bool().reshape(-1)
     rx_iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0)
-    corrected_iq = adapter(rx_iq).squeeze(0)
+    corrected_iq = adapter(rx_iq, state_embedding=state_embedding).squeeze(0)
     corrected = torch.complex(corrected_iq[:, 0], corrected_iq[:, 1]).to(torch.complex64)
     cir = condition.complex_cir.to(device).to(torch.complex64).reshape(-1)
     tail = soft_tail.to(device).to(torch.complex64).reshape(-1)
@@ -1120,7 +1124,13 @@ def _signed_cfo_for_seed(cfo_abs: float, seed: int) -> float:
     return float(cfo_abs) if int(seed) % 2 == 0 else -float(cfo_abs)
 
 
-def _model_logits(model: UnfoldedEqualizer, frame, condition: CIRCondition, tail: torch.Tensor) -> torch.Tensor:
+def _model_logits(
+    model: UnfoldedEqualizer,
+    frame,
+    condition: CIRCondition,
+    tail: torch.Tensor,
+    state_embedding: torch.Tensor | None = None,
+) -> torch.Tensor:
     rx_iq = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0).float()
     region_ids = frame.model_region_ids.unsqueeze(0).long()
     # pilot_conditioned 模型必须收到当前帧的 Adapt Pilot；这里明确构造接收端
@@ -1140,6 +1150,7 @@ def _model_logits(model: UnfoldedEqualizer, frame, condition: CIRCondition, tail
         tail,
         adapt_symbols=adapt_symbols,
         adapt_mask=adapt_mask,
+        online_state_embedding=state_embedding,
     )
     return logits.squeeze(0)
 
