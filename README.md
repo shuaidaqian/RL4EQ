@@ -28,6 +28,7 @@ Level A/B/C 可控信道族
 - 接收机是整帧缓冲、非因果块神经均衡器；“在线”指信道运行期间按帧持续适配，不是逐符号即时输出。
 - 当前主比较只保留传统均衡器、`Frozen Offline NN` 和 `Pilot-Driven Online Adaptation`；早期 PPO/调制策略仅作为代码兼容或专项消融，不作为主对照。
 - 当前纯参数微调诊断记录在 [`docs/pilot_position_scan_and_signal_reconstruction_20261010.md`](/D:/Research/RL4EQ/docs/pilot_position_scan_and_signal_reconstruction_20261010.md)：保持离线 checkpoint 不变，只用 Adapt Pilot 更新 `phase_trend`，并以复数 Pilot 信号重构代替单纯 BCE；Reward Pilot 只做验收/回滚，Data 标签只做最终评估。该方法在 gap=120/600 s 的状态老化压力测试中能产生配对 BER 收益，但主 gap=0 的 0/5/10/15 dB 还没有稳定超过 Frozen Offline NN，不能写成已完成的主路线。
+- 最新协议复核见 [统一 Pilot replay 协议与累计 PEFT 结果](docs/pilot_replay_protocol_audit_20261014.md)：旧排序/状态映射 replay 曾退回 legacy 默认信道，历史数值不能用于 EME 主结论；现已统一真实 Level B 配置、当前帧 Pilot 条件和相位补偿顺序，并单独检验累计 14 个 Adapter 参数更新及未来 Reward 验收。短窗口收益与独立长窗口结果均按适用范围报告，仍须通过稳定性门槛才扩大正式矩阵。
 - 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须包含基于 Pilot 的合理补偿，不能人为打残 baseline。
 - Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真 `BER_data` 评估。
 - 在线 observation、reward、动作选择和调制更新不使用数据标签上界。

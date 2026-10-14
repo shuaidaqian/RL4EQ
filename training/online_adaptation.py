@@ -722,9 +722,8 @@ def _pilot_signal_reconstruction_loss(
 ) -> torch.Tensor:
     """用 Adapt Pilot 的复数信号重构误差更新输入相位趋势 Adapter。
 
-    先通过在线 phase_trend 参数校正接收 IQ，再用当前 acquisition CIR 和已知
-    Pilot 符号重构接收信号。整个目标只访问 Adapt Pilot 的 tx/rx/mask，不读取
-    Reward Pilot 或 Data 标签；它让待更新参数直接对应帧内公共相位和 CFO 趋势。
+    按均衡器前向顺序，先做已有条件相位补偿，再由 phase_trend 修正剩余误差。
+    当前 CIR 和已知 Adapt Pilot 用于重构参考；Reward/Data 标签不进入梯度。
     """
 
     adapter = model.online_phase_trend_adapter
@@ -732,6 +731,7 @@ def _pilot_signal_reconstruction_loss(
         raise RuntimeError("pilot_signal_reconstruction 需要已挂载 phase_trend Adapter。")
     rx_flat = rx.reshape(-1).to(torch.complex64)
     rx_iq = torch.stack((rx_flat.real, rx_flat.imag), dim=-1).unsqueeze(0).float()
+    rx_iq = model._apply_phase_correction(rx_iq, condition)
     corrected_iq = adapter(
         rx_iq,
         state_embedding=state_embedding,

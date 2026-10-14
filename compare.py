@@ -2807,15 +2807,17 @@ def _reward_signal_reconstruction_loss(
         reward_mask = view.reward_symbols.to(device).abs().reshape(-1) > 0.0
         if not bool(reward_mask.any()):
             return torch.zeros((), device=device, dtype=torch.float32)
-        corrected = rx
+        rx_iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0)
+        # 验收与实际前向都在既有相位补偿之后衡量 Adapter 的残差作用。
+        corrected_iq = model._apply_phase_correction(rx_iq, condition)
         phase_adapter = model.online_phase_trend_adapter
         if phase_adapter is not None:
-            rx_iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0)
             corrected_iq = phase_adapter(
-                rx_iq,
+                corrected_iq,
                 state_embedding=state_embedding,
-            ).squeeze(0)
-            corrected = torch.complex(corrected_iq[:, 0], corrected_iq[:, 1]).to(torch.complex64)
+            )
+        corrected_iq = corrected_iq.squeeze(0)
+        corrected = torch.complex(corrected_iq[:, 0], corrected_iq[:, 1]).to(torch.complex64)
         cir = condition.complex_cir.to(device).to(torch.complex64)
         channel_adapter = model.online_channel_residual_adapter
         if channel_adapter is not None:

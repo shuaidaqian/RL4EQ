@@ -148,9 +148,9 @@ class OnlinePhysicsResidualAdapter(nn.Module):
 class OnlinePhaseTrendAdapter(nn.Module):
     """在线微调接收 IQ 的公共相位与线性相位趋势。
 
-    这是挂载在神经均衡器输入端的两个可训练 PEFT 参数，而不是 CIR/phase
-    状态估计器：参数从零初始化，Adapt Pilot BCE 直接更新，Reward Pilot 只
-    决定是否保留更新。零初始化保证在线模块关闭时与离线模型完全一致。
+    模块挂载在神经均衡器基础相位补偿之后，包含直接相位/CFO 参数和状态映射层。
+    可用 Adapt Pilot BCE 或信号重构目标更新所选参数，Reward Pilot 只决定
+    是否保留更新。零初始化保证尚未更新时与离线模型完全一致。
     """
 
     def __init__(

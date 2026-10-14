@@ -1,5 +1,11 @@
 # Pilot-only 可靠性校准留出 replay
 
+> **2026-10-14 协议更正：**本页源自旧 `replay_pilot_candidate_ranking.py`
+> 的排序日志及其派生留出校准结果，实际使用 legacy 默认信道、512 符号帧和
+> clean 扰动，不能作为真实 EME Level B 或 600 秒老化的结论。历史数值保留作
+> 诊断记录；修正协议后需要重新评估，见
+> [Pilot replay 协议复核](pilot_replay_protocol_audit_20261014.md)。
+
 日期：2026-10-13
 
 ## 目的

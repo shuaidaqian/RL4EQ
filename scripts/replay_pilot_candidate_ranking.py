@@ -20,12 +20,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from agent.cir_estimator import condition_from_cir, pilot_sparse_cir_update
+from agent.cir_estimator import pilot_sparse_cir_update
 from agent.pilot_state import PilotStateEmbedding, build_pilot_state_summary
 from baseline.traditional_equalizers import estimate_phase_residual_vector
-from env.comm_env import CommEnvConfig, CommunicationEnvironment
 from env.linear_operator import LinearChannelOperator
 from evaluation.metrics import spearman_reward_data
+from evaluation.pilot_replay_protocol import build_pilot_replay_episode
 from evaluation.research_diagnostics import (
     _condition_to_device,
     _boundary_adapt_loss,
@@ -36,9 +36,8 @@ from evaluation.research_diagnostics import (
     _pilot_signal_reconstruction_loss_for_diagnostic,
     apply_adapt_only_peft_update,
 )
-from training.meta_training import _estimate_cir_from_known_frame
 from training.online_adaptation import PilotResidualRLSAdapter
-from training.rl_modulated_online import _build_equalizer, _load_model_config
+from compare import _build_equalizer, _load_model_config
 
 
 def _pilot_reconstruction_error(frame, cir: torch.Tensor, soft_tail: torch.Tensor) -> float:
@@ -296,7 +295,9 @@ def main() -> None:
         default=[256],
         help="Pilot 总长度；可一次提供多个长度用于诊断扫描。",
     )
-    parser.add_argument("--gap-seconds", type=float, default=120.0)
+    parser.add_argument("--gap-seconds", type=float, default=None)
+    parser.add_argument("--condition-source", choices=["acquisition", "pilot_phase", "pilot_cir_phase"],
+                        default=None, help="继承配置；acquisition 只作独立消融。")
     parser.add_argument("--reward-pilot-total", type=int, default=None)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--steps", type=int, default=1)
@@ -343,14 +344,13 @@ def main() -> None:
     for pilot_total in args.pilot_total:
         for snr in args.snrs:
             for seed in args.seeds:
-                env = CommunicationEnvironment(CommEnvConfig(
-                    level="B", max_delay=args.delay, snr_db=float(snr), total_pilot=int(pilot_total),
-                    layout="prefix", seed=90_000 + int(seed), acquisition_to_data_gap_seconds=float(args.gap_seconds),
-                    reward_pilot_total=args.reward_pilot_total,
-                ))
-                start = env.reset_episode()
-                cir = _estimate_cir_from_known_frame(start.acquisition, args.delay).to(args.device)
-                frames = [env.next_frame() for _ in range(args.frames)]
+                episode = build_pilot_replay_episode(
+                    config, model_config, snr=float(snr), seed=int(seed), delay=args.delay,
+                    pilot_total=int(pilot_total), reward_pilot_total=args.reward_pilot_total,
+                    gap_seconds=args.gap_seconds, device=args.device, condition_source=args.condition_source,
+                )
+                start, cir = episode.start, episode.cir
+                frames = [episode.env.next_frame() for _ in range(args.frames)]
                 for frame_index, frame in enumerate(frames):
                     model = _build_equalizer(model_config, Path(args.pretrained), args.device)
                     model.attach_online_physics_residual_adapter()
@@ -362,7 +362,7 @@ def main() -> None:
                     model.attach_online_logit_affine_adapter()
                     model.attach_online_logit_fir_adapter()
                     tail = start.initial_soft_tail.to(args.device)
-                    condition = condition_from_cir(cir, float(snr))
+                    condition = episode.condition(_frame_to_device(frame, args.device), tail)
                     state = _pilot_state(frame, cir, tail, condition)
                     state_embedding = None
                     if args.state_conditioned:
@@ -385,6 +385,8 @@ def main() -> None:
                         )
                         state_embedding = PilotStateEmbedding()(state_summary).to(args.device)
                     base = {
+                        **episode.metadata(),
+                        "tail_mode": "fixed_initial_tail_diagnostic",
                         "pilot_total": int(pilot_total),
                         "state_conditioned": bool(args.state_conditioned),
                         "snr_db": float(snr), "seed": int(seed), "frame_index": int(frame_index),
@@ -422,6 +424,11 @@ def main() -> None:
         summary.append({"score": score_name, "spearman": float(result.correlation), "n": int(result.n), "gate_pass": bool(result.passed)})
     payload = {
         "metric": "pilot_candidate_ranking_replay",
+        "checkpoint": str(Path(args.pretrained).resolve()),
+        "model_config": model_config.to_dict(),
+        "experiment_config": config,
+        "arguments": vars(args),
+        "main_aggregation_allowed": False,
         "pilot_totals": [int(value) for value in args.pilot_total],
         "rows": rows,
         "summary": summary,

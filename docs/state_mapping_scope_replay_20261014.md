@@ -1,5 +1,13 @@
 # 仅更新状态映射参数的 Pilot replay（2026-10-14）
 
+> **适用范围更正：本页下方的旧数值只属于历史诊断，不能代表 EME Level B 主配置。**
+> 后续代码审查发现，旧脚本直接构造 `CommEnvConfig`，实际使用默认的
+> `legacy_sparse_v1`、512 符号帧和 clean 扰动，并未加载正式配置中的 EME
+> 物理时标。`gap=600` 虽然传入字段，也不能视为已实现 EME 状态老化。
+> 此外，旧相位重构目标与均衡器中 Adapter 的实际输入顺序不一致。
+> 更正后的统一协议和结果见
+> [统一 replay 协议复核](pilot_replay_protocol_audit_20261014.md)。
+
 ## 目的
 
 本阶段继续保持离线 checkpoint 不变，检查一个更窄的在线 PEFT 更新对象：只更新
@@ -10,9 +18,9 @@
 ## 固定条件
 
 - checkpoint：`pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`
-- 信道：Level B，`max_delay=116`
+- 旧诊断实际信道：legacy Level B，`max_delay=116`，帧长 512；不是 EME 主信道
 - Pilot：prefix，总长度 256，Reward Pilot 32
-- acquisition 到数据帧间隔：600 秒
+- acquisition 到数据帧间隔参数：600 秒；该旧 legacy 配置不能用于 EME 老化结论
 - SNR：5、10、15 dB
 - seed：0、1、2
 - 每条轨迹：4 帧
@@ -36,7 +44,8 @@
 
 ## 单帧候选 replay
 
-复现命令：
+以下是旧版本命令，仅用于追溯历史结果。当前脚本会严格拒绝其中不一致的模型/
+信道维度和 legacy 非零 gap 组合；统一协议请使用新复核报告中的命令。
 
 ```powershell
 .\.venv-gpu\Scripts\python.exe scripts/replay_pilot_candidate_ranking.py `
@@ -112,6 +121,6 @@ Reward Pilot 能拒绝一部分坏更新，但不能把 Pilot 目标可靠地转
 因此当前仍不能声称“在线微调已经稳定超过离线训练”，也不扩大正式 `5 seed × 60 帧`
 矩阵，不接入 Contextual Bandit。离线 checkpoint 和默认主配置保持不变。
 
-下一步若继续推进，必须改变 Pilot 对 Data 状态的可观测性或更新方向的构造，例如使用
-真正覆盖数据位置的额外 Pilot 子窗口/时序状态，而不是继续增大学习率、步数或只调
-Reward 门限。
+上述旧结果不足以决定主路线。后续先保持 prefix Pilot，统一真实 EME 信道、当前帧
+Adapt Pilot 相位条件和实际 Adapter 前向顺序，再检查累计历史 Adapt 更新与独立未来
+Reward Pilot 验收能否改善后续 Data。主实验不增加数据位置的 Pilot。

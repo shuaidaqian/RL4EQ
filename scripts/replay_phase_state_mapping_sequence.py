@@ -16,18 +16,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from agent.cir_estimator import condition_from_cir, pilot_sparse_cir_update
+from agent.cir_estimator import pilot_sparse_cir_update
 from agent.pilot_state import PilotStateEmbedding, build_pilot_state_summary
-from env.comm_env import CommEnvConfig, CommunicationEnvironment
 from evaluation.research_diagnostics import (
     _frame_to_device,
     _model_logits,
     _pilot_signal_reconstruction_loss_for_diagnostic,
     apply_adapt_only_peft_update,
 )
+from evaluation.pilot_replay_protocol import build_pilot_replay_episode
 from scripts.replay_pilot_candidate_ranking import _pilot_state
-from training.meta_training import _estimate_cir_from_known_frame
-from training.rl_modulated_online import _build_equalizer, _load_model_config
+from compare import _build_equalizer, _load_model_config
 
 
 def _ber(logits: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor) -> float:
@@ -71,16 +70,17 @@ def _evaluate_scope(
     steps: int,
     scope: str,
     reward_gate: bool,
+    episode,
 ) -> list[dict]:
     model = _make_model(model_config, checkpoint, device)
     frozen_model = copy.deepcopy(model).eval()
-    condition = condition_from_cir(cir, float(snr))
     tail_batch = soft_tail.to(device).reshape(1, -1).to(torch.complex64)
     tail = soft_tail.to(device)
     rows = []
 
     for frame_index, frame in enumerate(frames):
         frame_device = _frame_to_device(frame, device)
+        condition = episode.condition(frame_device, tail)
         state = _pilot_state(frame, cir, tail, condition)
         embedding_cir = pilot_sparse_cir_update(
             frame_device,
@@ -182,6 +182,8 @@ def _evaluate_scope(
 
         rows.append(
             {
+                **episode.metadata(),
+                "tail_mode": "fixed_initial_tail_diagnostic",
                 "scope": scope,
                 "snr_db": float(snr),
                 "seed": int(seed),
@@ -272,7 +274,9 @@ def main() -> None:
     parser.add_argument("--frames", type=int, default=4)
     parser.add_argument("--delay", type=int, default=116)
     parser.add_argument("--pilot-total", type=int, default=256)
-    parser.add_argument("--gap-seconds", type=float, default=600.0)
+    parser.add_argument("--gap-seconds", type=float, default=None)
+    parser.add_argument("--condition-source", choices=["acquisition", "pilot_phase", "pilot_cir_phase"],
+                        default=None, help="继承配置；acquisition 只作独立消融。")
     parser.add_argument("--reward-pilot-total", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--steps", type=int, default=1)
@@ -296,21 +300,13 @@ def main() -> None:
     rows = []
     for snr in args.snrs:
         for seed in args.seeds:
-            env = CommunicationEnvironment(
-                CommEnvConfig(
-                    level="B",
-                    max_delay=int(args.delay),
-                    snr_db=float(snr),
-                    total_pilot=int(args.pilot_total),
-                    layout="prefix",
-                    seed=90_000 + int(seed),
-                    acquisition_to_data_gap_seconds=float(args.gap_seconds),
-                    reward_pilot_total=int(args.reward_pilot_total),
-                )
+            episode = build_pilot_replay_episode(
+                config, model_config, snr=float(snr), seed=int(seed), delay=args.delay,
+                pilot_total=args.pilot_total, reward_pilot_total=args.reward_pilot_total,
+                gap_seconds=args.gap_seconds, device=args.device, condition_source=args.condition_source,
             )
-            start = env.reset_episode()
-            cir = _estimate_cir_from_known_frame(start.acquisition, int(args.delay)).to(args.device)
-            frames = [env.next_frame() for _ in range(int(args.frames))]
+            start, cir = episode.start, episode.cir
+            frames = [episode.env.next_frame() for _ in range(int(args.frames))]
             for scope in args.scopes:
                 rows.extend(
                     _evaluate_scope(
@@ -320,7 +316,7 @@ def main() -> None:
                         snr=float(snr),
                         seed=int(seed),
                         pilot_total=int(args.pilot_total),
-                        gap_seconds=float(args.gap_seconds),
+                        gap_seconds=episode.env.config.acquisition_to_data_gap_seconds,
                         reward_pilot_total=int(args.reward_pilot_total),
                         model_config=model_config,
                         checkpoint=checkpoint,
@@ -329,6 +325,7 @@ def main() -> None:
                         steps=int(args.steps),
                         scope=str(scope),
                         reward_gate=bool(args.reward_gate),
+                        episode=episode,
                     )
                 )
 
@@ -385,13 +382,17 @@ def main() -> None:
 
     payload = {
         "metric": "persistent_phase_state_mapping_sequence_replay",
-        "checkpoint": str(checkpoint),
+        "checkpoint": str(checkpoint.resolve()),
+        "model_config": model_config.to_dict(),
+        "experiment_config": config,
+        "arguments": vars(args),
+        "main_aggregation_allowed": False,
         "channel_level": "B",
         "delay": int(args.delay),
         "pilot_layout": "prefix",
         "pilot_total": int(args.pilot_total),
         "reward_pilot_total": int(args.reward_pilot_total),
-        "gap_seconds": float(args.gap_seconds),
+        "gap_seconds": float(rows[0]["gap_seconds"]),
         "data_labels_used_online": False,
         "diagnostic_uses_data_labels": True,
         "reward_gate_enabled": bool(args.reward_gate),

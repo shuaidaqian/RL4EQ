@@ -696,23 +696,17 @@ def _pilot_signal_reconstruction_loss_for_diagnostic(
 ) -> torch.Tensor:
     """计算 phase_trend Adapter 校正后的 Adapt Pilot 复数重构误差。"""
 
-    adapter = model.online_phase_trend_adapter
-    if adapter is None:
-        raise RuntimeError("pilot_signal_reconstruction 需要 phase_trend Adapter。")
+    from training.online_adaptation import _pilot_signal_reconstruction_loss
+
     receiver_view = frame.receiver_view()
     device = next(model.parameters()).device
     rx = receiver_view.rx_symbols.to(device).to(torch.complex64).reshape(-1)
     tx = receiver_view.adapt_symbols.to(device).to(torch.complex64).reshape(-1)
     mask = receiver_view.adapt_mask.to(device).bool().reshape(-1)
-    rx_iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0)
-    corrected_iq = adapter(rx_iq, state_embedding=state_embedding).squeeze(0)
-    corrected = torch.complex(corrected_iq[:, 0], corrected_iq[:, 1]).to(torch.complex64)
-    cir = condition.complex_cir.to(device).to(torch.complex64).reshape(-1)
     tail = soft_tail.to(device).to(torch.complex64).reshape(-1)
-    operator = LinearChannelOperator(frame_len=tx.numel(), max_delay=cir.numel() - 1)
-    predicted = operator.forward(tx, cir, tail).reshape(-1)
-    residual = corrected[mask] - predicted[mask]
-    return torch.mean(torch.abs(residual) ** 2).real
+    return _pilot_signal_reconstruction_loss(
+        model, condition, tx, rx, mask, tail, state_embedding=state_embedding,
+    )
 
 
 def _boundary_adapt_loss(

@@ -1,5 +1,11 @@
 # Pilot-only PEFT 参数组筛选
 
+> **2026-10-14 协议更正：**本页中由旧 `replay_pilot_candidate_ranking.py`
+> 生成的数值使用了 legacy 默认信道、512 符号帧和 clean 扰动，不能代表真实
+> EME Level B 主场景或 acquisition 老化。旧信号重构目标的相位补偿顺序也与
+> 实际前向不一致。历史结果保留作问题定位，不作为新方案选型依据；统一协议与
+> 后续证据见 [Pilot replay 协议复核](pilot_replay_protocol_audit_20261014.md)。
+
 日期：2026-10-13
 
 ## 目的
