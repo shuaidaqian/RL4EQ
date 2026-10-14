@@ -53,6 +53,18 @@ def test_acquisition_data_gap_is_recorded_in_state_metadata():
     assert metadata["coherence_time_seconds"] == 120.0
 
 
+def test_gap_longer_than_channel_memory_clears_stale_symbol_history():
+    immediate = CommunicationEnvironment(_config(0.0))
+    aged = CommunicationEnvironment(_config(60.0))
+    immediate_start = immediate.reset_episode()
+    aged_start = aged.reset_episode()
+
+    assert torch.count_nonzero(immediate_start.initial_soft_tail) > 0
+    assert torch.count_nonzero(aged_start.initial_soft_tail) == 0
+    assert torch.count_nonzero(immediate.next_frame().tail_symbols) > 0
+    assert torch.count_nonzero(aged.next_frame().tail_symbols) == 0
+
+
 def test_pilot_sparse_cir_update_uses_only_prefix_pilot_and_reduces_cir_error():
     environment = CommunicationEnvironment(_config(60.0))
     start = environment.reset_episode()

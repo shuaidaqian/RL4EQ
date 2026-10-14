@@ -246,10 +246,18 @@ class ExtremeDelayChannel:
 
         return dict(self._state_metadata)
 
-    def advance_after_acquisition(self) -> None:
-        """在 acquisition 结束后推进到首个数据帧对应的隐状态。"""
+    def advance_after_acquisition(self) -> bool:
+        """推进 acquisition 空档中的信道状态，并清除已经过期的卷积历史。"""
 
         self._acquisition_to_data_transition()
+        gap = float(self.config.acquisition_to_data_gap_seconds)
+        history_expired = (
+            self.config.profile_name in {"eme_measurement_v1", "eme_long_memory_v2"}
+            and gap >= float(self.config.max_delay_seconds)
+        )
+        if history_expired:
+            self._history.zero_()
+        return history_expired
 
     def _sample_impairment(self) -> PhaseImpairmentSettings:
         """按 split 或冻结 impairment profile 采样 episode 级同步残差。"""

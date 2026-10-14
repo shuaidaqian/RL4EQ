@@ -29,6 +29,7 @@ class PilotReplayEpisode:
     acquisition_cfo: float
     acquisition_phase_features: torch.Tensor
     condition_source: str
+    history_cleared_after_gap: bool
 
     def condition(self, frame, tail: torch.Tensor) -> CIRCondition:
         """两组共享同一条件；诊断中不递推或写回主干 CIR。"""
@@ -55,6 +56,7 @@ class PilotReplayEpisode:
                 else "current_adapt_pilot_phase"
             ),
             "cir_update_mode": "fixed_acquisition_shared",
+            "history_cleared_after_gap": self.history_cleared_after_gap,
             "main_aggregation_allowed": False,
         }
 
@@ -104,7 +106,11 @@ def build_pilot_replay_episode(
             start.acquisition.receiver_view(), cir, start.initial_soft_tail,
             blocks=4, cfo_hint=float(cfo),
         )
-    return PilotReplayEpisode(env, start, cir.to(device), float(cfo), features, source)
+    history_cleared = (
+        env_config.profile_name in {"eme_measurement_v1", "eme_long_memory_v2"}
+        and env_config.acquisition_to_data_gap_seconds >= env_config.max_delay_seconds
+    )
+    return PilotReplayEpisode(env, start, cir.to(device), float(cfo), features, source, history_cleared)
 
 
 def pilot_state_embedding(frame, cir, tail, condition) -> torch.Tensor:

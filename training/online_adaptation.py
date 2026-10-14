@@ -738,6 +738,8 @@ def _pilot_signal_reconstruction_loss(
     ).squeeze(0)
     corrected = torch.complex(corrected_iq[:, 0], corrected_iq[:, 1]).to(torch.complex64)
     cir = condition.complex_cir.reshape(-1).to(torch.complex64)
+    if model.online_channel_residual_adapter is not None:
+        cir = model.online_channel_residual_adapter(cir.reshape(1, -1)).reshape(-1)
     tx_flat = tx.reshape(-1).to(torch.complex64)
     tail_flat = tail.reshape(-1).to(torch.complex64)
     operator = LinearChannelOperator(frame_len=tx_flat.numel(), max_delay=cir.numel() - 1)

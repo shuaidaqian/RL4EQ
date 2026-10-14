@@ -124,8 +124,11 @@ class CommunicationEnvironment:
         acquisition = acquisition.with_channel_output(
             rx, warmup[-tail_length:], self.channel.last_cir_used()
         )
-        self.channel.advance_after_acquisition()
-        self._last_tail = torch.cat((warmup, acquisition.tx_symbols))[-tail_length:].clone()
+        history_expired = self.channel.advance_after_acquisition()
+        if history_expired:
+            self._last_tail = torch.zeros(tail_length, dtype=torch.complex64)
+        else:
+            self._last_tail = torch.cat((warmup, acquisition.tx_symbols))[-tail_length:].clone()
         self._frame_index = 0
         return EpisodeStart(
             warmup_symbols=warmup,

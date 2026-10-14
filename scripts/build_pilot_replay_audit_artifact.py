@@ -23,6 +23,24 @@ RUNS = {
     "hold_reward_diagnostic_seed4": "cumulative_signal_reward_hold_monitor_s4_24f.json",
     "monitor2_seed3_4_5": "cumulative_future_signal_reward_monitor2_newseed_24f.json",
     "monitor2_seed6_7_8": "cumulative_future_signal_reward_monitor2_freshseed_24f.json",
+    "adapt_bce_same_seed_3seed_10f": "cumulative_future_signal_reward_adapt_bce_3seed_10f.json",
+    "adapt_joint_same_seed_3seed_10f": "cumulative_future_signal_reward_adapt_joint_3seed_10f.json",
+    "adapt_joint_monitor2_snr10_newseed_24f": "cumulative_joint_monitor2_snr10_newseed_24f.json",
+    "adapt_joint_joint_reward_monitor2_snr10_newseed_24f": "cumulative_joint_reward_joint_relative_snr10_newseed_24f.json",
+    "adapt_joint_direct_phase_cfo_same_seed_3seed_10f": "cumulative_future_joint_direct_phase_cfo_3seed_10f.json",
+    "adapt_joint_direct_phase_cfo_monitor2_newseed_24f": "cumulative_direct_phase_cfo_monitor2_newseed_24f.json",
+    "adapt_joint_direct_aggregate_signal_snr10_seed3_4_5": "cumulative_direct_joint_aggregate_reward_snr10_newseed_24f.json",
+    "adapt_joint_direct_bce_aggregate_snr10_seed9_10_11": "cumulative_direct_joint_bce_aggregate_snr10_freshseed_24f.json",
+    "adapt_joint_direct_relative_bce_aggregate_snr10_seed12_13_14": "cumulative_direct_joint_relative_bce_aggregate_snr10_freshseed_24f.json",
+    "adapt_joint_direct_relative_bce_zero_threshold_snr10_seed18_19_20": "cumulative_direct_joint_relative_bce_zero_threshold_snr10_seed18_19_20_24f.json",
+    "adapt_joint_direct_relative_bce_monitor2_snr10_seed21_22_23": "cumulative_direct_joint_relative_bce_monitor2_snr10_seed21_22_23_24f.json",
+    "adapt_joint_mapping_plus_direct_relative_bce_snr10_seed24_25_26": "cumulative_mapping_plus_direct_relative_bce_snr10_seed24_25_26_24f.json",
+    "channel_residual_gap600_relative_bce_snr10_seed27_28_29": "cumulative_channel_residual_gap600_bce_relative_snr10_seed27_28_29_24f.json",
+    "channel_residual_gap600_signal_defaultcap_snr10_seed27_28_29_invalid": "cumulative_channel_residual_gap600_signal_snr10_seed27_28_29_24f.json",
+    "channel_residual_gap600_signal_cap05_snr10_seed27_28_29": "cumulative_channel_residual_gap600_signal_cap05_snr10_seed27_28_29_24f.json",
+    "channel_residual_gap120_signal_cap05_steps50_snr10_seed30_31_32": "cumulative_channel_residual_gap120_signal_cap05_steps50_snr10_seed30_31_32_24f.json",
+    "channel_residual_gap120_joint_cap05_steps50_snr10_seed30_31_32": "cumulative_channel_residual_gap120_joint_cap05_steps50_snr10_seed30_31_32_24f.json",
+    "adapt_joint_direct_relative_bce_monitor2_snr10_seed21_22_23": "cumulative_direct_joint_relative_bce_monitor2_snr10_seed21_22_23_24f.json",
 }
 
 
@@ -72,6 +90,15 @@ def _trial_summary(rows: list[dict], arguments: dict) -> dict:
         "initial_reward_accepted": initial_accept,
         "reward_acceptance_mode": first.get("reward_gate_mode", "historical_reward"),
         "reward_score": first.get("reward_score", "bce"),
+        "reward_aggregation": first.get("reward_aggregation", "per_frame"),
+        "minimum_reward_improvement": first.get("minimum_reward_improvement", 0.0005),
+        "adapt_objective": first.get("adapt_objective", "signal_reconstruction"),
+        "updated_parameter_scope": first.get("updated_parameter_scope", "state_mapping"),
+        "joint_bce_weight": first.get("joint_bce_weight"),
+        "joint_reconstruction_scale": first.get("joint_reconstruction_scale"),
+        "joint_bce_scale": first.get("joint_bce_scale"),
+        "adapt_bce_before": first.get("adapt_bce_before"),
+        "adapt_bce_after": first.get("adapt_bce_after"),
         "train_reward_improvements": first["train_reward_improvements"],
         "reward_validation_improvements": first.get("validation_reward_improvements", []),
         "validation_reward_error_count_changes": first.get("gate_reward_error_count_changes", []),
@@ -82,6 +109,8 @@ def _trial_summary(rows: list[dict], arguments: dict) -> dict:
         "candidate_active_on_last_test_frame": bool(rows[-1]["reward_gate_accepted"]),
         "updated_parameter_count": first["updated_parameter_count"],
         "state_mapping_delta_norm": first["state_mapping_delta_norm"],
+        "channel_residual_delta_norm": first.get("channel_residual_delta_norm", 0.0),
+        "max_parameter_delta_norm": first.get("max_parameter_delta_norm", 0.05),
         "direct_phase_cfo_delta_norm": first["direct_phase_cfo_delta_norm"],
         "adapt_reconstruction_before": first["adapt_reconstruction_before"],
         "adapt_reconstruction_after": first["adapt_reconstruction_after"],
@@ -141,15 +170,47 @@ def _build_run(name: str, filename: str) -> dict:
     source = LOG_DIR / filename
     payload = json.loads(source.read_text(encoding="utf-8"))
     arguments = payload["arguments"]
+    if not payload["rows"]:
+        raise ValueError(f"原始日志没有逐帧结果：{filename}")
+    first = payload["rows"][0]
+    history_cleared_values = {row.get("history_cleared_after_gap") for row in payload["rows"]}
+    if len(history_cleared_values) != 1:
+        raise ValueError(f"同一运行的空档历史状态不一致：{filename}")
+    gap_seconds = arguments.get("gap_seconds")
+    expected_condition_source = "acquisition" if gap_seconds not in (None, 0.0) else "pilot_cir_phase"
+    expected_history_cleared = (
+        gap_seconds is not None
+        and float(gap_seconds) >= float(first["environment_config"]["max_delay_seconds"])
+    )
+    recorded_history_cleared = first.get("history_cleared_after_gap")
+    if gap_seconds in (None, 0.0):
+        protocol_status = "valid"
+        protocol_status_reason = None
+    elif recorded_history_cleared is None:
+        protocol_status = "missing_gap_history_metadata"
+        protocol_status_reason = "nonzero-gap log does not record whether expired channel history was cleared"
+    elif bool(recorded_history_cleared) != expected_history_cleared:
+        protocol_status = "invalidated_stale_channel_history"
+        protocol_status_reason = "recorded channel-history clearing does not match the gap and channel memory"
+    else:
+        protocol_status = "valid"
+        protocol_status_reason = None
     grouped: dict[tuple[int, float, int], list[dict]] = defaultdict(list)
     for row in payload["rows"]:
         environment = row["environment_config"]
+        scope = row.get("updated_parameter_scope", "state_mapping")
+        expected_parameter_count = {
+            "state_mapping": 14,
+            "direct_phase_cfo": 2,
+            "mapping_plus_phase_cfo": 16,
+            "channel_residual": 234,
+        }[scope]
         if (row["main_aggregation_allowed"] or row["data_labels_used_online"]
-                or row["condition_source"] != "pilot_cir_phase"
+                or row["condition_source"] != expected_condition_source
                 or row["tail_mode"] != "shared_frozen_soft_tail"
                 or environment["profile_name"] != "eme_long_memory_v2"
                 or environment["frame_len"] != 1024 or environment["max_delay"] != 116
-                or row["updated_parameter_count"] != 14):
+                or row["updated_parameter_count"] != expected_parameter_count):
             raise ValueError(f"原始日志不符合本轮固定协议：{filename}")
         grouped[(row["train_frame_count"], row["snr_db"], row["seed"])].append(row)
     trials = [
@@ -175,6 +236,12 @@ def _build_run(name: str, filename: str) -> dict:
         "arguments": arguments,
         "main_aggregation_allowed": payload["main_aggregation_allowed"],
         "data_labels_used_online": payload["data_labels_used_online"],
+        "condition_source": first["condition_source"],
+        "condition_role": first.get("condition_role"),
+        "history_cleared_after_gap": recorded_history_cleared,
+        "expected_history_cleared_after_gap": expected_history_cleared,
+        "protocol_status": protocol_status,
+        "protocol_status_reason": protocol_status_reason,
         "test_reward_role": (
             "ongoing_pilot_acceptance_and_rollback" if arguments.get("monitor_reward_window", 0)
             else "post_acceptance_monitor_diagnostic_or_unrecorded"
@@ -230,12 +297,21 @@ def main() -> None:
             "condition_source": "pilot_cir_phase",
             "tail_mode": "shared_frozen_soft_tail",
             "updated_parameter_count": 14,
+            "update_scope_definitions": {
+                "state_mapping": 14,
+                "direct_phase_cfo": 2,
+                "mapping_plus_phase_cfo": 16,
+                "channel_residual": 234,
+            },
         },
         "acceptance_rules": {
             "minimum_mean_reward_improvement": configuration["online_adaptation_min_reward_improvement"],
             "cross_frame_tolerance": configuration["online_cross_frame_rollback_tolerance"],
             "freeze_below_snr_db": configuration["online_adaptation_freeze_below_snr_db"],
             "monitor_window_for_monitor_runs": 2,
+            "monitor_aggregation_for_new_reward_test": "aggregate",
+            "pilot_acceptance_min_improvement": configuration["online_adaptation_min_reward_improvement"],
+            "adapt_joint_bce_weight": 0.5,
             "signal_reconstruction_hard_error_guard": True,
             "bce_hard_error_guard": False,
             "data_labels_used_for_acceptance": False,
@@ -244,7 +320,7 @@ def main() -> None:
         "interpretation": {
             "stable_online_gain_demonstrated": False,
             "monitoring_effect": "可减少负收益，但该两组监测验证均未在 Data 测试阶段保留候选。",
-            "scope_limit": "小样本 replay 诊断；不属于正式主实验，不用于主结果平均。",
+            "scope_limit": "小样本 replay 诊断；不同训练目标之间为同 seed 探索对照，新 seed 仅验证联合目标；不属于正式主实验，不用于主结果平均。",
         },
     }
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
