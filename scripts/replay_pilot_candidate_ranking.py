@@ -106,6 +106,7 @@ def _evaluate_candidate(
     *,
     pilot_holdout_mask=None,
     state_embedding: torch.Tensor | None = None,
+    trainable_parameter_scope: str | None = None,
 ) -> dict:
     device = next(model.parameters()).device
     frame_device = _frame_to_device(frame, device)
@@ -159,6 +160,7 @@ def _evaluate_candidate(
             steps=int(candidate["steps"]),
             objective=str(candidate["objective"]),
             state_embedding=state_embedding,
+            trainable_parameter_scope=trainable_parameter_scope,
         )
     else:
         result = {
@@ -245,6 +247,7 @@ def _evaluate_candidate(
         "candidate_name": candidate["name"],
         "objective": candidate["objective"],
         "updated_groups": sorted(candidate["groups"]),
+        "trainable_parameter_scope": trainable_parameter_scope or "all",
         "adapt_bce_improvement": float((adapt_before - adapt_after).detach().cpu()),
         "boundary_loss_improvement": float((boundary_before - boundary_after).detach().cpu()),
         "selective_boundary_loss_improvement": float(
@@ -304,6 +307,11 @@ def main() -> None:
         help="只运行指定候选；省略时运行全部作用位置和监督目标。",
     )
     parser.add_argument("--state-conditioned", action="store_true", help="把 Adapt Pilot 状态 embedding 传入 phase_trend Adapter。")
+    parser.add_argument(
+        "--state-mapping-only",
+        action="store_true",
+        help="只更新 phase_trend 的 state_to_phase_cfo 映射参数。",
+    )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
     all_candidates = _candidate_specs(args.lr, args.steps)
@@ -315,6 +323,20 @@ def main() -> None:
         if unknown:
             raise ValueError(f"未知候选：{unknown}；可选候选为 {sorted(known)}")
         selected_candidates = [known[name] for name in args.candidates]
+    if args.state_mapping_only:
+        if not args.state_conditioned:
+            parser.error("--state-mapping-only 必须与 --state-conditioned 一起使用。")
+        incompatible = [
+            candidate["name"]
+            for candidate in selected_candidates
+            if candidate["groups"] != {"phase_trend"}
+            or candidate["objective"] != "pilot_signal_reconstruction"
+        ]
+        if incompatible:
+            parser.error(
+                "--state-mapping-only 仅支持 phase_trend 的 pilot_signal_reconstruction 候选；"
+                f"不兼容候选：{incompatible}。"
+            )
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     model_config = _load_model_config(config, Path(args.pretrained))
     rows = []
@@ -378,6 +400,9 @@ def main() -> None:
                                 tail,
                                 candidate,
                                 state_embedding=state_embedding,
+                                trainable_parameter_scope=(
+                                    "state_mapping" if args.state_mapping_only else None
+                                ),
                             ),
                         })
     summary = []

@@ -436,6 +436,71 @@ def test_pilot_signal_reconstruction_state_embedding_updates_conditioner_weights
     assert not torch.allclose(adapter.state_to_phase_cfo.weight, before)
 
 
+def test_state_mapping_only_scope_freezes_direct_phase_parameters():
+    from evaluation.research_diagnostics import apply_adapt_only_peft_update
+
+    model = _tiny_model()
+    frame = _tiny_identity_frame()
+    frame = frame.with_channel_output(
+        frame.rx_symbols * torch.exp(1j * torch.tensor(0.1)),
+        torch.zeros(4, dtype=torch.complex64),
+        torch.tensor([1.0 + 0.0j, 0.0j, 0.0j, 0.0j, 0.0j]),
+    )
+    model.attach_online_phase_trend_adapter()
+    adapter = model.online_phase_trend_adapter
+    before_direct = torch.stack((adapter.raw_phase.detach(), adapter.raw_cfo.detach()))
+    before_mapping = torch.cat(
+        [parameter.detach().reshape(-1) for parameter in adapter.state_to_phase_cfo.parameters()]
+    )
+    result = apply_adapt_only_peft_update(
+        model=model,
+        frame=frame,
+        condition=_tiny_condition(),
+        soft_tail=torch.zeros(4, dtype=torch.complex64),
+        groups={"phase_trend"},
+        lr=1e-2,
+        steps=1,
+        objective="pilot_signal_reconstruction",
+        state_embedding=torch.tensor([0.4, -0.2, 0.1, 0.5, 0.8, 0.3]),
+        trainable_parameter_scope="state_mapping",
+    )
+
+    assert result["trainable_parameter_scope"] == "state_mapping"
+    assert torch.allclose(
+        torch.stack((adapter.raw_phase.detach(), adapter.raw_cfo.detach())),
+        before_direct,
+    )
+    after_mapping = torch.cat(
+        [parameter.detach().reshape(-1) for parameter in adapter.state_to_phase_cfo.parameters()]
+    )
+    assert not torch.allclose(after_mapping, before_mapping)
+
+
+def test_state_mapping_only_scope_requires_state_embedding_and_phase_group():
+    from evaluation.research_diagnostics import apply_adapt_only_peft_update
+
+    model = _tiny_model()
+    model.attach_online_phase_trend_adapter()
+    common = {
+        "model": model,
+        "frame": _tiny_identity_frame(),
+        "condition": _tiny_condition(),
+        "soft_tail": torch.zeros(4, dtype=torch.complex64),
+        "lr": 1e-2,
+        "steps": 1,
+        "objective": "pilot_signal_reconstruction",
+        "trainable_parameter_scope": "state_mapping",
+    }
+    with pytest.raises(ValueError, match="state_embedding"):
+        apply_adapt_only_peft_update(groups={"phase_trend"}, **common)
+    with pytest.raises(ValueError, match="仅支持.*phase_trend"):
+        apply_adapt_only_peft_update(
+            groups={"head"},
+            state_embedding=torch.ones(6),
+            **common,
+        )
+
+
 def test_peft_objective_rejects_unknown_name():
     from evaluation.research_diagnostics import apply_adapt_only_peft_update
 

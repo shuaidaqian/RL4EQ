@@ -509,6 +509,7 @@ def apply_adapt_only_peft_update(
     steps: int,
     objective: str = "bce",
     state_embedding: torch.Tensor | None = None,
+    trainable_parameter_scope: str | None = None,
 ) -> dict:
     """只用 Adapt Pilot loss 对指定 PEFT 参数做真实梯度更新。"""
 
@@ -538,9 +539,31 @@ def apply_adapt_only_peft_update(
 
     model.train()
     model.set_trainable_groups(groups)
+    if trainable_parameter_scope == "state_mapping":
+        if state_embedding is None:
+            raise ValueError("state_mapping 作用域需要 state_embedding。")
+        if set(groups) != {"phase_trend"} or model.online_phase_trend_adapter is None:
+            raise ValueError("state_mapping 作用域仅支持已挂载的 phase_trend Adapter。")
+        state_mapping_parameters = {
+            id(parameter)
+            for parameter in model.online_phase_trend_adapter.state_to_phase_cfo.parameters()
+        }
+        if not state_mapping_parameters:
+            raise ValueError("phase_trend Adapter 缺少 state_to_phase_cfo 参数。")
+
+        def _restrict_to_state_mapping() -> None:
+            for parameter in model.parameters():
+                if getattr(parameter, "_peft_group", None) == "phase_trend":
+                    parameter.requires_grad_(id(parameter) in state_mapping_parameters)
+
+        _restrict_to_state_mapping()
+    elif trainable_parameter_scope not in {None, "all"}:
+        raise ValueError("未知 trainable_parameter_scope。")
     if not model.trainable_parameters():
         _retag_unfolded_peft_groups(model)
         model.set_trainable_groups(groups)
+        if trainable_parameter_scope == "state_mapping":
+            _restrict_to_state_mapping()
     trainable = model.trainable_parameters()
     if not trainable:
         raise ValueError(f"PEFT 组 {sorted(groups)} 没有可训练参数。")
@@ -634,6 +657,7 @@ def apply_adapt_only_peft_update(
         "peft_delta_norm": float(peft_delta_norm),
         "action_delta_norm": float(peft_delta_norm),
         "objective": str(objective),
+        "trainable_parameter_scope": trainable_parameter_scope or "all",
         "diagnostic_uses_data_labels": True,
         "online_update_uses_data_labels": False,
     }
