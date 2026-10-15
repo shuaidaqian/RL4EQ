@@ -29,6 +29,7 @@ Level A/B/C 可控信道族
 - 当前主比较只保留传统均衡器、`Frozen Offline NN` 和 `Pilot-Driven Online Adaptation`；早期 PPO/调制策略仅作为代码兼容或专项消融，不作为主对照。
 - 最新 PEFT 回放协议与结果见 [统一 Pilot replay 协议复核](docs/pilot_replay_protocol_audit_20261014.md)：保持离线 checkpoint 不变，只用 Adapt Pilot 更新均衡器内部 Adapter 参数，Reward Pilot 负责验收/回滚，Data 标签只用于事后评估。长空档后过期的信道历史已修正清除；修正前的 gap=600 s 数值不作为有效结论。当前 gap=0 主场景和修正后的老化压力测试都还未证明稳定在线增益，gap=120 的联合 BCE/重构目标也未通过保留门槛。
 - 最新的 logits 改变量上限复核见 [Reward logits 守门复核](docs/online_logit_guard_replay_20261015.md)：在全新 seed 72--76 上，5 dB 平均改善 0.0705 个百分点且 5/5 seed 非负，15 dB 平均改善 0.0260 个百分点且 4/5 seed 正收益；10 dB 平均仅改善 0.0033 个百分点，仍不能宣称所有主 SNR 稳定超过冻结离线模型。
+- 10 dB 的 60 帧长期复核见 [10 dB 长窗口复核](docs/formal_signal_guard_logitcap01_gap0_10db_seed77_81_60f.md)：seed 77--81 平均改善 0.0126 个百分点，但只有 2/5 seed 正收益，说明延长帧数不能单独解决 Reward 到 Data 的排序失配。
 - 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须包含基于 Pilot 的合理补偿，不能人为打残 baseline。
 - Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真 `BER_data` 评估。
 - 在线 observation、reward、动作选择和调制更新不使用数据标签上界。
