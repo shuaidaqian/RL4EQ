@@ -1,5 +1,6 @@
 import json
 import inspect
+from dataclasses import replace
 from pathlib import Path
 import subprocess
 import sys
@@ -440,7 +441,7 @@ def test_compare_cli_can_run_selected_methods_for_affected_matrix(tmp_path):
     assert len(rows) == 2
 
 
-def test_compare_best_fixed_matches_gate_online_cir_and_tail_dynamics():
+def test_compare_best_fixed_online_state_ignores_unknown_data_waveform():
     config = json.loads(Path("configs/continual_ppo.json").read_text(encoding="utf-8"))
     delay = 20
     snr_db = 10.0
@@ -457,28 +458,25 @@ def test_compare_best_fixed_matches_gate_online_cir_and_tail_dynamics():
     )
     start = env.reset_episode()
     gate_cir = _estimate_cir_from_known_frame(start.acquisition, delay)
-    gate_state = ReceiverState(start.initial_soft_tail)
     compare_states = _build_method_states(("Best Fixed",), start.initial_soft_tail, gate_cir, config, delay, snr_db, seed=0)
-    sigma = torch.tensor(10.0 ** (-snr_db / 10.0))
+    changed_states = _build_method_states(("Best Fixed",), start.initial_soft_tail, gate_cir, config, delay, snr_db, seed=0)
 
     for _ in range(2):
         frame = env.next_frame()
-        gate_result = perfect_csi_bpsk_refine_detect(
-            frame.rx_symbols,
-            gate_cir,
-            gate_state.soft_tail,
-            sigma,
-            cg_iterations=32,
-            refine_iterations=2,
-        )
-        gate_state.update_tail(gate_result.soft_tail)
-        gate_cir = _decision_directed_cir_update(frame, gate_result.logits, delay, gate_cir, alpha=0.2)
-
         compare_result = _run_baseline_method_batch(["Best Fixed"], frame, snr_db, compare_states, delay=delay)["Best Fixed"]
+        changed_rx = frame.rx_symbols.clone()
+        changed_rx[frame.data_mask] = changed_rx[frame.data_mask] * (3.0 + 2.0j)
+        changed_frame = replace(frame, rx_symbols=changed_rx)
+        changed_result = _run_baseline_method_batch(["Best Fixed"], changed_frame, snr_db, changed_states, delay=delay)["Best Fixed"]
 
-        assert compare_result.ber_data == pytest.approx(bit_error_rate(gate_result.logits[frame.data_mask], frame.bits[frame.data_mask]))
-        assert torch.allclose(compare_states["Best Fixed"].receiver_state.soft_tail, gate_state.soft_tail)
-        assert torch.allclose(compare_states["Best Fixed"].cir, gate_cir)
+        # Data 波形可以改变最终事后 BER，但不能改变 Pilot-only 在线 CIR/tail 状态。
+        assert compare_result.extra["data_waveform_used_online"] is False
+        assert changed_result.extra["data_waveform_used_online"] is False
+        assert torch.allclose(
+            compare_states["Best Fixed"].receiver_state.soft_tail,
+            changed_states["Best Fixed"].receiver_state.soft_tail,
+        )
+        assert torch.allclose(compare_states["Best Fixed"].cir, changed_states["Best Fixed"].cir)
 
 
 def test_coordinate_refine_single_has_no_per_symbol_python_loop():

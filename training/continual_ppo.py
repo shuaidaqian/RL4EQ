@@ -305,8 +305,10 @@ def _initialize_safe_policy_prior(policy: ContinualPolicy) -> None:
 
 def _policy_view(frame, cir: torch.Tensor, snr_db: float, previous_reward: float, last_parameter_delta_norm: float, confidence: torch.Tensor):
     view = frame.receiver_view()
+    pilot_mask = view.adapt_mask | view.reward_symbols.ne(0)
     return SimpleNamespace(
-        rx_symbols=view.rx_symbols,
+        # 策略 observation 不能读取未知 Data 波形。
+        rx_symbols=torch.where(pilot_mask, view.rx_symbols, torch.zeros_like(view.rx_symbols)),
         adapt_symbols=view.adapt_symbols,
         adapt_mask=view.adapt_mask,
         model_region_ids=view.model_region_ids,

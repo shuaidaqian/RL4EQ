@@ -44,15 +44,14 @@ class WindowReward:
 class WindowRewardAccumulator:
     """聚合一个窗口内的 Reward Pilot 指标。
 
-    Data BER 参数只写入诊断字段，不参与 reward 计算。
+    窗口 reward 完全由 Reward Pilot 指标构成。历史调用中的 Data BER
+    参数保留为兼容字段，但会被明确忽略，不参与任何在线控制。
     """
 
     def __init__(self, action_delta_norm: float):
         self.action_delta_norm = float(action_delta_norm)
         self.loss_improvements: list[float] = []
         self.ber_improvements: list[float] = []
-        self.data_ber_before: list[float] = []
-        self.data_ber_after: list[float] = []
 
     def add_frame(
         self,
@@ -61,13 +60,13 @@ class WindowRewardAccumulator:
         reward_loss_after: float,
         reward_ber_before: float,
         reward_ber_after: float,
-        data_ber_before: float,
-        data_ber_after: float,
+        data_ber_before: float | None = None,
+        data_ber_after: float | None = None,
     ) -> None:
+        # 仅为旧测试和旧调用保留这两个参数；Data 标签不能进入在线 reward。
+        del data_ber_before, data_ber_after
         self.loss_improvements.append(float(reward_loss_before) - float(reward_loss_after))
         self.ber_improvements.append(float(reward_ber_before) - float(reward_ber_after))
-        self.data_ber_before.append(float(data_ber_before))
-        self.data_ber_after.append(float(data_ber_after))
 
     def finalize(self) -> WindowReward:
         loss_delta = _mean(self.loss_improvements)
@@ -264,10 +263,25 @@ def run_windowed_discrete_frame(
     frame_index: int,
     update_interval: int,
 ) -> dict:
-    rx_iq = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0).float()
+    full_rx_iq = torch.stack(
+        (frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1
+    ).unsqueeze(0).float()
+    pilot_visible_mask = (frame.adapt_mask | frame.reward_mask).bool()
+    pilot_rx_symbols = torch.where(
+        pilot_visible_mask,
+        frame.rx_symbols,
+        torch.zeros_like(frame.rx_symbols),
+    )
+    rx_iq = torch.stack(
+        (pilot_rx_symbols.real, pilot_rx_symbols.imag), dim=-1
+    ).unsqueeze(0).float()
     region_ids = frame.model_region_ids.unsqueeze(0).long()
-    adapt_symbols = frame.tx_symbols.unsqueeze(0).to(torch.complex64)
+    pilot_view = _pilot_receiver_view(frame)
+    adapt_symbols = pilot_view.adapt_symbols.unsqueeze(0).to(torch.complex64)
     adapt_mask = frame.adapt_mask.unsqueeze(0).bool()
+    reward_symbols = pilot_view.reward_symbols
+    reward_labels = (reward_symbols.real > 0.0).to(frame.bits.dtype)
+    adapt_labels = (pilot_view.adapt_symbols.real > 0.0).to(frame.bits.dtype)
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
     identity = state.actions[0]
     base_logits = refine_logits_with_tail(
@@ -307,6 +321,11 @@ def run_windowed_discrete_frame(
         state.current_window_cir_snapshot = state.cir.detach().clone()
     if state.current_window_tail_snapshot is None:
         state.current_window_tail_snapshot = state.receiver_state.soft_tail.detach().clone()
+    frame_peft_snapshot = (
+        _snapshot_peft_groups(state.model, set(sampled_action.peft_groups))
+        if sampled_action.peft_groups
+        else {}
+    )
     selected_cir_alpha = (
         float(sampled_action.cir_alpha)
         if getattr(sampled_action, "cir_alpha", None) is not None
@@ -337,26 +356,24 @@ def run_windowed_discrete_frame(
         adapt_mask=adapt_mask,
     )
     after = logits_after.squeeze(0)
-    reward_before_loss = _masked_bce(base, frame.bits, frame.reward_mask)
-    reward_after_loss = _masked_bce(after, frame.bits, frame.reward_mask)
-    reward_before_ber = bit_error_rate(base[frame.reward_mask], frame.bits[frame.reward_mask])
-    reward_after_ber = bit_error_rate(after[frame.reward_mask], frame.bits[frame.reward_mask])
-    data_before_ber = bit_error_rate(base[frame.data_mask], frame.bits[frame.data_mask])
-    data_after_ber = bit_error_rate(after[frame.data_mask], frame.bits[frame.data_mask])
+    reward_before_loss = _masked_bce(base, reward_labels, frame.reward_mask)
+    reward_after_loss = _masked_bce(after, reward_labels, frame.reward_mask)
+    reward_before_ber = bit_error_rate(base[frame.reward_mask], reward_labels[frame.reward_mask])
+    reward_after_ber = bit_error_rate(after[frame.reward_mask], reward_labels[frame.reward_mask])
     assert state.current_accumulator is not None
     state.current_accumulator.add_frame(
         reward_loss_before=float(reward_before_loss.detach().cpu()),
         reward_loss_after=float(reward_after_loss.detach().cpu()),
         reward_ber_before=float(reward_before_ber),
         reward_ber_after=float(reward_after_ber),
-        data_ber_before=float(data_before_ber),
-        data_ber_after=float(data_after_ber),
     )
     tail_len = state.receiver_state.soft_tail.numel()
     detected_tail = torch.complex(
         torch.tanh(after[-tail_len:] / 2.0),
         torch.zeros_like(after[-tail_len:]),
     )
+    # 这里的 logits 来自已经清零 Data 波形的 Pilot-only 前向，因此可以用
+    # 它估计跨帧 soft tail；没有把原始 Data 接收样本带入在线更新。
     selected_tail_alpha = (
         float(sampled_action.tail_alpha)
         if getattr(sampled_action, "tail_alpha", None) is not None
@@ -388,6 +405,8 @@ def run_windowed_discrete_frame(
                 _restore_snapshot(state.model, state.current_window_peft_snapshot)
             if state.current_window_cir_snapshot is not None:
                 state.cir = state.current_window_cir_snapshot.to(state.cir.device).clone()
+            # soft tail 是由 Pilot 可见输出逐帧维护的接收机状态；动作回滚只撤销
+            # 本窗口的 PEFT/CIR 参数，不能把已经观测到的 Pilot 状态倒退。
             window_rollback = True
         state.rollout.append(
             {
@@ -415,13 +434,57 @@ def run_windowed_discrete_frame(
         state.current_window_tail_snapshot = None
         state.frames_in_window = 0
     accepted = not bool(window_rollback)
+    # 所有策略、PEFT 更新、Pilot reward 和窗口回滚完成后，才允许完整波形
+    # 进入前向；以下两次输出只用于事后 Data 指标，不反馈给在线控制。
+    current_peft_snapshot = (
+        _snapshot_peft_groups(state.model, set(sampled_action.peft_groups))
+        if sampled_action.peft_groups
+        else {}
+    )
+    if sampled_action.peft_groups:
+        _restore_snapshot(state.model, frame_peft_snapshot)
+    with torch.no_grad():
+        full_before_logits = refine_logits_with_tail(
+            state.model,
+            full_rx_iq,
+            condition,
+            region_ids,
+            tail,
+            modulation=identity.modulation,
+            passes=int(state.tail_refinement_passes),
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        )
+    if sampled_action.peft_groups:
+        _restore_snapshot(state.model, current_peft_snapshot)
+    final_modulation = identity.modulation if window_rollback else sampled_action.modulation
+    with torch.no_grad():
+        full_after_logits = refine_logits_with_tail(
+            state.model,
+            full_rx_iq,
+            condition,
+            region_ids,
+            tail,
+            modulation=final_modulation,
+            passes=int(state.tail_refinement_passes),
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        )
+    full_before = full_before_logits.squeeze(0)
+    full_after = full_after_logits.squeeze(0)
+    data_before_ber = bit_error_rate(
+        full_before[frame.data_mask], frame.bits[frame.data_mask]
+    )
+    data_after_ber = bit_error_rate(
+        full_after[frame.data_mask], frame.bits[frame.data_mask]
+    )
     return {
         "method": "RL-Modulated Neural Block Equalizer",
         "snr_db": float(snr_db),
         "frame": int(frame_index),
         "ber_data": float(data_after_ber),
         "ber_reward_pilot": float(reward_after_ber),
-        "ber_adapt_pilot": bit_error_rate(after[frame.adapt_mask], frame.bits[frame.adapt_mask]),
+        "ber_adapt_pilot": bit_error_rate(after[frame.adapt_mask], adapt_labels[frame.adapt_mask]),
         "offline_identity_ber_data": float(data_before_ber),
         "reward": float(window_reward.reward if window_reward else 0.0),
         "reward_pilot_loss_before": float(reward_before_loss.detach().cpu()),
@@ -446,6 +509,8 @@ def run_windowed_discrete_frame(
         "modulation_delta_norm": float(applied_action.delta_norm),
         "peft_delta_norm": float(peft_delta_norm),
         "data_labels_used_online": False,
+        "data_waveform_used_online": False,
+        "online_waveform_visibility": "adapt_pilot_for_update_reward_pilot_for_guard",
         "adapt_params": int(state.policy.parameter_count() if policy_loss is not None else 0),
         "adapt_steps": int(1 if policy_loss is not None else 0),
         "parameter_delta_norm": float(applied_action.delta_norm + peft_delta_norm),
@@ -618,18 +683,22 @@ def _apply_adapt_peft_update(
         return 0.0
     optimizer = torch.optim.AdamW(trainable, lr=float(lr))
     for _ in range(max(1, int(steps))):
-        rx_iq = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0).float()
+        pilot_mask = frame.adapt_mask.to(device=frame.rx_symbols.device, dtype=torch.bool)
+        pilot_rx = torch.where(pilot_mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols))
+        rx_iq = torch.stack((pilot_rx.real, pilot_rx.imag), dim=-1).unsqueeze(0).float()
         region_ids = frame.model_region_ids.unsqueeze(0).long()
         device = rx_iq.device
+        pilot_view = _pilot_receiver_view(frame)
         logits, _ = model(
             rx_iq,
             condition,
             region_ids,
             tail,
-            adapt_symbols=frame.tx_symbols.to(device).unsqueeze(0).to(torch.complex64),
+            adapt_symbols=pilot_view.adapt_symbols.to(device).unsqueeze(0).to(torch.complex64),
             adapt_mask=frame.adapt_mask.to(device).unsqueeze(0).bool(),
         )
-        loss = _masked_bce(logits.squeeze(0), frame.bits, frame.adapt_mask)
+        adapt_labels = (pilot_view.adapt_symbols.real > 0.0).to(frame.bits.dtype)
+        loss = _masked_bce(logits.squeeze(0), adapt_labels, frame.adapt_mask)
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(trainable, 1.0)
@@ -693,9 +762,17 @@ def _load_discrete_policy_if_available(
 
 
 def _policy_view(frame, snr_db: float, logits: torch.Tensor, previous_reward: float, last_delta_norm: float):
-    view = frame.receiver_view()
+    view = _pilot_receiver_view(frame)
+    pilot_visible_mask = view.adapt_mask | (view.reward_symbols != 0)
+    pilot_rx = torch.where(
+        pilot_visible_mask,
+        view.rx_symbols,
+        torch.zeros_like(view.rx_symbols),
+    )
     return SimpleNamespace(
-        rx_symbols=view.rx_symbols,
+        # 策略 observation 只允许看到 Adapt/Reward Pilot 波形；Data 波形在
+        # 事后评估前始终清零。
+        rx_symbols=pilot_rx,
         adapt_symbols=view.adapt_symbols,
         adapt_mask=view.adapt_mask,
         model_region_ids=view.model_region_ids,
@@ -703,6 +780,41 @@ def _policy_view(frame, snr_db: float, logits: torch.Tensor, previous_reward: fl
         confidence=torch.sigmoid(torch.abs(logits)).mean(),
         previous_reward=torch.tensor(previous_reward, device=logits.device),
         last_modulation_delta_norm=torch.tensor(last_delta_norm, device=logits.device),
+    )
+
+
+def _pilot_receiver_view(frame):
+    """返回只含 Adapt/Reward Pilot 的接收端视图。
+
+    真实环境使用 ``Frame.receiver_view``。轻量诊断桩可能只有基础字段，
+    此时按同样的 mask 从已知发送符号构造 Pilot 视图；Data 位置始终置零。
+    """
+
+    receiver_view = getattr(frame, "receiver_view", None)
+    if callable(receiver_view):
+        view = receiver_view()
+        visible_mask = view.adapt_mask | (view.reward_symbols != 0)
+        return replace(
+            view,
+            rx_symbols=torch.where(
+                visible_mask,
+                view.rx_symbols,
+                torch.zeros_like(view.rx_symbols),
+            ),
+        )
+    tx_symbols = getattr(frame, "tx_symbols", torch.zeros_like(frame.rx_symbols))
+    adapt_mask = frame.adapt_mask.to(dtype=torch.bool)
+    reward_mask = frame.reward_mask.to(dtype=torch.bool)
+    return SimpleNamespace(
+        rx_symbols=torch.where(
+            adapt_mask | reward_mask,
+            frame.rx_symbols,
+            torch.zeros_like(frame.rx_symbols),
+        ),
+        adapt_symbols=torch.where(adapt_mask, tx_symbols, torch.zeros_like(tx_symbols)),
+        adapt_mask=adapt_mask.clone(),
+        reward_symbols=torch.where(reward_mask, tx_symbols, torch.zeros_like(tx_symbols)),
+        model_region_ids=frame.model_region_ids.clone(),
     )
 
 

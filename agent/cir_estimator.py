@@ -136,16 +136,21 @@ def decision_directed_cir_update(
     alpha: float,
     confidence_threshold: float | None = None,
 ) -> torch.Tensor:
-    """用当前帧硬判决和 Adapt Pilot 标签更新接收端 CIR。
+    """用 Adapt Pilot 的硬判决更新接收端 CIR。
 
-    该更新只使用接收端在线可见信息：Data 区域使用模型硬判决，Adapt Pilot
-    区域使用已知导频符号；Reward/Data 标签不会进入估计。
+    为满足严格 Pilot-only 协议，拟合行和接收目标都只取 Adapt Pilot。
+    该历史兼容模式不再读取 Reward Pilot 或 Data 波形。
     """
 
-    hard_symbols = torch.where(logits >= 0, torch.ones_like(logits), -torch.ones_like(logits)).to(torch.complex64)
-    tx_estimate = hard_symbols.clone()
-    tx_estimate[frame.adapt_mask] = frame.tx_symbols[frame.adapt_mask]
-    fit_mask = _decision_directed_fit_mask(frame.adapt_mask, logits, confidence_threshold)
+    # 未知区域不能用模型硬判决填充。即使调用方传入了整帧 logits，
+    # CIR 拟合的卷积行也只允许包含已知 Adapt Pilot 和已有 soft tail。
+    # 否则 Data 波形会通过非因果 logits 间接进入在线状态更新。
+    adapt_mask = frame.adapt_mask.to(dtype=torch.bool, device=logits.device)
+    tx_estimate = torch.zeros_like(logits, dtype=torch.complex64)
+    tx_estimate[adapt_mask] = frame.tx_symbols.to(logits.device)[adapt_mask].to(torch.complex64)
+    fit_mask = _decision_directed_fit_mask(adapt_mask, logits, confidence_threshold)
+    # 即使调用方传入了整帧 logits，也不允许未知区域进入 CIR 更新。
+    fit_mask = fit_mask & adapt_mask
     rows = []
     targets = []
     for pos in range(max_delay, tx_estimate.numel()):
@@ -155,7 +160,8 @@ def decision_directed_cir_update(
         for delay in range(max_delay + 1):
             row[delay] = tx_estimate[pos - delay]
         rows.append(row)
-        targets.append(frame.rx_symbols[pos])
+        # 目标位置已经由 fit_mask 限定为 Adapt Pilot；不读取其它区域。
+        targets.append(frame.rx_symbols.to(tx_estimate.device)[pos])
     if len(rows) < max_delay + 1:
         return previous_cir / torch.sqrt(torch.sum(torch.abs(previous_cir) ** 2).clamp_min(1e-12))
     estimate = torch.linalg.lstsq(torch.stack(rows), torch.stack(targets)).solution.to(torch.complex64)

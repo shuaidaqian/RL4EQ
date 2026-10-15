@@ -135,6 +135,8 @@ class PilotResidualRLSAdapter:
             adapt_symbols[full_mask] = frame.tx_symbols[full_mask]
         rx = receiver_view.rx_symbols if hasattr(frame, "receiver_view") else frame.rx_symbols
         rx = rx.to(device)
+        # RLS 也遵守同一条协议：参数递推只能由 Adapt Pilot 波形产生。
+        rx = torch.where(mask, rx, torch.zeros_like(rx))
         adapt_symbols = adapt_symbols.to(device).to(torch.complex64)
         rx_iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0).float()
         region_ids = frame.model_region_ids.to(device).unsqueeze(0).long()
@@ -396,9 +398,16 @@ class PilotDrivenOnlineAdapter:
                 adapt_mask=frame.adapt_mask,
                 model_region_ids=frame.model_region_ids,
             )
-        rx = receiver_view.rx_symbols.to(device)
-        tx = receiver_view.adapt_symbols.to(device).to(torch.complex64)
         mask = mask.to(device)
+        # 更新梯度只能从 Adapt Pilot 产生。把 Reward Pilot 和 Data 的接收
+        # 波形都置零，避免非因果整帧网络通过跨位置计算把未知波形带入梯度。
+        rx = receiver_view.rx_symbols.to(device)
+        rx = torch.where(
+            mask,
+            rx,
+            torch.zeros_like(rx),
+        )
+        tx = receiver_view.adapt_symbols.to(device).to(torch.complex64)
         rx_iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0).float()
         region_ids = frame.model_region_ids.to(device).unsqueeze(0).long()
         adapt_symbols = tx.unsqueeze(0)
@@ -909,17 +918,33 @@ def run_pilot_driven_online(
                     )
                     condition = condition_from_cir(cir, float(snr_db), phase_features=phase_features)
                     tail = receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
-                    rx_iq = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0).float()
+                    full_rx_iq = torch.stack(
+                        (frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1
+                    ).unsqueeze(0).float()
+                    pilot_visible_mask = (frame.adapt_mask | frame.reward_mask).to(
+                        device=device, dtype=torch.bool
+                    )
+                    online_rx_symbols = torch.where(
+                        pilot_visible_mask,
+                        frame.rx_symbols,
+                        torch.zeros_like(frame.rx_symbols),
+                    )
+                    rx_iq = torch.stack(
+                        (online_rx_symbols.real, online_rx_symbols.imag), dim=-1
+                    ).unsqueeze(0).float()
                     region_ids = frame.model_region_ids.unsqueeze(0).long()
-                    adapt_symbols = frame.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64)
+                    receiver_view = frame.receiver_view()
+                    adapt_symbols = receiver_view.adapt_symbols.unsqueeze(0).to(torch.complex64)
                     adapt_mask = frame.adapt_mask.unsqueeze(0).bool()
+                    adapt_labels = (receiver_view.adapt_symbols.real > 0.0).to(frame.bits.dtype)
+                    reward_labels = (receiver_view.reward_symbols.real > 0.0).to(frame.bits.dtype)
                     with torch.no_grad():
                         before_logits, _ = model(
                             rx_iq, condition, region_ids, tail,
                             adapt_symbols=adapt_symbols, adapt_mask=adapt_mask,
                         )
                     before = before_logits.squeeze(0)
-                    adapt_loss_before = _masked_bce(before, frame.bits, frame.adapt_mask)
+                    adapt_loss_before = _masked_bce(before, adapt_labels, frame.adapt_mask)
                     context = {
                         "adapt_loss": float(adapt_loss_before.detach().cpu()),
                         "pilot_confidence": float(condition.confidence.mean().detach().cpu()),
@@ -969,8 +994,8 @@ def run_pilot_driven_online(
                             adapt_symbols=adapt_symbols, adapt_mask=adapt_mask,
                         )
                     after = after_logits.squeeze(0)
-                    reward_before = _masked_bce(before, frame.bits, frame.reward_mask)
-                    reward_after = _masked_bce(after, frame.bits, frame.reward_mask)
+                    reward_before = _masked_bce(before, reward_labels, frame.reward_mask)
+                    reward_after = _masked_bce(after, reward_labels, frame.reward_mask)
                     raw_reward_gain = float(reward_before.detach().cpu() - reward_after.detach().cpu())
                     accepted = bool(
                         not update_applied
@@ -1005,6 +1030,11 @@ def run_pilot_driven_online(
                         torch.tanh(final[-tail_len:] / 2.0),
                         torch.zeros_like(final[-tail_len:]),
                     )
+                    detected_tail = torch.where(
+                        pilot_visible_mask[-tail_len:],
+                        detected_tail,
+                        receiver_state.soft_tail,
+                    )
                     tail_alpha = float(config.get("tail_update_alpha", 0.5))
                     receiver_state.update_tail(
                         (1.0 - tail_alpha) * receiver_state.soft_tail + tail_alpha * detected_tail
@@ -1019,6 +1049,18 @@ def run_pilot_driven_online(
                             cir,
                             alpha=float(cir_update_alpha),
                         ).to(device)
+                    # 所有在线动作、Pilot reward、回滚和跨帧状态更新完成后，
+                    # 才用完整接收波形生成事后 Data 评估输出。
+                    with torch.no_grad():
+                        full_final_logits, _ = model(
+                            full_rx_iq,
+                            condition,
+                            region_ids,
+                            tail,
+                            adapt_symbols=adapt_symbols,
+                            adapt_mask=adapt_mask,
+                        )
+                    final_eval = full_final_logits.squeeze(0)
                     rows.append(
                         {
                             "method": "Pilot-Driven Online Adaptation",
@@ -1029,9 +1071,9 @@ def run_pilot_driven_online(
                             "pilot_layout": str(pilot_layout),
                             "seed": int(seed),
                             "frame": int(frame_index),
-                            "ber_data": _ber(final[frame.data_mask], frame.bits[frame.data_mask]),
-                            "ber_reward_pilot": _ber(final[frame.reward_mask], frame.bits[frame.reward_mask]),
-                            "ber_adapt_pilot": _ber(final[frame.adapt_mask], frame.bits[frame.adapt_mask]),
+                            "ber_data": _ber(final_eval[frame.data_mask], frame.bits[frame.data_mask]),
+                            "ber_reward_pilot": _ber(final_eval[frame.reward_mask], reward_labels[frame.reward_mask]),
+                            "ber_adapt_pilot": _ber(final_eval[frame.adapt_mask], adapt_labels[frame.adapt_mask]),
                             "reward_pilot_loss_before": float(reward_before.detach().cpu()),
                             "reward_pilot_loss_after": float(reward_after.detach().cpu()),
                             "reward_gain_raw": float(raw_reward_gain),
@@ -1082,6 +1124,8 @@ def run_pilot_driven_online(
                             "bandit_context": dict(context),
                             "reward_data_labels_used_online": False,
                             "data_labels_used_online": False,
+                            "data_waveform_used_online": False,
+                            "online_waveform_visibility": "adapt_pilot_for_update_reward_pilot_for_guard",
                             "uses_neural_network": True,
                             "uses_rl": scheduler == "bandit",
                             "pretrained_loaded": pretrained_path is not None,

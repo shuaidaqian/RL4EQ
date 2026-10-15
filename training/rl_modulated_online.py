@@ -164,12 +164,18 @@ def run_rl_modulated_frame(
     frame_index: int,
     update_interval: int,
 ) -> dict:
-    rx_iq = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0).float()
+    # 策略、reward 和跨帧状态都只接收 Adapt/Reward Pilot；Data 只在末尾
+    # 生成离线评估输出。
+    full_rx_iq = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0).float()
+    pilot_mask = (frame.adapt_mask | frame.reward_mask).to(dtype=torch.bool)
+    pilot_rx = torch.where(pilot_mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols))
+    rx_iq = torch.stack((pilot_rx.real, pilot_rx.imag), dim=-1).unsqueeze(0).float()
     region_ids = frame.model_region_ids.unsqueeze(0).long()
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
     logits_before, _ = state.model(rx_iq, condition, region_ids, tail, modulation=state.modulation)
     before = logits_before.squeeze(0)
-    reward_before = _masked_bce(before, frame.bits, frame.reward_mask)
+    pilot_labels = (frame.tx_symbols.real > 0.0).to(frame.bits.dtype)
+    reward_before = _masked_bce(before, pilot_labels, frame.reward_mask)
     view = _policy_view(frame, float(snr_db), before, state.previous_reward, state.last_modulation_delta_norm)
     observation = state.encoder(view).tensor.unsqueeze(0)
     hidden_in = state.hidden.detach()
@@ -177,7 +183,7 @@ def run_rl_modulated_frame(
     candidate = action.state
     logits_after, _ = state.model(rx_iq, condition, region_ids, tail, modulation=candidate)
     after = logits_after.squeeze(0)
-    reward_after = _masked_bce(after, frame.bits, frame.reward_mask)
+    reward_after = _masked_bce(after, pilot_labels, frame.reward_mask)
     delta_norm = float(torch.norm(candidate.to_vector() - state.modulation.to_vector()).detach().cpu())
     reward = float((reward_before - reward_after).detach().cpu()) - 0.001 * delta_norm
     state.rollout.append(
@@ -198,16 +204,20 @@ def run_rl_modulated_frame(
         state.modulation = candidate
     tail_len = state.receiver_state.soft_tail.numel()
     next_tail_real = torch.tanh(after[-tail_len:] / 2.0)
-    state.receiver_state.update_tail(torch.complex(next_tail_real, torch.zeros_like(next_tail_real)))
+    next_tail = torch.complex(next_tail_real, torch.zeros_like(next_tail_real))
+    state.receiver_state.update_tail(torch.where(pilot_mask[-tail_len:], next_tail, state.receiver_state.soft_tail))
+    with torch.no_grad():
+        full_after_logits, _ = state.model(full_rx_iq, condition, region_ids, state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64), modulation=state.modulation)
+    full_after = full_after_logits.squeeze(0)
     state.previous_reward = reward
     state.last_modulation_delta_norm = delta_norm
     return {
         "method": "RL-Modulated Neural Block Equalizer",
         "snr_db": float(snr_db),
         "frame": int(frame_index),
-        "ber_data": bit_error_rate(after[frame.data_mask], frame.bits[frame.data_mask]),
-        "ber_reward_pilot": bit_error_rate(after[frame.reward_mask], frame.bits[frame.reward_mask]),
-        "ber_adapt_pilot": bit_error_rate(after[frame.adapt_mask], frame.bits[frame.adapt_mask]),
+        "ber_data": bit_error_rate(full_after[frame.data_mask], frame.bits[frame.data_mask]),
+        "ber_reward_pilot": bit_error_rate(after[frame.reward_mask], pilot_labels[frame.reward_mask]),
+        "ber_adapt_pilot": bit_error_rate(after[frame.adapt_mask], pilot_labels[frame.adapt_mask]),
         "reward": reward,
         "reward_pilot_loss_before": float(reward_before.detach().cpu()),
         "reward_pilot_loss_after": float(reward_after.detach().cpu()),
@@ -215,6 +225,8 @@ def run_rl_modulated_frame(
         "policy_loss": policy_loss,
         "modulation_delta_norm": delta_norm,
         "data_labels_used_online": False,
+        "data_waveform_used_online": False,
+        "online_waveform_visibility": "adapt_pilot_for_update_reward_pilot_for_guard",
         "adapt_params": int(state.policy.parameter_count() if policy_loss is not None else 0),
         "adapt_steps": int(1 if policy_loss is not None else 0),
         "parameter_delta_norm": delta_norm,
@@ -271,8 +283,9 @@ def _frame_to_device(frame, device: str):
 
 def _policy_view(frame, snr_db: float, logits: torch.Tensor, previous_reward: float, last_delta_norm: float):
     view = frame.receiver_view()
+    pilot_mask = view.adapt_mask | view.reward_symbols.ne(0)
     return SimpleNamespace(
-        rx_symbols=view.rx_symbols,
+        rx_symbols=torch.where(pilot_mask, view.rx_symbols, torch.zeros_like(view.rx_symbols)),
         adapt_symbols=view.adapt_symbols,
         adapt_mask=view.adapt_mask,
         model_region_ids=view.model_region_ids,

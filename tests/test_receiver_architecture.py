@@ -232,8 +232,8 @@ def test_cir_estimator_recovers_noiseless_sparse_channel():
     assert torch.mean(out.support_probability[true_cir.abs() > 1e-4]).item() > 0.8
 
 
-def test_decision_directed_cir_update_can_gate_low_confidence_data_decisions():
-    """低置信错误 Data 判决不应强行进入 DD-CIR 最小二乘更新。"""
+def test_decision_directed_cir_update_excludes_unknown_data_decisions():
+    """未知 Data 判决不应进入 DD-CIR 最小二乘更新。"""
 
     max_delay = 2
     tx = torch.tensor([1, -1, 1, -1, 1, -1, 1, -1], dtype=torch.float32)
@@ -245,7 +245,9 @@ def test_decision_directed_cir_update_can_gate_low_confidence_data_decisions():
         true_cir.unsqueeze(0),
         torch.zeros(1, max_delay, dtype=torch.complex64),
     ).squeeze(0)
-    adapt_mask = torch.tensor([True, True, True, True, False, False, False, False])
+    # 前六个位置属于已知 Adapt Pilot，其中最后两个故意设置为低置信；
+    # 后两个位置模拟未知 Data，必须始终被排除在 CIR 拟合之外。
+    adapt_mask = torch.tensor([True, True, True, True, True, True, False, False])
     wrong_logits = torch.tensor([6.0, -6.0, 6.0, -6.0, -0.05, 0.05, -0.05, 0.05])
     frame = SimpleNamespace(
         adapt_mask=adapt_mask,
@@ -264,9 +266,11 @@ def test_decision_directed_cir_update_can_gate_low_confidence_data_decisions():
         confidence_threshold=0.6,
     )
 
+    # confidence_threshold 只对未知区域有意义；未知区域已被硬性排除，
+    # 因而改变其中的 logits 不应改变任何在线 CIR 结果。
     ungated_nmse = torch.sum(torch.abs(ungated - true_cir) ** 2)
     gated_nmse = torch.sum(torch.abs(gated - true_cir) ** 2)
-    assert gated_nmse < ungated_nmse
+    assert gated_nmse == pytest.approx(float(ungated_nmse))
 
 
 def test_unfolded_equalizer_is_noncausal_and_peft_is_bounded():

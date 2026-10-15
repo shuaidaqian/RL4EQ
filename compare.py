@@ -314,6 +314,21 @@ def main() -> None:
     parser.add_argument("--online-relative-min-reward-improvement", type=float, default=None)
     parser.add_argument("--online-reward-windows", type=int, default=None)
     parser.add_argument(
+        "--online-reward-ranking",
+        choices=[
+            "aggregate_bce",
+            "robust_lcb",
+            "worst_window",
+            "pilot_consensus",
+            "pilot_balanced",
+            "pilot_stable_consensus",
+            "pilot_margin_consensus",
+        ],
+        default=None,
+        help="只用 Reward Pilot 选择候选的排序方式；pilot_margin_consensus 额外使用已知 Pilot 的软边际改善。",
+    )
+    parser.add_argument("--online-reward-ranking-dispersion", type=float, default=None)
+    parser.add_argument(
         "--online-require-reward-signal-reconstruction",
         action="store_true",
         help="要求 Reward Pilot 的复数信号重构误差不退化后才保留 PEFT 更新。",
@@ -388,6 +403,8 @@ def main() -> None:
             "online_adaptation_min_reward_improvement": args.online_min_reward_improvement,
             "online_adaptation_relative_min_reward_improvement": args.online_relative_min_reward_improvement,
             "online_reward_windows": args.online_reward_windows,
+            "online_reward_ranking": args.online_reward_ranking,
+            "online_reward_ranking_dispersion": args.online_reward_ranking_dispersion,
             "online_require_reward_signal_reconstruction": (
                 True if args.online_require_reward_signal_reconstruction else None
             ),
@@ -737,6 +754,10 @@ class PilotOnlineMethodState:
     min_reward_improvement: float = 0.001
     relative_min_reward_improvement: float = 0.0
     reward_pilot_windows: int = 2
+    # 候选排序只使用 Reward Pilot 各子窗口的改善。robust_lcb 用中位数减
+    # 离散度惩罚，避免某个偶然的高收益窗口把不稳定候选排在前面。
+    reward_ranking_mode: str = "aggregate_bce"
+    reward_ranking_dispersion: float = 0.5
     cross_frame_rollback_tolerance: float = 0.00001
     # 在线参数微调可固定 acquisition 条件，以单独度量 PEFT 的增量价值。
     condition_source: str = "pilot_cir_phase"
@@ -944,6 +965,10 @@ def _build_method_states(
                     config.get("online_adaptation_relative_min_reward_improvement", 0.0)
                 ),
                 reward_pilot_windows=max(1, int(config.get("online_reward_windows", 2))),
+                reward_ranking_mode=str(config.get("online_reward_ranking", "aggregate_bce")),
+                reward_ranking_dispersion=float(
+                    config.get("online_reward_ranking_dispersion", 0.5)
+                ),
                 cross_frame_rollback_tolerance=float(
                     config.get("online_cross_frame_rollback_tolerance", 0.00001)
                 ),
@@ -1258,7 +1283,18 @@ def _run_new_or_single_method(
                 state.physical_state,
                 state.phase_tracking_min_confidence,
             ) else state.cir
-        rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
+        full_rx_iq = torch.stack(
+            (frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1
+        ).unsqueeze(0).float()
+        pilot_visible_mask = (frame_device.adapt_mask | frame_device.reward_mask).to(
+            device=device, dtype=torch.bool
+        )
+        online_rx_symbols = torch.where(
+            pilot_visible_mask,
+            frame_device.rx_symbols,
+            torch.zeros_like(frame_device.rx_symbols),
+        )
+        rx_iq = torch.stack((online_rx_symbols.real, online_rx_symbols.imag), dim=-1).unsqueeze(0).float()
         region_ids = frame_device.model_region_ids.unsqueeze(0).long()
         phase_features = _neural_phase_features(
             condition_source=state.condition_source,
@@ -1293,6 +1329,12 @@ def _run_new_or_single_method(
             torch.tanh(logits[-tail_len:] / 2.0),
             torch.zeros_like(logits[-tail_len:]),
         )
+        tail_visible_mask = pilot_visible_mask[-tail_len:]
+        detected_tail = torch.where(
+            tail_visible_mask,
+            detected_tail,
+            state.receiver_state.soft_tail,
+        )
         state.receiver_state.update_tail(
             _update_receiver_tail(
                 state.receiver_state.soft_tail,
@@ -1308,9 +1350,20 @@ def _run_new_or_single_method(
                 state.cir,
                 alpha=float(state.cir_update_alpha),
             ).to(device)
+        # 在线状态更新已经完成；完整波形只用于事后输出评估。
+        with torch.no_grad():
+            full_logits, _ = state.model(
+                full_rx_iq,
+                condition,
+                region_ids,
+                state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64),
+                modulation=state.modulation,
+                adapt_symbols=frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64),
+                adapt_mask=frame_device.adapt_mask.unsqueeze(0).bool(),
+            )
         return _result_from_logits(
             method,
-            logits,
+            full_logits.squeeze(0),
             frame_device,
             0,
             {
@@ -1376,8 +1429,22 @@ def _run_pilot_rls_method(
     del delay, frame_index, update_interval
     device = next(state.model.parameters()).device
     frame_device = _frame_to_device(frame, device)
-    rx_iq = torch.stack(
+    # RLS 的在线决策只能看到两段已知 Pilot。完整波形保留到所有参数
+    # 更新、Reward 守门和状态维护完成之后，仅用于最终 Data 评估。
+    full_rx_iq = torch.stack(
         (frame_device.rx_symbols.real, frame_device.rx_symbols.imag),
+        dim=-1,
+    ).unsqueeze(0).float()
+    pilot_visible_mask = (frame_device.adapt_mask | frame_device.reward_mask).to(
+        device=device, dtype=torch.bool
+    )
+    online_rx_symbols = torch.where(
+        pilot_visible_mask,
+        frame_device.rx_symbols,
+        torch.zeros_like(frame_device.rx_symbols),
+    )
+    rx_iq = torch.stack(
+        (online_rx_symbols.real, online_rx_symbols.imag),
         dim=-1,
     ).unsqueeze(0).float()
     region_ids = frame_device.model_region_ids.unsqueeze(0).long()
@@ -1510,9 +1577,15 @@ def _run_pilot_rls_method(
         ).sum().item()
     )
     tail_len = state.receiver_state.soft_tail.numel()
+    tail_visible_mask = pilot_visible_mask[-tail_len:]
     detected_tail = torch.complex(
         torch.tanh(logits[-tail_len:] / 2.0),
         torch.zeros_like(logits[-tail_len:]),
+    )
+    detected_tail = torch.where(
+        tail_visible_mask,
+        detected_tail,
+        state.receiver_state.soft_tail,
     )
     state.receiver_state.update_tail(
         _update_receiver_tail(
@@ -1521,9 +1594,21 @@ def _run_pilot_rls_method(
             state.tail_update_alpha,
         )
     )
+    # 在线决策已经结束。此处完整波形只生成事后评估输出，不参与 RLS
+    # 参数、Reward 守门或跨帧状态更新。
+    with torch.no_grad():
+        full_logits, _ = state.model(
+            full_rx_iq,
+            condition,
+            region_ids,
+            tail,
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        )
+    final_logits = full_logits.squeeze(0)
     return _result_from_logits(
         method,
-        logits,
+        final_logits,
         frame_device,
         0,
         {
@@ -1573,6 +1658,8 @@ def _run_pilot_rls_method(
             "pilot_state_reconstruction_error": float(pilot_state_summary.reconstruction_error),
             "pilot_state_drift_gate_applied": False,
             "data_labels_used_online": False,
+            "data_waveform_used_online": False,
+            "online_waveform_visibility": "adapt_pilot_for_update_reward_pilot_for_guard",
         },
     )
 
@@ -1601,16 +1688,34 @@ def _run_real_method(method: str, frame, snr_db: float, state: BaselineMethodSta
     if method not in settings:
         raise ValueError(f"未知比较方法：{method}")
     cir, cg_iterations, refine_iterations = settings[method]
-    result = perfect_csi_bpsk_refine_detect(
-        frame.rx_symbols,
+    # 先用 Pilot-only 前向更新在线 CIR/tail。完整接收帧只在状态更新完成后
+    # 生成最终评估输出，不能通过非因果块检测器进入在线状态。
+    pilot_visible_mask = (frame.adapt_mask | frame.reward_mask).to(dtype=torch.bool)
+    pilot_rx = torch.where(frame.adapt_mask | frame.reward_mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols))
+    pilot_result = perfect_csi_bpsk_refine_detect(
+        pilot_rx,
         cir,
         state.receiver_state.soft_tail,
         sigma,
         cg_iterations=cg_iterations,
         refine_iterations=refine_iterations,
     )
-    state.receiver_state.update_tail(result.soft_tail)
-    _update_baseline_cir(method, frame, result.logits, delay, state)
+    tail_len = state.receiver_state.soft_tail.numel()
+    if bool(pilot_visible_mask[-tail_len:].any()):
+        visible_tail = pilot_visible_mask[-tail_len:]
+        state.receiver_state.update_tail(
+            torch.where(visible_tail, pilot_result.soft_tail, state.receiver_state.soft_tail)
+        )
+    _update_baseline_cir(method, frame, pilot_result.logits, delay, state)
+    cir_for_output = frame.true_cir if method == "Perfect-CSI Block" else state.cir
+    result = perfect_csi_bpsk_refine_detect(
+        frame.rx_symbols,
+        cir_for_output,
+        state.receiver_state.soft_tail,
+        sigma,
+        cg_iterations=cg_iterations,
+        refine_iterations=refine_iterations,
+    )
     return RealMethodResult(
         method=method,
         input_hash=_hash_json({"seed": int(frame.frame_index), "method": method, "visible": "rx+adapt"}),
@@ -1619,51 +1724,29 @@ def _run_real_method(method: str, frame, snr_db: float, state: BaselineMethodSta
         ber_adapt_pilot=bit_error_rate(result.logits[frame.adapt_mask], frame.bits[frame.adapt_mask]),
         latency_ms=0.0,
         detector_iterations=int(cg_iterations + refine_iterations),
-        extra=_baseline_extra(method),
+        extra={
+            **_baseline_extra(method),
+            "data_waveform_used_online": False,
+            "online_waveform_visibility": "adapt_pilot_for_update_reward_pilot_for_guard",
+        },
     )
 
 
 def _run_baseline_method_batch(methods: list[str], frame, snr_db: float, states: dict[str, BaselineMethodState | PPOMethodState], delay: int) -> dict[str, RealMethodResult]:
-    sigma = torch.tensor(10.0 ** (-float(snr_db) / 10.0))
-    grouped: dict[tuple[int, int], list[tuple[str, torch.Tensor, ReceiverState]]] = {}
-    for method in methods:
-        state = states[method]
-        if not isinstance(state, BaselineMethodState):
-            raise TypeError("baseline batch 只能处理 BaselineMethodState。")
-        cir, cg_iterations, refine_iterations = _baseline_settings(method, frame, state)
-        grouped.setdefault((cg_iterations, refine_iterations), []).append((method, cir, state.receiver_state))
-
-    results: dict[str, RealMethodResult] = {}
-    for (cg_iterations, refine_iterations), items in grouped.items():
-        rx_b = torch.stack([frame.rx_symbols for _method, _cir, _receiver_state in items], dim=0)
-        cir_b = torch.stack([cir for _method, cir, _receiver_state in items], dim=0)
-        tail_b = torch.stack([receiver_state.soft_tail for _method, _cir, receiver_state in items], dim=0)
-        detection = perfect_csi_bpsk_refine_detect(
-            rx_b,
-            cir_b,
-            tail_b,
-            sigma,
-            cg_iterations=cg_iterations,
-            refine_iterations=refine_iterations,
+    # 该兼容批处理入口优先复用严格隔离的单方法实现。批量化只影响速度，
+    # 不能让整帧块检测结果重新成为在线 CIR/tail 更新来源。
+    return {
+        method: _run_real_method(
+            method,
+            frame,
+            snr_db,
+            states[method],
+            delay,
+            frame_index=int(frame.frame_index),
+            update_interval=1,
         )
-        for batch_index, (method, _cir, receiver_state) in enumerate(items):
-            state = states[method]
-            if not isinstance(state, BaselineMethodState):
-                raise TypeError("baseline batch 只能处理 BaselineMethodState。")
-            receiver_state.update_tail(detection.soft_tail[batch_index])
-            logits = detection.logits[batch_index]
-            _update_baseline_cir(method, frame, logits, delay, state)
-            results[method] = RealMethodResult(
-                method=method,
-                input_hash=_hash_json({"seed": int(frame.frame_index), "method": method, "visible": "rx+adapt"}),
-                ber_data=bit_error_rate(logits[frame.data_mask], frame.bits[frame.data_mask]),
-                ber_reward_pilot=bit_error_rate(logits[frame.reward_mask], frame.bits[frame.reward_mask]),
-                ber_adapt_pilot=bit_error_rate(logits[frame.adapt_mask], frame.bits[frame.adapt_mask]),
-                latency_ms=0.0,
-                detector_iterations=int(cg_iterations + refine_iterations),
-                extra=_baseline_extra(method),
-            )
-    return results
+        for method in methods
+    }
 
 
 def _baseline_settings(method: str, frame, state: BaselineMethodState) -> tuple[torch.Tensor, int, int]:
@@ -1760,7 +1843,21 @@ def _run_pilot_online_method(
     pilot_drift_distance = 0.0
     pilot_drift_gate_applied = False
     pilot_drift_gate_allows_update = True
-    rx_iq = torch.stack((frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1).unsqueeze(0).float()
+    # 在线更新和 Reward 验收严格使用 Pilot 可见波形。Adapt 更新只看
+    # Adapt Pilot；Reward 验收可以看 Adapt + Reward Pilot；Data 波形只在
+    # 下面的最终离线评估前向中使用。
+    full_rx_iq = torch.stack(
+        (frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1
+    ).unsqueeze(0).float()
+    pilot_visible_mask = (frame_device.adapt_mask | frame_device.reward_mask).to(
+        device=device, dtype=torch.bool
+    )
+    online_rx_symbols = torch.where(
+        pilot_visible_mask,
+        frame_device.rx_symbols,
+        torch.zeros_like(frame_device.rx_symbols),
+    )
+    rx_iq = torch.stack((online_rx_symbols.real, online_rx_symbols.imag), dim=-1).unsqueeze(0).float()
     region_ids = frame_device.model_region_ids.unsqueeze(0).long()
     adapt_symbols = frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64)
     adapt_mask = frame_device.adapt_mask.unsqueeze(0).bool()
@@ -1768,6 +1865,9 @@ def _run_pilot_online_method(
     cir_reward_loss_before = None
     cir_reward_loss_after = None
     tracked_state = None
+    # CIR 候选守门发生在状态 embedding 计算之前；该阶段不使用 embedding，
+    # 先显式设为空，避免条件分支引用未初始化变量。
+    online_state_embedding = None
     # 即使当前实验不允许把 Pilot CIR 写回条件，也先用 Adapt Pilot 观测
     # 当前物理状态，供状态 embedding 调制 PEFT；这不会改变冻结主干条件。
     if not updates_frozen:
@@ -1950,14 +2050,31 @@ def _run_pilot_online_method(
             adapt_mask=adapt_mask,
             online_state_embedding=online_state_embedding,
         )
+        # 保存同一参数基线下的完整帧输出，仅用于动作结束后的 Data 评估。
+        full_before_logits, _ = state.model(
+            full_rx_iq,
+            condition,
+            region_ids,
+            tail,
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+            online_state_embedding=online_state_embedding,
+        )
     before = before_logits.squeeze(0)
+    full_before = full_before_logits.squeeze(0)
     receiver_view = frame_device.receiver_view()
     reward_labels = (receiver_view.reward_symbols.real > 0.0).to(frame_device.bits.dtype)
     adapt_labels = (receiver_view.adapt_symbols.real > 0.0).to(frame_device.bits.dtype)
     reward_before = _masked_bce(before, reward_labels, frame_device.reward_mask)
     adapt_loss_before = _masked_bce(before, adapt_labels, frame_device.adapt_mask)
+    ranking_requires_signal = state.reward_ranking_mode in {
+        "pilot_consensus",
+        "pilot_balanced",
+        "pilot_stable_consensus",
+        "pilot_margin_consensus",
+    }
     reward_signal_before = None
-    if state.require_reward_signal_reconstruction:
+    if state.require_reward_signal_reconstruction or ranking_requires_signal:
         reward_signal_before = float(
             _reward_signal_reconstruction_loss(
                 state.model,
@@ -2101,7 +2218,7 @@ def _run_pilot_online_method(
         )
         pending_signal_accept = True
         pending_signal_after = None
-        if state.require_reward_signal_reconstruction:
+        if state.require_reward_signal_reconstruction or ranking_requires_signal:
             pending_signal_after = float(
                 _reward_signal_reconstruction_loss(
                     state.model,
@@ -2115,6 +2232,12 @@ def _run_pilot_online_method(
             )
             pending_signal_accept = bool(
                 reward_signal_before is not None
+                and pending_signal_after
+                <= reward_signal_before + float(state.reward_signal_tolerance)
+            )
+        if ranking_requires_signal and pending_signal_after is not None:
+            pending_signal_accept = bool(
+                pending_signal_accept
                 and pending_signal_after
                 <= reward_signal_before + float(state.reward_signal_tolerance)
             )
@@ -2192,18 +2315,30 @@ def _run_pilot_online_method(
     best_snapshot = None
     best_result = None
     best_reward = float(reward_before.detach().cpu())
-    best_reward_logits = before
+    # 每个候选都和同一个冻结基线比较；不能让候选顺序改变验收结果。
+    baseline_reward_logits = before
     best_reward_window_gains: list[float] = []
     best_name = "skip"
     best_after = before
     best_reward_signal_after = reward_signal_before
     best_reward_logit_delta = 0.0
+    best_reward_ranking_score = float("-inf")
+    best_reward_ranking_stats = {
+        "median_gain": float("nan"),
+        "mad_gain": float("nan"),
+        "min_gain": float("nan"),
+        "bce_lcb": float("nan"),
+        "window_stability": float("nan"),
+        "signal_gain_relative": float("nan"),
+    }
+    best_reward_signal_gain_relative = float("nan")
     reward_signal_candidates_evaluated = 0
     reward_signal_candidates_passed = 0
     reward_signal_candidates_rejected = 0
     reward_logit_candidates_evaluated = 0
     reward_logit_candidates_passed = 0
     reward_logit_candidates_rejected = 0
+    candidate_ranking_records: list[dict[str, object]] = []
     for candidate in candidates:
         state.model.peft.restore(base_snapshot)
         adaptation = state.adapter.adapt(
@@ -2246,7 +2381,7 @@ def _run_pilot_online_method(
                 reward_logit_candidates_rejected += 1
         reward_signal_after = None
         reward_signal_accept = True
-        if state.require_reward_signal_reconstruction:
+        if state.require_reward_signal_reconstruction or ranking_requires_signal:
             reward_signal_candidates_evaluated += 1
             reward_signal_after = float(
                 _reward_signal_reconstruction_loss(
@@ -2269,7 +2404,7 @@ def _run_pilot_online_method(
             else:
                 reward_signal_candidates_rejected += 1
         window_accept, window_gains = _accept_windowed_reward_update(
-            best_reward_logits,
+            baseline_reward_logits,
             after,
             reward_labels,
             frame_device.reward_mask,
@@ -2278,10 +2413,76 @@ def _run_pilot_online_method(
             relative_min_improvement=state.relative_min_reward_improvement,
         )
         hard_ber_accept = _accept_reward_pilot_hard_ber(
-            best_reward_logits,
+            baseline_reward_logits,
             after,
             reward_mask=frame_device.reward_mask,
             reward_symbols=receiver_view.reward_symbols,
+        )
+        margin_window_gains = _reward_pilot_margin_gains(
+            baseline_reward_logits,
+            after,
+            reward_labels,
+            frame_device.reward_mask,
+            windows=state.reward_pilot_windows,
+        )
+        baseline_margin = _reward_pilot_signed_margin(
+            baseline_reward_logits,
+            reward_labels,
+            frame_device.reward_mask,
+        )
+        reward_margin_gain = _reward_pilot_signed_margin(
+            after,
+            reward_labels,
+            frame_device.reward_mask,
+        ) - baseline_margin
+        reward_ranking_score, reward_ranking_stats = _pilot_reward_ranking_score(
+            window_gains,
+            float(reward_before.detach().cpu()) - reward_value,
+            mode=state.reward_ranking_mode,
+            dispersion=state.reward_ranking_dispersion,
+            baseline_loss=float(reward_before.detach().cpu()),
+            signal_gain_relative=(
+                (
+                    float(reward_signal_before) - float(reward_signal_after)
+                )
+                / max(abs(float(reward_signal_before)), 1e-8)
+                if ranking_requires_signal
+                and reward_signal_before is not None
+                and reward_signal_after is not None
+                else None
+            ),
+            margin_window_gains=margin_window_gains,
+            margin_gain_relative=reward_margin_gain / max(abs(baseline_margin), 1.0),
+            margin_baseline=baseline_margin,
+        )
+        consensus_signal_accept = True
+        if ranking_requires_signal:
+            consensus_signal_accept = bool(
+                reward_signal_after is not None
+                and reward_signal_before is not None
+                and reward_signal_after
+                <= reward_signal_before + float(state.reward_signal_tolerance)
+            )
+        candidate_ranking_records.append(
+            {
+                "name": str(candidate["name"]),
+                "score": float(reward_ranking_score),
+                "bce_gain": float(reward_before.detach().cpu() - reward_value),
+                "window_gains": [float(value) for value in window_gains],
+                "bce_lcb": float(reward_ranking_stats["bce_lcb"]),
+                "window_stability": float(reward_ranking_stats["window_stability"]),
+                "signal_gain_relative": float(
+                    reward_ranking_stats["signal_gain_relative"]
+                ),
+                "margin_gain_relative": float(
+                    reward_ranking_stats["margin_gain_relative"]
+                ),
+                "window_guard_passed": bool(window_accept),
+                "hard_ber_guard_passed": bool(hard_ber_accept),
+                "signal_guard_passed": bool(reward_signal_accept and consensus_signal_accept),
+                "logit_guard_passed": bool(reward_logit_accept),
+                "adaptation_accepted": bool(adaptation.accepted),
+            }
         )
         if (
             adaptation.accepted
@@ -2289,16 +2490,22 @@ def _run_pilot_online_method(
             and hard_ber_accept
             and reward_logit_accept
             and reward_signal_accept
+            and consensus_signal_accept
+            and reward_ranking_score > best_reward_ranking_score
         ):
             best_snapshot = state.model.peft.snapshot(candidate_groups)
             best_result = adaptation
             best_reward = reward_value
-            best_reward_logits = after
             best_reward_window_gains = window_gains
             best_name = str(candidate["name"])
             best_after = after
             best_reward_signal_after = reward_signal_after
             best_reward_logit_delta = reward_logit_delta
+            best_reward_ranking_score = float(reward_ranking_score)
+            best_reward_ranking_stats = reward_ranking_stats
+            best_reward_signal_gain_relative = float(
+                reward_ranking_stats["signal_gain_relative"]
+            )
     state.model.peft.restore(base_snapshot)
     update_applied = bool(candidates) and selected_action.name != "skip"
     pending_update_scheduled = False
@@ -2353,33 +2560,50 @@ def _run_pilot_online_method(
         state.previous_parameter_delta_norm = float(
             adaptation.parameter_delta_norm if adaptation is not None and accepted else 0.0
         )
+    # 跨帧 soft tail 也只能由 Pilot 输出更新。prefix Pilot 通常不覆盖帧尾，
+    # 此时保持旧 tail，避免把 Data 的硬/软判决带入下一帧在线状态。
+    online_final = final
     tail_len = state.receiver_state.soft_tail.numel()
-    detected_tail = torch.complex(
-        torch.tanh(final[-tail_len:] / 2.0),
-        torch.zeros_like(final[-tail_len:]),
-    )
-    state.receiver_state.update_tail(
-        _update_receiver_tail(
-            state.receiver_state.soft_tail,
-            detected_tail,
-            state.tail_update_alpha,
+    tail_visible_mask = pilot_visible_mask[-tail_len:]
+    if bool(tail_visible_mask.any()):
+        old_tail = state.receiver_state.soft_tail
+        detected_tail = torch.complex(
+            torch.tanh(online_final[-tail_len:] / 2.0),
+            torch.zeros_like(online_final[-tail_len:]),
         )
-    )
+        detected_tail = torch.where(tail_visible_mask, detected_tail, old_tail)
+        state.receiver_state.update_tail(
+            _update_receiver_tail(old_tail, detected_tail, state.tail_update_alpha)
+        )
     if state.cir_update_mode == "decision_directed":
+        # 该历史兼容模式只允许在 Pilot 输出上更新；主路线不会启用它。
         state.cir = decision_directed_cir_update(
             frame_device,
-            final.detach(),
+            online_final.detach(),
             int(delay),
             state.cir,
             alpha=float(state.cir_update_alpha),
         ).to(device)
+    # 参数已经由 Pilot-only 路径决定后，才用完整接收帧生成 Data 评估输出。
+    # 这一步不参与任何在线更新、排序、守门或状态维护。
+    with torch.no_grad():
+        full_final_logits, _ = state.model(
+            full_rx_iq,
+            condition,
+            region_ids,
+            tail,
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+            online_state_embedding=online_state_embedding,
+        )
+    final = full_final_logits.squeeze(0)
     # 这些字段只用于离线评估更新对 Data 区域输出的影响；Data 标签不参与
     # 候选优化、Reward 守门或参数更新。
     data_mask = frame_device.data_mask.to(device=device, dtype=torch.bool)
     if bool(data_mask.any()):
-        data_bce_before = _masked_bce(before, frame_device.bits, data_mask)
+        data_bce_before = _masked_bce(full_before, frame_device.bits, data_mask)
         data_bce_after = _masked_bce(final, frame_device.bits, data_mask)
-        data_logit_delta = torch.mean(torch.abs(final[data_mask] - before[data_mask]))
+        data_logit_delta = torch.mean(torch.abs(final[data_mask] - full_before[data_mask]))
     else:
         data_bce_before = torch.zeros((), device=device)
         data_bce_after = torch.zeros((), device=device)
@@ -2504,6 +2728,23 @@ def _run_pilot_online_method(
             "data_logit_delta_mean_abs_eval_only": float(data_logit_delta.detach().cpu()),
             "reward_pilot_windows": int(state.reward_pilot_windows),
             "reward_pilot_window_gains": best_reward_window_gains,
+            "reward_pilot_ranking_mode": str(state.reward_ranking_mode),
+            "reward_pilot_ranking_score": float(best_reward_ranking_score),
+            "reward_pilot_window_median_gain": float(
+                best_reward_ranking_stats["median_gain"]
+            ),
+            "reward_pilot_window_mad_gain": float(
+                best_reward_ranking_stats["mad_gain"]
+            ),
+            "reward_pilot_window_min_gain": float(
+                best_reward_ranking_stats["min_gain"]
+            ),
+            "reward_pilot_window_stability": float(
+                best_reward_ranking_stats["window_stability"]
+            ),
+            "reward_pilot_bce_lcb": float(best_reward_ranking_stats["bce_lcb"]),
+            "reward_pilot_signal_gain_relative": float(best_reward_signal_gain_relative),
+            "reward_pilot_candidate_ranking": candidate_ranking_records,
             "reward_pilot_hard_ber_guard": True,
             "reward_pilot_hard_ber_before": int(
                 ((before[frame_device.reward_mask] >= 0.0) != (reward_labels[frame_device.reward_mask] >= 0.5)).sum().item()
@@ -2548,6 +2789,8 @@ def _run_pilot_online_method(
             "bandit_rollback_penalty": float(bandit_rollback_penalty),
             "bandit_context": dict(bandit_context),
             "data_labels_used_online": False,
+            "data_waveform_used_online": False,
+            "online_waveform_visibility": "adapt_pilot_for_update_reward_pilot_for_guard",
             "pretrained_loaded": bool(state.pretrained_loaded),
             "frame_index": int(frame_index),
             "pilot_phase_tracking": bool(state.cir_update_mode == "pilot_sparse" and not updates_frozen),
@@ -2781,6 +3024,183 @@ def _accept_windowed_reward_update(
     return accepted, gains
 
 
+def _pilot_reward_ranking_score(
+    window_gains: list[float],
+    aggregate_gain: float,
+    *,
+    mode: str = "aggregate_bce",
+    dispersion: float = 0.5,
+    baseline_loss: float = 1.0,
+    signal_gain_relative: float | None = None,
+    margin_window_gains: list[float] | None = None,
+    margin_gain_relative: float | None = None,
+    margin_baseline: float = 1.0,
+) -> tuple[float, dict[str, float]]:
+    """根据 Reward Pilot 子窗口给候选排序，只使用已知 Pilot 符号。
+
+    ``aggregate_bce`` 延续旧策略，按整个 Reward Pilot 的 BCE 改善排序。
+    ``robust_lcb`` 取窗口改善的中位数并减去 MAD 惩罚，能降低单个偶然
+    窗口对候选排序的影响。``worst_window`` 直接按最差窗口排序，适合
+    需要极保守更新的压力测试。``pilot_consensus`` 把 BCE 下界按基线损失
+    归一化，并与 Reward Pilot 的复数信号重构相对改善取较小值；
+    ``pilot_balanced`` 对两个归一化改善取几何平均；
+    ``pilot_stable_consensus`` 在此基础上再乘以跨窗口稳定性，降低只在
+    少数 Reward Pilot 子窗口偶然有效的候选排名。``pilot_margin_consensus``
+    进一步要求已知 Pilot 的符号软边际也改善，适合 Reward Pilot 很短、硬
+    BER 变化过于离散的场景。所有模式都只接收 Pilot 指标，不接收 Data。
+    """
+
+    selected_mode = str(mode).strip().lower()
+    if selected_mode not in {
+        "aggregate_bce",
+        "robust_lcb",
+        "worst_window",
+        "pilot_consensus",
+        "pilot_balanced",
+        "pilot_stable_consensus",
+        "pilot_margin_consensus",
+    }:
+        raise ValueError(
+            "online_reward_ranking 必须是 aggregate_bce、robust_lcb、worst_window、pilot_consensus、pilot_balanced、pilot_stable_consensus 或 pilot_margin_consensus。"
+        )
+    values = [float(value) for value in window_gains if math.isfinite(float(value))]
+    if not values or not math.isfinite(float(aggregate_gain)):
+        return float("-inf"), {
+            "median_gain": float("nan"),
+            "mad_gain": float("nan"),
+            "min_gain": float("nan"),
+            "bce_lcb": float("nan"),
+            "window_stability": float("nan"),
+            "signal_gain_relative": float("nan"),
+            "margin_gain_relative": float("nan"),
+        }
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        median_gain = ordered[middle]
+    else:
+        median_gain = 0.5 * (ordered[middle - 1] + ordered[middle])
+    deviations = sorted(abs(value - median_gain) for value in ordered)
+    mad_middle = len(deviations) // 2
+    if len(deviations) % 2:
+        mad_gain = deviations[mad_middle]
+    else:
+        mad_gain = 0.5 * (deviations[mad_middle - 1] + deviations[mad_middle])
+    minimum_gain = min(ordered)
+    bce_lcb = float(median_gain - float(dispersion) * 1.4826 * mad_gain)
+    normalized_bce_lcb = bce_lcb / max(abs(float(baseline_loss)), 1e-8)
+    # 稳定性同时考虑稳健离散度和正收益窗口占比。仅看 MAD 会漏掉
+    # “大多数窗口相同、少数窗口明显退化”的情况，因此加入符号一致性。
+    positive_fraction = sum(value > 0.0 for value in values) / max(len(values), 1)
+    relative_dispersion = (1.4826 * mad_gain) / max(abs(median_gain), 1e-8)
+    dispersion_stability = max(0.0, min(1.0, 1.0 - relative_dispersion))
+    window_stability = float(max(0.0, min(1.0, positive_fraction * dispersion_stability)))
+    if selected_mode == "aggregate_bce":
+        score = float(aggregate_gain)
+    elif selected_mode == "worst_window":
+        score = float(minimum_gain)
+    elif selected_mode in {"pilot_consensus", "pilot_balanced", "pilot_stable_consensus", "pilot_margin_consensus"}:
+        signal_score = (
+            float(signal_gain_relative)
+            if signal_gain_relative is not None and math.isfinite(float(signal_gain_relative))
+            else float("-inf")
+        )
+        if selected_mode == "pilot_consensus":
+            score = float(min(normalized_bce_lcb, signal_score))
+        elif selected_mode == "pilot_balanced" and normalized_bce_lcb > 0.0 and signal_score > 0.0:
+            # 几何平均不引入手工权重，能同时奖励两个 Pilot 视图，
+            # 并惩罚其中一个视图接近零的候选。
+            score = float(math.sqrt(normalized_bce_lcb * signal_score))
+        elif selected_mode == "pilot_stable_consensus":
+            consensus = min(normalized_bce_lcb, signal_score)
+            score = float(consensus * window_stability)
+        elif selected_mode == "pilot_margin_consensus":
+            margin_values = [float(value) for value in (margin_window_gains or []) if math.isfinite(float(value))]
+            if margin_values:
+                margin_ordered = sorted(margin_values)
+                margin_middle = len(margin_ordered) // 2
+                margin_median = (
+                    margin_ordered[margin_middle]
+                    if len(margin_ordered) % 2
+                    else 0.5 * (margin_ordered[margin_middle - 1] + margin_ordered[margin_middle])
+                )
+                margin_deviations = sorted(abs(value - margin_median) for value in margin_ordered)
+                margin_mad_middle = len(margin_deviations) // 2
+                margin_mad = (
+                    margin_deviations[margin_mad_middle]
+                    if len(margin_deviations) % 2
+                    else 0.5 * (margin_deviations[margin_mad_middle - 1] + margin_deviations[margin_mad_middle])
+                )
+                margin_lcb = float(margin_median - float(dispersion) * 1.4826 * margin_mad)
+                margin_score = float(margin_lcb / max(abs(float(margin_baseline)), 1.0))
+            else:
+                margin_score = float("-inf")
+            # 三个 Pilot 证据都必须支持同一个候选；稳定性沿用 BCE 子窗口。
+            score = float(min(normalized_bce_lcb, signal_score, margin_score) * window_stability)
+        else:
+            score = float(min(normalized_bce_lcb, signal_score))
+    else:
+        # 1.4826 把 MAD 换算为正态分布下的稳健标准差，dispersion
+        # 控制保守程度；默认 0.5 保留收益同时惩罚跨窗口不一致。
+        score = bce_lcb
+    return score, {
+        "median_gain": float(median_gain),
+        "mad_gain": float(mad_gain),
+        "min_gain": float(minimum_gain),
+        "bce_lcb": float(bce_lcb),
+        "window_stability": float(window_stability),
+        "signal_gain_relative": (
+            float(signal_gain_relative)
+            if signal_gain_relative is not None and math.isfinite(float(signal_gain_relative))
+            else float("nan")
+        ),
+        "margin_gain_relative": (
+            float(margin_gain_relative)
+            if margin_gain_relative is not None and math.isfinite(float(margin_gain_relative))
+            else float("nan")
+        ),
+    }
+
+
+def _reward_pilot_signed_margin(
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    reward_mask: torch.Tensor,
+) -> float:
+    """计算 Reward Pilot 已知符号对应的平均软边际。"""
+
+    mask = reward_mask.reshape(-1).to(device=logits.device, dtype=torch.bool)
+    if not bool(mask.any()):
+        return 0.0
+    target_sign = labels.reshape(-1).to(device=logits.device, dtype=logits.dtype) * 2.0 - 1.0
+    return float((target_sign[mask] * logits.reshape(-1)[mask]).mean().detach().cpu())
+
+
+def _reward_pilot_margin_gains(
+    logits_before: torch.Tensor,
+    logits_after: torch.Tensor,
+    labels: torch.Tensor,
+    reward_mask: torch.Tensor,
+    *,
+    windows: int = 2,
+) -> list[float]:
+    """按 Reward Pilot 子窗口计算软边际改善，只读取已知 Pilot 标签。"""
+
+    mask = reward_mask.reshape(-1).to(device=logits_before.device, dtype=torch.bool)
+    positions = torch.nonzero(mask, as_tuple=False).flatten()
+    if positions.numel() == 0:
+        return []
+    target_sign = labels.reshape(-1).to(device=logits_before.device, dtype=logits_before.dtype) * 2.0 - 1.0
+    gains: list[float] = []
+    for chunk in torch.tensor_split(positions, max(1, min(int(windows), int(positions.numel())))):
+        if chunk.numel() == 0:
+            continue
+        before = (target_sign[chunk] * logits_before.reshape(-1)[chunk]).mean()
+        after = (target_sign[chunk] * logits_after.reshape(-1)[chunk]).mean()
+        gains.append(float((after - before).detach().cpu()))
+    return gains
+
+
 def _reward_signal_reconstruction_loss(
     model: UnfoldedEqualizer,
     frame,
@@ -2799,7 +3219,13 @@ def _reward_signal_reconstruction_loss(
     with torch.no_grad():
         view = frame.receiver_view()
         device = next(model.parameters()).device
+        pilot_visible = (view.adapt_mask | view.reward_symbols.ne(0)).to(
+            device=device, dtype=torch.bool
+        )
         rx = view.rx_symbols.to(device).to(torch.complex64).reshape(-1)
+        # Reward 信号守门只允许看到 Pilot 波形；Data 波形即使存在于整帧
+        # 缓冲区，也不能通过非因果前向影响候选排序。
+        rx = torch.where(pilot_visible.reshape(-1), rx, torch.zeros_like(rx))
         known_tx = (
             view.adapt_symbols.to(device).to(torch.complex64)
             + view.reward_symbols.to(device).to(torch.complex64)
@@ -2989,8 +3415,10 @@ def _frame_to_device(frame, device: torch.device | str):
 
 def _run_ppo_method(method: str, frame, snr_db: float, state: PPOMethodState, delay: int, frame_index: int, update_interval: int) -> RealMethodResult:
     sigma = torch.tensor(10.0 ** (-float(snr_db) / 10.0))
+    pilot_mask = (frame.adapt_mask | frame.reward_mask).to(dtype=torch.bool)
+    pilot_rx = torch.where(pilot_mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols))
     before = perfect_csi_bpsk_refine_detect(
-        frame.rx_symbols,
+        pilot_rx,
         state.cir,
         state.receiver_state.soft_tail,
         sigma,
@@ -3013,15 +3441,16 @@ def _run_ppo_method(method: str, frame, snr_db: float, state: PPOMethodState, de
         state.receiver_state.update_tail(state.last_good_tail)
     cg_iterations, refine_iterations = _detector_settings(action)
     result = perfect_csi_bpsk_refine_detect(
-        frame.rx_symbols,
+        pilot_rx,
         state.cir,
         state.receiver_state.soft_tail,
         sigma,
         cg_iterations=cg_iterations,
         refine_iterations=refine_iterations,
     )
-    reward_loss_before = _masked_bce(before.logits, frame.bits, frame.reward_mask)
-    reward_loss_after = _masked_bce(result.logits, frame.bits, frame.reward_mask)
+    pilot_labels = (frame.tx_symbols.real > 0.0).to(frame.bits.dtype)
+    reward_loss_before = _masked_bce(before.logits, pilot_labels, frame.reward_mask)
+    reward_loss_after = _masked_bce(result.logits, pilot_labels, frame.reward_mask)
     reward = float((reward_loss_before - reward_loss_after).detach().cpu())
     reward -= 0.0005 * max(0, cg_iterations - 8)
     reward -= 0.001 * refine_iterations
@@ -3044,17 +3473,31 @@ def _run_ppo_method(method: str, frame, snr_db: float, state: PPOMethodState, de
     if should_update:
         policy_loss = _ppo_update(state.policy, state.optimizer, state.rollout)
         state.rollout.clear()
-    state.receiver_state.update_tail(result.soft_tail)
+    tail_len = state.receiver_state.soft_tail.numel()
+    if bool(pilot_mask[-tail_len:].any()):
+        visible_tail = pilot_mask[-tail_len:]
+        state.receiver_state.update_tail(
+            torch.where(visible_tail, result.soft_tail, state.receiver_state.soft_tail)
+        )
     cir_alpha = 0.2 if action.mode not in {"skip", "rollback"} else 0.05
     state.cir = _decision_directed_cir_update(frame, result.logits, int(delay), state.cir, alpha=cir_alpha * float(action.cir_trust))
+    # Pilot 驱动的 CIR/tail 更新结束后，完整波形只用于最终事后评估。
+    final = perfect_csi_bpsk_refine_detect(
+        frame.rx_symbols,
+        state.cir,
+        state.receiver_state.soft_tail,
+        sigma,
+        cg_iterations=cg_iterations,
+        refine_iterations=refine_iterations,
+    )
     state.previous_reward = reward
     state.last_parameter_delta_norm = parameter_delta_norm
     return RealMethodResult(
         method=method,
         input_hash=_hash_json({"seed": int(frame.frame_index), "method": method, "visible": "rx+adapt+policy"}),
-        ber_data=bit_error_rate(result.logits[frame.data_mask], frame.bits[frame.data_mask]),
-        ber_reward_pilot=bit_error_rate(result.logits[frame.reward_mask], frame.bits[frame.reward_mask]),
-        ber_adapt_pilot=bit_error_rate(result.logits[frame.adapt_mask], frame.bits[frame.adapt_mask]),
+        ber_data=bit_error_rate(final.logits[frame.data_mask], frame.bits[frame.data_mask]),
+        ber_reward_pilot=bit_error_rate(result.logits[frame.reward_mask], pilot_labels[frame.reward_mask]),
+        ber_adapt_pilot=bit_error_rate(result.logits[frame.adapt_mask], pilot_labels[frame.adapt_mask]),
         latency_ms=0.0,
         detector_iterations=int(cg_iterations + refine_iterations),
         extra={
@@ -3070,6 +3513,8 @@ def _run_ppo_method(method: str, frame, snr_db: float, state: PPOMethodState, de
             "adapt_params": int(state.policy.parameter_count() if should_update else 0),
             "parameter_delta_norm": parameter_delta_norm,
             "cir_update": "decision_directed",
+            "data_waveform_used_online": False,
+            "online_waveform_visibility": "adapt_pilot_for_update_reward_pilot_for_guard",
         },
     )
 
