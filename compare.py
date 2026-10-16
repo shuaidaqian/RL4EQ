@@ -1803,6 +1803,65 @@ def _result_from_logits(method: str, logits: torch.Tensor, frame, iterations: in
     )
 
 
+def _data_eval_metrics(
+    before_logits: torch.Tensor,
+    after_logits: torch.Tensor,
+    frame,
+) -> dict[str, float]:
+    """计算 Data 区域的事后诊断指标。
+
+    该函数只应在在线候选排序、验收、回滚和状态更新全部结束后调用。返回值
+    仅用于离线分析，不得回流到在线控制路径。
+    """
+
+    device = after_logits.device
+    data_mask = frame.data_mask.to(device=device, dtype=torch.bool)
+    bits = frame.bits.to(device=device)
+    if not bool(data_mask.any()):
+        return {
+            "bce_before": 0.0,
+            "bce_after": 0.0,
+            "bce_improvement": 0.0,
+            "ber_before": 0.0,
+            "ber_after": 0.0,
+            "ber_improvement": 0.0,
+            "logits_abs_delta_mean": 0.0,
+            "logits_direction_change_rate": 0.0,
+            "soft_output_delta_mean": 0.0,
+        }
+    bce_before = _masked_bce(before_logits, bits, data_mask)
+    bce_after = _masked_bce(after_logits, bits, data_mask)
+    ber_before = bit_error_rate(before_logits[data_mask], bits[data_mask])
+    ber_after = bit_error_rate(after_logits[data_mask], bits[data_mask])
+    before_data = before_logits[data_mask]
+    after_data = after_logits[data_mask]
+    return {
+        "bce_before": float(bce_before.detach().cpu()),
+        "bce_after": float(bce_after.detach().cpu()),
+        "bce_improvement": float((bce_before - bce_after).detach().cpu()),
+        "ber_before": float(ber_before),
+        "ber_after": float(ber_after),
+        "ber_improvement": float(ber_before - ber_after),
+        "logits_abs_delta_mean": float(
+            torch.mean(torch.abs(after_data - before_data)).detach().cpu()
+        ),
+        "logits_direction_change_rate": float(
+            ((before_data >= 0.0) != (after_data >= 0.0))
+            .to(torch.float32)
+            .mean()
+            .detach()
+            .cpu()
+        ),
+        "soft_output_delta_mean": float(
+            torch.mean(
+                torch.abs(torch.sigmoid(after_data) - torch.sigmoid(before_data))
+            )
+            .detach()
+            .cpu()
+        ),
+    }
+
+
 def _run_pilot_online_method(
     method: str,
     frame,
@@ -2050,18 +2109,7 @@ def _run_pilot_online_method(
             adapt_mask=adapt_mask,
             online_state_embedding=online_state_embedding,
         )
-        # 保存同一参数基线下的完整帧输出，仅用于动作结束后的 Data 评估。
-        full_before_logits, _ = state.model(
-            full_rx_iq,
-            condition,
-            region_ids,
-            tail,
-            adapt_symbols=adapt_symbols,
-            adapt_mask=adapt_mask,
-            online_state_embedding=online_state_embedding,
-        )
     before = before_logits.squeeze(0)
-    full_before = full_before_logits.squeeze(0)
     receiver_view = frame_device.receiver_view()
     reward_labels = (receiver_view.reward_symbols.real > 0.0).to(frame_device.bits.dtype)
     adapt_labels = (receiver_view.adapt_symbols.real > 0.0).to(frame_device.bits.dtype)
@@ -2339,6 +2387,7 @@ def _run_pilot_online_method(
     reward_logit_candidates_passed = 0
     reward_logit_candidates_rejected = 0
     candidate_ranking_records: list[dict[str, object]] = []
+    candidate_snapshot_records: list[tuple[dict[str, object], object]] = []
     for candidate in candidates:
         state.model.peft.restore(base_snapshot)
         adaptation = state.adapter.adapt(
@@ -2484,6 +2533,10 @@ def _run_pilot_online_method(
                 "adaptation_accepted": bool(adaptation.accepted),
             }
         )
+        # 快照只用于在线决策完成后的事后 Data 诊断，不参与当前帧的排序或守门。
+        candidate_snapshot_records.append(
+            (candidate_ranking_records[-1], state.model.peft.snapshot(candidate_groups))
+        )
         if (
             adaptation.accepted
             and window_accept
@@ -2533,6 +2586,9 @@ def _run_pilot_online_method(
         accepted = True
         final = best_after
         reward_after = torch.as_tensor(best_reward, device=reward_before.device)
+    # 保存当前帧最终接受（或冻结）的 PEFT 参数。后面的事后 Data 诊断会临时
+    # 恢复每个候选快照，完成后必须恢复这个快照，不能改变在线状态。
+    final_peft_snapshot = state.model.peft.snapshot(candidate_groups)
     if accepted:
         state.last_pre_update_groups = frozenset(candidate_groups)
         state.last_pre_update_snapshot = base_snapshot
@@ -2584,8 +2640,58 @@ def _run_pilot_online_method(
             state.cir,
             alpha=float(state.cir_update_alpha),
         ).to(device)
-    # 参数已经由 Pilot-only 路径决定后，才用完整接收帧生成 Data 评估输出。
-    # 这一步不参与任何在线更新、排序、守门或状态维护。
+
+    # 至此本帧在线决策、接受/拒绝、回滚以及 Pilot 状态更新全部结束。
+    # 从这一行开始才允许读取完整接收帧，所有结果都只用于事后诊断。
+    state.model.peft.restore(base_snapshot)
+    with torch.no_grad():
+        full_before_logits, _ = state.model(
+            full_rx_iq,
+            condition,
+            region_ids,
+            tail,
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+            online_state_embedding=online_state_embedding,
+        )
+    full_before = full_before_logits.squeeze(0)
+    for ranking_record, candidate_snapshot in candidate_snapshot_records:
+        state.model.peft.restore(candidate_snapshot)
+        with torch.no_grad():
+            candidate_full_logits, _ = state.model(
+                full_rx_iq,
+                condition,
+                region_ids,
+                tail,
+                adapt_symbols=adapt_symbols,
+                adapt_mask=adapt_mask,
+                online_state_embedding=online_state_embedding,
+            )
+        candidate_data = _data_eval_metrics(
+            full_before,
+            candidate_full_logits.squeeze(0),
+            frame_device,
+        )
+        ranking_record.update(
+            {
+                "data_bce_before_eval_only": candidate_data["bce_before"],
+                "data_bce_after_eval_only": candidate_data["bce_after"],
+                "data_bce_improvement_eval_only": candidate_data["bce_improvement"],
+                "data_ber_before_eval_only": candidate_data["ber_before"],
+                "data_ber_after_eval_only": candidate_data["ber_after"],
+                "data_ber_improvement_eval_only": candidate_data["ber_improvement"],
+                "data_logits_abs_delta_mean_eval_only": candidate_data[
+                    "logits_abs_delta_mean"
+                ],
+                "data_logits_direction_change_rate_eval_only": candidate_data[
+                    "logits_direction_change_rate"
+                ],
+                "data_soft_output_delta_mean_eval_only": candidate_data[
+                    "soft_output_delta_mean"
+                ],
+            }
+        )
+    state.model.peft.restore(final_peft_snapshot)
     with torch.no_grad():
         full_final_logits, _ = state.model(
             full_rx_iq,
@@ -2599,15 +2705,7 @@ def _run_pilot_online_method(
     final = full_final_logits.squeeze(0)
     # 这些字段只用于离线评估更新对 Data 区域输出的影响；Data 标签不参与
     # 候选优化、Reward 守门或参数更新。
-    data_mask = frame_device.data_mask.to(device=device, dtype=torch.bool)
-    if bool(data_mask.any()):
-        data_bce_before = _masked_bce(full_before, frame_device.bits, data_mask)
-        data_bce_after = _masked_bce(final, frame_device.bits, data_mask)
-        data_logit_delta = torch.mean(torch.abs(final[data_mask] - full_before[data_mask]))
-    else:
-        data_bce_before = torch.zeros((), device=device)
-        data_bce_after = torch.zeros((), device=device)
-        data_logit_delta = torch.zeros((), device=device)
+    final_data = _data_eval_metrics(full_before, final, frame_device)
     return _result_from_logits(
         method,
         final,
@@ -2723,9 +2821,19 @@ def _run_pilot_online_method(
             "reward_logit_change_candidates_rejected": int(
                 reward_logit_candidates_rejected
             ),
-            "data_bce_before_eval_only": float(data_bce_before.detach().cpu()),
-            "data_bce_after_eval_only": float(data_bce_after.detach().cpu()),
-            "data_logit_delta_mean_abs_eval_only": float(data_logit_delta.detach().cpu()),
+            "data_bce_before_eval_only": final_data["bce_before"],
+            "data_bce_after_eval_only": final_data["bce_after"],
+            "data_bce_improvement_eval_only": final_data["bce_improvement"],
+            "data_ber_before_eval_only": final_data["ber_before"],
+            "data_ber_after_eval_only": final_data["ber_after"],
+            "data_ber_improvement_eval_only": final_data["ber_improvement"],
+            "data_logit_delta_mean_abs_eval_only": final_data["logits_abs_delta_mean"],
+            "data_logits_direction_change_rate_eval_only": final_data[
+                "logits_direction_change_rate"
+            ],
+            "data_soft_output_delta_mean_eval_only": final_data[
+                "soft_output_delta_mean"
+            ],
             "reward_pilot_windows": int(state.reward_pilot_windows),
             "reward_pilot_window_gains": best_reward_window_gains,
             "reward_pilot_ranking_mode": str(state.reward_ranking_mode),

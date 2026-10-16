@@ -327,6 +327,29 @@ def test_pilot_margin_consensus_uses_soft_margin_as_third_pilot_view():
     assert rejected < supported
 
 
+def test_data_eval_metrics_are_continuous_and_marked_as_post_update_diagnostics():
+    import torch
+    from types import SimpleNamespace
+    import compare
+
+    frame = SimpleNamespace(
+        data_mask=torch.tensor([False, True, True, False]),
+        bits=torch.tensor([0.0, 1.0, 0.0, 1.0]),
+    )
+    before = torch.tensor([-2.0, -0.2, 0.2, 2.0])
+    after = torch.tensor([-2.0, 0.8, -0.8, 2.0])
+
+    metrics = compare._data_eval_metrics(before, after, frame)
+
+    assert metrics["bce_improvement"] > 0.0
+    assert metrics["ber_before"] == pytest.approx(1.0)
+    assert metrics["ber_after"] == pytest.approx(0.0)
+    assert metrics["ber_improvement"] == pytest.approx(1.0)
+    assert metrics["logits_abs_delta_mean"] == pytest.approx(1.0)
+    assert metrics["logits_direction_change_rate"] == pytest.approx(1.0)
+    assert metrics["soft_output_delta_mean"] > 0.0
+
+
 def test_unknown_data_waveform_is_removed_before_online_cir_update():
     import torch
     from types import SimpleNamespace

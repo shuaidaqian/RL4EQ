@@ -66,3 +66,47 @@ Reward 和历史 RL runner。完整测试仍需在本轮所有修改完成后重
 
 当前明确不做：decision-directed Data 伪标签、Data 驱动 Reward、Contextual Bandit
 扩展和离线 checkpoint 重训。
+
+## 候选级 Data 事后诊断
+
+本轮把完整 Data 前向严格移动到当前帧的 Pilot 排序、接受/拒绝、回滚和 Pilot
+状态更新全部结束之后。每个候选的 PEFT 快照只在这个阶段临时恢复，记录以下指标，
+然后恢复最终接受或冻结的 PEFT 参数：
+
+- `data_bce_improvement_eval_only`、`data_ber_improvement_eval_only`；
+- `data_logits_abs_delta_mean_eval_only`；
+- `data_logits_direction_change_rate_eval_only`；
+- `data_soft_output_delta_mean_eval_only`。
+
+这些字段只进入 `reward_pilot_candidate_ranking` 日志，不能进入当前帧的候选排序、
+Reward、接受/拒绝、回滚、CIR、soft-tail 或跨帧状态。最终帧级字段也使用同一
+`_eval_only` 语义。新增的 `scripts/summarize_pilot_ranking_replay.py` 只做离线
+统计，并在发现任何在线 Data 标志时直接报错。
+
+## 独立 seed replay 结果
+
+固定 checkpoint、Level B、delay=116、prefix Pilot=256（Adapt=224、Reward=32）、
+SNR=5/10/15 dB、seed=2/3/4、每个配置 4 帧，比较
+`pilot_stable_consensus` 和 `pilot_margin_consensus`。两组各有 36 个在线帧、108
+个候选记录，所有在线行的 `data_waveform_used_online` 和 `data_labels_used_online`
+均为 `false`。
+
+| 排序 | Pilot 分数与 Data BCE Spearman | Pilot 分数与 Data BER Spearman | top-1 命中 Data BCE 最优 | top-1 命中 Data BER 最优 | 实际选中候选平均 Data BER 改善 | Data BER 改善比例 |
+|---|---:|---:|---:|---:|---:|---:|
+| `pilot_stable_consensus` | 0.457 | 0.673 | 88.9% | 88.9% | 0.0815 | 94.4% |
+| `pilot_margin_consensus` | 0.597 | 0.743 | 88.9% | 88.9% | 0.0815 | 94.4% |
+
+两种排序在全部 36 个帧上选择了同一个候选（32 次激进、4 次保守），所以这轮
+margin 证据提高了排序分数与 Data BER 的离线相关性，但没有改变实际在线动作或
+收益。实际选中候选的平均 Data BCE 改善为 1.8006，Data BCE 改善比例为 100%；
+Data BER 改善在 5/10/15 dB 分别为 0.0795/0.0845/0.0804。
+
+这说明当前 Pilot-only 方法已经能较稳定地挑出有益更新，尤其对硬 BER；但 BCE
+相关性仍低于预设的 0.6 门槛，且当前 replay 只有 4 帧。正式 5 seed × 60 帧之前，
+还需要完成更长窗口的稳定性复核，并把候选排序与冻结离线模型的逐配置 BER 差异
+一起报告，不能只根据候选级 Data 诊断宣称目标已经完成。
+
+本轮结果文件：
+
+- `logs/replay_pilot_ranking_stable_20261016f/pilot_ranking_summary.json`
+- `logs/replay_pilot_ranking_margin_20261016f/pilot_ranking_summary.json`
