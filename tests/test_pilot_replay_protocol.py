@@ -167,7 +167,9 @@ def test_replay_uses_frozen_eme_config_and_explicit_condition_override(monkeypat
     assert episode.env.config.acquisition_to_data_gap_seconds == 0
     assert episode.condition_source == "pilot_cir_phase"
     assert episode.history_cleared_after_gap is False
-    assert experiment["online_condition_source"] == "acquisition"
+    # 主配置必须使用当前帧 Adapt Pilot 的 CIR/phase 条件；acquisition
+    # 仅保留给显式老化/固定条件消融，不得作为主 replay 默认值。
+    assert experiment["online_condition_source"] == "pilot_cir_phase"
 
 
 def test_replay_can_apply_physical_eme_acquisition_gap_without_changing_profile(monkeypatch):

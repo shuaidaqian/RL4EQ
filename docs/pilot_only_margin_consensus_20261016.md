@@ -110,3 +110,42 @@ Data BER 改善在 5/10/15 dB 分别为 0.0795/0.0845/0.0804。
 
 - `logs/replay_pilot_ranking_stable_20261016f/pilot_ranking_summary.json`
 - `logs/replay_pilot_ranking_margin_20261016f/pilot_ranking_summary.json`
+
+## BER 异常复核与协议修正
+
+后续检查发现，前一版 `replay_pilot_ranking_*20261016f` 使用了
+`online_condition_source=acquisition`。这个选项原本只应作为“固定 acquisition
+条件、单独度量 PEFT 增量”的消融，却被误用于解释主结果。在 `cfo_phase_tiny`
+下，acquisition 时刻的相位/CFO 不能代表当前帧，导致 Frozen Offline NN 的 Data
+BER 在部分帧达到 0.68--0.98，接近反向或随机判决。这个现象不是 BER 计算函数把
+所有结果固定成 0.5，而是条件协议错配。
+
+同一 checkpoint、同一帧的复核如下：
+
+| 条件来源 | Data BER（seed=2，10 dB，两帧） |
+|---|---:|
+| `acquisition` | 0.6758、0.9831 |
+| `pilot_phase` | 0.0169、0.0078 |
+
+因此，主配置已修正为 `online_condition_source=pilot_cir_phase`。主实验和正式
+replay 必须使用当前帧 Adapt Pilot 估计的相位/CFO 条件；`acquisition` 只能作为
+单独标注的 PEFT 增量消融，不能与主结果混合。修正后的 smoke replay 中，5/10/15
+dB 的冻结和在线 Data BER 已回到约 0.0026--0.0612 的合理范围，在线没有再被
+错误的 acquisition 条件“制造”出虚假的大收益。
+
+使用固定 checkpoint
+`pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`、Level B delay=116、
+seed=2、每个 SNR 两帧重新复核后的逐帧 Data BER 如下：
+
+| SNR | Frozen 第 1/2 帧 | Online 第 1/2 帧 | Online 更新候选 |
+|---:|---:|---:|---|
+| 0 dB | 0.16797 / 0.15234 | 0.16797 / 0.15234 | skip / skip |
+| 5 dB | 0.06120 / 0.05208 | 0.05990 / 0.05208 | aggressive / skip |
+| 10 dB | 0.01693 / 0.00781 | 0.01563 / 0.00781 | aggressive / skip |
+| 15 dB | 0.00521 / 0.00260 | 0.00521 / 0.00260 | aggressive / skip |
+
+这组复核的平均 BER 为 Frozen `0.05827`、Online `0.05794`。它证明 BER 计算和
+当前帧 Pilot 条件链路正常，也证明在线更新没有把结果推到随机水平；但它只有一个
+seed、两帧，在线额外收益很小，不能据此声称已经稳定超过离线模型。对应原始记录在
+`logs/compare_corrected_20261016_all_snr_seed2/`，该目录属于本地实验产物，不纳入
+代码提交。
