@@ -179,3 +179,20 @@ Reward Pilot 验收，Data 只在事后计算。
 
 - `logs/replay_pilot_ranking_stable_corrected_20261017/`
 - `logs/replay_pilot_ranking_margin_corrected_20261017/`
+
+## 跨帧 Reward 验收的有效诊断结果
+
+另外核对了此前的“延迟一帧提交”实验。它们使用正确的
+`condition_source=pilot_cir_phase`、gap=0、Pilot=256，因此可以作为有效的
+Pilot-only 诊断，但不能作为已经成功的主结果。10 dB、seed=49/50/51、每条轨迹
+24 帧的配对结果为：
+
+| 设置 | seed=49 | seed=50 | seed=51 |
+|---|---:|---:|---:|
+| 延迟提交、单窗口 | +0.0922 pp | 0 | -0.0380 pp |
+| 延迟提交、双窗口 | +0.0868 pp | 0 | +0.0163 pp |
+
+其中 `data_waveform_used_online=false`、`data_labels_used_online=false`，且所有行
+的条件来源都是 `pilot_cir_phase`。双窗口确实减少了提交次数和负收益风险，但收益
+仍然很小，且样本数只有 3 个 seed。因此下一阶段应继续研究 Pilot-only 的候选
+可迁移性或更可靠的跨帧验收，不应直接启动正式 5 seed × 60 帧主矩阵。
