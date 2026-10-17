@@ -76,4 +76,44 @@ SHA256 8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4
 
 此前接近随机的 BER 异常已定位为 `acquisition` 相位条件被沿用到当前帧；不应与本次 `pilot_cir_phase` replay 混为一谈。留出 replay 的整帧波形隔离问题是本次另外发现并修复的实现缺陷。
 
+## 固定调度器入口修复与复核
+
+发现 `compare.py` 的命令行参数默认值为 `bandit`，会覆盖配置文件中已经写明的
+`online_scheduler: fixed`。这使主入口在尚未满足 Pilot-only 排序门槛时，可能因为没有匹配的
+Bandit 动作而直接 `skip`，无法区分“Reward Pilot 拒绝候选”和“根本没有候选”。现已修复为：
+
+- 未显式传 `--scheduler` 时读取配置文件的 `online_scheduler`，缺省值为 `fixed`；
+- 只有显式传 `--scheduler bandit` 才启用安全 Contextual Bandit；
+- 结果摘要和每帧记录使用同一个有效调度器值；
+- 回归测试覆盖配置默认 `fixed` 与显式 `bandit` 两条路径。
+
+固定 `fixed` 调度器后的强失配诊断（Level B、delay=116、600 s acquisition gap、
+`pilot_cir_phase`、Pilot=256、Reward Pilot=32、候选为 phase signal 的保守/中等/激进三档）结果：
+
+| 条件 | Online 相对 Frozen 的结果 |
+|---|---:|
+| 10 dB，seed=2/3/4，4 帧 | 平均 BER 改善 0.01584；12 个逐帧配对中 7 个改善、3 个持平、2 个变差 |
+| 0 dB，seed=2/3/4，2 帧 | 当前配置 `freeze_below_snr_db=5`，6 帧均不更新，Online 与 Frozen 持平 |
+| 5 dB，seed=2/3/4，2 帧 | 平均 BER 改善 0.00890；6 帧中 2 个改善、1 个变差、3 个持平 |
+| 10 dB，seed=2/3/4，2 帧 | 平均 BER 改善 0.01063；6 帧中 3 个改善、1 个变差、2 个持平 |
+| 15 dB，seed=2/3/4，2 帧 | 平均 BER 改善 0.02582；6 帧中 2 个改善、0 个变差、4 个持平 |
+
+12 条 10 dB 轨迹共 36 个候选的 Reward 排名与事后 Data BER 改善 Spearman 为 `0.809`；
+但真正经过门控后只有 7/12 帧变好，因此候选排序已有可利用信号，尚未达到稳定在线增益的要求。
+上述 Data BER 只在更新完成后作事后评估，所有记录仍为
+`data_waveform_used_online=false`、`data_labels_used_online=false`。
+
+本次固定调度器复核日志：
+
+```text
+logs/compare_fixed_scheduler_strong_mismatch_smoke_20261017/
+logs/compare_fixed_scheduler_strong_mismatch_10db_seed2_4_20261017/
+logs/compare_fixed_scheduler_strong_mismatch_main_snrs_seed2_4_f2_20261017/
+```
+
+当前仍不能宣称在线方法在所有主 SNR、seed 和帧上稳定超过 Frozen，也不能进入正式
+`5 seed x 60 帧` 主矩阵或启用 Bandit 主比较。下一步是单独解除 0 dB 的低 SNR 冻结做诊断，
+并比较不同 Pilot-only 排名模式；如果低 SNR 解除冻结仍不稳定，应增加 Pilot-only 状态可靠性门，
+而不是使用 Data 伪标签或修改离线 checkpoint。
+
 下一步应继续在固定 checkpoint 和同一 Level B 协议下设计真正独立、可解释的 Pilot-only 候选/状态特征，并先用 replay 证明排序相关性稳定通过，再扩大 seed、SNR 和帧数；不应通过放宽门限或引入 Data 伪标签来制造收益。

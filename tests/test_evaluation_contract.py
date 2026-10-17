@@ -132,6 +132,67 @@ def test_default_entrypoints_use_prefix_pilot_and_correct_main_snrs(tmp_path):
     assert [row["snr_db"] for row in rows] == [0.0, 5.0, 10.0, 15.0]
 
 
+def test_compare_scheduler_defaults_to_config_and_allows_explicit_bandit(tmp_path):
+    """未传 CLI 调度器时必须尊重配置，Bandit 只能显式启用。"""
+
+    import subprocess
+    import sys
+
+    config_path = tmp_path / "fixed.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "online_scheduler": "fixed",
+                "pilot_layout": "prefix",
+                "pilot_total": 64,
+                "reward_pilot_total": 16,
+                "impairment_profile": "clean",
+                "main_level": "B",
+                "main_delays": [4],
+                "main_snrs": [10],
+            }
+        ),
+        encoding="utf-8",
+    )
+    common = [
+        sys.executable,
+        "compare.py",
+        "--config",
+        str(config_path),
+        "--methods",
+        "LMMSE-FIR",
+        "--delays",
+        "4",
+        "--snrs",
+        "10",
+        "--num-seeds",
+        "1",
+        "--frames",
+        "1",
+        "--pilot-total",
+        "64",
+    ]
+    fixed_dir = tmp_path / "fixed"
+    subprocess.run(
+        [*common, "--output-dir", str(fixed_dir)],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    fixed_summary = json.loads((fixed_dir / "summary.json").read_text(encoding="utf-8"))
+    assert fixed_summary["online_scheduler"] == "fixed"
+
+    bandit_dir = tmp_path / "bandit"
+    subprocess.run(
+        [*common, "--scheduler", "bandit", "--output-dir", str(bandit_dir)],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    bandit_summary = json.loads((bandit_dir / "summary.json").read_text(encoding="utf-8"))
+    assert bandit_summary["online_scheduler"] == "bandit"
+
+
 def test_repository_contains_only_continual_ppo_entrypoints():
     root = Path(__file__).resolve().parents[1]
     required = {"calibrate_channel.py", "pretrain.py", "online_train.py", "compare.py"}

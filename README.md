@@ -81,7 +81,8 @@ diagnostic:
 .\.venv-gpu\Scripts\python.exe online_train.py --config configs/continual_ppo.json --pretrained pretrained/final_smoke/model_best.pt --frames 8 --num-seeds 1 --window-size 4 --update-interval 4 --delays 20 --snrs 10 --pilot-total 64 --pilot-layout prefix --amp --output-dir logs/final_online_smoke
 .\.venv-gpu\Scripts\python.exe scripts/diagnose_action_delay.py logs/final_online_smoke --output logs/final_online_smoke/action_delay.json
 .\.venv-gpu\Scripts\python.exe compare.py --config configs/continual_ppo.json --method-group main --pretrained pretrained/final_smoke/model_best.pt --delays 20 --snrs 10 --num-seeds 1 --frames 1 --pilot-total 64 --pilot-layout prefix --resume --output-dir logs/final_compare_smoke
-# compare.py 默认使用安全 Contextual Bandit；固定候选选择器仅用于消融：--scheduler fixed
+# compare.py 未显式指定调度器时沿用配置中的 `online_scheduler`；当前主配置使用固定候选选择器。
+# 只有 Pilot-only 排序通过稳定性门槛后，才显式使用：--scheduler bandit
 .\.venv-gpu\Scripts\python.exe -m pytest -q -p no:cacheprovider
 ```
 

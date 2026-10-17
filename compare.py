@@ -284,7 +284,12 @@ def main() -> None:
         ],
     )
     parser.add_argument("--update-interval", type=int, default=32)
-    parser.add_argument("--scheduler", choices=["fixed", "bandit"], default="bandit")
+    parser.add_argument(
+        "--scheduler",
+        choices=["fixed", "bandit"],
+        default=None,
+        help="在线调度器；未指定时沿用配置文件中的 online_scheduler，默认 fixed。",
+    )
     parser.add_argument("--cir-update", choices=["fixed", "pilot_sparse", "decision_directed"], default="fixed")
     parser.add_argument("--cir-alpha", type=float, default=0.2)
     parser.add_argument("--online-groups", nargs="*", default=None)
@@ -376,6 +381,16 @@ def main() -> None:
         return
     selected_methods = method_group(args.method_group) if args.method_group else _select_methods(args.methods)
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    scheduler = str(
+        args.scheduler
+        if args.scheduler is not None
+        else config.get("online_scheduler", "fixed")
+    )
+    if scheduler not in {"fixed", "bandit"}:
+        parser.error(
+            "配置项 online_scheduler 必须是 fixed 或 bandit，"
+            f"当前为 {scheduler!r}。"
+        )
     if args.acquisition_to_data_gap_seconds is not None:
         config["acquisition_to_data_gap_seconds"] = args.acquisition_to_data_gap_seconds
         config["aggregation_role"] = "diagnostic"
@@ -417,7 +432,7 @@ def main() -> None:
             "online_adaptation_freeze_below_snr_db": args.online_freeze_below_snr_db,
             "online_drift_gate_threshold": args.online_drift_gate_threshold,
             "online_condition_source": args.online_condition_source,
-            "online_scheduler": args.scheduler,
+            "online_scheduler": scheduler,
         },
     )
     policy_explicit = any(argument == "--policy" or argument.startswith("--policy=") for argument in sys.argv[1:])
@@ -549,7 +564,7 @@ def main() -> None:
                         acquisition_phase_features=acquisition_phase_features,
                         online_groups_override=args.online_groups,
                         online_condition_source_override=args.online_condition_source,
-                        scheduler=args.scheduler,
+                        scheduler=scheduler,
                     )
                     for frame_index in range(1, args.frames + 1):
                         frame = env.next_frame()
@@ -641,7 +656,7 @@ def main() -> None:
         "diagnostic_only": bool(config.get("diagnostic_only", False)),
         "main_aggregation_allowed": bool(config.get("main_aggregation_allowed", True)),
         "online_condition_source": config.get("online_condition_source", "pilot_cir_phase"),
-        "online_scheduler": args.scheduler,
+        "online_scheduler": scheduler,
         "profile_prior": profile_prior,
         "forbidden": {"data_label_upper_bound_method_present": any("数据标签上界" in method for method in selected_methods)},
     }
