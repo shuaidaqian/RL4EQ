@@ -385,6 +385,91 @@ def test_peft_adapt_update_does_not_depend_on_reward_or_data_labels():
         assert torch.allclose(param_a, param_b, atol=1e-6)
 
 
+def test_peft_adapt_update_does_not_depend_on_non_adapt_waveforms():
+    from dataclasses import replace
+
+    from evaluation.research_diagnostics import apply_adapt_only_peft_update
+
+    frame = _tiny_identity_frame()
+    changed_rx = frame.rx_symbols.clone()
+    changed_rx[~frame.adapt_mask] = torch.complex(
+        torch.full_like(changed_rx[~frame.adapt_mask].real, 50.0),
+        torch.full_like(changed_rx[~frame.adapt_mask].real, -30.0),
+    )
+    changed = replace(frame, rx_symbols=changed_rx)
+    condition = _tiny_condition()
+    base = _tiny_model()
+    first = copy.deepcopy(base)
+    second = copy.deepcopy(base)
+
+    common = {
+        "condition": condition,
+        "soft_tail": torch.zeros(4, dtype=torch.complex64),
+        "groups": {"head"},
+        "lr": 1e-3,
+        "steps": 1,
+    }
+    apply_adapt_only_peft_update(model=first, frame=frame, **common)
+    apply_adapt_only_peft_update(model=second, frame=changed, **common)
+
+    for (name_a, param_a), (name_b, param_b) in zip(first.named_parameters(), second.named_parameters()):
+        assert name_a == name_b
+        assert torch.allclose(param_a, param_b, atol=1e-6)
+
+
+def test_pilot_candidate_scores_ignore_data_waveforms():
+    from dataclasses import replace
+
+    from scripts.replay_pilot_candidate_ranking import _evaluate_candidate, _split_adapt_pilot
+
+    frame = _tiny_identity_frame()
+    changed_rx = frame.rx_symbols.clone()
+    changed_rx[frame.data_mask] = torch.complex(
+        torch.full_like(changed_rx[frame.data_mask].real, -40.0),
+        torch.full_like(changed_rx[frame.data_mask].real, 25.0),
+    )
+    changed = replace(frame, rx_symbols=changed_rx)
+    update_frame, holdout_mask = _split_adapt_pilot(frame, 0.25)
+    changed_update_frame, changed_holdout_mask = _split_adapt_pilot(changed, 0.25)
+    model = _tiny_model()
+    condition = _tiny_condition()
+    candidate = {
+        "name": "head_bce",
+        "groups": {"head"},
+        "lr": 1e-3,
+        "steps": 1,
+        "objective": "bce",
+    }
+    arguments = {
+        "condition": condition,
+        "soft_tail": torch.zeros(4, dtype=torch.complex64),
+        "candidate": candidate,
+        "pilot_holdout_mask": holdout_mask,
+        "state_embedding": None,
+    }
+
+    first = _evaluate_candidate(
+        model,
+        frame,
+        pilot_update_frame=update_frame,
+        **arguments,
+    )
+    second = _evaluate_candidate(
+        model,
+        changed,
+        pilot_update_frame=changed_update_frame,
+        **{**arguments, "pilot_holdout_mask": changed_holdout_mask},
+    )
+
+    for key in (
+        "adapt_bce_improvement",
+        "pilot_holdout_loss_improvement",
+        "reward_loss_improvement",
+        "pilot_reconstruction_improvement",
+    ):
+        assert first[key] == pytest.approx(second[key], abs=1e-6)
+
+
 def test_peft_adapt_update_reports_parameter_delta_norm():
     from evaluation.research_diagnostics import apply_adapt_only_peft_update
 

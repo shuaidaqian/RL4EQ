@@ -50,7 +50,11 @@ def split_pilot_frame(frame: Frame, holdout_ratio: float) -> tuple[Frame, torch.
         frame_index=frame.frame_index,
         bits=frame.bits,
         tx_symbols=frame.tx_symbols,
-        rx_symbols=frame.rx_symbols,
+        rx_symbols=torch.where(
+            train_mask,
+            frame.rx_symbols,
+            torch.zeros_like(frame.rx_symbols),
+        ),
         adapt_mask=train_mask,
         reward_mask=torch.zeros_like(frame.reward_mask),
         # Data mask 只供 _evaluate_candidate 输出事后诊断值；更新损失仍严格由 adapt_mask 限定。
@@ -156,11 +160,12 @@ def main() -> None:
                 for candidate in selected:
                     result = _evaluate_candidate(
                         model,
-                        split,
+                        original,
                         condition,
                         tail,
                         candidate,
                         pilot_holdout_mask=holdout_mask,
+                        pilot_update_frame=split,
                     )
                     rows.append(
                         {

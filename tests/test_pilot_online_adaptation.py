@@ -109,6 +109,7 @@ def test_pilot_candidate_ranking_replay_has_label_boundary():
     source = Path("scripts/replay_pilot_candidate_ranking.py").read_text(encoding="utf-8")
     assert "apply_adapt_only_peft_update" in source
     assert "data_labels_used_online" in source
+    assert "online_update_uses_data_waveform" in source
     assert "diagnostic_uses_data_labels" in source
     assert "frame.data_mask" not in source
     assert "PilotResidualRLSAdapter" in source
@@ -134,6 +135,8 @@ def test_pilot_candidate_ranking_replay_has_label_boundary():
     diagnostics_source = Path("evaluation/research_diagnostics.py").read_text(encoding="utf-8")
     assert 'name.startswith("pilot_encoder.")' in diagnostics_source
     assert "data_logits_direction_change_fraction" in source
+    assert '"pilot_holdout_loss_improvement"' in source
+    assert '"data_bce_improvement",' not in source
     compare_source = Path("compare.py").read_text(encoding="utf-8")
     assert "online-drift-gate-threshold" in compare_source
     assert "pilot_signal_reconstruction" in compare_source
@@ -143,6 +146,39 @@ def test_pilot_candidate_ranking_replay_has_label_boundary():
     rolling_source = Path("scripts/replay_rolling_reward_gate.py").read_text(encoding="utf-8")
     assert "PilotTemporalConsistency" in rolling_source
     assert "temporal_consistency_gate" in rolling_source
+
+
+def test_adapt_holdout_split_clears_non_update_received_waveforms():
+    from env.frame_structure import FrameConfig, FrameGenerator
+    from scripts.replay_pilot_candidate_ranking import _split_adapt_pilot
+
+    frame = FrameGenerator(
+        FrameConfig(
+            frame_len=96,
+            total_pilot=64,
+            layout="prefix",
+            max_delay=4,
+            reward_pilot_total=16,
+        ),
+        seed=17,
+    ).generate(0)
+    received = (torch.arange(96, dtype=torch.float32) + 1.0).to(torch.complex64)
+    frame = frame.with_channel_output(
+        received,
+        torch.zeros(4, dtype=torch.complex64),
+        torch.tensor([1.0 + 0.0j, 0.0j, 0.0j, 0.0j, 0.0j]),
+    )
+
+    update_frame, holdout_mask = _split_adapt_pilot(frame, 0.25)
+
+    assert not bool((update_frame.adapt_mask & holdout_mask).any())
+    assert int(update_frame.adapt_mask.sum()) == 36
+    assert int(holdout_mask.sum()) == 12
+    assert torch.equal(frame.rx_symbols, received)
+    assert torch.all(update_frame.rx_symbols[update_frame.adapt_mask] != 0)
+    assert torch.all(update_frame.rx_symbols[~update_frame.adapt_mask] == 0)
+    assert torch.all(frame.rx_symbols[holdout_mask] != 0)
+    assert torch.all(frame.rx_symbols[frame.reward_mask | frame.data_mask] != 0)
 
 
 def test_boundary_adapt_loss_emphasizes_low_confidence_pilot_logits():

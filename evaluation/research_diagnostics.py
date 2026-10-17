@@ -12,6 +12,7 @@ import json
 import copy
 import math
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
 from typing import Iterable
 
@@ -510,6 +511,7 @@ def apply_adapt_only_peft_update(
     objective: str = "bce",
     state_embedding: torch.Tensor | None = None,
     trainable_parameter_scope: str | None = None,
+    include_evaluation_metrics: bool = True,
 ) -> dict:
     """只用 Adapt Pilot loss 对指定 PEFT 参数做真实梯度更新。"""
 
@@ -529,13 +531,27 @@ def apply_adapt_only_peft_update(
     frame = _frame_to_device(frame, device)
     condition = _condition_to_device(condition, device)
     tail = soft_tail.to(device).unsqueeze(0).to(torch.complex64)
+    # 在线更新的前向和重构目标只能看到 Adapt Pilot 接收波形。
+    # 保留原始 frame 用于事后 Reward/Data 诊断，单独构造更新视图并清零
+    # 留出 Pilot、Reward Pilot 和 Data 的接收波形，防止跨位置网络把它们
+    # 通过注意力或信道重构路径带入梯度。
+    update_frame = replace(
+        frame,
+        rx_symbols=torch.where(
+            frame.adapt_mask.bool(),
+            frame.rx_symbols,
+            torch.zeros_like(frame.rx_symbols),
+        ),
+    )
     model.eval()
-    before_logits = _model_logits(model, frame, condition, tail, state_embedding=state_embedding)
-    reward_before = _masked_bce(before_logits, frame.bits, frame.reward_mask)
-    reward_ber_before = bit_error_rate(before_logits[frame.reward_mask], frame.bits[frame.reward_mask])
-    reward_margin_before = _masked_margin(before_logits, frame.reward_mask)
-    data_before = bit_error_rate(before_logits[frame.data_mask], frame.bits[frame.data_mask])
-    data_bce_before = _masked_bce(before_logits, frame.bits, frame.data_mask)
+    before_logits = None
+    if include_evaluation_metrics:
+        before_logits = _model_logits(model, frame, condition, tail, state_embedding=state_embedding)
+        reward_before = _masked_bce(before_logits, frame.bits, frame.reward_mask)
+        reward_ber_before = bit_error_rate(before_logits[frame.reward_mask], frame.bits[frame.reward_mask])
+        reward_margin_before = _masked_margin(before_logits, frame.reward_mask)
+        data_before = bit_error_rate(before_logits[frame.data_mask], frame.bits[frame.data_mask])
+        data_bce_before = _masked_bce(before_logits, frame.bits, frame.data_mask)
 
     model.train()
     model.set_trainable_groups(groups)
@@ -574,20 +590,20 @@ def apply_adapt_only_peft_update(
     }
     optimizer = torch.optim.AdamW(trainable, lr=float(lr))
     for _ in range(int(steps)):
-        logits = _model_logits(model, frame, condition, tail, state_embedding=state_embedding)
-        adapt_logits = logits[frame.adapt_mask]
-        adapt_targets = frame.bits[frame.adapt_mask].float()
+        logits = _model_logits(model, update_frame, condition, tail, state_embedding=state_embedding)
+        adapt_logits = logits[update_frame.adapt_mask]
+        adapt_targets = update_frame.bits[update_frame.adapt_mask].float()
         if objective == "boundary":
             adapt_loss = _boundary_adapt_loss(adapt_logits, adapt_targets)
         elif objective == "selective_boundary":
             adapt_loss = _selective_boundary_adapt_loss(adapt_logits, adapt_targets)
         else:
-            adapt_loss = _masked_bce(logits, frame.bits, frame.adapt_mask)
+            adapt_loss = _masked_bce(logits, update_frame.bits, update_frame.adapt_mask)
         reconstruction_loss = (
-            _pilot_reconstruction_loss_for_diagnostic(model, frame, condition, tail)
+            _pilot_reconstruction_loss_for_diagnostic(model, update_frame, condition, tail)
             if objective in {"pilot_reconstruction", "joint"}
             else _pilot_signal_reconstruction_loss_for_diagnostic(
-                model, frame, condition, tail, state_embedding=state_embedding
+                model, update_frame, condition, tail, state_embedding=state_embedding
             )
             if objective == "pilot_signal_reconstruction"
             else torch.zeros((), device=device)
@@ -606,6 +622,27 @@ def apply_adapt_only_peft_update(
 
     model.eval()
     model.set_trainable_groups(set())
+    peft_delta_sq = torch.zeros((), device=device)
+    named = dict(model.named_parameters())
+    for name, value in before.items():
+        peft_delta_sq = peft_delta_sq + (named[name].detach() - value).float().pow(2).sum()
+    peft_delta_norm = float(torch.sqrt(peft_delta_sq).detach().cpu())
+    result = {
+        "method": "adapt_only_peft",
+        "updated_groups": sorted(groups),
+        "adapt_steps": int(steps),
+        "peft_delta_norm": float(peft_delta_norm),
+        "action_delta_norm": float(peft_delta_norm),
+        "objective": str(objective),
+        "trainable_parameter_scope": trainable_parameter_scope or "all",
+        "online_update_uses_data_labels": False,
+        "online_update_uses_data_waveform": False,
+        "data_waveform_used_online": False,
+    }
+    if not include_evaluation_metrics:
+        result["diagnostic_uses_data_labels"] = False
+        return result
+
     after_logits = _model_logits(model, frame, condition, tail, state_embedding=state_embedding)
     reward_after = _masked_bce(after_logits, frame.bits, frame.reward_mask)
     reward_ber_after = bit_error_rate(after_logits[frame.reward_mask], frame.bits[frame.reward_mask])
@@ -627,40 +664,30 @@ def apply_adapt_only_peft_update(
         data_soft_before = torch.sigmoid(data_logits_before)
         data_soft_after = torch.sigmoid(data_logits_after)
         data_soft_abs_mean_delta = torch.mean(torch.abs(data_soft_after - data_soft_before))
-    peft_delta_sq = torch.zeros((), device=device)
-    named = dict(model.named_parameters())
-    for name, value in before.items():
-        peft_delta_sq = peft_delta_sq + (named[name].detach() - value).float().pow(2).sum()
-    peft_delta_norm = float(torch.sqrt(peft_delta_sq).detach().cpu())
-    return {
-        "method": "adapt_only_peft",
-        "updated_groups": sorted(groups),
-        "adapt_steps": int(steps),
-        "reward_loss_before": float(reward_before.detach().cpu()),
-        "reward_loss_after": float(reward_after.detach().cpu()),
-        "reward_loss_improvement": float((reward_before - reward_after).detach().cpu()),
-        "reward_ber_before": float(reward_ber_before),
-        "reward_ber_after": float(reward_ber_after),
-        "reward_ber_improvement": float(reward_ber_before - reward_ber_after),
-        "reward_margin_before": float(reward_margin_before.detach().cpu()),
-        "reward_margin_after": float(reward_margin_after.detach().cpu()),
-        "reward_margin_improvement": float((reward_margin_after - reward_margin_before).detach().cpu()),
-        "data_ber_before": float(data_before),
-        "data_ber_after": float(data_after),
-        "data_ber_improvement": float(data_before - data_after),
-        "data_bce_before": float(data_bce_before.detach().cpu()),
-        "data_bce_after": float(data_bce_after.detach().cpu()),
-        "data_bce_improvement": float((data_bce_before - data_bce_after).detach().cpu()),
-        "data_logits_abs_mean_delta": float(data_logits_abs_mean_delta.detach().cpu()),
-        "data_logits_direction_change_fraction": float(data_logits_direction_change_fraction.detach().cpu()),
-        "data_soft_abs_mean_delta": float(data_soft_abs_mean_delta.detach().cpu()),
-        "peft_delta_norm": float(peft_delta_norm),
-        "action_delta_norm": float(peft_delta_norm),
-        "objective": str(objective),
-        "trainable_parameter_scope": trainable_parameter_scope or "all",
-        "diagnostic_uses_data_labels": True,
-        "online_update_uses_data_labels": False,
-    }
+    result.update(
+        {
+            "reward_loss_before": float(reward_before.detach().cpu()),
+            "reward_loss_after": float(reward_after.detach().cpu()),
+            "reward_loss_improvement": float((reward_before - reward_after).detach().cpu()),
+            "reward_ber_before": float(reward_ber_before),
+            "reward_ber_after": float(reward_ber_after),
+            "reward_ber_improvement": float(reward_ber_before - reward_ber_after),
+            "reward_margin_before": float(reward_margin_before.detach().cpu()),
+            "reward_margin_after": float(reward_margin_after.detach().cpu()),
+            "reward_margin_improvement": float((reward_margin_after - reward_margin_before).detach().cpu()),
+            "data_ber_before": float(data_before),
+            "data_ber_after": float(data_after),
+            "data_ber_improvement": float(data_before - data_after),
+            "data_bce_before": float(data_bce_before.detach().cpu()),
+            "data_bce_after": float(data_bce_after.detach().cpu()),
+            "data_bce_improvement": float((data_bce_before - data_bce_after).detach().cpu()),
+            "data_logits_abs_mean_delta": float(data_logits_abs_mean_delta.detach().cpu()),
+            "data_logits_direction_change_fraction": float(data_logits_direction_change_fraction.detach().cpu()),
+            "data_soft_abs_mean_delta": float(data_soft_abs_mean_delta.detach().cpu()),
+            "diagnostic_uses_data_labels": True,
+        }
+    )
+    return result
 
 
 def _pilot_reconstruction_loss_for_diagnostic(

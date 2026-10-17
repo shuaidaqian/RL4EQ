@@ -12,6 +12,7 @@ import copy
 import json
 import math
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import torch
@@ -96,6 +97,32 @@ def _candidate_specs(lr: float, steps: int) -> list[dict]:
     ]
 
 
+def _split_adapt_pilot(frame, holdout_fraction: float):
+    """把 Adapt Pilot 尾部留出，只允许前部 Pilot 产生梯度。"""
+
+    fraction = float(holdout_fraction)
+    if not math.isfinite(fraction) or not 0.0 <= fraction < 1.0:
+        raise ValueError("adapt holdout fraction 必须位于 [0, 1)。")
+    adapt_positions = torch.nonzero(frame.adapt_mask.reshape(-1), as_tuple=False).reshape(-1)
+    if fraction <= 0.0 or adapt_positions.numel() < 2:
+        return frame, torch.zeros_like(frame.adapt_mask, dtype=torch.bool)
+    holdout_count = max(1, int(round(adapt_positions.numel() * fraction)))
+    holdout_count = min(holdout_count, int(adapt_positions.numel()) - 1)
+    holdout_positions = adapt_positions[-holdout_count:]
+    update_mask = frame.adapt_mask.clone()
+    update_mask[holdout_positions] = False
+    holdout_mask = torch.zeros_like(frame.adapt_mask, dtype=torch.bool)
+    holdout_mask[holdout_positions] = True
+    # 更新前向只能看到 Adapt Pilot 的接收波形；留出 Pilot、Reward Pilot
+    # 和 Data 的波形全部清零，避免信道重构目标通过整帧 rx_symbols 读取它们。
+    update_rx = torch.where(
+        update_mask,
+        frame.rx_symbols,
+        torch.zeros_like(frame.rx_symbols),
+    )
+    return replace(frame, adapt_mask=update_mask, rx_symbols=update_rx), holdout_mask
+
+
 def _evaluate_candidate(
     model,
     frame,
@@ -104,6 +131,7 @@ def _evaluate_candidate(
     candidate: dict,
     *,
     pilot_holdout_mask=None,
+    pilot_update_frame=None,
     state_embedding: torch.Tensor | None = None,
     trainable_parameter_scope: str | None = None,
 ) -> dict:
@@ -111,10 +139,20 @@ def _evaluate_candidate(
     frame_device = _frame_to_device(frame, device)
     condition_device = _condition_to_device(condition, device)
     candidate_model = copy.deepcopy(model)
+    baseline_model = copy.deepcopy(model)
+    pilot_context_mask = frame_device.adapt_mask.bool() | frame_device.reward_mask.bool()
+    pilot_frame = replace(
+        frame_device,
+        rx_symbols=torch.where(
+            pilot_context_mask,
+            frame_device.rx_symbols,
+            torch.zeros_like(frame_device.rx_symbols),
+        ),
+    )
     before_tail = soft_tail.unsqueeze(0).to(device).to(torch.complex64)
     before = _model_logits(
         candidate_model,
-        frame_device,
+        pilot_frame,
         condition_device,
         before_tail,
         state_embedding=state_embedding,
@@ -122,20 +160,22 @@ def _evaluate_candidate(
     if candidate["objective"] == "pilot_signal_reconstruction":
         reconstruction_before = _pilot_signal_reconstruction_loss_for_diagnostic(
             candidate_model,
-            frame_device,
+            pilot_frame,
             condition_device,
             soft_tail,
             state_embedding=state_embedding,
         )
     elif candidate["objective"] in {"pilot_reconstruction", "joint"} and candidate_model.online_channel_residual_adapter is not None:
         reconstruction_before = _pilot_reconstruction_loss_for_diagnostic(
-            candidate_model, frame_device, condition_device, soft_tail
+            candidate_model, pilot_frame, condition_device, soft_tail
         )
     else:
         reconstruction_before = torch.tensor(
             _pilot_reconstruction_error(frame_device, condition_device.complex_cir, soft_tail),
             device=device,
         )
+    update_frame = pilot_update_frame if pilot_update_frame is not None else frame
+    update_frame_device = _frame_to_device(update_frame, device)
     if candidate.get("algorithm") == "rls":
         updater = PilotResidualRLSAdapter(
             candidate_model,
@@ -146,12 +186,12 @@ def _evaluate_candidate(
             max_delta_norm=5.0,
             max_total_delta_norm=5.0,
         )
-        adaptation = updater.adapt(frame_device, condition_device, soft_tail)
+        adaptation = updater.adapt(update_frame_device, condition_device, soft_tail)
         result = {"peft_delta_norm": float(adaptation.parameter_delta_norm)}
     elif candidate["groups"]:
         result = apply_adapt_only_peft_update(
             model=candidate_model,
-            frame=frame,
+            frame=update_frame_device,
             condition=condition_device,
             soft_tail=soft_tail,
             groups=set(candidate["groups"]),
@@ -160,6 +200,7 @@ def _evaluate_candidate(
             objective=str(candidate["objective"]),
             state_embedding=state_embedding,
             trainable_parameter_scope=trainable_parameter_scope,
+            include_evaluation_metrics=False,
         )
     else:
         result = {
@@ -172,7 +213,7 @@ def _evaluate_candidate(
         }
     after = _model_logits(
         candidate_model,
-        frame_device,
+        pilot_frame,
         condition_device,
         before_tail,
         state_embedding=state_embedding,
@@ -180,37 +221,38 @@ def _evaluate_candidate(
     if candidate["objective"] == "pilot_signal_reconstruction":
         reconstruction_after = _pilot_signal_reconstruction_loss_for_diagnostic(
             candidate_model,
-            frame_device,
+            pilot_frame,
             condition_device,
             soft_tail,
             state_embedding=state_embedding,
         )
     elif candidate["objective"] in {"pilot_reconstruction", "joint"} and candidate_model.online_channel_residual_adapter is not None:
         reconstruction_after = _pilot_reconstruction_loss_for_diagnostic(
-            candidate_model, frame_device, condition_device, soft_tail
+            candidate_model, pilot_frame, condition_device, soft_tail
         )
     else:
         reconstruction_after = torch.tensor(
             _pilot_reconstruction_error(frame_device, condition_device.complex_cir, soft_tail),
             device=device,
         )
+    update_mask = update_frame_device.adapt_mask.bool()
     adapt_before = torch.nn.functional.binary_cross_entropy_with_logits(
-        before[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
+        before[update_mask], frame_device.bits[update_mask].float()
     )
     adapt_after = torch.nn.functional.binary_cross_entropy_with_logits(
-        after[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
+        after[update_mask], frame_device.bits[update_mask].float()
     )
     boundary_before = _boundary_adapt_loss(
-        before[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
+        before[update_mask], frame_device.bits[update_mask].float()
     )
     boundary_after = _boundary_adapt_loss(
-        after[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
+        after[update_mask], frame_device.bits[update_mask].float()
     )
     selective_boundary_before = _selective_boundary_adapt_loss(
-        before[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
+        before[update_mask], frame_device.bits[update_mask].float()
     )
     selective_boundary_after = _selective_boundary_adapt_loss(
-        after[frame_device.adapt_mask], frame_device.bits[frame_device.adapt_mask].float()
+        after[update_mask], frame_device.bits[update_mask].float()
     )
     pilot_holdout_improvement = 0.0
     if pilot_holdout_mask is not None:
@@ -218,31 +260,51 @@ def _evaluate_candidate(
         if holdout_mask.numel() != before.numel() or not bool(holdout_mask.any()):
             raise ValueError("pilot_holdout_mask 必须与帧长度一致且至少包含一个符号。")
         holdout_targets = frame_device.bits[holdout_mask].float()
-        holdout_before = torch.nn.functional.binary_cross_entropy_with_logits(
-            before[holdout_mask], holdout_targets
-        )
+        holdout_before = torch.nn.functional.binary_cross_entropy_with_logits(before[holdout_mask], holdout_targets)
         holdout_after = torch.nn.functional.binary_cross_entropy_with_logits(
             after[holdout_mask], holdout_targets
         )
         pilot_holdout_improvement = float((holdout_before - holdout_after).detach().cpu())
+    # Data 用于更新完成后的离线评估，不进入 Pilot 候选分数或在线验收。
+    with torch.no_grad():
+        data_before_logits = _model_logits(
+            baseline_model,
+            frame_device,
+            condition_device,
+            before_tail,
+            state_embedding=state_embedding,
+        )
+        data_after_logits = _model_logits(
+            candidate_model,
+            frame_device,
+            condition_device,
+            before_tail,
+            state_embedding=state_embedding,
+        )
     data_mask = frame_device.data_mask.bool()
     if bool(data_mask.any()):
         data_before_bce = torch.nn.functional.binary_cross_entropy_with_logits(
-            before[data_mask], frame_device.bits[data_mask].float()
+            data_before_logits[data_mask], frame_device.bits[data_mask].float()
         )
         data_after_bce = torch.nn.functional.binary_cross_entropy_with_logits(
-            after[data_mask], frame_device.bits[data_mask].float()
+            data_after_logits[data_mask], frame_device.bits[data_mask].float()
         )
         data_before_ber = torch.mean(
-            (torch.sign(before[data_mask]) != torch.where(frame_device.bits[data_mask] > 0.5, 1.0, -1.0)).float()
+            (
+                torch.sign(data_before_logits[data_mask])
+                != torch.where(frame_device.bits[data_mask] > 0.5, 1.0, -1.0)
+            ).float()
         )
         data_after_ber = torch.mean(
-            (torch.sign(after[data_mask]) != torch.where(frame_device.bits[data_mask] > 0.5, 1.0, -1.0)).float()
+            (
+                torch.sign(data_after_logits[data_mask])
+                != torch.where(frame_device.bits[data_mask] > 0.5, 1.0, -1.0)
+            ).float()
         )
     else:
         data_before_bce = data_after_bce = torch.zeros((), device=device)
         data_before_ber = data_after_ber = torch.zeros((), device=device)
-    return {
+    result = {
         "candidate_name": candidate["name"],
         "objective": candidate["objective"],
         "updated_groups": sorted(candidate["groups"]),
@@ -255,28 +317,48 @@ def _evaluate_candidate(
         "pilot_holdout_loss_improvement": float(pilot_holdout_improvement),
         "pilot_reconstruction_improvement": float((reconstruction_before - reconstruction_after).detach().cpu()),
         "pilot_reconstruction_error_after": float(reconstruction_after.detach().cpu()),
-        "reward_loss_improvement": float(result.get("reward_loss_improvement", 0.0)),
+        "reward_loss_improvement": 0.0,
         "data_ber_improvement": float((data_before_ber - data_after_ber).detach().cpu()),
         "data_bce_improvement": float((data_before_bce - data_after_bce).detach().cpu()),
         "data_logits_abs_mean_delta": float(
-            torch.mean(torch.abs(after[data_mask] - before[data_mask])).detach().cpu()
+            torch.mean(torch.abs(data_after_logits[data_mask] - data_before_logits[data_mask])).detach().cpu()
             if bool(data_mask.any())
             else 0.0
         ),
         "data_logits_direction_change_fraction": float(
-            torch.mean((torch.sign(before[data_mask]) != torch.sign(after[data_mask])).float()).detach().cpu()
+            torch.mean(
+                (torch.sign(data_before_logits[data_mask]) != torch.sign(data_after_logits[data_mask])).float()
+            ).detach().cpu()
             if bool(data_mask.any())
             else 0.0
         ),
         "data_soft_abs_mean_delta": float(
-            torch.mean(torch.abs(torch.sigmoid(after[data_mask]) - torch.sigmoid(before[data_mask]))).detach().cpu()
+            torch.mean(
+                torch.abs(torch.sigmoid(data_after_logits[data_mask]) - torch.sigmoid(data_before_logits[data_mask]))
+            ).detach().cpu()
             if bool(data_mask.any())
             else 0.0
         ),
         "peft_delta_norm": float(result.get("peft_delta_norm", 0.0)),
         "data_labels_used_online": False,
+        "data_waveform_used_online": False,
+        "online_update_uses_data_waveform": False,
         "diagnostic_uses_data_labels": True,
     }
+    if bool(frame_device.reward_mask.any()):
+        result["reward_loss_improvement"] = float(
+            (
+                torch.nn.functional.binary_cross_entropy_with_logits(
+                    before[frame_device.reward_mask],
+                    frame_device.bits[frame_device.reward_mask].float(),
+                )
+                - torch.nn.functional.binary_cross_entropy_with_logits(
+                    after[frame_device.reward_mask],
+                    frame_device.bits[frame_device.reward_mask].float(),
+                )
+            ).detach().cpu()
+        )
+    return result
 
 
 def main() -> None:
@@ -302,6 +384,12 @@ def main() -> None:
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--steps", type=int, default=1)
     parser.add_argument(
+        "--adapt-holdout-fraction",
+        type=float,
+        default=0.0,
+        help="从 Adapt Pilot 尾部留出一部分，只用于事后 Pilot 留出诊断。",
+    )
+    parser.add_argument(
         "--candidates",
         nargs="+",
         default=None,
@@ -315,6 +403,8 @@ def main() -> None:
     )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
+    if not math.isfinite(args.adapt_holdout_fraction) or not 0.0 <= args.adapt_holdout_fraction < 1.0:
+        parser.error("--adapt-holdout-fraction 必须位于 [0, 1)。")
     all_candidates = _candidate_specs(args.lr, args.steps)
     if args.candidates is None:
         selected_candidates = all_candidates
@@ -363,6 +453,9 @@ def main() -> None:
                     model.attach_online_logit_fir_adapter()
                     tail = start.initial_soft_tail.to(args.device)
                     condition = episode.condition(_frame_to_device(frame, args.device), tail)
+                    update_frame, holdout_mask = _split_adapt_pilot(
+                        _frame_to_device(frame, args.device), args.adapt_holdout_fraction
+                    )
                     state = _pilot_state(frame, cir, tail, condition)
                     state_embedding = None
                     if args.state_conditioned:
@@ -391,6 +484,11 @@ def main() -> None:
                         "state_conditioned": bool(args.state_conditioned),
                         "snr_db": float(snr), "seed": int(seed), "frame_index": int(frame_index),
                         **state, "data_labels_used_online": False,
+                        "adapt_holdout_fraction": float(args.adapt_holdout_fraction),
+                        "adapt_update_pilot_count": int(update_frame.adapt_mask.sum().item()),
+                        "adapt_holdout_pilot_count": int(holdout_mask.sum().item()),
+                        "data_waveform_used_online": False,
+                        "online_update_uses_data_waveform": False,
                     }
                     for candidate in selected_candidates:
                         rows.append({
@@ -401,6 +499,8 @@ def main() -> None:
                                 condition,
                                 tail,
                                 candidate,
+                                pilot_holdout_mask=holdout_mask,
+                                pilot_update_frame=update_frame,
                                 state_embedding=state_embedding,
                                 trainable_parameter_scope=(
                                     "state_mapping" if args.state_mapping_only else None
@@ -408,7 +508,14 @@ def main() -> None:
                             ),
                         })
     summary = []
-    for score_name in ("adapt_bce_improvement", "boundary_loss_improvement", "selective_boundary_loss_improvement", "reward_loss_improvement", "pilot_reconstruction_improvement", "data_bce_improvement"):
+    for score_name in (
+        "adapt_bce_improvement",
+        "pilot_holdout_loss_improvement",
+        "boundary_loss_improvement",
+        "selective_boundary_loss_improvement",
+        "reward_loss_improvement",
+        "pilot_reconstruction_improvement",
+    ):
         by_trial = {}
         for row in rows:
             key = (row["pilot_total"], row["snr_db"], row["seed"], row["frame_index"])
