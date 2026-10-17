@@ -111,6 +111,14 @@ logs/compare_fixed_scheduler_strong_mismatch_10db_seed2_4_20261017/
 logs/compare_fixed_scheduler_strong_mismatch_main_snrs_seed2_4_f2_20261017/
 ```
 
+补充的低 SNR 与排序模式诊断：
+
+- 临时解除 `0 dB` 的 `freeze_below_snr_db=5` 后，6 个帧配对中 3 个改善、1 个变差、2 个持平，平均改善 `0.01584`；但 Reward 排名与 Data BER 改善 Spearman 只有 `0.098`。
+- 将排序从 `robust_lcb` 改为 `aggregate_bce` 后，0/5/10/15 dB 的候选级 Spearman 约为 `0.537/0.332/0.724/0.603`。
+- 加入 Pilot 信号重构一致性约束的 `pilot_consensus` 后，对应相关性约为 `0.060/0.311/0.725/0.689`。
+
+这说明 10/15 dB 的 Pilot BCE 排序已有较明显信号，但 0/5 dB 仍不可靠；不同排序公式没有在所有 SNR 上同时稳定。当前应优先研究低 SNR 下的 Pilot 置信度与候选安全门，而不是继续调大更新幅度或引入 Data 伪标签。
+
 当前仍不能宣称在线方法在所有主 SNR、seed 和帧上稳定超过 Frozen，也不能进入正式
 `5 seed x 60 帧` 主矩阵或启用 Bandit 主比较。下一步是单独解除 0 dB 的低 SNR 冻结做诊断，
 并比较不同 Pilot-only 排名模式；如果低 SNR 解除冻结仍不稳定，应增加 Pilot-only 状态可靠性门，
