@@ -20,6 +20,7 @@ SHA256 8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4
 - `_split_adapt_pilot` 返回的更新帧只保留更新 Pilot 的接收波形，其余位置全部清零；
 - `apply_adapt_only_peft_update` 内部再次构造 Adapt-only 更新视图，避免其他调用者漏传隔离帧；
 - 候选排序的 Adapt、留出 Pilot、Reward 和信道重构分数只在 Pilot-only 视图上计算；
+- 多帧 Reward 验收也只在 Adapt + Reward Pilot 视图上计算，跨帧 soft tail 只由 Pilot 可见位置更新；
 - Data 波形和 Data 标签只在更新完成后的原始帧上做事后 BER/BCE 与连续输出诊断；
 - replay 结果显式记录 `data_waveform_used_online=false` 和 `online_update_uses_data_waveform=false`；
 - 子窗口 replay 同样清零非更新 Pilot 波形，并把原始帧仅用于留出/事后评估。
@@ -44,6 +45,9 @@ SHA256 8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4
 - 更新帧非更新位置的接收波形全为零；
 - 修改 Data 接收波形不会改变在线 PEFT 参数更新；
 - 修改 Data 接收波形不会改变 Pilot 候选排序分数。
+- 修改 Data 接收波形不会改变多帧 Reward gate 的决策和 Reward 指标。
+
+多帧 Reward gate smoke 已成功生成 3 个候选结果；结果中的内部模型/soft-tail 状态不会写入 JSON，且所有在线 Data 隔离字段均为 `false`。
 
 固定协议 smoke（10 dB、seed=2、1 帧、Pilot=256、留出比例=0.25）确认更新 Pilot 为 168 个、留出 Pilot 为 56 个，PEFT 参数确实发生变化，且所有在线隔离字段为 `false`。
 
@@ -63,6 +67,8 @@ SHA256 8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4
 10 dB 这一组有 6 条 seed/frame 轨迹，每条轨迹评估 3 个候选；表中的 18 个候选结果不是 18 条独立轨迹。更大的主 SNR 复核有 12 条 seed/SNR 轨迹，每条评估 3 个候选，36 个候选行同样不能当成 36 个独立样本。
 
 在主 SNR `0/5/10/15 dB`、seed=2/3/4、每条轨迹 1 帧的复核中，相关性为：Adapt BCE `0.073`、Adapt 留出 Pilot BCE `-0.285`、Reward BCE `0.220`、Pilot 信号重构 `0.242`，均未通过 `0.6` 门槛。0/5/15 dB 的 9 个非 identity 候选行均没有正 Data BER 改善，10 dB 只有 1/9 个候选行改善。
+
+随后把 PEFT 更新从 `lr=1e-4, steps=1` 提高到 `lr=1e-3, steps=5` 做强度诊断。参数变化确实增大，但 12 条主 SNR 轨迹上的排序仍未通过：Adapt BCE `0.464`、留出 Pilot BCE `0.168`、Reward BCE `0.589`、Pilot 重构 `0.129`。按 Reward 选择每条轨迹的最佳候选后，12 条轨迹中 11 条尝试更新，只有 6 条 Data BER 改善；因此更大的更新幅度不能单独解决 Pilot 到 Data 的映射失配。
 
 ## 当前结论
 

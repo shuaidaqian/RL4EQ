@@ -656,6 +656,57 @@ def test_frozen_peft_reward_window_reports_gate_decision_without_online_data_lab
     assert "baseline_data_bce_mean" in row
     assert "data_bce_improvement" in row
     assert "reward_margin_improvement" in row
+    assert row["data_waveform_used_online"] is False
+    assert row["online_update_uses_data_waveform"] is False
+
+
+def test_frozen_peft_reward_window_ignores_data_waveforms_for_gate():
+    from dataclasses import replace
+
+    from evaluation.research_diagnostics import evaluate_frozen_peft_reward_window
+    from training.online_adaptation import RewardWindowGate
+
+    frames = [_tiny_identity_frame(frame_index=idx) for idx in range(3)]
+    changed_frames = []
+    for frame in frames:
+        changed_rx = frame.rx_symbols.clone()
+        changed_rx[frame.data_mask] = torch.complex(
+            torch.full_like(changed_rx[frame.data_mask].real, 80.0),
+            torch.full_like(changed_rx[frame.data_mask].real, -55.0),
+        )
+        changed_frames.append(replace(frame, rx_symbols=changed_rx))
+    common = {
+        "condition": _tiny_condition(),
+        "soft_tail": torch.zeros(4, dtype=torch.complex64),
+        "candidate": {"name": "head", "groups": {"head"}, "lr": 1e-4, "steps": 1},
+    }
+    torch.manual_seed(1337)
+    first = evaluate_frozen_peft_reward_window(
+        model=_tiny_model(),
+        adapt_frame=frames[0],
+        reward_frames=frames[1:],
+        gate=RewardWindowGate(max_parameter_delta_norm=1.0),
+        **common,
+    )
+    torch.manual_seed(1337)
+    second = evaluate_frozen_peft_reward_window(
+        model=_tiny_model(),
+        adapt_frame=changed_frames[0],
+        reward_frames=changed_frames[1:],
+        gate=RewardWindowGate(max_parameter_delta_norm=1.0),
+        **common,
+    )
+    for key in (
+        "gate_reason",
+        "gate_cumulative_improvement",
+        "gate_worst_frame_improvement",
+        "reward_ber_improvement",
+        "reward_margin_improvement",
+        "adaptation_accepted",
+    ):
+        assert first[key] == second[key]
+    assert second["data_waveform_used_online"] is False
+    assert second["online_update_uses_data_waveform"] is False
 
 
 def test_level_b_difficulty_scan_reports_only_traditional_baselines(tmp_path):

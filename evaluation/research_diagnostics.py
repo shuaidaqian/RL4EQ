@@ -901,6 +901,7 @@ def evaluate_frozen_peft_reward_window(
             lr=float(candidate.get("lr", 0.0)),
             steps=int(candidate.get("steps", 0)),
             objective=objective,
+            include_evaluation_metrics=False,
         )
         if groups and int(candidate.get("steps", 0)) > 0
         else _identity_peft_result(candidate_model, adapt_frame, condition, tail)
@@ -908,16 +909,25 @@ def evaluate_frozen_peft_reward_window(
     reward_improvements = []
     reward_ber_improvements = []
     reward_margin_improvements = []
-    data_rows = []
+    reward_eval_frames = []
     baseline_model = copy.deepcopy(model)
     for frame in reward_frames:
         frame_device = _frame_to_device(frame, device)
         condition_device = _condition_to_device(condition, device)
         tail_batch = tail.unsqueeze(0).to(torch.complex64)
         baseline_tail_batch = baseline_tail.unsqueeze(0).to(torch.complex64)
+        pilot_visible_mask = frame_device.adapt_mask.bool() | frame_device.reward_mask.bool()
+        reward_frame = replace(
+            frame_device,
+            rx_symbols=torch.where(
+                pilot_visible_mask,
+                frame_device.rx_symbols,
+                torch.zeros_like(frame_device.rx_symbols),
+            ),
+        )
         with torch.no_grad():
-            logits = _model_logits(candidate_model, frame_device, condition_device, tail_batch)
-            baseline_logits = _model_logits(baseline_model, frame_device, condition_device, baseline_tail_batch)
+            logits = _model_logits(candidate_model, reward_frame, condition_device, tail_batch)
+            baseline_logits = _model_logits(baseline_model, reward_frame, condition_device, baseline_tail_batch)
         reward_loss = _masked_bce(logits, frame_device.bits, frame_device.reward_mask)
         baseline_reward_loss = _masked_bce(baseline_logits, frame_device.bits, frame_device.reward_mask)
         reward_ber = bit_error_rate(logits[frame_device.reward_mask], frame_device.bits[frame_device.reward_mask])
@@ -929,6 +939,31 @@ def evaluate_frozen_peft_reward_window(
         reward_improvements.append(float((baseline_reward_loss - reward_loss).detach().cpu()))
         reward_ber_improvements.append(float(baseline_reward_ber - reward_ber))
         reward_margin_improvements.append(float((reward_margin - baseline_reward_margin).detach().cpu()))
+        reward_eval_frames.append(
+            (frame_device, condition_device, tail_batch.clone(), baseline_tail_batch.clone())
+        )
+        # 跨 Reward 帧状态只从 Pilot 可见位置更新；Data 位置已经在
+        # reward_frame 中清零，因此不会污染下一帧在线验收。
+        tail_len = tail.numel()
+        visible_tail = pilot_visible_mask[-tail_len:]
+        if bool(visible_tail.any()):
+            candidate_tail = _next_soft_tail_from_logits(logits, tail_len)
+            baseline_candidate_tail = _next_soft_tail_from_logits(baseline_logits, tail_len)
+            tail = torch.where(visible_tail, candidate_tail, tail)
+            baseline_tail = torch.where(visible_tail, baseline_candidate_tail, baseline_tail)
+    decision = gate.evaluate(
+        reward_improvements,
+        float(adaptation.get("peft_delta_norm", 0.0)),
+        reward_ber_improvements=reward_ber_improvements,
+        reward_margin_improvements=reward_margin_improvements,
+    )
+    # Reward 决策完成后，才在完整接收帧上做 Data 事后评估。Data 输出不回流到
+    # reward gate、参数更新或跨帧 soft-tail 状态。
+    data_rows = []
+    for frame_device, condition_device, tail_batch, baseline_tail_batch in reward_eval_frames:
+        with torch.no_grad():
+            logits = _model_logits(candidate_model, frame_device, condition_device, tail_batch)
+            baseline_logits = _model_logits(baseline_model, frame_device, condition_device, baseline_tail_batch)
         data_rows.append(
             {
                 "data_ber": bit_error_rate(logits[frame_device.data_mask], frame_device.bits[frame_device.data_mask]),
@@ -939,18 +974,8 @@ def evaluate_frozen_peft_reward_window(
                 "baseline_data_bce": float(
                     _masked_bce(baseline_logits, frame_device.bits, frame_device.data_mask).detach().cpu()
                 ),
-                "reward_loss": float(reward_loss.detach().cpu()),
-                "reward_ber": float(reward_ber),
             }
         )
-        tail = _next_soft_tail_from_logits(logits, tail.numel()).detach()
-        baseline_tail = _next_soft_tail_from_logits(baseline_logits, baseline_tail.numel()).detach()
-    decision = gate.evaluate(
-        reward_improvements,
-        float(adaptation.get("peft_delta_norm", 0.0)),
-        reward_ber_improvements=reward_ber_improvements,
-        reward_margin_improvements=reward_margin_improvements,
-    )
     return {
         "action_name": str(candidate.get("name", "identity")),
         "updated_groups": sorted(groups) if groups else ["identity"],
@@ -971,6 +996,8 @@ def evaluate_frozen_peft_reward_window(
             [float(row["baseline_data_bce"] - row["data_bce"]) for row in data_rows]
         ),
         "data_labels_used_online": False,
+        "data_waveform_used_online": False,
+        "online_update_uses_data_waveform": False,
         "diagnostic_uses_data_labels": True,
         "parameter_delta_norm": float(adaptation.get("peft_delta_norm", 0.0)),
         "reward_frame_count": len(reward_frames),

@@ -27,6 +27,15 @@ from training.online_adaptation import RewardWindowGate
 from training.rl_modulated_online import _build_equalizer, _load_model_config
 
 
+def _serializable_result(result: dict) -> dict:
+    """移除只供滚动回放接回状态的内部对象。"""
+
+    row = dict(result)
+    for key in ("_candidate_model", "_final_soft_tail", "_baseline_soft_tail"):
+        row.pop(key, None)
+    return row
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
@@ -108,7 +117,7 @@ def main() -> None:
                         "acquisition_to_data_gap_seconds": float(args.gap_seconds),
                     }
                 )
-                rows.append(result)
+                rows.append(_serializable_result(result))
     payload = {
         "metric": "frozen_peft_multi_frame_reward_gate",
         "rows": rows,

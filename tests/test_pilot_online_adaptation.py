@@ -304,6 +304,24 @@ def test_reward_gate_replay_accepts_state_gap_option():
     assert replay.main is not None
 
 
+def test_reward_gate_replay_strips_internal_state_before_json_output():
+    import json
+
+    from scripts.replay_reward_gate import _serializable_result
+
+    row = _serializable_result(
+        {
+            "gate_reason": "accepted",
+            "_candidate_model": object(),
+            "_final_soft_tail": torch.ones(2),
+            "_baseline_soft_tail": torch.zeros(2),
+        }
+    )
+
+    assert row == {"gate_reason": "accepted"}
+    assert json.loads(json.dumps(row)) == {"gate_reason": "accepted"}
+
+
 def test_online_snr_layer_can_freeze_unreliable_peft_updates():
     import compare
 
