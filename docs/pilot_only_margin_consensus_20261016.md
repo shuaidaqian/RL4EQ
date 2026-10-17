@@ -149,3 +149,33 @@ seed=2、每个 SNR 两帧重新复核后的逐帧 Data BER 如下：
 seed、两帧，在线额外收益很小，不能据此声称已经稳定超过离线模型。对应原始记录在
 `logs/compare_corrected_20261016_all_snr_seed2/`，该目录属于本地实验产物，不纳入
 代码提交。
+
+## 修正协议后的多 seed ranking replay（2026-10-17）
+
+为排除旧日志的条件错配，使用同一 checkpoint、Level B delay=116、gap=0、
+`pilot_cir_phase`、prefix Pilot=256、Reward Pilot=32，在 seed=2/3/4、SNR=5/10/15
+dB、每条轨迹 4 帧上重新比较两种排序。两组 replay 都只让 Adapt Pilot 产生更新、
+Reward Pilot 验收，Data 只在事后计算。
+
+| 排序 | Pilot 分数与 Data BCE Spearman | Pilot 分数与 Data BER Spearman | 实际更新覆盖率 | 实际选中平均 Data BER 改善 |
+|---|---:|---:|---:|---:|
+| `pilot_stable_consensus` | 0.176 | 0.284 | 30.6% | 0.000109 |
+| `pilot_margin_consensus` | 0.167 | 0.278 | 30.6% | 0.000109 |
+
+两种排序在 36 个在线帧上选择完全相同：25 次 `skip`、6 次
+`phase_signal_conservative`、5 次 `phase_signal_aggressive`。Frozen 与 Online 的
+逐 SNR 平均 Data BER 如下：
+
+| SNR | Frozen | Online | 改善（百分点） |
+|---:|---:|---:|---:|
+| 5 dB | 5.3168% | 5.3168% | 0 |
+| 10 dB | 0.7704% | 0.7487% | +0.0217 |
+| 15 dB | 0.1845% | 0.1845% | 0 |
+
+所有在线记录均通过 Data 隔离检查。这个结果说明，修正为当前帧 Pilot 条件后，旧
+报告中 `0.08` 左右的候选 Data BER 改善不再存在；`pilot_margin_consensus` 也没有
+带来新的可迁移排序能力。因此暂不进入正式 5 seed × 60 帧矩阵，也不把旧的
+`replay_pilot_ranking_*20261016f` 结果作为有效证据。新的原始记录为：
+
+- `logs/replay_pilot_ranking_stable_corrected_20261017/`
+- `logs/replay_pilot_ranking_margin_corrected_20261017/`
