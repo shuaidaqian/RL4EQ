@@ -1,3 +1,6 @@
+> 状态：历史诊断/已被当前主路线取代。原始结果保留用于追溯，不代表当前默认方法。
+> 当前规范：docs/state_tracking_receiver_design.md；验证：docs/state_tracking_validation_protocol.md。
+
 # RLS 在线 PEFT 阶段复核（2026-10-02）
 
 > 最新诊断证据见文末：0/5/10 dB 为 5 seeds × 60 帧，15 dB 已扩为 30 seeds × 60 帧。

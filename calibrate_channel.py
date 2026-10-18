@@ -26,7 +26,7 @@ def main() -> None:
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     if args.version:
-        print("RL4EQ continual-ppo schema-v1")
+        print("RL4EQ state-tracking schema-v1")
         return
 
     output_dir = Path(args.output)

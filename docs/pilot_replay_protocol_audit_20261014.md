@@ -1,3 +1,6 @@
+> 状态：历史诊断/已被当前主路线取代。保留原始协议和数值用于追溯，不代表当前默认方法。
+> 当前规范：docs/state_tracking_receiver_design.md；验证：docs/state_tracking_validation_protocol.md。
+
 # Pilot replay 协议复核与累计参数微调（2026-10-14）
 
 本阶段保持离线 checkpoint 不变，检查“Adapt Pilot 更新均衡器内部参数，Reward

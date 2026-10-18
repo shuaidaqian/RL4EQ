@@ -9,7 +9,7 @@ import pytest
 import torch
 
 from agent.unfolded_equalizer import UnfoldedConfig
-from compare import FORMAL_METHODS, _build_method_states, _run_baseline_method_batch, paired_frame, run_method
+from compare import FORMAL_METHODS, _build_method_states, _run_baseline_method_batch
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect, _coordinate_refine_single
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
 from training.continual_ppo import _decision_directed_cir_update
@@ -30,6 +30,7 @@ def test_main_method_group_excludes_strong_model_based_diagnostics():
 
     traditional = method_group("traditional")
     proposed = method_group("proposed")
+    main = method_group("main")
     diagnostic = method_group("diagnostic")
 
     assert "Best Fixed" not in traditional
@@ -50,8 +51,13 @@ def test_main_method_group_excludes_strong_model_based_diagnostics():
         "CFO+DD-Phase LMMSE-FIR",
         "CFO+DD-Phase DFE-RLS",
     }
-    assert proposed == ("Frozen Offline NN", "Pilot-Driven Online Adaptation")
-    assert method_group("main") == traditional + proposed
+    assert proposed == ("F2 Pilot State Tracking Frozen NN",)
+    assert main == traditional + (
+        "F0 Acquisition Frozen NN",
+        "F1 Pilot-Conditioned Frozen NN",
+    ) + proposed
+    assert "Legacy LMMSE-FIR" not in FORMAL_METHODS
+    assert "Legacy DFE" not in FORMAL_METHODS
     assert "Fixed CG-BPSK-DD Block Detector" in diagnostic
     assert "Perfect-CSI Block" in diagnostic
 
@@ -105,6 +111,8 @@ def test_default_entrypoints_use_prefix_pilot_and_correct_main_snrs(tmp_path):
         [
             sys.executable,
             "compare.py",
+            "--config",
+            "configs/continual_ppo.json",
             "--methods",
             "LMMSE-FIR",
             "--delays",
@@ -318,7 +326,7 @@ def test_continual_ppo_entrypoints_report_schema_version():
             text=True,
             capture_output=True,
         )
-        assert result.stdout.strip() == "RL4EQ continual-ppo schema-v1"
+        assert result.stdout.strip() == "RL4EQ state-tracking schema-v1"
 
 
 def test_legacy_environment_modules_remain_importable_during_reset():
@@ -389,16 +397,6 @@ def test_pilot_shortlist_keeps_two_to_three_candidates_and_reasons(tmp_path):
     assert (tmp_path / "shortlist.json").exists()
 
 
-@pytest.mark.parametrize("method", FORMAL_METHODS)
-def test_all_methods_receive_same_label_free_frame(method):
-    received = paired_frame(seed=23)
-    hidden = received.hide_reward_and_data_labels()
-    result_a = run_method(method, hidden)
-    result_b = run_method(method, hidden)
-    assert result_a.input_hash == result_b.input_hash == received.observable_hash
-    assert "数据标签上界" not in method
-
-
 def test_hierarchical_bootstrap_resamples_seed_then_ten_frame_blocks():
     rows = [
         {"seed": seed, "frame": frame, "method": "Continual PPO", "ber_data": 0.01 + 0.001 * seed}
@@ -419,6 +417,8 @@ def test_compare_cli_writes_real_level_b_metrics(tmp_path):
             "compare.py",
             "--config",
             "configs/continual_ppo.json",
+            "--method-group",
+            "traditional",
             "--delays",
             "20",
             "--snrs",
@@ -437,14 +437,10 @@ def test_compare_cli_writes_real_level_b_metrics(tmp_path):
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     rows = [json.loads(line) for line in (tmp_path / "frame_metrics.jsonl").read_text(encoding="utf-8").splitlines()]
     assert "saved" in result.stdout
-    assert summary["schema_version"] == "continual-ppo-compare-v2"
+    assert summary["schema_version"] == "state-tracking-compare-v1"
     assert rows
     assert all(row["level"] == "B" for row in rows)
-    assert all(row["ber_data"] != 0.02 for row in rows if row["method"] == "Continual PPO")
-    ppo_rows = [row for row in rows if row["method"] == "Continual PPO"]
-    assert ppo_rows
-    assert all(row["policy_learning"] == "clipped_ppo_reward_pilot" for row in ppo_rows)
-    assert all("policy_action_mode" in row for row in ppo_rows)
+    assert {row["method"] for row in rows} == set(__import__("compare").TRADITIONAL_METHODS)
 
 
 def test_compare_resume_replays_state_without_duplicate_rows(tmp_path):
@@ -453,6 +449,8 @@ def test_compare_resume_replays_state_without_duplicate_rows(tmp_path):
         "compare.py",
         "--config",
         "configs/continual_ppo.json",
+        "--method-group",
+        "traditional",
         "--delays",
         "20",
         "--snrs",
@@ -467,9 +465,10 @@ def test_compare_resume_replays_state_without_duplicate_rows(tmp_path):
     rows = [json.loads(line) for line in (tmp_path / "frame_metrics.jsonl").read_text(encoding="utf-8").splitlines()]
     keys = [(row["method"], row["delay"], row["snr_db"], row["seed"], row["frame"]) for row in rows]
     assert len(keys) == len(set(keys))
-    assert len(rows) == len(FORMAL_METHODS) * 2
-    ppo_rows = [row for row in rows if row["method"] == "Continual PPO"]
-    assert [row["frame"] for row in ppo_rows] == [1, 2]
+    from compare import TRADITIONAL_METHODS
+
+    assert len(rows) == len(TRADITIONAL_METHODS) * 2
+    assert {row["method"] for row in rows} == set(TRADITIONAL_METHODS)
 
 
 def test_compare_cli_can_run_selected_methods_for_affected_matrix(tmp_path):

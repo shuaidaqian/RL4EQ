@@ -11,7 +11,7 @@ from training.meta_training import MetaTrainer
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", action="store_true")
-    parser.add_argument("--config", default="configs/continual_ppo.json")
+    parser.add_argument("--config", default="configs/level_b_state_tracking.json")
     parser.add_argument("--stage", default="all")
     parser.add_argument("--steps", type=int, default=2)
     parser.add_argument("--batch-size", type=int, default=1)
@@ -21,7 +21,7 @@ def main() -> None:
     parser.add_argument("--save-dir", default="pretrained")
     args = parser.parse_args()
     if args.version:
-        print("RL4EQ continual-ppo schema-v1")
+        print("RL4EQ state-tracking schema-v1")
         return
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = load_config(args.config)

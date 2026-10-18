@@ -161,4 +161,4 @@ class CommunicationEnvironment:
 def environment_schema() -> str:
     """返回新路线环境契约版本。"""
 
-    return "continual-ppo-env-v1"
+    return "state-tracking-env-v1"

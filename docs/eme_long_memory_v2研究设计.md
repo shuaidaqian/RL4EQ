@@ -1,4 +1,9 @@
+> 状态：历史诊断/已被当前主路线取代。保留原始协议和数值用于追溯，不代表当前默认方法。
+> 当前规范：docs/state_tracking_receiver_design.md；验证：docs/state_tracking_validation_protocol.md。
+
 # EME 长记忆信道与在线均衡研究设计
+
+> 当前有效结论：本文早期在线适配设计已被 Pilot-only 状态后验跟踪取代。物理信道定义和离线训练约束继续有效；PEFT、Bandit、PPO 只作历史消融。
 
 ## 1. 研究命题
 

@@ -1,3 +1,6 @@
+> 状态：历史诊断/已被当前主路线取代。原始结果保留用于追溯，不代表当前默认方法。
+> 当前规范：docs/state_tracking_receiver_design.md；验证：docs/state_tracking_validation_protocol.md。
+
 # Reward logits 守门复核（2026-10-15）
 
 ## 目的

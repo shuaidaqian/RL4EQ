@@ -1,145 +1,53 @@
-# RL4EQ：Level B 极端长回波下的 RL-Modulated Neural Block Equalizer
+# RL4EQ：长记忆 ISI 信道的 Pilot-only 状态跟踪接收机
 
-> 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
-> acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。
-> 旧的 Frozen/Online 数值来自已废弃的条件边界，不能作为当前主结果。当前主实验要求重新
-> 在同一 Level B 轨迹上比较参数冻结但使用当前帧 Pilot 条件的 Frozen 与 Pilot 驱动恢复/微调的
-> Online，并单独报告 Online 相对 Frozen 的配对增益；acquisition 老化只作为独立压力测试。
+项目目标是在 Level B 极端稀疏长回波信道上，离线预训练基础神经块均衡器，在线仅使用帧前缀 Pilot 适配时变状态：多径 tap 慢漂移、residual CFO、慢相位噪声、acquisition-to-data 老化和跨帧 soft-tail 误差。Data 段只做事后硬 BER 评估。
 
-本项目研究 EME 启发但不等同于完整物理 EME 的极端稀疏长时延扩展信道。当前主线使用独立的 `eme_long_memory_v2` 长记忆 profile；`eme_measurement_v1` 保留作历史兼容和对照，不把二者混合平均。主线是：
+当前主线是：
 
 ```text
-Level A/B/C 可控信道族
--> 全程 Pilot 条件课程监督预训练
--> 整帧缓冲、非因果神经块均衡器
--> Adapt Pilot 驱动受限 PEFT 在线微调
--> Reward Pilot 安全门控与跨帧 soft-tail 递推
--> 跨帧延迟效应成立时才替换为安全 Recurrent Double DQN
--> 与传统非神经、非 RL baseline 公平比较
+Level B 长记忆信道轨迹
+-> 在线 soft-tail 条件下离线 BCE 预训练
+-> 冻结离线均衡器主干
+-> Adapt Pilot 更新 CIR/CFO/phase 后验
+-> 计算 Pilot-only 物理风险与不确定度
+-> 低置信度时 abstain，安全时原子提交状态
+-> 冻结均衡器整帧检测并维护下一帧 tail belief
+-> 用 Data 硬 BER 做事后评估
 ```
 
-研究目标不是超过所有可能的强模型驱动序列检测器，也不是只找到一个传统方法很弱的工作区。当前第一性目标是在 Level B 主论文场景中，让同一离线 checkpoint 初始化的 `Pilot-Driven Online Adaptation` 相对 `Frozen Offline NN` 产生可重复的额外收益，并同时明显超过传统非神经、非 RL 均衡器。`BER_data < 0.01` 保留为辅助系统指标，不再作为第一成功门槛。
+当前主方法不是在线 PEFT 或 PPO。历史 PEFT、Bandit、窗口 PPO 仍可用于失败复现和消融，但它们不能绕过 Pilot 代理排序验证直接改变模型参数。Reward Pilot BCE 已经出现与 Data BER 负相关，因而不再是默认控制目标。
 
 ## 研究契约
 
-- 主论文场景是 Level B：`eme_long_memory_v2` 使用 11.6 ms 雷达深度约束、10 ksymbol/s 离散化和 116 个符号最大记忆，主 SNR 为 `[0, 5, 10, 15]` dB。
-- Pilot 只放在帧前缀；`two_block` 和 `multi_block` 不再作为主论文 Pilot 布局。
-- Level A 用于课程学习和可达性校准；Level C 只作为压力测试，不混入 Level B 主平均。
-- 接收机是整帧缓冲、非因果块神经均衡器；“在线”指信道运行期间按帧持续适配，不是逐符号即时输出。
-- 当前主比较只保留传统均衡器、`Frozen Offline NN` 和 `Pilot-Driven Online Adaptation`；早期 PPO/调制策略仅作为代码兼容或专项消融，不作为主对照。
-- 最新 PEFT 回放协议与结果见 [统一 Pilot replay 协议复核](docs/pilot_replay_protocol_audit_20261014.md)：保持离线 checkpoint 不变，只用 Adapt Pilot 更新均衡器内部 Adapter 参数，Reward Pilot 负责验收/回滚，Data 标签只用于事后评估。长空档后过期的信道历史已修正清除；修正前的 gap=600 s 数值不作为有效结论。当前 gap=0 主场景和修正后的老化压力测试都还未证明稳定在线增益，gap=120 的联合 BCE/重构目标也未通过保留门槛。
-- 最新的 logits 改变量上限复核见 [Reward logits 守门复核](docs/online_logit_guard_replay_20261015.md)：在全新 seed 72--76 上，5 dB 平均改善 0.0705 个百分点且 5/5 seed 非负，15 dB 平均改善 0.0260 个百分点且 4/5 seed 正收益；10 dB 平均仅改善 0.0033 个百分点，仍不能宣称所有主 SNR 稳定超过冻结离线模型。
-- 10 dB 的 60 帧长期复核见 [10 dB 长窗口复核](docs/formal_signal_guard_logitcap01_gap0_10db_seed77_81_60f.md)：seed 77--81 平均改善 0.0126 个百分点，但只有 2/5 seed 正收益，说明延长帧数不能单独解决 Reward 到 Data 的排序失配。
-- 进一步把 Reward 信号重构守门收紧为至少改善 0.0005 后，10 dB seed 77--81 变为 3/5 正收益、2/5 持平、0/5 负收益，但平均改善降至 0.0052 个百分点；详见 [严格门控对照](docs/formal_signal_guard_logitcap01_signalmin0005_gap0_10db_seed77_81_60f.md)。这能止损，不能把在线增益变成稳定且明显的主结果。
-- 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须包含基于 Pilot 的合理补偿，不能人为打残 baseline。
-- Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真 `BER_data` 评估。
-- 在线 observation、reward、动作选择和调制更新不使用数据标签上界。
-- 当前 RL 路线采用离散安全动作和窗口级 reward；逐帧连续 modulation 不再作为主实施路线。
-- 当前在线均衡主线是 Adapt Pilot 驱动的受限 PEFT 更新和 Reward Pilot 验收；由于 Pilot-only reward 尚未在多个 SNR/seed 上稳定排序 Data 收益，Contextual Bandit 暂不进入主比较。Bandit 不直接生成高维参数增量，只有排序门槛通过后才考虑接入。
-- 为隔离在线微调本身的增量，可用 `compare.py --online-condition-source acquisition` 固定 acquisition 条件；该消融仍只用 Adapt Pilot 更新 PEFT、只用 Reward Pilot 验收/回滚。默认主线为 `pilot_cir_phase`。
-- 所有神经方法共享同一 `tail_update_alpha` 跨帧 soft-tail 递推；Frozen 与 Online 的差异不能再来自不一致的尾状态更新。
-- Data Oracle 不恢复。
-- clean Level B 作为 sanity check，用来证明传统均衡器在干净线性 BPSK 下确实很强；主攻场景逐级加入 residual CFO 与慢相位扰动。
-- 非线性、信道编码和高阶调制只作为后续按需扩展，不进入当前主实验。
+- 主配置：`eme_long_memory_v2`、Level B、物理最大记忆 116、SNR `0/5/10/15 dB`、prefix Pilot。
+- 在线状态：稀疏 CIR 均值/方差、residual CFO、phase0、innovation variance、soft-tail 均值/方差/置信度。
+- 信息边界：Adapt Pilot 可更新状态；Reward Pilot 只用于已知 Pilot 物理一致性留出；Data 标签只用于离线监督和最终 BER。
+- 主比较：传统 LMMSE/DFE/RLS/SC-FDE 与 `Frozen Offline NN`、`Pilot State Tracking Frozen NN`。Perfect-CSI 和 oracle 只作诊断。
+- 代理验收：在独立状态轨迹上按 SNR、delay、漂移和 gap 分桶检查 Spearman/Kendall、top-1 误选率、置信区间和 abstain 率；不通过就保持 Frozen。
 
-## 方法分组
-
-正式主比较包含：
-
-```text
-traditional:
-  LMMSE-FIR
-  LMS
-  NLMS
-  RLS Linear
-  DFE-RLS
-  SC-FDE-MMSE
-  CFO-Corrected LMMSE-FIR
-  CFO-Corrected DFE-RLS
-  CFO+DD-Phase LMMSE-FIR
-  CFO+DD-Phase DFE-RLS
-
-proposed:
-  Frozen Offline NN
-  Pilot-Driven Online Adaptation
-```
-
-`Frozen Offline NN` 与在线方法加载完全相同的离线 checkpoint，并共享同一条信道轨迹、帧结构和跨帧 soft-tail；Frozen 只冻结网络参数和 CIR 更新，但使用当前帧已知 Pilot 生成模型所需的 phase/CFO 条件。Online 在此基础上使用 Adapt Pilot 恢复物理状态并更新受限 PEFT 参数，再由 Reward Pilot 验收或回滚。因此论文中真正要解释的是“离线基础能力”与“在线状态恢复及参数微调增益”的差别，而不是把不同网络或不同信道拿来比较。
-
-诊断参考单独报告，不进入主成功门槛：
-
-```text
-diagnostic:
-  Perfect-CSI Block
-  Fixed CG-BPSK-DD Block Detector
-```
-
-## 当前代码入口
+## 入口
 
 ```powershell
-.\.venv-gpu\Scripts\python.exe pretrain.py --config configs/continual_ppo.json --stage all --steps 2 --batch-size 1 --amp --save-dir pretrained/final_smoke
-.\.venv-gpu\Scripts\python.exe online_train.py --config configs/continual_ppo.json --pretrained pretrained/final_smoke/model_best.pt --frames 8 --num-seeds 1 --window-size 4 --update-interval 4 --delays 20 --snrs 10 --pilot-total 64 --pilot-layout prefix --amp --output-dir logs/final_online_smoke
-.\.venv-gpu\Scripts\python.exe scripts/diagnose_action_delay.py logs/final_online_smoke --output logs/final_online_smoke/action_delay.json
-.\.venv-gpu\Scripts\python.exe compare.py --config configs/continual_ppo.json --method-group main --pretrained pretrained/final_smoke/model_best.pt --delays 20 --snrs 10 --num-seeds 1 --frames 1 --pilot-total 64 --pilot-layout prefix --resume --output-dir logs/final_compare_smoke
-# compare.py 未显式指定调度器时沿用配置中的 `online_scheduler`；当前主配置使用固定候选选择器。
-# 只有 Pilot-only 排序通过稳定性门槛后，才显式使用：--scheduler bandit
-.\.venv-gpu\Scripts\python.exe -m pytest -q -p no:cacheprovider
+python pretrain.py --config configs/level_b_state_tracking.json --stage all --steps 2 --batch-size 1 --amp --save-dir pretrained/state_smoke
+python online_train.py --config configs/level_b_state_tracking.json --pretrained pretrained/state_smoke/model_best.pt --method state --frames 8 --num-seeds 1 --delays 116 --snrs 10 --pilot-total 128 --pilot-layout prefix --output-dir logs/state_smoke
+python compare.py --config configs/level_b_state_tracking.json --method-group main --pretrained pretrained/state_smoke/model_best.pt --delays 116 --snrs 10 --num-seeds 1 --frames 1 --pilot-total 128 --pilot-layout prefix --output-dir logs/compare_smoke
+python -m pytest -q -p no:cacheprovider
 ```
 
-GPU 环境安装：
+正式在线运行必须提供存在且 strict-load 成功的 `model_best.pt`。入口会在输出中记录 `pretrained_loaded`、`online_parameter_update`、`data_labels_used_online`、`online_waveform_visibility` 和 Pilot 风险字段。
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup_gpu_env.ps1 -Recreate
-.\.venv-gpu\Scripts\python.exe -c "import torch; assert torch.cuda.is_available(); print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))"
-```
+## 目录
 
-PyTorch wheel 自带 CUDA runtime；脚本不修改系统 CUDA Toolkit。
+- `agent/state_tracking.py`：物理状态后验、tail belief 和原子提交。
+- `agent/pilot_risk.py`：Pilot-only 重构、创新白化、不确定度和 abstain 风险代理。
+- `agent/cir_estimator.py`：稀疏 CIR、phase/CFO 的 Pilot 估计器。
+- `agent/unfolded_equalizer.py`：离线预训练的整帧非因果块均衡器。
+- `training/state_tracking_online.py`：正式冻结主干在线入口。
+- `training/online_adaptation.py`、`training/windowed_discrete_ppo.py`：历史 PEFT/PPO 诊断入口。
+- `docs/state_tracking_receiver_design.md`：唯一权威接收机设计。
+- `docs/state_tracking_validation_protocol.md`：分层基线与代理验收协议。
+- `docs/legacy_online_routes.md`：旧路线和失败证据索引。
 
-## 目录结构
+旧文档中的实验数字保持追溯性，但均以“历史诊断/已被当前主路线取代”解释，不可直接作为当前主方法定义。
 
-```text
-agent/
-  cir_estimator.py              Adapt/acquisition 驱动 CIR 条件
-  modulation.py                 有界低维调制状态
-  discrete_safe_policy.py       离散安全动作 PPO 策略
-  rl_modulator.py               observation 编码器；旧连续 policy 仅保留兼容
-  unfolded_equalizer.py         整帧非因果神经块均衡器
-baseline/
-  traditional_equalizers.py     传统非神经、非 RL baseline
-  block_equalizers.py           强模型驱动诊断检测器
-env/
-  channel_profiles.py           Level A/B/C 信道族
-  eme_channel_profiles.py       文献包络约束的 EME profile 采样器
-  extreme_delay_channel.py      长回波、漂移、跨帧 ISI
-  impairments.py                residual CFO 与慢相位扰动
-  frame_structure.py            前缀 Pilot 帧结构；其他布局仅保留消融/诊断兼容
-  comm_env.py                   acquisition + 普通帧 episode 环境
-training/
-  curriculum.py                 真实信道 Pilot 条件课程预训练
-  windowed_discrete_ppo.py      离散安全动作 + 窗口级 reward 在线 runner
-  rl_modulated_online.py        旧连续调制 runner，仅保留历史诊断兼容
-  continual_ppo.py              旧兼容 smoke runner，不作为新主路线
-evaluation/
-  metrics.py                    BER、goodput、Spearman、逐配置汇总
-  bootstrap.py                  seed + 连续帧块 bootstrap
-```
-
-## 门槛式自动推进
-
-执行顺序固定为：
-
-```text
-1. 真实传统 baseline 可运行且标签隔离
-2. 离线预训练 checkpoint strict-load
-3. Windowed Discrete PPO 在线 smoke
-4. append-safe compare smoke
-5. 小样本门槛矩阵
-6. 只有前置门槛通过，才进入 pilot sweep
-7. 只有 pilot sweep 通过，才进入正式主矩阵
-```
-
-任何前置门槛失败时，必须停止并分析原因，不能用总体平均、强诊断方法或 Data 标签上界掩盖失败。
-
-## 当前实现边界
-
-当前代码已经补齐真实传统 baseline、神经均衡器最小链路、离散安全动作窗口级 PPO、真实信道预训练数据流、strict-load checkpoint、append-safe compare smoke。当前执行门槛调整为：先用传统难度校准脚本确认 clean、CFO、慢相位、CFO+慢相位四级复杂度下传统 baseline 的真实难度；再训练 Proposed，使其在选定 Level B impaired 主场景逐配置明显超过带合理补偿的传统 baseline。未通过前不能启动正式主矩阵或撰写“神经/RL 显著优于传统”的结论。
+历史兼容说明：`RL-Modulated Neural Block Equalizer` 曾作为 proposed；接收机仍是整帧缓冲、非因果，主研究要求在 CFO、相位扰动下以合理补偿为前提明显超过传统，并且不使用数据标签上界。

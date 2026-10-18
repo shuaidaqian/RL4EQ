@@ -1,0 +1,69 @@
+# -*- coding: utf-8 -*-
+
+from dataclasses import replace
+
+import torch
+
+from agent.pilot_risk import compute_pilot_risk
+from agent.state_tracking import (
+    TailBelief,
+    commit_tail_from_logits,
+    initial_state,
+    update_from_adapt_pilot,
+)
+from env.frame_structure import Frame
+
+
+def _frame() -> Frame:
+    bits = torch.tensor([True, False, True, False, True, False, True, False])
+    tx = torch.complex(bits.float() * 2.0 - 1.0, torch.zeros(8))
+    adapt = torch.tensor([True, True, True, True, False, False, False, False])
+    reward = torch.tensor([False, False, False, False, True, True, False, False])
+    return Frame(
+        frame_index=0,
+        bits=bits,
+        tx_symbols=tx,
+        rx_symbols=tx.clone(),
+        adapt_mask=adapt,
+        reward_mask=reward,
+        data_mask=~(adapt | reward),
+        model_region_ids=torch.zeros(8, dtype=torch.long),
+        adapt_block_lengths=(4,),
+        tail_symbols=torch.zeros(2, dtype=torch.complex64),
+        true_cir=torch.tensor([1 + 0j, 0.2 + 0j]),
+    )
+
+
+def test_state_update_is_invariant_to_data_labels_and_waveform():
+    frame = _frame()
+    prior = initial_state(torch.tensor([1 + 0j, 0.2 + 0j]), torch.zeros(2, dtype=torch.complex64))
+    first = update_from_adapt_pilot(frame, prior, snr_db=10.0, min_confidence=0.0)
+    changed = replace(
+        frame,
+        bits=frame.bits.clone().logical_not(),
+        rx_symbols=torch.where(frame.data_mask, torch.tensor(3 + 2j), frame.rx_symbols),
+    )
+    second = update_from_adapt_pilot(changed, prior, snr_db=10.0, min_confidence=0.0)
+    assert torch.allclose(first.candidate.cir, second.candidate.cir, atol=1e-6, rtol=1e-6)
+    assert first.candidate.phase == second.candidate.phase
+
+
+def test_tail_belief_clone_and_risk_do_not_read_data_labels():
+    frame = _frame()
+    posterior = initial_state(torch.tensor([1 + 0j, 0.2 + 0j]), torch.zeros(1, dtype=torch.complex64))
+    risk_a = compute_pilot_risk(frame, posterior)
+    changed = replace(frame, bits=frame.bits.logical_not())
+    risk_b = compute_pilot_risk(changed, posterior)
+    assert risk_a == risk_b
+    updated = commit_tail_from_logits(posterior, torch.ones(8), alpha=0.5)
+    assert updated.tail.mean.shape == posterior.tail.mean.shape
+    assert updated.data_labels_used_online is False
+
+
+def test_tail_belief_rejects_shape_mismatch():
+    try:
+        TailBelief(torch.zeros(2, dtype=torch.complex64), torch.zeros(3), 0.5)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("形状不一致的 tail belief 必须被拒绝")

@@ -6,7 +6,7 @@ import hashlib
 import json
 import math
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import torch
@@ -21,11 +21,18 @@ from agent.cir_estimator import (
     track_pilot_physical_state,
 )
 from agent.pilot_state import PilotStateEmbedding, build_pilot_state_summary
+from agent.pilot_risk import compute_pilot_risk
+from agent.state_tracking import (
+    PhysicalStatePosterior,
+    commit_if_safe,
+    commit_tail_from_logits,
+    initial_state,
+    update_from_adapt_pilot,
+)
 from agent.discrete_safe_policy import DiscreteSafePolicy, initialize_safe_discrete_policy_prior, safe_modulation_actions
 from agent.modulation import ModulationConfig, ModulationState
 from agent.safe_contextual_bandit import SafeContextualBandit, SafeUpdateAction
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
-from baseline.legacy_equalizers import legacy_dfe, legacy_lmmse_fir
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
 from baseline.synchronization_compensation import apply_phase_correction
 from baseline.traditional_equalizers import (
@@ -69,8 +76,6 @@ FORMAL_METHODS = (
     "Block LMMSE/CG",
     "DFE-RLS",
     "Analytic Iterative BPSK",
-    "Legacy LMMSE-FIR",
-    "Legacy DFE",
     "No Adapt",
     "Best Fixed",
     "Drift-Aware Pilot Rule",
@@ -92,6 +97,9 @@ TRADITIONAL_METHODS = (
 )
 
 NEURAL_IMPLEMENTATION_METHODS = (
+    "F0 Acquisition Frozen NN",
+    "F1 Pilot-Conditioned Frozen NN",
+    "F2 Pilot State Tracking Frozen NN",
     "Frozen Offline NN",
     "Pilot CIR only",
     "Pilot-Driven Online Adaptation",
@@ -103,9 +111,12 @@ NEURAL_IMPLEMENTATION_METHODS = (
 
 # 当前论文主矩阵只比较冻结离线模型和在线微调模型；其余实现保留为
 # 历史兼容或专项消融，不能通过主方法组混入主平均。
+FROZEN_NEURAL_BASELINES = (
+    "F0 Acquisition Frozen NN",
+    "F1 Pilot-Conditioned Frozen NN",
+)
 PRIMARY_PROPOSED_METHODS = (
-    "Frozen Offline NN",
-    "Pilot-Driven Online Adaptation",
+    "F2 Pilot State Tracking Frozen NN",
 )
 PROPOSED_METHODS = PRIMARY_PROPOSED_METHODS
 
@@ -136,8 +147,8 @@ def method_group(name: str) -> tuple[str, ...]:
         "traditional": TRADITIONAL_METHODS,
         "proposed": PRIMARY_PROPOSED_METHODS,
         "diagnostic": DIAGNOSTIC_METHODS,
-        "main": TRADITIONAL_METHODS + PRIMARY_PROPOSED_METHODS,
-        "all": TRADITIONAL_METHODS + PRIMARY_PROPOSED_METHODS + DIAGNOSTIC_METHODS,
+        "main": TRADITIONAL_METHODS + FROZEN_NEURAL_BASELINES + PRIMARY_PROPOSED_METHODS,
+        "all": TRADITIONAL_METHODS + FROZEN_NEURAL_BASELINES + PRIMARY_PROPOSED_METHODS + DIAGNOSTIC_METHODS,
     }
     if name not in groups:
         raise ValueError(f"未知方法组：{name}")
@@ -185,70 +196,10 @@ def _online_condition_source_from_config(
     return source
 
 
-@dataclass(frozen=True)
-class LabelFreeFrame:
-    seed: int
-    observable_hash: str
-    level: str = "B"
-    delay: int = 20
-    snr_db: float = 10.0
-    frame: int = 0
-
-
-@dataclass(frozen=True)
-class PairedFrame:
-    seed: int
-    observable_hash: str
-    reward_bits_hash: str
-    data_bits_hash: str
-
-    def hide_reward_and_data_labels(self) -> LabelFreeFrame:
-        return LabelFreeFrame(seed=self.seed, observable_hash=self.observable_hash)
-
-
-@dataclass(frozen=True)
-class MethodResult:
-    method: str
-    input_hash: str
-    ber_data: float
-    latency_ms: float
-
-
-def paired_frame(seed: int, delay: int = 20, snr_db: float = 10.0, frame: int = 0) -> PairedFrame:
-    observable = _hash_json({"seed": seed, "delay": delay, "snr_db": snr_db, "frame": frame, "visible": "rx+adapt"})
-    reward = _hash_json({"seed": seed, "hidden": "reward"})
-    data = _hash_json({"seed": seed, "hidden": "data"})
-    return PairedFrame(seed=seed, observable_hash=observable, reward_bits_hash=reward, data_bits_hash=data)
-
-
-def run_method(method: str, received: LabelFreeFrame) -> MethodResult:
-    if method not in FORMAL_METHODS:
-        raise ValueError(f"未知比较方法：{method}")
-    if method == "Legacy LMMSE-FIR":
-        result = legacy_lmmse_fir(received)
-        return MethodResult(result.method, result.input_hash, result.ber_data, result.latency_ms)
-    if method == "Legacy DFE":
-        result = legacy_dfe(received)
-        return MethodResult(result.method, result.input_hash, result.ber_data, result.latency_ms)
-    base = {
-        "Perfect-CSI Block": 0.005,
-        "Sparse CIR + Kalman/RLS": 0.04,
-        "Block LMMSE/CG": 0.05,
-        "DFE-RLS": 0.07,
-        "Analytic Iterative BPSK": 0.045,
-        "No Adapt": 0.06,
-        "Best Fixed": 0.035,
-        "Drift-Aware Pilot Rule": 0.03,
-        "Contextual Bandit": 0.028,
-        "Continual PPO": 0.02,
-    }[method]
-    return MethodResult(method, received.observable_hash, base, 0.2)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", action="store_true")
-    parser.add_argument("--config", default="configs/continual_ppo.json")
+    parser.add_argument("--config", default="configs/level_b_state_tracking.json")
     parser.add_argument("--pretrained", default="pretrained/model_best.pt")
     parser.add_argument("--policy", default="logs/online/policy.pt")
     parser.add_argument("--method-group", choices=["traditional", "proposed", "diagnostic", "main", "all"], default=None)
@@ -377,10 +328,18 @@ def main() -> None:
     ):
         parser.error("--acquisition-to-data-gap-seconds 必须是有限非负数。")
     if args.version:
-        print("RL4EQ continual-ppo schema-v1")
+        print("RL4EQ state-tracking schema-v1")
         return
     selected_methods = method_group(args.method_group) if args.method_group else _select_methods(args.methods)
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    if (
+        args.method_group is None
+        and args.methods is None
+        and str(config.get("channel_profile", "legacy_sparse_v1")) == "legacy_sparse_v1"
+    ):
+        # 旧 legacy 配置没有可用的主路线 checkpoint，保留传统 smoke 兼容；
+        # canonical Level B 配置仍默认选择 F0/F1/F2。
+        selected_methods = TRADITIONAL_METHODS
     scheduler = str(
         args.scheduler
         if args.scheduler is not None
@@ -477,14 +436,22 @@ def main() -> None:
     residual_cfo_limit = float(profile_prior.get("residual_cfo_limit", 0.001))
     acquisition_cfo_limit = float(profile_prior.get("acquisition_cfo_limit", max(0.004, residual_cfo_limit)))
     pretrained_path = Path(args.pretrained) if args.pretrained else None
-    if pretrained_path is not None and not pretrained_path.exists():
-        pretrained_path = None
     neural_methods = {
+        "F0 Acquisition Frozen NN",
+        "F1 Pilot-Conditioned Frozen NN",
+        "F2 Pilot State Tracking Frozen NN",
         "Frozen Offline NN",
         "Pilot CIR only",
         "Pilot-Driven Online Adaptation",
         "RL-Modulated Neural Block Equalizer",
     }
+    if any(method in neural_methods for method in selected_methods):
+        if pretrained_path is None or not pretrained_path.is_file():
+            raise FileNotFoundError(
+                "正式神经方法必须提供存在的 --pretrained checkpoint；禁止静默回退随机初始化。"
+            )
+    elif pretrained_path is not None and not pretrained_path.is_file():
+        pretrained_path = None
     if config.get("channel_profile") in {"eme_measurement_v1", "eme_long_memory_v2"} and any(
         method in neural_methods for method in selected_methods
     ):
@@ -640,7 +607,7 @@ def main() -> None:
             "generalization": method_summary.generalization,
         }
     summary_payload = {
-        "schema_version": "continual-ppo-compare-v2",
+        "schema_version": "state-tracking-compare-v1",
         "methods": list(selected_methods),
         "primary_summary_method": primary_method,
         "main_level": "B",
@@ -668,9 +635,12 @@ def _primary_summary_method(methods: tuple[str, ...]) -> str:
     """选择默认主结果方法，优先使用当前在线 proposed 主线。"""
 
     priority = (
-        "Pilot-Driven Online Adaptation",
+        "F2 Pilot State Tracking Frozen NN",
+        "F1 Pilot-Conditioned Frozen NN",
+        "F0 Acquisition Frozen NN",
         "RL-Modulated Neural Block Equalizer",
         "Frozen Offline NN",
+        "Pilot-Driven Online Adaptation",
     )
     for method in priority:
         if method in methods:
@@ -737,6 +707,7 @@ class NeuralMethodState:
     phase_tracking_min_confidence: float = 0.15
     phase_tracking_cfo_limit: float = 0.0012
     tail_update_alpha: float = 1.0
+    posterior: PhysicalStatePosterior | None = None
 
 
 @dataclass
@@ -824,7 +795,7 @@ class PilotRLSMethodState:
 
 def _select_methods(methods: list[str] | None) -> tuple[str, ...]:
     if not methods:
-        return FORMAL_METHODS
+        return method_group("main")
     allowed = set(FORMAL_METHODS) | set(method_group("all")) | set(NEURAL_IMPLEMENTATION_METHODS)
     unknown = [method for method in methods if method not in allowed]
     if unknown:
@@ -1063,7 +1034,13 @@ def _build_method_states(
         elif method in NEURAL_IMPLEMENTATION_METHODS:
             model = _build_equalizer(model_config, pretrained_path, device)
             modulation_config = ModulationConfig(num_adapter_gates=len(model.blocks), num_lora_scales=len(model.blocks))
-            if method == "Frozen Offline NN":
+            if method == "F0 Acquisition Frozen NN":
+                condition_update_mode = "fixed"
+                condition_source = "acquisition"
+            elif method == "F1 Pilot-Conditioned Frozen NN":
+                condition_update_mode = "fixed"
+                condition_source = "pilot_cir_phase"
+            elif method == "Frozen Offline NN":
                 # Frozen 只冻结离线网络参数；条件来源由配置显式指定，
                 # 以保证 Frozen 与 Online 的纯 PEFT 比较使用同一状态条件。
                 condition_update_mode = "fixed"
@@ -1074,11 +1051,27 @@ def _build_method_states(
             elif method == "Pilot CIR only":
                 condition_update_mode = "pilot_sparse"
                 condition_source = "pilot_cir_phase"
+            elif method == "F2 Pilot State Tracking Frozen NN":
+                # 正式主路线只更新 Pilot 后验状态，不更新任何神经参数。
+                condition_update_mode = "pilot_sparse"
+                condition_source = "pilot_cir_phase"
             else:
                 condition_update_mode = str(cir_update_mode)
                 condition_source = _online_condition_source_from_config(
                     config,
                     online_condition_source_override,
+                )
+            posterior = None
+            if method == "F2 Pilot State Tracking Frozen NN":
+                posterior = initial_state(
+                    acquisition_cir.to(device), initial_soft_tail.to(device)
+                )
+                posterior = replace(
+                    posterior,
+                    phase=PilotPhysicalState(
+                        cfo_cycles_per_symbol=float(acquisition_cfo),
+                        confidence=0.5,
+                    ),
                 )
             states[method] = NeuralMethodState(
                 cir=acquisition_cir.clone().to(device),
@@ -1101,6 +1094,7 @@ def _build_method_states(
                 phase_tracking_min_confidence=float(config.get("online_phase_tracking_min_confidence", 0.15)),
                 phase_tracking_cfo_limit=float(config.get("online_phase_tracking_cfo_limit", residual_cfo_limit)),
                 tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
+                posterior=posterior,
             )
         elif method == "Continual PPO":
             torch.manual_seed(90_000 + int(seed) + int(delay) * 17 + int(float(snr_db)) * 31)
@@ -1273,6 +1267,87 @@ def _run_new_or_single_method(
             raise TypeError("神经 proposed 消融需要 NeuralMethodState。")
         device = next(state.model.parameters()).device
         frame_device = _frame_to_device(frame, device)
+        if method == "F2 Pilot State Tracking Frozen NN":
+            if state.posterior is None:
+                raise RuntimeError("Pilot State Tracking 缺少初始物理状态后验。")
+            update = update_from_adapt_pilot(
+                frame_device,
+                state.posterior,
+                snr_db=float(snr_db),
+                cfo_limit=float(state.phase_tracking_cfo_limit),
+                phase_smoothing=float(state.phase_tracking_smoothing),
+                min_confidence=float(state.phase_tracking_min_confidence),
+                cir_alpha=float(state.cir_update_alpha),
+                max_paths=24,
+                frame_index=int(frame_index),
+            )
+            state.posterior = commit_if_safe(update, minimum_confidence=0.15)
+            state.cir = state.posterior.cir
+            state.physical_state = state.posterior.phase
+            phase_features = estimate_phase_residual_vector(
+                frame_device.receiver_view(),
+                state.posterior.cir,
+                state.posterior.tail.mean,
+                blocks=int(state.model.config.phase_correction_segments),
+                cfo_hint=float(state.posterior.phase.cfo_cycles_per_symbol),
+            ).to(device)
+            condition = condition_from_cir(
+                state.posterior.cir,
+                float(snr_db),
+                phase_features=phase_features,
+            )
+            full_rx_iq = torch.stack(
+                (frame_device.rx_symbols.real, frame_device.rx_symbols.imag), dim=-1
+            ).unsqueeze(0).float()
+            adapt_symbols = frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64)
+            adapt_mask = frame_device.adapt_mask.unsqueeze(0).bool()
+            region_ids = frame_device.model_region_ids.unsqueeze(0).long()
+            risk = compute_pilot_risk(
+                frame_device,
+                state.posterior,
+                noise_variance=10.0 ** (-float(snr_db) / 10.0),
+            )
+            with torch.no_grad():
+                logits, _ = state.model(
+                    full_rx_iq,
+                    condition,
+                    region_ids,
+                    state.posterior.tail.mean.unsqueeze(0).to(device=device, dtype=torch.complex64),
+                    modulation=state.modulation,
+                    adapt_symbols=adapt_symbols,
+                    adapt_mask=adapt_mask,
+                )
+            logits = logits.squeeze(0)
+            state.posterior = commit_tail_from_logits(
+                state.posterior,
+                logits,
+                alpha=float(state.tail_update_alpha),
+                frame_index=int(frame_index),
+            )
+            state.receiver_state.update_tail(state.posterior.tail.mean)
+            return _result_from_logits(
+                method,
+                logits,
+                frame_device,
+                0,
+                {
+                    "uses_neural_network": True,
+                    "uses_rl": False,
+                    "pretrained_loaded": state.pretrained_loaded,
+                    "online_parameter_update": False,
+                    "physical_state_update": bool(update.committed),
+                    "physical_state_update_reason": update.reason,
+                    "adapt_pilot_count": int(update.adapt_pilot_count),
+                    "physical_state_confidence": float(state.posterior.confidence),
+                    "residual_cfo": float(state.posterior.phase.cfo_cycles_per_symbol),
+                    "tail_variance_mean": float(state.posterior.tail.variance.mean().detach().cpu()),
+                    "pilot_risk_score": float(risk.score),
+                    "pilot_risk_abstain": bool(risk.abstain),
+                    "pilot_risk_validated_for_data_ber": False,
+                    "data_labels_used_online": False,
+                    "online_waveform_visibility": "adapt_pilot_for_state; full_rx_for_frozen_detection; no_data_labels_for_update",
+                },
+            )
         if state.condition_update_mode == "pilot_sparse":
             state.physical_state = track_pilot_physical_state(
                 frame_device,
@@ -1693,8 +1768,6 @@ def _run_real_method(method: str, frame, snr_db: float, state: BaselineMethodSta
         "Block LMMSE/CG": (state.cir, 32, 0),
         "DFE-RLS": (state.cir, 16, 1),
         "Analytic Iterative BPSK": (state.cir, 16, 2),
-        "Legacy LMMSE-FIR": (state.cir, 16, 0),
-        "Legacy DFE": (state.cir, 8, 1),
         "No Adapt": (state.cir, 8, 0),
         "Best Fixed": (state.cir, 32, 2),
         "Drift-Aware Pilot Rule": (state.cir, 32, 1),
@@ -1771,8 +1844,6 @@ def _baseline_settings(method: str, frame, state: BaselineMethodState) -> tuple[
         "Block LMMSE/CG": (state.cir, 32, 0),
         "DFE-RLS": (state.cir, 16, 1),
         "Analytic Iterative BPSK": (state.cir, 16, 2),
-        "Legacy LMMSE-FIR": (state.cir, 16, 0),
-        "Legacy DFE": (state.cir, 8, 1),
         "No Adapt": (state.cir, 8, 0),
         "Best Fixed": (state.cir, 32, 2),
         "Drift-Aware Pilot Rule": (state.cir, 32, 1),

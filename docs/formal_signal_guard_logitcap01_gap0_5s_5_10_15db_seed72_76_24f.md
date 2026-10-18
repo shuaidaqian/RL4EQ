@@ -1,3 +1,6 @@
+> 状态：历史诊断/已被当前主路线取代。原始结果保留用于追溯，不代表当前默认方法。
+> 当前规范：docs/state_tracking_receiver_design.md；验证：docs/state_tracking_validation_protocol.md。
+
 # 在线 PEFT 矩阵自动汇总
 
 该表由 `scripts/summarize_online_matrix.py` 从 `frame_metrics.jsonl` 生成。

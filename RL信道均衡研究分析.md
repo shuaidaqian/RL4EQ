@@ -1,104 +1,31 @@
 # RL 信道均衡研究分析
 
-## 1. 研究方向重新对齐
+## 当前判定
 
-在常规无线信道中，LMMSE、DFE、RLS、Kalman tracking 和频域 MMSE 等传统均衡方法已经非常强。若只在短时延或温和多径上使用神经网络，很难形成稳定、可辩护的创新优势。
+当前失效根因属于 Level B 三层叠加：
 
-当前研究转向 EME 启发的极端稀疏长时延扩展场景。这里的 EME 是启发来源，不是完整物理 EME 仿真；研究重点是 20–40 符号相对多径时延、跨帧 ISI、稀疏长回波，以及同步后仍可能存在的 residual CFO 与慢相位扰动，而不是同步前约 2.5 秒的绝对地月传播时延。
+1. **物理状态层**：acquisition-to-data 老化、residual CFO、慢相位和稀疏 tap 漂移没有被稳定表示；长记忆 CIR 的小误差会通过 soft-tail 跨帧递推。
+2. **代理目标层**：前缀 Reward Pilot BCE 与后续 Data 的位置、卷积边界和错误传播不同，已有 replay 已出现负相关；简单延长窗口或调学习率不能修复可辨识性。
+3. **在线机制层**：PEFT/PPO 在冻结主干已获得大部分收益后继续改参数，容易破坏离线长多径反演；候选提交、tail 回滚和状态不确定度没有完全原子化。
 
-clean 线性 BPSK Level B 不再被视为主攻胜负场，而是 sanity check：如果传统 DFE-RLS 在该场景 BER 很低，这是符合第一性原理的，因为传统算法在干净线性模型、充足 Pilot 和低阶调制下非常强。新的主攻方向是逐级增加 CFO/相位复杂度，同时给传统 baseline 合理补偿，检验神经/RL 是否能在更接近真实同步残差的条件下形成稳定优势。
+因此当前主范式改为“冻结主干 + Pilot-only 物理状态后验跟踪”。PEFT、Bandit、PPO 只能在物理状态跟踪和 Pilot 风险排序单独通过后作为调度消融。
 
-## 2. 当前唯一方法
+## 主接收机
 
-当前唯一 proposed 方法是：
+离线阶段在在线 soft-tail 条件下做整帧 BCE 预训练。在线阶段只用 Adapt Pilot 更新 CIR/CFO/phase 后验，用 Pilot-only 风险检查状态一致性和不确定度；低置信度则 abstain。冻结均衡器使用全帧接收波形完成检测，随后从自身 soft logits 更新下一帧 tail belief。Data 标签只在评估阶段读取。
 
-```text
-RL-Modulated Neural Block Equalizer
-```
+状态包括：稀疏 CIR 均值/方差、residual CFO、phase0、innovation variance、soft-tail 均值/方差/置信度。所有状态用 `PhysicalStatePosterior` 统一 clone、commit 和 rollback，避免只回滚网络参数而遗留错误尾状态。
 
-它由三部分组成：
+## 代理边界
 
-- 离线真实信道 Pilot 条件课程监督预训练。
-- 整帧缓冲、非因果神经块均衡器。
-- 部署期间 PPO 选择离散安全动作，并用窗口级 Reward Pilot 反馈更新策略。
+`agent/pilot_risk.py` 的默认风险由 Pilot 复数重构 NLL、创新白化、prefix 末端边界残差、tail 传播风险和后验不确定度组成。它不能保证任意未知时变信道下与未来 Data BER 正相关；正式使用前必须在独立轨迹逐配置检查 Spearman/Kendall、top-1 误选率、置信区间和 abstain 率。未通过时保持 Frozen。
 
-PPO 的职责不是直接判决 Data bit，也不是直接输出完整高维参数增量，而是根据 Adapt/Reward Pilot 反馈选择更合适的神经接收机安全动作。当前不再采用逐帧连续 modulation 作为主路线，因为前期诊断表明逐帧 Reward Pilot 改善与 Data BER 改善相关性不足，连续动作容易扰动已学好的 Offline NN。
+## 验证顺序
 
-## 3. Baseline 边界
+先跑 F0 acquisition 冻结、F1 当前 Pilot 条件冻结、F2 Pilot 物理状态跟踪，再比较传统 MMSE/LMMSE/DFE-RLS。固定 checkpoint、轨迹和候选集合，分别消融 Pilot 几何留出、物理残差、后验不确定度、tail belief 和未来 rollout。只有 F2 和代理排序通过后，才允许研究有限 PEFT 或 RL 调度。
 
-用户目标是超过传统均衡器。因此主 baseline 必须是传统非神经、非 RL 方法：
+## 历史结论
 
-```text
-LMMSE-FIR
-LMS
-NLMS
-RLS Linear
-DFE-RLS
-SC-FDE-MMSE
-CFO-Corrected LMMSE-FIR
-CFO-Corrected DFE-RLS
-CFO+DD-Phase LMMSE-FIR
-CFO+DD-Phase DFE-RLS
-```
+旧 `Pilot-Driven Online Adaptation`、Reward Pilot BCE、Contextual Bandit 和窗口 PPO 结果保留为历史诊断/已被当前主路线取代。它们证明了“代理错配、状态传播和参数破坏”是根因，不能继续写成当前 proposed。旧实验文件的数值不删除，但必须关联 [接收机设计](docs/state_tracking_receiver_design.md) 和 [验证协议](docs/state_tracking_validation_protocol.md)。
 
-`Perfect-CSI Block` 与 `Fixed CG-BPSK-DD Block Detector` 属于强模型驱动诊断参考，不是主 baseline。它们可以帮助判断信道/检测可达性，但不能作为“传统 baseline”压制 proposed，也不能作为论文主成功门槛。
-
-CFO/慢相位扰动实验中，传统 baseline 必须做基于 Adapt Pilot 的合理补偿。补偿只能使用接收信号和 Adapt Pilot 发送符号估计相位斜率，不能读取 Reward Pilot、Data 标签或真实 impairment 参数。
-
-## 4. Pilot 与标签隔离
-
-全程采用 Pilot 条件监督预训练，原因是在线部署一定依赖 Pilot 条件；离线若长期无 Pilot，会造成训练/部署分布错位。
-
-标签隔离规则固定：
-
-- Adapt Pilot：可用于 conditioner、observation 和在线动作前可观测状态。
-- Reward Pilot：只用于动作执行后的 reward 和留出评估。
-- Data 标签：只用于离线监督和仿真评估 `BER_data`。
-- 在线 observation、reward、动作选择、调制更新不使用 Data 标签，并且不使用数据标签上界。
-- Data Oracle 不恢复。
-
-## 5. 成功标准
-
-主论文成功标准从“硬 BER 门槛优先”调整为“相对传统优势优先”：
-
-```text
-BER_data(RL-Modulated Neural Block Equalizer)
-  < min BER_data(所有传统非神经、非 RL baseline)
-```
-
-该标准必须在 Level B impaired 主配置逐配置成立，不能只看总体平均；同时优势应随在线帧数增加而更明显。`BER_data < 0.01` 保留为辅助系统指标：如果能同时达到当然更好，但不能再让它替代“明显超过传统”这一第一性目标。
-
-## 6. 当前执行结果与局限
-
-本轮已经补齐工程链路：
-
-- 真实传统 baseline：`LMMSE-FIR/LMS/NLMS/RLS Linear/DFE-RLS/SC-FDE-MMSE`。
-- 神经均衡器低维调制接口。
-- 离散安全动作 PPO 策略。
-- `training/windowed_discrete_ppo.py` 在线 runner。
-- `compare.py --method-group main/proposed/traditional/diagnostic`。
-- 真实信道 Pilot 条件预训练数据流。
-- pretrained checkpoint strict-load。
-- append-safe compare smoke。
-
-早期 2-step smoke 只验证链路，不代表训练完成。该 checkpoint 下 proposed 神经 BER 接近随机；后续更长离线训练已经证明 Offline NN 能进入可用区间，但在 9 个 Level B 主配置上仍未稳定达到 `<0.01`。
-
-```text
-SC-FDE-MMSE BER_data ≈ 0.00446
-DFE-RLS BER_data = 0.0
-RL-Modulated Neural Block Equalizer BER_data ≈ 0.509
-```
-
-因此当前执行顺序调整为：先用传统难度校准脚本扫描 clean、CFO、慢相位、CFO+慢相位四级复杂度，确认传统 baseline 在合理补偿后的真实性能；再训练 Offline NN 与窗口级离散 PPO。只有 `RL-Modulated Neural Block Equalizer` 在选定 Level B impaired 主场景逐配置明显超过传统 baseline 后，才进入正式主矩阵。
-
-## 7. 下一阶段优先级
-
-下一阶段不应优先扩大矩阵，而应优先解决 proposed 接收机可训练性：
-
-1. 提高离线预训练规模，并记录 validation BER。
-2. 检查神经输出 bit/logit 符号约定是否与 `bit_error_rate()` 完全一致。
-3. 在 Level A 单配置上先要求 Offline NN 明显低于随机 BER。
-4. 再进入 Level B 单配置训练。
-5. 只有 Offline NN 具备可用性能后，再分析离散安全动作 PPO 是否进一步降低 Reward/Data BER。
-
-在上述条件未满足前，论文不能声称“显著优于传统算法”或“RL 显著优于固定调制”。
+历史路线名称为 `RL-Modulated Neural Block Equalizer`。所有比较仍以整帧缓冲、非因果接收机为边界，在 CFO、相位扰动下要求传统方法合理补偿，并以 proposed 明显超过传统为目标；在线不使用数据标签上界。
