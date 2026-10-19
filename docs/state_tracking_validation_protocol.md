@@ -15,7 +15,7 @@
 
 主论文 SNR 为 0/5/10/15 dB，主信道 Level B、最大记忆 116，prefix Pilot。另按 acquisition gap、tap drift、CFO 和慢相位分桶报告压力测试。
 
-阶段性结果必须引用 [阶段一诊断](state_tracking_stage1_diagnostic.md)。该结果只有每个配置 2 个 seed、8 帧，不能作为正式优势结论；传统 SC-FDE-MMSE/LMMSE-FIR 当前试跑 BER 异常，校准通过前不纳入性能结论。
+阶段性结果必须引用 [阶段一诊断](state_tracking_stage1_diagnostic.md)。当前合规主矩阵为每方法/SNR 5 seeds × 60 帧，但 F2 在 5 dB 退化、10 dB 与 F1 接近，因此仍不满足稳定降低 BER 的目标。传统基线试跑尚未完成公平 CFO/phase 补偿和多 seed 校准，校准通过前不纳入优劣结论。
 
 ## 变量隔离
 
@@ -24,7 +24,7 @@
 3. 固定状态候选集，分别评估 Reward Pilot 上的复数重构、末端边界残差、连续采样 innovation whiteness、后验不确定度和 posterior predictive risk；Adapt Pilot 仅用于更新或单独对照，不得混入留出分数。不允许同时改候选生成和代理公式。
 4. 最后才比较状态跟踪 + 固定神经调制、有限 PEFT 和离散 RL 调度。任何动作只能在 Data 标签不可见时选择。
 
-F2 组件消融可用 `compare.py --state-tracking-mode phase_only|cir_only|joint`。`phase_only` 与 `cir_only` 冻结 tail belief；`joint` 才使用 Adapt Pilot MAP tail 后验。所有模式都只在整帧冻结检测后计算 Data BER。当前 tail MAP 方差仍是近似后验，必须继续做覆盖率与长序列稳定性校准。
+F2 组件消融可用 `compare.py --state-tracking-mode phase_only|cir_only|joint`。`phase_only` 与 `cir_only` 冻结 tail belief；`joint` 才使用 Adapt Pilot MAP tail 后验。所有模式都只在整帧冻结检测后计算 Data BER。当前 tail MAP 方差因 `0.05` 下限而长期贴边，必须先验证真值覆盖率与跨帧稳定性，不能作为校准置信度使用。CIR 与 phase 当前共享置信度提交门槛，后续 replay 需分别记录两类状态的误差与提交决策。
 
 ## Pilot 代理排序门槛
 

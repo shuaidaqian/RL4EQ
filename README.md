@@ -48,7 +48,7 @@ python -m pytest -q -p no:cacheprovider
 - `training/online_adaptation.py`、`training/windowed_discrete_ppo.py`：历史 PEFT/PPO 诊断入口。
 - `docs/state_tracking_receiver_design.md`：唯一权威接收机设计。
 - `docs/state_tracking_validation_protocol.md`：分层基线与代理验收协议。
-- `docs/state_tracking_stage1_diagnostic.md`：阶段一 F0/F1/F2 小样本结果与待验证问题。
+- `docs/state_tracking_stage1_diagnostic.md`：合规 5 seeds × 60 帧主矩阵、配对差值、状态提交计数和当前失败边界。
 - `docs/legacy_online_routes.md`：旧路线和失败证据索引。
 
 旧文档中的实验数字保持追溯性，但均以“历史诊断/已被当前主路线取代”解释，不可直接作为当前主方法定义。
