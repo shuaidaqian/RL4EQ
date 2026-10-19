@@ -15,6 +15,8 @@
 
 主论文 SNR 为 0/5/10/15 dB，主信道 Level B、最大记忆 116，prefix Pilot。另按 acquisition gap、tap drift、CFO 和慢相位分桶报告压力测试。
 
+阶段性结果必须引用 [阶段一诊断](state_tracking_stage1_diagnostic.md)。该结果只有每个配置 2 个 seed、8 帧，不能作为正式优势结论；传统 SC-FDE-MMSE/LMMSE-FIR 当前试跑 BER 异常，校准通过前不纳入性能结论。
+
 ## 变量隔离
 
 1. 先固定 checkpoint 与信道轨迹，比较 F0/F1/F2 和传统 MMSE，判断模型泛化、Pilot 条件和物理状态跟踪分别贡献多少。

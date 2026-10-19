@@ -2,6 +2,8 @@
 
 状态：当前主路线规范。实现状态：冻结主干、Adapt Pilot 物理状态候选、门控提交和 soft-tail 均值/方差已落地；当前 Pilot 风险为物理一致性代理，尚未证明与未来 Data 硬 BER 稳定正相关。
 
+分支操作约定见 [研究路线隔离说明](route_isolation.md)，当前阶段结果见 [阶段一诊断](state_tracking_stage1_diagnostic.md)。
+
 ## 研究目标
 
 在 Level B `eme_long_memory_v2` 上离线训练长记忆 ISI 均衡器，在线仅通过帧前缀 Pilot 跟踪慢 tap 漂移、residual CFO、慢相位噪声和 acquisition 状态老化，持续降低 Data 段硬 BER。在线不通过 Data 标签更新状态、参数、动作或提交决策。

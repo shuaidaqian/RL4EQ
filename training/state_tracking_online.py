@@ -34,7 +34,7 @@ def run_state_tracking_online(
     delays: list[int] | None = None,
     snrs: list[float] | None = None,
     pilot_total: int | None = None,
-    pilot_layout: str = "prefix",
+    pilot_layout: str | None = None,
     state_split: str | None = None,
     device: str = "cpu",
 ) -> dict:
@@ -69,7 +69,7 @@ def run_state_tracking_online(
                     seed=70_000 + int(seed),
                     max_delay=int(delay),
                     total_pilot=pilot_total,
-                    pilot_layout=str(pilot_layout),
+                    pilot_layout=str(pilot_layout or config.get("pilot_layout", "prefix")),
                     state_split=state_split,
                 )
                 channel_metadata = channel_metadata or effective_channel_metadata(env_config)
