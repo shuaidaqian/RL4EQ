@@ -36,7 +36,7 @@ def main() -> None:
         metrics = trainer.train(steps=args.steps, batch_size=args.batch_size, smoke=args.steps <= 2, resume_loaded=resume_loaded)
     elif args.stage == "online_meta":
         raise ValueError(
-            "online_meta 已移除；当前路线为离线整帧 BCE_all + 安全 Contextual Bandit 在线调度。"
+            "online_meta 已移除；当前在线路线是冻结均衡主干和 Pilot-only 物理状态跟踪。"
         )
     else:
         trainer = CurriculumTrainer(config, device=device)

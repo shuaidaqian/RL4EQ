@@ -4,10 +4,6 @@
 import argparse
 from pathlib import Path
 
-from training.windowed_discrete_ppo import run_windowed_discrete_online
-from training.online_adaptation import run_pilot_driven_online
-from training.state_tracking_online import run_state_tracking_online
-
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -40,6 +36,8 @@ def main() -> None:
     if args.method == "state":
         if args.cir_update is not None or args.scheduler is not None:
             parser.error("state 方法的物理状态门控由配置控制，不接受 PEFT/Bandit 兼容参数。")
+        from training.state_tracking_online import run_state_tracking_online
+
         run_state_tracking_online(
             config_path=args.config,
             pretrained=args.pretrained,
@@ -71,8 +69,12 @@ def main() -> None:
         "state_split": args.state_split,
     }
     if args.method == "pilot":
+        from training.online_adaptation import run_pilot_driven_online
+
         run_pilot_driven_online(**common, scheduler=args.scheduler or "fixed")
     else:
+        from training.windowed_discrete_ppo import run_windowed_discrete_online
+
         run_windowed_discrete_online(
             **common,
             window_size=args.window_size,

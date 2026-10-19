@@ -33,7 +33,7 @@
 
 ## Pilot 风险代理
 
-`compute_pilot_risk` 当前记录：Pilot 复数重构 NLL、残差创新白化、prefix 末端边界残差、tail 风险、后验不确定度和置信度。`rank_pilot_candidates` 在候选区间无法区分或置信度低时 abstain。当前主状态跟踪路线不以该分数作神经参数更新或策略 reward。
+`compute_pilot_risk` 默认只读取留出的 Reward Pilot，记录复数重构 NLL、连续采样点上的残差创新白化、留出段边界残差、tail 风险、后验不确定度和置信度。该分数当前仅记录与事后排序审计，不参与状态提交、参数更新或动作选择；`pilot_subset="adapt"` 只用于单独对照，不能再称为留出代理。`rank_pilot_candidates` 在候选区间无法区分或置信度低时 abstain。
 
 要把该分数用于候选排序，必须在独立信道轨迹、未见 seed 上验证其对未来 H 帧 Data 硬 BER 的方向和校准。Pilot 位于帧前缀，无法对其后的任意突变提供保证；适用条件必须明确为 Pilot 可辨识且 Data horizon 内状态满足已验证的慢漂移模型。
 

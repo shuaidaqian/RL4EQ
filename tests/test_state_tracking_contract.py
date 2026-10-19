@@ -55,9 +55,37 @@ def test_tail_belief_clone_and_risk_do_not_read_data_labels():
     changed = replace(frame, bits=frame.bits.logical_not())
     risk_b = compute_pilot_risk(changed, posterior)
     assert risk_a == risk_b
+    assert risk_a.pilot_subset == "reward"
+    assert risk_a.online_waveform_visibility == "reward_pilot_waveform_only"
     updated = commit_tail_from_logits(posterior, torch.ones(8), alpha=0.5)
     assert updated.tail.mean.shape == posterior.tail.mean.shape
     assert updated.data_labels_used_online is False
+
+
+def test_reward_risk_is_invariant_to_adapt_pilot_but_adapt_risk_is_explicit():
+    frame = _frame()
+    posterior = initial_state(torch.tensor([1 + 0j, 0.2 + 0j]), torch.zeros(1, dtype=torch.complex64))
+    changed = replace(
+        frame,
+        rx_symbols=torch.where(frame.adapt_mask, torch.tensor(8 - 3j), frame.rx_symbols),
+    )
+    reward_a = compute_pilot_risk(frame, posterior)
+    reward_b = compute_pilot_risk(changed, posterior)
+    assert reward_a == reward_b
+    adapt = compute_pilot_risk(frame, posterior, pilot_subset="adapt")
+    assert adapt.pilot_subset == "adapt"
+    assert adapt.online_waveform_visibility == "reward_pilot_waveform_only"
+
+
+def test_risk_rejects_unknown_pilot_subset():
+    frame = _frame()
+    posterior = initial_state(torch.tensor([1 + 0j, 0.2 + 0j]), torch.zeros(1, dtype=torch.complex64))
+    try:
+        compute_pilot_risk(frame, posterior, pilot_subset="data")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("代理风险不允许把 Data 作为观测子集")
 
 
 def test_tail_belief_rejects_shape_mismatch():

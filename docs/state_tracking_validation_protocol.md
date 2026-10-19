@@ -19,7 +19,7 @@
 
 1. 先固定 checkpoint 与信道轨迹，比较 F0/F1/F2 和传统 MMSE，判断模型泛化、Pilot 条件和物理状态跟踪分别贡献多少。
 2. 对 F2 逐次只改一个因素：仅 CFO/phase 跟踪、仅 sparse CIR 更新、tail 点估计/均值方差 belief、置信度门控、不同 Pilot 几何留出。其余因素固定。
-3. 固定状态候选集，分别评估 Pilot BCE、复数重构、末端边界残差、innovation whiteness、后验不确定度和 posterior predictive risk，不允许同时改候选生成和代理公式。
+3. 固定状态候选集，分别评估 Reward Pilot 上的复数重构、末端边界残差、连续采样 innovation whiteness、后验不确定度和 posterior predictive risk；Adapt Pilot 仅用于更新或单独对照，不得混入留出分数。不允许同时改候选生成和代理公式。
 4. 最后才比较状态跟踪 + 固定神经调制、有限 PEFT 和离散 RL 调度。任何动作只能在 Data 标签不可见时选择。
 
 ## Pilot 代理排序门槛
