@@ -13,9 +13,9 @@ from agent.cir_estimator import PilotPhysicalState, condition_from_cir
 from agent.pilot_risk import compute_pilot_risk
 from agent.state_tracking import (
     commit_if_safe,
-    commit_tail_from_logits,
     initial_state,
     update_from_adapt_pilot,
+    update_tail_from_adapt_pilot,
 )
 from baseline.traditional_equalizers import estimate_phase_residual_vector
 from env.comm_env import CommunicationEnvironment
@@ -117,6 +117,15 @@ def run_state_tracking_online(
                         update,
                         minimum_confidence=float(config.get("state_tracking_min_confidence", 0.15)),
                     )
+                    posterior = replace(
+                        posterior,
+                        tail=update_tail_from_adapt_pilot(
+                            frame,
+                            posterior,
+                            snr_db=float(snr_db),
+                        ),
+                        frame_index=frame_index,
+                    )
                     phase_features = estimate_phase_residual_vector(
                         frame.receiver_view(),
                         posterior.cir,
@@ -153,12 +162,6 @@ def run_state_tracking_online(
                     logits = logits.squeeze(0)
                     # Data 标签只在这里用于事后 BER 统计；在线状态、参数和动作均未读取标签。
                     ber_data = _ber(logits[frame.data_mask], frame.bits[frame.data_mask])
-                    posterior = commit_tail_from_logits(
-                        posterior,
-                        logits,
-                        alpha=float(config.get("tail_update_alpha", 0.5)),
-                        frame_index=frame_index,
-                    )
                     rows.append(
                         {
                             "method": "Pilot State Tracking Frozen NN",

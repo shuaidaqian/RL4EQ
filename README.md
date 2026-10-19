@@ -9,9 +9,10 @@ Level B 长记忆信道轨迹
 -> 在线 soft-tail 条件下离线 BCE 预训练
 -> 冻结离线均衡器主干
 -> Adapt Pilot 更新 CIR/CFO/phase 后验
+-> Adapt Pilot 观测更新跨帧 tail MAP 后验
 -> 计算 Pilot-only 物理风险与不确定度
 -> 低置信度时 abstain，安全时原子提交状态
--> 冻结均衡器整帧检测并维护下一帧 tail belief
+-> 冻结均衡器整帧检测（Data 结果不回流在线状态）
 -> 用 Data 硬 BER 做事后评估
 ```
 
@@ -22,6 +23,7 @@ Level B 长记忆信道轨迹
 - 主配置：`eme_long_memory_v2`、Level B、物理最大记忆 116、SNR `0/5/10/15 dB`、prefix Pilot。
 - 在线状态：稀疏 CIR 均值/方差、residual CFO、phase0、innovation variance、soft-tail 均值/方差/置信度。
 - 信息边界：Adapt Pilot 可更新状态；Reward Pilot 只用于已知 Pilot 物理一致性留出；Data 标签只用于离线监督和最终 BER。
+- 跨帧 tail：仅由 Adapt Pilot 与上一帧 tail 先验估计；未知 Data 输入对应的卷积观测行会丢弃。
 - 主比较：传统 LMMSE/DFE/RLS/SC-FDE 与 `Frozen Offline NN`、`Pilot State Tracking Frozen NN`。Perfect-CSI 和 oracle 只作诊断。
 - 代理验收：在独立状态轨迹上按 SNR、delay、漂移和 gap 分桶检查 Spearman/Kendall、top-1 误选率、置信区间和 abstain 率；不通过就保持 Frozen。
 

@@ -17,7 +17,6 @@ from agent.cir_estimator import (
     pilot_sparse_cir_update,
     track_pilot_physical_state,
 )
-from agent.tail_state import SoftTailState, update_soft_tail_state
 
 
 @dataclass(frozen=True)
@@ -140,6 +139,8 @@ def update_from_adapt_pilot(
     cir_alpha: float = 0.35,
     max_paths: int = 24,
     frame_index: int | None = None,
+    track_cir: bool = True,
+    track_phase: bool = True,
 ) -> PilotStateUpdate:
     """只用当前 Adapt Pilot 生成后验候选，并执行低置信度冻结。
 
@@ -162,13 +163,17 @@ def update_from_adapt_pilot(
             smoothing=float(phase_smoothing),
             min_confidence=float(min_confidence),
         )
-        updated_cir = pilot_sparse_cir_update(
-            frame,
-            prior.cir,
-            prior.tail.mean,
-            max_paths=int(max_paths),
-            alpha=float(cir_alpha),
-            cfo_hint=float(phase.cfo_cycles_per_symbol),
+        updated_cir = (
+            pilot_sparse_cir_update(
+                frame,
+                prior.cir,
+                prior.tail.mean,
+                max_paths=int(max_paths),
+                alpha=float(cir_alpha),
+                cfo_hint=float(phase.cfo_cycles_per_symbol),
+            )
+            if track_cir
+            else prior.cir.clone()
         )
     except (RuntimeError, ValueError, torch.linalg.LinAlgError):
         return PilotStateUpdate(prior, prior, False, "pilot_estimation_failed", count)
@@ -176,47 +181,88 @@ def update_from_adapt_pilot(
     if not torch.isfinite(updated_cir).all() or confidence < float(min_confidence):
         reason = "low_pilot_confidence" if confidence < float(min_confidence) else "nonfinite_cir"
         return PilotStateUpdate(prior, prior, False, reason, count)
+    committed_phase = phase if track_phase else prior.phase.clone()
     innovation = float(torch.mean(torch.abs(updated_cir - prior.cir).square()).detach().cpu())
     candidate = PhysicalStatePosterior(
         cir=updated_cir,
         cir_variance=(0.75 * prior.cir_variance + 0.25 * innovation).clamp_min(1e-8),
-        phase=phase,
+        phase=committed_phase,
         tail=prior.tail.clone(),
         innovation_variance=innovation,
-        confidence=min(1.0, 0.5 * prior.confidence + 0.5 * confidence),
+        confidence=(
+            min(1.0, 0.5 * prior.confidence + 0.5 * confidence)
+            if track_phase
+            else prior.confidence
+        ),
         frame_index=prior.frame_index if frame_index is None else int(frame_index),
     )
     return PilotStateUpdate(prior, candidate, True, "pilot_posterior_committed", count)
 
 
-def commit_tail_from_logits(
+def update_tail_from_adapt_pilot(
+    frame,
     posterior: PhysicalStatePosterior,
-    logits: torch.Tensor,
     *,
-    alpha: float = 0.5,
-    frame_index: int | None = None,
-) -> PhysicalStatePosterior:
-    """将冻结均衡器输出转换成下一帧的 soft-tail belief。"""
+    snr_db: float,
+    minimum_rows: int = 8,
+) -> TailBelief:
+    """用前缀 Adapt Pilot 对跨帧 soft-tail 做复数 MAP 更新。"""
 
-    tail_len = posterior.tail.mean.numel()
-    if tail_len == 0:
-        return posterior.clone()
-    tail_logits = torch.as_tensor(logits, dtype=torch.float32).reshape(-1)[-tail_len:]
-    updated = update_soft_tail_state(
-        tail_logits,
-        previous=SoftTailState(posterior.tail.mean, posterior.tail.variance),
-        alpha=float(alpha),
+    prior = posterior.tail
+    tail_len = int(prior.mean.numel())
+    cir = posterior.cir.reshape(-1).to(torch.complex64)
+    if tail_len == 0 or cir.numel() == 0:
+        return prior.clone()
+    view = frame.receiver_view()
+    rx = view.rx_symbols.flatten().to(torch.complex64)
+    tx = view.adapt_symbols.flatten().to(torch.complex64)
+    mask = view.adapt_mask.flatten().bool()
+    indices = torch.nonzero(mask, as_tuple=False).flatten()
+    noise = float(10.0 ** (-float(snr_db) / 10.0))
+    phase = posterior.phase.phase0 + 2.0 * torch.pi * posterior.phase.cfo_cycles_per_symbol * torch.arange(
+        rx.numel(), dtype=torch.float32, device=rx.device
     )
-    confidence = float(updated.confidence.mean().detach().cpu())
-    return PhysicalStatePosterior(
-        cir=posterior.cir.clone(),
-        cir_variance=posterior.cir_variance.clone(),
-        phase=posterior.phase.clone(),
-        tail=TailBelief(updated.mean, updated.variance, confidence),
-        innovation_variance=posterior.innovation_variance,
-        confidence=posterior.confidence,
-        frame_index=posterior.frame_index if frame_index is None else int(frame_index),
-    )
+    corrected_rx = rx * torch.exp(-1j * phase).to(torch.complex64)
+    rows = []
+    targets = []
+    for position in indices.tolist():
+        row = torch.zeros(tail_len, dtype=torch.complex64, device=rx.device)
+        known_prediction = torch.zeros((), dtype=torch.complex64, device=rx.device)
+        valid = True
+        for delay, tap in enumerate(cir):
+            source = int(position) - int(delay)
+            if source >= 0:
+                if not bool(mask[source]):
+                    valid = False
+                    break
+                known_prediction = known_prediction + tap.to(rx.device) * tx[source]
+            else:
+                tail_index = tail_len + source
+                if tail_index < 0:
+                    valid = False
+                    break
+                row[tail_index] = row[tail_index] + tap.to(rx.device)
+        if valid and bool(torch.any(row.abs() > 0)):
+            rows.append(row)
+            targets.append(corrected_rx[position] - known_prediction)
+    if len(rows) < max(int(minimum_rows), 1):
+        return prior.clone()
+    design = torch.stack(rows)
+    target = torch.stack(targets)
+    prior_mean = prior.mean.to(rx.device)
+    prior_var = prior.variance.to(rx.device).clamp_min(1e-3)
+    precision = torch.diag(1.0 / prior_var).to(torch.complex64)
+    normal = design.mH @ design / max(noise, 1e-6) + precision
+    rhs = design.mH @ target / max(noise, 1e-6) + prior_mean / prior_var
+    try:
+        covariance = torch.linalg.inv(normal)
+        estimate = covariance @ rhs
+    except torch.linalg.LinAlgError:
+        return prior.clone()
+    mean = estimate.real.clamp(-1.0, 1.0).to(torch.complex64)
+    variance = covariance.diagonal().real.clamp(0.05, 1.0)
+    confidence = float((1.0 - variance.mean()).clamp(0.0, 1.0).detach().cpu())
+    return TailBelief(mean, variance, confidence)
 
 
 def commit_if_safe(update: PilotStateUpdate, *, minimum_confidence: float = 0.15) -> PhysicalStatePosterior:

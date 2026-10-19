@@ -7,9 +7,9 @@ import torch
 from agent.pilot_risk import compute_pilot_risk
 from agent.state_tracking import (
     TailBelief,
-    commit_tail_from_logits,
     initial_state,
     update_from_adapt_pilot,
+    update_tail_from_adapt_pilot,
 )
 from env.frame_structure import Frame
 
@@ -57,9 +57,16 @@ def test_tail_belief_clone_and_risk_do_not_read_data_labels():
     assert risk_a == risk_b
     assert risk_a.pilot_subset == "reward"
     assert risk_a.online_waveform_visibility == "reward_pilot_waveform_only"
-    updated = commit_tail_from_logits(posterior, torch.ones(8), alpha=0.5)
-    assert updated.tail.mean.shape == posterior.tail.mean.shape
-    assert updated.data_labels_used_online is False
+    updated = update_tail_from_adapt_pilot(frame, posterior, snr_db=10.0)
+    changed_frame = replace(
+        frame,
+        rx_symbols=torch.where(frame.data_mask, torch.tensor(99 + 77j), frame.rx_symbols),
+        bits=frame.bits.logical_not(),
+    )
+    changed_updated = update_tail_from_adapt_pilot(changed_frame, posterior, snr_db=10.0)
+    assert updated.mean.shape == posterior.tail.mean.shape
+    assert torch.equal(updated.mean, changed_updated.mean)
+    assert torch.equal(updated.variance, changed_updated.variance)
 
 
 def test_reward_risk_is_invariant_to_adapt_pilot_but_adapt_risk_is_explicit():

@@ -25,9 +25,9 @@ from agent.pilot_risk import compute_pilot_risk
 from agent.state_tracking import (
     PhysicalStatePosterior,
     commit_if_safe,
-    commit_tail_from_logits,
     initial_state,
     update_from_adapt_pilot,
+    update_tail_from_adapt_pilot,
 )
 from agent.discrete_safe_policy import DiscreteSafePolicy, initialize_safe_discrete_policy_prior, safe_modulation_actions
 from agent.modulation import ModulationConfig, ModulationState
@@ -220,6 +220,12 @@ def main() -> None:
     parser.add_argument("--pilot-layout", default=None)
     parser.add_argument("--state-split", choices=["offline_train", "heldout_edge", "drift"], default=None)
     parser.add_argument(
+        "--state-tracking-mode",
+        choices=["joint", "phase_only", "cir_only"],
+        default="joint",
+        help="F2 物理状态消融；单变量模式冻结 soft-tail belief。",
+    )
+    parser.add_argument(
         "--impairment-profile",
         default=None,
         choices=[
@@ -332,6 +338,7 @@ def main() -> None:
         return
     selected_methods = method_group(args.method_group) if args.method_group else _select_methods(args.methods)
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    config["state_tracking_mode"] = str(args.state_tracking_mode)
     if (
         args.method_group is None
         and args.methods is None
@@ -706,8 +713,8 @@ class NeuralMethodState:
     phase_tracking_smoothing: float = 0.5
     phase_tracking_min_confidence: float = 0.15
     phase_tracking_cfo_limit: float = 0.0012
-    tail_update_alpha: float = 1.0
     posterior: PhysicalStatePosterior | None = None
+    state_tracking_mode: str = "joint"
 
 
 @dataclass
@@ -1093,8 +1100,8 @@ def _build_method_states(
                 phase_tracking_smoothing=float(config.get("online_phase_tracking_smoothing", 0.5)),
                 phase_tracking_min_confidence=float(config.get("online_phase_tracking_min_confidence", 0.15)),
                 phase_tracking_cfo_limit=float(config.get("online_phase_tracking_cfo_limit", residual_cfo_limit)),
-                tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
                 posterior=posterior,
+                state_tracking_mode=str(config.get("state_tracking_mode", "joint")),
             )
         elif method == "Continual PPO":
             torch.manual_seed(90_000 + int(seed) + int(delay) * 17 + int(float(snr_db)) * 31)
@@ -1280,8 +1287,17 @@ def _run_new_or_single_method(
                 cir_alpha=float(state.cir_update_alpha),
                 max_paths=24,
                 frame_index=int(frame_index),
+                track_cir=state.state_tracking_mode != "phase_only",
+                track_phase=state.state_tracking_mode != "cir_only",
             )
             state.posterior = commit_if_safe(update, minimum_confidence=0.15)
+            if state.state_tracking_mode == "joint":
+                pilot_tail = update_tail_from_adapt_pilot(
+                    frame_device,
+                    state.posterior,
+                    snr_db=float(snr_db),
+                )
+                state.posterior = replace(state.posterior, tail=pilot_tail)
             state.cir = state.posterior.cir
             state.physical_state = state.posterior.phase
             phase_features = estimate_phase_residual_vector(
@@ -1318,12 +1334,6 @@ def _run_new_or_single_method(
                     adapt_mask=adapt_mask,
                 )
             logits = logits.squeeze(0)
-            state.posterior = commit_tail_from_logits(
-                state.posterior,
-                logits,
-                alpha=float(state.tail_update_alpha),
-                frame_index=int(frame_index),
-            )
             state.receiver_state.update_tail(state.posterior.tail.mean)
             return _result_from_logits(
                 method,
@@ -1337,10 +1347,13 @@ def _run_new_or_single_method(
                     "online_parameter_update": False,
                     "physical_state_update": bool(update.committed),
                     "physical_state_update_reason": update.reason,
+                    "state_tracking_mode": str(state.state_tracking_mode),
                     "adapt_pilot_count": int(update.adapt_pilot_count),
                     "physical_state_confidence": float(state.posterior.confidence),
                     "residual_cfo": float(state.posterior.phase.cfo_cycles_per_symbol),
                     "tail_variance_mean": float(state.posterior.tail.variance.mean().detach().cpu()),
+                    "tail_confidence": float(state.posterior.tail.confidence),
+                    "tail_update_source": "adapt_pilot_map" if state.state_tracking_mode == "joint" else "frozen_prior",
                     "pilot_risk_score": float(risk.score),
                     "pilot_risk_abstain": bool(risk.abstain),
                     "pilot_risk_validated_for_data_ber": False,

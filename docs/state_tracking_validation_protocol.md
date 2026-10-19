@@ -24,6 +24,8 @@
 3. 固定状态候选集，分别评估 Reward Pilot 上的复数重构、末端边界残差、连续采样 innovation whiteness、后验不确定度和 posterior predictive risk；Adapt Pilot 仅用于更新或单独对照，不得混入留出分数。不允许同时改候选生成和代理公式。
 4. 最后才比较状态跟踪 + 固定神经调制、有限 PEFT 和离散 RL 调度。任何动作只能在 Data 标签不可见时选择。
 
+F2 组件消融可用 `compare.py --state-tracking-mode phase_only|cir_only|joint`。`phase_only` 与 `cir_only` 冻结 tail belief；`joint` 才使用 Adapt Pilot MAP tail 后验。所有模式都只在整帧冻结检测后计算 Data BER。当前 tail MAP 方差仍是近似后验，必须继续做覆盖率与长序列稳定性校准。
+
 ## Pilot 代理排序门槛
 
 使用多个独立 seed/连续轨迹，冻结每个候选的 Pilot-only 分数；事后计算未来 H 帧 Data 硬 BER。按 SNR、delay、drift、CFO、phase noise、acquisition gap 单独报告：

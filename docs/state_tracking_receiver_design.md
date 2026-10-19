@@ -17,7 +17,7 @@
 | CIR | 稀疏 tap 后验均值和逐 tap 方差代理 | acquisition 先验 + Adapt Pilot |
 | CFO/phase | residual CFO、phase0、拟合置信度 | Adapt Pilot 相位残差 |
 | innovation | Pilot 预测残差功率 | Adapt Pilot |
-| tail belief | soft-tail 均值、方差、置信度 | 冻结接收机自身的 soft logits |
+| tail belief | soft-tail 均值、方差、置信度 | 当前帧前缀 Adapt Pilot 对跨帧 ISI 的复数 MAP 估计，以上一帧 tail 为先验 |
 
 当前 `cir_variance` 是由 Pilot 创新构造的保守不确定度代理，尚不是经校准的完整 Kalman 协方差。研究报告必须保留这一实现边界。
 
@@ -27,11 +27,11 @@
 2. 用上一帧状态及其 tail belief 建立先验。
 3. 当前帧只用 Adapt Pilot 估计 phase/CFO，再在 acquisition 稀疏 support 上做 CIR 更新。
 4. 置信度低、数值非有限或有效 Pilot 不足时，保留先验；成功时原子提交 CIR、phase/CFO 和 posterior 元数据。
-5. 用当前后验构造神经条件，冻结模型对整帧接收波形做块均衡。
-6. 从冻结均衡器自身的 soft 输出更新下一帧 tail 均值和方差。该步骤不访问真实 Data 发射符号或标签。
-7. 最后仅在评估侧读取 Data 标签，计算硬 BER。
+5. 仅用 Adapt Pilot 对上一帧 soft-tail 做 MAP 校正；不能形成可靠 Pilot 观测时保留先验，并对后验方差设保守下限。
+6. 用当前 CIR、phase/CFO 和 tail 后验构造神经条件，冻结模型对整帧接收波形做块均衡。整帧 Data 接收样本只进入本帧冻结检测，不得回流至下一帧状态或动作。
+7. 所有在线状态提交完成后，评估侧才读取 Data 标签并计算硬 BER。
 
-完整 Data 接收波形只用于冻结均衡器做检测；它不会流入物理状态估计或 Pilot 风险。Reward Pilot 的已知符号和接收波形仅能用于留出物理一致性评价，不能用 BCE 直接接受 PEFT/PPO 参数更新。
+Data 波形和 Data 标签均不进入跨帧状态、代理、更新或动作选择。Reward Pilot 的已知符号和接收波形仅能用于留出物理一致性评价，不能用 BCE 直接接受 PEFT/PPO 参数更新。tail MAP 只保留卷积输入完全可由 Adapt Pilot 与先验 tail 解释的观测行；任何需要未知当前帧 Data 符号的行都丢弃。
 
 ## Pilot 风险代理
 
