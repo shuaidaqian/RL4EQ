@@ -1,6 +1,6 @@
 # 物理状态跟踪阶段一诊断
 
-状态：迭代诊断，不是正式成功结论。数据日期：2026-10-19。当前 F2 尚未在所有主 SNR 配置上稳定降低 Data 硬 BER，也尚未证明超过合格的传统接收机基线。
+状态：迭代诊断，不是正式成功结论。数据日期：2026-10-20。F2 已在本 checkpoint 和本 Level B 主矩阵上超过带 CFO/相位补偿的传统 DFE-RLS，但尚未在所有主 SNR 配置上稳定超过 F1 冻结神经对照。
 
 ## 当前合规主矩阵
 
@@ -21,6 +21,19 @@
 | 15 dB | 0.506966 | 0.001615 | 0.001189 | -0.000425 [-0.000985, -0.000061] |
 
 负差值表示 F2 BER 较低。F2 在 0 dB 和 15 dB 有统计方向上的改善，5 dB 明显退化，10 dB 与 F1 接近。因此目前不能声称 F2 稳定降低 BER，更不能声称已满足主目标。F0 近似随机 BER，说明 acquisition-only 条件不是有效性能基线；F1 才是判断物理跟踪增量的关键神经对照。
+
+## 传统基线正式复核
+
+在同一 checkpoint、同一 Level B 配置、同一 5 seeds × 60 帧轨迹上，单独复核了带 Pilot CFO 线性拟合和 decision-directed phase tracker 的 `CFO+DD-Phase DFE-RLS`。结果来自 `logs/compare_baseline_key_5s60f_20261020/summary.json`，每格 300 帧：
+
+| SNR | F2 Pilot State Tracking | CFO+DD-Phase DFE-RLS | F2 - 基线（seed bootstrap 95% CI） |
+|---:|---:|---:|---:|
+| 0 dB | 0.215825 | 0.439926 | -0.224102 [-0.250139, -0.199965] |
+| 5 dB | 0.060829 | 0.157821 | -0.096992 [-0.120933, -0.073668] |
+| 10 dB | 0.009931 | 0.054427 | -0.044497 [-0.063876, -0.027465] |
+| 15 dB | 0.001189 | 0.032839 | -0.031649 [-0.051020, -0.016367] |
+
+负差值表示 F2 BER 更低。区间按 5 个 seed 的逐 seed 平均差做 100,000 次 percentile bootstrap；只有 5 个 seed，区间仍是有限证据。该结果满足“先超过合理传统非神经基线”的阶段门槛，但不等于在线状态跟踪已经稳定带来神经模型增益：5 dB F2 比 F1 高约 0.35 个百分点，10 dB 基本持平。传统基线逐帧日志位于 `logs/compare_baseline_key_5s60f_20261020/frame_metrics.jsonl`，不会提交到源码仓库。
 
 ## 数据边界修复
 
@@ -47,16 +60,12 @@
 
 Reward Pilot 风险仍只作留出物理一致性记录，`pilot_risk_validated_for_data_ber` 为 false；不得用其控制在线状态更新。完成独立轨迹排序审计前，不能声称代理与未来 Data BER 正相关。
 
-## 传统基线边界
-
-10 dB、1 seed × 8 帧初步校准中，LMMSE-FIR 为 0.293、SC-FDE-MMSE 为 0.504、CFO-only LMMSE-FIR 为 0.293、CFO+decision-directed phase LMMSE-FIR 为 0.068。该样本不足以比较优劣，但裸传统基线显然缺少公平的相位补偿；完成各传统方法的 Pilot CFO/phase 补偿和多 seed 校准前，不能据此宣称 Proposed 超过传统基线。
-
 ## 下一阶段
 
 1. 对逐帧日志按相同 seed/frame 对齐 F1 与 F2，拆解状态候选提交前后的 CIR、phase/CFO、tail 变化和 BER 差值；重点定位 5 dB 接受更新为何有害。
 2. 独立校准 tail MAP 后验：记录已知仿真 tail 真值下的均值误差、区间覆盖率、跨帧相关误差和冻结/更新对照；移除或重新解释固定方差下限前，不把其作为风险置信度。
 3. 解耦 CIR、phase/CFO 的估计置信度和提交门槛，再进行单变量 replay；同时保留严格 F1 fallback。
-4. 校准带合理 Pilot CFO/phase 补偿的 SC-FDE-MMSE、LMMSE-FIR、DFE/RLS 传统基线，并在相同 Level B 轨迹上扩展 seeds 和帧数。
+4. 扩大同一传统基线对照的独立 seed 数，确认目前四个 SNR 上的优势区间在更多轨迹上仍成立。
 5. 在独立连续轨迹上完成 Pilot 代理对未来窗口 Data BER 的分桶排序与 bootstrap；未通过正向关联门槛时，代理继续只记录、不控制。
 
-完整逐帧输出保存在本机忽略目录 `logs/state_tracking_compliant_main_5s60f_20261019/`。任何正式主结果都必须使用 Pilot-only tail 路径和上述隔离协议。
+完整逐帧输出保存在本机忽略目录 `logs/state_tracking_compliant_main_5s60f_20261019/` 和 `logs/compare_baseline_key_5s60f_20261020/`。任何正式主结果都必须使用 Pilot-only tail 路径和上述隔离协议。
