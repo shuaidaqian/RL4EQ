@@ -713,6 +713,7 @@ class NeuralMethodState:
     phase_tracking_smoothing: float = 0.5
     phase_tracking_min_confidence: float = 0.15
     phase_tracking_cfo_limit: float = 0.0012
+    tail_update_alpha: float = 1.0
     posterior: PhysicalStatePosterior | None = None
     state_tracking_mode: str = "joint"
 
@@ -1100,6 +1101,7 @@ def _build_method_states(
                 phase_tracking_smoothing=float(config.get("online_phase_tracking_smoothing", 0.5)),
                 phase_tracking_min_confidence=float(config.get("online_phase_tracking_min_confidence", 0.15)),
                 phase_tracking_cfo_limit=float(config.get("online_phase_tracking_cfo_limit", residual_cfo_limit)),
+                tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
                 posterior=posterior,
                 state_tracking_mode=str(config.get("state_tracking_mode", "joint")),
             )
