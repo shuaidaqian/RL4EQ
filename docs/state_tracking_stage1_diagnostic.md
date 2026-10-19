@@ -43,7 +43,7 @@
 
 ## 组件短消融
 
-固定 checkpoint 和相同轨迹，3 seeds × 12 帧；phase_only 与 cir_only 冻结 tail，joint 使用 Adapt Pilot MAP tail。每格 36 帧，只能作方向诊断。
+固定 checkpoint 和相同轨迹，先做了 3 seeds × 12 帧方向诊断，随后按同一 5 seeds × 60 帧主矩阵扩展 phase_only 与 cir_only；三种模式都遵守 Pilot-only tail 边界。
 
 | SNR | F1 | phase-only | CIR-only | joint |
 |---:|---:|---:|---:|---:|
@@ -51,6 +51,17 @@
 | 10 dB | 0.010236 | 0.010272 | 0.011393 | 0.010634 |
 
 短消融暗示 phase/CFO 可能有条件性收益，CIR 与 joint tail 更新没有显示稳定增量。样本量不足以确定哪一项导致正式矩阵 5 dB 退化。
+
+5 seeds × 60 帧扩展结果如下，使用 `logs/compare_phase_only_5s60f_20261020/summary.json` 和 `logs/compare_cir_only_5s60f_20261020/summary.json`：
+
+| SNR | F1 | phase_only | cir_only | joint |
+|---:|---:|---:|---:|---:|
+| 0 dB | 0.223924 | 0.223924 | 0.223924 | 0.215825 |
+| 5 dB | 0.057309 | 0.060530 | 0.057591 | 0.060829 |
+| 10 dB | 0.009566 | 0.009531 | 0.011332 | 0.009931 |
+| 15 dB | 0.001615 | 0.001385 | 0.003446 | 0.001189 |
+
+phase_only 在 10/15 dB 有小幅改善，在 5 dB 仍退化；cir_only 在 5 dB 接近 F1，但在 10/15 dB 退化明显；joint 在 15 dB 最好、5 dB 退化。说明状态更新收益依赖 SNR 和状态可辨识度，不能把当前联合更新直接宣称为稳定在线增益。下一步应只用 Adapt Pilot 的置信度、创新和状态候选变化量做门控 replay，并保留 F1 作为安全 fallback。
 
 ## 状态提交与代理
 
