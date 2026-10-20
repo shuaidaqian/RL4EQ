@@ -280,14 +280,8 @@ def update_tail_from_adapt_pilot(
         estimate = covariance @ rhs
     except torch.linalg.LinAlgError:
         return prior.clone()
-    # Tail 符号来自 BPSK，不能把连续复数高斯 MAP 的均值/协方差直接当作
-    # 符号后验。先得到 latent score，再投影到 BPSK 的软均值；方差同时保留
-    # 符号本身的离散不确定度和线性观测协方差。
-    mean_real = torch.tanh(2.0 * estimate.real)
-    mean = mean_real.to(torch.complex64)
-    variance = (
-        (1.0 - mean_real.square()) + covariance.diagonal().real
-    ).clamp(0.05, 1.0)
+    mean = estimate.real.clamp(-1.0, 1.0).to(torch.complex64)
+    variance = covariance.diagonal().real.clamp(0.05, 1.0)
     confidence = float((1.0 - variance.mean()).clamp(0.0, 1.0).detach().cpu())
     return TailBelief(mean, variance, confidence)
 

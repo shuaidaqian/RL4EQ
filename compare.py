@@ -1296,6 +1296,7 @@ def _run_new_or_single_method(
             )
             state_update_accepted = is_safe_to_commit(update, minimum_confidence=0.15)
             state.posterior = commit_if_safe(update, minimum_confidence=0.15)
+            tail_update_source = "frozen_prior"
             if state.state_tracking_mode == "joint" and state_update_accepted:
                 previous_tail = state.posterior.tail
                 pilot_tail = update_tail_from_adapt_pilot(
@@ -1308,6 +1309,9 @@ def _run_new_or_single_method(
                     and torch.equal(pilot_tail.variance, previous_tail.variance)
                 ):
                     pilot_tail = inflate_tail_uncertainty(previous_tail)
+                    tail_update_source = "uncertainty_propagation"
+                else:
+                    tail_update_source = "adapt_pilot_map"
                 state.posterior = replace(state.posterior, tail=pilot_tail)
             state.cir = state.posterior.cir
             state.physical_state = state.posterior.phase
@@ -1364,11 +1368,7 @@ def _run_new_or_single_method(
                     "residual_cfo": float(state.posterior.phase.cfo_cycles_per_symbol),
                     "tail_variance_mean": float(state.posterior.tail.variance.mean().detach().cpu()),
                     "tail_confidence": float(state.posterior.tail.confidence),
-                    "tail_update_source": (
-                        "adapt_pilot_map"
-                        if state.state_tracking_mode == "joint" and state_update_accepted
-                        else "frozen_prior"
-                    ),
+                    "tail_update_source": tail_update_source,
                     "pilot_risk_score": float(risk.score),
                     "pilot_risk_abstain": bool(risk.abstain),
                     "pilot_risk_validated_for_data_ber": False,

@@ -157,6 +157,7 @@ def run_state_tracking_online(
                         update,
                         minimum_confidence=float(config.get("state_tracking_min_confidence", 0.15)),
                     )
+                    tail_update_source = "frozen_prior"
                     if state_update_accepted:
                         previous_tail = posterior.tail
                         pilot_tail = update_tail_from_adapt_pilot(
@@ -169,6 +170,9 @@ def run_state_tracking_online(
                             and torch.equal(pilot_tail.variance, previous_tail.variance)
                         ):
                             pilot_tail = inflate_tail_uncertainty(previous_tail)
+                            tail_update_source = "uncertainty_propagation"
+                        else:
+                            tail_update_source = "adapt_pilot_map"
                         posterior = replace(
                             posterior,
                             tail=pilot_tail,
@@ -228,7 +232,7 @@ def run_state_tracking_online(
                             "phase_confidence": float(posterior.phase.confidence),
                             "tail_variance_mean": float(posterior.tail.variance.mean().detach().cpu()),
                             "tail_confidence": float(posterior.tail.confidence),
-                            "tail_update_source": "adapt_pilot_map" if state_update_accepted else "frozen_prior",
+                            "tail_update_source": tail_update_source,
                             **tail_diagnostics,
                             "pilot_risk_score": float(risk.score),
                             "pilot_risk_abstain": bool(risk.abstain),
