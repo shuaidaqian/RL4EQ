@@ -1,8 +1,8 @@
 # 物理状态跟踪阶段一诊断
 
-状态：迭代诊断，不是正式成功结论。数据日期：2026-10-20。F2 已在本 checkpoint 和本 Level B 主矩阵上超过带 CFO/相位补偿的传统 DFE-RLS，但尚未在所有主 SNR 配置上稳定超过 F1 冻结神经对照。
+状态：迭代诊断，不是正式成功结论。数据日期：2026-10-21。当前主路线仍未证明 F2 在所有主 SNR 稳定降低 BER。此前 F2 与传统基线的结果含有候选拒绝后仍更新 tail 的提交错误，已标为无效；原子提交修复后的 heldout-edge 全矩阵显示 F2 未超过 F1。
 
-## 当前合规主矩阵
+## 原子修复前主矩阵（F2 结果作废）
 
 - 配置：`configs/level_b_state_tracking.json`
 - 离线 checkpoint：`pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`
@@ -20,11 +20,24 @@
 | 10 dB | 0.506254 | 0.009566 | 0.009931 | +0.000365 [-0.000417, +0.001141] |
 | 15 dB | 0.506966 | 0.001615 | 0.001189 | -0.000425 [-0.000985, -0.000061] |
 
-负差值表示 F2 BER 较低。F2 在 0 dB 和 15 dB 有统计方向上的改善，5 dB 明显退化，10 dB 与 F1 接近。因此目前不能声称 F2 稳定降低 BER，更不能声称已满足主目标。F0 近似随机 BER，说明 acquisition-only 条件不是有效性能基线；F1 才是判断物理跟踪增量的关键神经对照。
+负差值表示 F2 BER 较低。此矩阵运行时，候选被拒后仍会更新 joint tail，违反整体原子提交契约；因此表内 F2、配对区间和状态提交统计全部作废，不应用作当前方法性能结论。F1 与 F0 未使用该 tail 提交路径，可保留为该轨迹上的参考。F0 近似随机 BER，说明 acquisition-only 条件不是有效性能基线；F1 才是判断物理跟踪增量的关键神经对照。
+
+## 原子修复后的有效主矩阵
+
+严格按当前契约重新运行 `compare.py`，输出位于 `logs/compare_main_atomic_f1f2_5s60f_20261021/summary.json`，每个方法/SNR 为 5 seeds × 60 帧。候选被拒时 CIR、phase/CFO 和 tail 均保持完整先验；`tail_update_source` 已逐帧审计。
+
+| SNR | F1 Pilot-conditioned | F2 atomic joint | F2-F1 配对 seed 均值差（95% bootstrap CI） | F2 接受数 |
+|---:|---:|---:|---:|---:|
+| 0 dB | 0.223924 | 0.223924 | +0.000000 [+0.000000, +0.000000] | 0/300 |
+| 5 dB | 0.057309 | 0.064058 | +0.006749 [+0.000156, +0.016667] | 179/300 |
+| 10 dB | 0.009566 | 0.009931 | +0.000365 [-0.000417, +0.001141] | 300/300 |
+| 15 dB | 0.001615 | 0.001181 | -0.000434 [-0.000985, -0.000078] | 299/300 |
+
+负差值表示 F2 BER 较低。区间按 5 个 seed 的配对均值做 20,000 次 percentile bootstrap。F2 只在 15 dB 取得改善，5 dB 退化区间不跨 0，10 dB 方向不确定；因此当前方法仍不能声称稳定降低 BER。0 dB 的 F2 与 F1 完全一致，因为所有候选均 abstain。该表替换此前含提交漏洞的主矩阵，后者只保留作缺陷定位证据。
 
 ## 传统基线正式复核
 
-在同一 checkpoint、同一 Level B 配置、同一 5 seeds × 60 帧轨迹上，单独复核了带 Pilot CFO 线性拟合和 decision-directed phase tracker 的 `CFO+DD-Phase DFE-RLS`。结果来自 `logs/compare_baseline_key_5s60f_20261020/summary.json`，每格 300 帧：
+在同一 checkpoint、同一 Level B 配置、同一 5 seeds × 60 帧轨迹上，曾单独复核带 Pilot CFO 线性拟合和 decision-directed phase tracker 的 `CFO+DD-Phase DFE-RLS`。由于该次 F2 没有原子冻结 CIR、phase/CFO 与 tail，其 F2 对传统基线的比较作废；传统 DFE-RLS 自身数据可保留为诊断参考，但必须在原子修复后重新对齐轨迹比较。
 
 | SNR | F2 Pilot State Tracking | CFO+DD-Phase DFE-RLS | F2 - 基线（seed bootstrap 95% CI） |
 |---:|---:|---:|---:|
@@ -33,7 +46,7 @@
 | 10 dB | 0.009931 | 0.054427 | -0.044497 [-0.063876, -0.027465] |
 | 15 dB | 0.001189 | 0.032839 | -0.031649 [-0.051020, -0.016367] |
 
-负差值表示 F2 BER 更低。区间按 5 个 seed 的逐 seed 平均差做 100,000 次 percentile bootstrap；只有 5 个 seed，区间仍是有限证据。该结果满足“先超过合理传统非神经基线”的阶段门槛，但不等于在线状态跟踪已经稳定带来神经模型增益：5 dB F2 比 F1 高约 0.35 个百分点，10 dB 基本持平。传统基线逐帧日志位于 `logs/compare_baseline_key_5s60f_20261020/frame_metrics.jsonl`，不会提交到源码仓库。
+负差值表示 F2 BER 更低。该表中的 F2 数字与差值不再用于门槛判断；原子提交修复后的 heldout-edge 结果已显示当前 F2 未超过 F1。传统基线逐帧日志位于 `logs/compare_baseline_key_5s60f_20261020/frame_metrics.jsonl`，不会提交到源码仓库。
 
 ## 数据边界修复
 
@@ -41,7 +54,7 @@
 
 当前 `agent.state_tracking.update_tail_from_adapt_pilot` 仅使用前缀 Adapt Pilot 与上一帧 tail 先验做复数 MAP；卷积观测行只在输入完全由当前已知 Pilot 或先验 tail 解释时保留。有效行不足或求解失败时保持先验。Data 波形替换和 Data 标签翻转测试确认 tail 后验不变。该实现满足数据隔离，但其方差当前有 `0.05` 下限，主矩阵所有 SNR 的均值都贴近该下限，不能把对应 `0.95` 左右置信度视为已校准概率。
 
-## 组件短消融
+## 组件短消融（部分为原子修复前诊断）
 
 固定 checkpoint 和相同轨迹，先做了 3 seeds × 12 帧方向诊断，随后按同一 5 seeds × 60 帧主矩阵扩展 phase_only 与 cir_only；三种模式都遵守 Pilot-only tail 边界。
 
@@ -50,9 +63,9 @@
 | 5 dB | 0.061089 | 0.057798 | 0.060872 | 0.062753 |
 | 10 dB | 0.010236 | 0.010272 | 0.011393 | 0.010634 |
 
-短消融暗示 phase/CFO 可能有条件性收益，CIR 与 joint tail 更新没有显示稳定增量。样本量不足以确定哪一项导致正式矩阵 5 dB 退化。
+短消融暗示 phase/CFO 可能有条件性收益，CIR 与 joint tail 更新没有显示稳定增量。表中 joint 使用旧提交路径，不能作为当前 F2 结论；phase-only/cir-only 仅作组件方向诊断。样本量不足以确定哪一项导致正式矩阵 5 dB 退化。
 
-5 seeds × 60 帧扩展结果如下，使用 `logs/compare_phase_only_5s60f_20261020/summary.json` 和 `logs/compare_cir_only_5s60f_20261020/summary.json`：
+5 seeds × 60 帧扩展结果如下，使用 `logs/compare_phase_only_5s60f_20261020/summary.json` 和 `logs/compare_cir_only_5s60f_20261020/summary.json`；joint 列为原子修复前结果，仅作历史参考：
 
 | SNR | F1 | phase_only | cir_only | joint |
 |---:|---:|---:|---:|---:|

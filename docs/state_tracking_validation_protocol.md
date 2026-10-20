@@ -15,7 +15,7 @@
 
 主论文 SNR 为 0/5/10/15 dB，主信道 Level B、最大记忆 116，prefix Pilot。另按 acquisition gap、tap drift、CFO 和慢相位分桶报告压力测试。
 
-阶段性结果必须引用 [阶段一诊断](state_tracking_stage1_diagnostic.md)。当前合规主矩阵为每方法/SNR 5 seeds × 60 帧；F2 已在四个主 SNR 上低于带 CFO/phase 补偿的 `CFO+DD-Phase DFE-RLS`，但在 5 dB 相对 F1 退化、10 dB 与 F1 接近，因此仍不满足“在线稳定超过离线冻结神经模型”的目标。
+阶段性结果必须引用 [阶段一诊断](state_tracking_stage1_diagnostic.md)。原子提交修复后的有效主矩阵为每方法/SNR 5 seeds × 60 帧；F2 在 5/10 dB 相对 F1 退化、15 dB 改善、0 dB 与 F1 相同，因此仍不满足“在线稳定超过离线冻结神经模型”的目标。此前候选拒绝后仍更新 tail 的矩阵全部作废。传统 `CFO+DD-Phase DFE-RLS` 结果也必须在同一原子协议和多 seed 轨迹上重新对齐后，才能纳入正式优劣结论。
 
 ## 变量隔离
 
