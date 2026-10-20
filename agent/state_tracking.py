@@ -52,6 +52,27 @@ class TailBelief:
         return self.mean.clone()
 
 
+def inflate_tail_uncertainty(
+    belief: TailBelief,
+    *,
+    variance_increment: float = 0.1,
+    mean_decay: float = 0.1,
+) -> TailBelief:
+    """在本帧没有可靠 Pilot tail 观测时传播不确定度。
+
+    该传播只使用接收机已有的 tail belief，不读取当前帧 Data 波形或标签。
+    未知 Data 会使跨帧 tail 均值逐渐失去可预测性，因此均值向零收缩、方差
+    增大；它不是新的观测更新，也不应被解释为信道真值估计。
+    """
+
+    increment = max(0.0, float(variance_increment))
+    decay = min(1.0, max(0.0, float(mean_decay)))
+    variance = (belief.variance + increment).clamp(0.0, 1.0)
+    mean = belief.mean * (1.0 - decay)
+    confidence = float((1.0 - variance.mean()).clamp(0.0, 1.0).detach().cpu())
+    return TailBelief(mean, variance, confidence)
+
+
 @dataclass(frozen=True)
 class PhysicalStatePosterior:
     """当前帧物理状态后验。
@@ -259,15 +280,30 @@ def update_tail_from_adapt_pilot(
         estimate = covariance @ rhs
     except torch.linalg.LinAlgError:
         return prior.clone()
-    mean = estimate.real.clamp(-1.0, 1.0).to(torch.complex64)
-    variance = covariance.diagonal().real.clamp(0.05, 1.0)
+    # Tail 符号来自 BPSK，不能把连续复数高斯 MAP 的均值/协方差直接当作
+    # 符号后验。先得到 latent score，再投影到 BPSK 的软均值；方差同时保留
+    # 符号本身的离散不确定度和线性观测协方差。
+    mean_real = torch.tanh(2.0 * estimate.real)
+    mean = mean_real.to(torch.complex64)
+    variance = (
+        (1.0 - mean_real.square()) + covariance.diagonal().real
+    ).clamp(0.05, 1.0)
     confidence = float((1.0 - variance.mean()).clamp(0.0, 1.0).detach().cpu())
     return TailBelief(mean, variance, confidence)
+
+
+def is_safe_to_commit(update: PilotStateUpdate, *, minimum_confidence: float = 0.15) -> bool:
+    """判断 CIR、phase/CFO 与 tail 是否可以作为一个整体提交。"""
+
+    return bool(
+        update.committed
+        and update.candidate.condition_confidence() >= float(minimum_confidence)
+    )
 
 
 def commit_if_safe(update: PilotStateUpdate, *, minimum_confidence: float = 0.15) -> PhysicalStatePosterior:
     """以原子方式提交状态；未通过门槛时返回深拷贝的 prior。"""
 
-    if not update.committed or update.candidate.condition_confidence() < float(minimum_confidence):
+    if not is_safe_to_commit(update, minimum_confidence=minimum_confidence):
         return update.prior.clone()
     return update.candidate.clone()

@@ -207,3 +207,35 @@ def test_soft_tail_update_uses_only_adapt_pilot_observations():
     assert torch.equal(estimate_a.mean, estimate_b.mean)
     assert torch.equal(estimate_a.variance, estimate_b.variance)
     assert estimate_a.mean[-1].real > 0.9
+
+
+def test_rejected_joint_candidate_keeps_entire_prior_including_tail():
+    from dataclasses import replace
+
+    from agent.cir_estimator import PilotPhysicalState
+    from agent.state_tracking import (
+        PilotStateUpdate,
+        commit_if_safe,
+        initial_state,
+        is_safe_to_commit,
+    )
+
+    cir = torch.zeros(41, dtype=torch.complex64)
+    cir[0] = 1.0
+    prior = initial_state(cir, torch.full((40,), -0.25, dtype=torch.complex64))
+    candidate = replace(
+        prior,
+        cir=torch.zeros_like(prior.cir),
+        phase=PilotPhysicalState(phase0=0.7, confidence=0.1),
+        tail=replace(
+            prior.tail,
+            mean=torch.full_like(prior.tail.mean, 0.8),
+        ),
+    )
+    update = PilotStateUpdate(prior, candidate, True, "low_confidence", 224)
+
+    assert not is_safe_to_commit(update, minimum_confidence=0.15)
+    committed = commit_if_safe(update, minimum_confidence=0.15)
+    assert torch.equal(committed.cir, prior.cir)
+    assert committed.phase.phase0 == pytest.approx(prior.phase.phase0)
+    assert torch.equal(committed.tail.mean, prior.tail.mean)

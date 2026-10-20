@@ -90,10 +90,46 @@ phase_only 在 10/15 dB 有小幅改善，在 5 dB 仍退化；cir_only 在 5 dB
 
 Reward Pilot 风险仍只作留出物理一致性记录，`pilot_risk_validated_for_data_ber` 为 false；不得用其控制在线状态更新。完成独立轨迹排序审计前，不能声称代理与未来 Data BER 正相关。
 
+## 原子提交复核与修复
+
+2026-10-20 复核发现，旧实现的 `joint` 路径在 CIR/phase 候选被拒时仍会基于先验 CIR/phase 计算并提交 Adapt Pilot tail 更新。heldout 旧日志中 468 次状态拒绝全部伴随 tail 更新，因此旧 F2 矩阵不符合“CIR、phase/CFO、tail 整体接受或整体冻结”的状态提交契约，不能作为修复后方案的性能结果。
+
+当前实现统一使用 `is_safe_to_commit` 判断状态候选是否通过原有置信度门槛；只有通过时才继续估计并提交 joint tail。拒绝时保留完整先验，逐帧日志的 `physical_state_update` 和 `tail_update_source` 表示实际接受结果。Adapt Pilot 仍是唯一更新输入，Reward Pilot 与 Data 标签不参与提交决策。
+
+修复后 smoke（heldout_edge、5 dB、seed 0、4 帧）中 2 帧候选被拒，两帧均保持 `frozen_prior` tail；契约测试通过。随后固定 checkpoint 的 heldout_edge 5 seeds × 60 帧全 SNR F1/F2 重跑完成，日志为 `logs/compare_heldout_edge_atomic_f1f2_5s60f_20261020/frame_metrics.jsonl`（本机忽略目录）。
+
+修复后结果如下，差值为 F2-F1，负值才表示 F2 更好：
+
+| SNR | F1 | 原子提交 F2 | F2-F1 | F2 接受数 |
+|---:|---:|---:|---:|---:|
+| 0 dB | 0.218142 | 0.218142 | +0.000000 | 0/300 |
+| 5 dB | 0.055881 | 0.059371 | +0.003490 | 126/300 |
+| 10 dB | 0.009462 | 0.011124 | +0.001662 | 291/300 |
+| 15 dB | 0.002014 | 0.002231 | +0.000217 | 291/300 |
+
+1200 个 F2 逐帧记录中，所有被拒绝帧都记录为 `tail_update_source=frozen_prior`。原子修复消除了数据边界/提交契约错误，但没有带来在线超过 F1 的收益；在强失配 heldout_edge 上，5/10/15 dB 仍退化，0 dB 因全部 abstain 与 F1 相同。因此下一步不能扩大矩阵或引入 PEFT，而应先针对通过门槛的候选做 Pilot-only 事后归因和更严格的安全回退设计。
+
+另增加仿真事后 tail 诊断：tail NMSE、按后验方差归一化误差，以及复高斯 50/90/95% 覆盖率。这些字段只使用仿真真实 tail 做评估，不输入在线接收机或候选门控。当前 joint tail 方差存在 0.05 下限，覆盖率需结合正式重跑解释，不能直接当作校准证明。
+
+### 原子提交后的 tail 校准结果
+
+在修复后的 `online_train.py --method state` 路径运行 Level B 主配置 5 seeds × 60 帧，完整输出位于 `logs/tail_calibration_atomic_5s60f_20261020/online_metrics.json` 和对应 `frame_metrics.jsonl`。指标只在仿真评估阶段读取 `frame.tail_symbols`；接收机状态更新前后均没有使用该真值。
+
+| SNR | 接受帧数 | 接受帧 tail NMSE | 标准化平方误差均值 | 50% 覆盖率 | 90% 覆盖率 | 95% 覆盖率 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0 dB | 0/300 | 不适用 | 不适用 | 不适用 | 不适用 | 不适用 |
+| 5 dB | 152/300 | 1.657 | 33.14 | 0.375 | 0.456 | 0.470 |
+| 10 dB | 295/300 | 1.416 | 28.31 | 0.189 | 0.271 | 0.294 |
+| 15 dB | 299/300 | 1.301 | 26.01 | 0.143 | 0.213 | 0.236 |
+
+50/90/95% 覆盖率均按复高斯标量方差定义。接受帧上尾状态的均方误差明显大于其报告方差，且覆盖率随 SNR 升高反而下降；`0.05` 下限导致不同帧方差贴边，不能解释成可靠的后验协方差。0 dB 全部候选被拒，故该 SNR 没有可评价的更新后验，拒绝后保留旧 tail 是原子冻结行为，不应把旧先验的归一化误差当成新后验校准率。
+
+这项结果否定了当前“连续复数 MAP 均值 + 线性协方差”作为 BPSK 跨帧 tail 后验的校准模型。下一版应显式建模符号离散性、CIR/CFO/phase 不确定度传入的模型误差，以及 acquisition 状态老化；训练/回放只用 Adapt Pilot 形成候选，仿真真实 tail 仅用于独立校准。新模型通过覆盖率与 BER 配对评估前，不得用 tail 方差控制状态接受或声称 tail belief 已校准。
+
 ## 下一阶段
 
 1. 对逐帧日志按相同 seed/frame 对齐 F1 与 F2，拆解状态候选提交前后的 CIR、phase/CFO、tail 变化和 BER 差值；重点定位 5 dB 接受更新为何有害。
-2. 独立校准 tail MAP 后验：记录已知仿真 tail 真值下的均值误差、区间覆盖率、跨帧相关误差和冻结/更新对照；移除或重新解释固定方差下限前，不把其作为风险置信度。
+2. 重建 tail 后验：将 BPSK 符号先验、Pilot-only 似然和 CIR/CFO/phase 不确定度合并，使用独立轨迹校准覆盖率；真实 tail 仍只做事后校准。
 3. 解耦 CIR、phase/CFO 的估计置信度和提交门槛，再进行单变量 replay；同时保留严格 F1 fallback。
 4. 扩大同一传统基线对照的独立 seed 数，确认目前四个 SNR 上的优势区间在更多轨迹上仍成立。
 5. 在独立连续轨迹上完成 Pilot 代理对未来窗口 Data BER 的分桶排序与 bootstrap；未通过正向关联门槛时，代理继续只记录、不控制。

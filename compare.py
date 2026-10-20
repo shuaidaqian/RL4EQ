@@ -25,6 +25,8 @@ from agent.pilot_risk import compute_pilot_risk
 from agent.state_tracking import (
     PhysicalStatePosterior,
     commit_if_safe,
+    inflate_tail_uncertainty,
+    is_safe_to_commit,
     initial_state,
     update_from_adapt_pilot,
     update_tail_from_adapt_pilot,
@@ -1292,13 +1294,20 @@ def _run_new_or_single_method(
                 track_cir=state.state_tracking_mode != "phase_only",
                 track_phase=state.state_tracking_mode != "cir_only",
             )
+            state_update_accepted = is_safe_to_commit(update, minimum_confidence=0.15)
             state.posterior = commit_if_safe(update, minimum_confidence=0.15)
-            if state.state_tracking_mode == "joint":
+            if state.state_tracking_mode == "joint" and state_update_accepted:
+                previous_tail = state.posterior.tail
                 pilot_tail = update_tail_from_adapt_pilot(
                     frame_device,
                     state.posterior,
                     snr_db=float(snr_db),
                 )
+                if (
+                    torch.equal(pilot_tail.mean, previous_tail.mean)
+                    and torch.equal(pilot_tail.variance, previous_tail.variance)
+                ):
+                    pilot_tail = inflate_tail_uncertainty(previous_tail)
                 state.posterior = replace(state.posterior, tail=pilot_tail)
             state.cir = state.posterior.cir
             state.physical_state = state.posterior.phase
@@ -1347,7 +1356,7 @@ def _run_new_or_single_method(
                     "uses_rl": False,
                     "pretrained_loaded": state.pretrained_loaded,
                     "online_parameter_update": False,
-                    "physical_state_update": bool(update.committed),
+                    "physical_state_update": bool(state_update_accepted),
                     "physical_state_update_reason": update.reason,
                     "state_tracking_mode": str(state.state_tracking_mode),
                     "adapt_pilot_count": int(update.adapt_pilot_count),
@@ -1355,7 +1364,11 @@ def _run_new_or_single_method(
                     "residual_cfo": float(state.posterior.phase.cfo_cycles_per_symbol),
                     "tail_variance_mean": float(state.posterior.tail.variance.mean().detach().cpu()),
                     "tail_confidence": float(state.posterior.tail.confidence),
-                    "tail_update_source": "adapt_pilot_map" if state.state_tracking_mode == "joint" else "frozen_prior",
+                    "tail_update_source": (
+                        "adapt_pilot_map"
+                        if state.state_tracking_mode == "joint" and state_update_accepted
+                        else "frozen_prior"
+                    ),
                     "pilot_risk_score": float(risk.score),
                     "pilot_risk_abstain": bool(risk.abstain),
                     "pilot_risk_validated_for_data_ber": False,

@@ -13,7 +13,9 @@ from agent.cir_estimator import PilotPhysicalState, condition_from_cir
 from agent.pilot_risk import compute_pilot_risk
 from agent.state_tracking import (
     commit_if_safe,
+    inflate_tail_uncertainty,
     initial_state,
+    is_safe_to_commit,
     update_from_adapt_pilot,
     update_tail_from_adapt_pilot,
 )
@@ -22,6 +24,40 @@ from env.comm_env import CommunicationEnvironment
 from env.experiment_config import build_comm_env_config, effective_channel_metadata
 from training.meta_training import estimate_acquisition_cir_for_profile
 from training.online_adaptation import _ber, _build_model, _frame_to_device, _load_model_config
+
+
+def _tail_posterior_diagnostics(posterior, true_tail: torch.Tensor | None) -> dict[str, float]:
+    """只供仿真事后评估的 tail 误差与复高斯覆盖率，不参与在线决策。"""
+
+    if true_tail is None or posterior.tail.mean.numel() == 0:
+        return {
+            "tail_nmse": float("nan"),
+            "tail_normalized_error": float("nan"),
+            "tail_50_coverage": float("nan"),
+            "tail_90_coverage": float("nan"),
+            "tail_95_coverage": float("nan"),
+        }
+    truth = torch.as_tensor(
+        true_tail, dtype=torch.complex64, device=posterior.tail.mean.device
+    ).reshape(-1)
+    mean = posterior.tail.mean.reshape(-1)
+    variance = posterior.tail.variance.reshape(-1).clamp_min(1e-8)
+    if truth.shape != mean.shape:
+        raise ValueError("仿真真实 tail 与后验均值长度不一致。")
+    squared_error = torch.abs(mean - truth).square()
+    result = {
+        "tail_nmse": float(
+            (squared_error.mean() / torch.abs(truth).square().mean().clamp_min(1e-8))
+            .detach()
+            .cpu()
+        ),
+        "tail_normalized_error": float((squared_error / variance).mean().detach().cpu()),
+    }
+    for percentile, probability in ((50, 0.50), (90, 0.90), (95, 0.95)):
+        radius_power = -torch.log(torch.tensor(1.0 - probability, device=variance.device))
+        covered = squared_error <= radius_power * variance
+        result[f"tail_{percentile}_coverage"] = float(covered.float().mean().detach().cpu())
+    return result
 
 
 def run_state_tracking_online(
@@ -113,19 +149,31 @@ def run_state_tracking_online(
                         max_paths=int(config.get("state_tracking_max_paths", 24)),
                         frame_index=frame_index,
                     )
+                    state_update_accepted = is_safe_to_commit(
+                        update,
+                        minimum_confidence=float(config.get("state_tracking_min_confidence", 0.15)),
+                    )
                     posterior = commit_if_safe(
                         update,
                         minimum_confidence=float(config.get("state_tracking_min_confidence", 0.15)),
                     )
-                    posterior = replace(
-                        posterior,
-                        tail=update_tail_from_adapt_pilot(
+                    if state_update_accepted:
+                        previous_tail = posterior.tail
+                        pilot_tail = update_tail_from_adapt_pilot(
                             frame,
                             posterior,
                             snr_db=float(snr_db),
-                        ),
-                        frame_index=frame_index,
-                    )
+                        )
+                        if (
+                            torch.equal(pilot_tail.mean, previous_tail.mean)
+                            and torch.equal(pilot_tail.variance, previous_tail.variance)
+                        ):
+                            pilot_tail = inflate_tail_uncertainty(previous_tail)
+                        posterior = replace(
+                            posterior,
+                            tail=pilot_tail,
+                            frame_index=frame_index,
+                        )
                     phase_features = estimate_phase_residual_vector(
                         frame.receiver_view(),
                         posterior.cir,
@@ -162,6 +210,8 @@ def run_state_tracking_online(
                     logits = logits.squeeze(0)
                     # Data 标签只在这里用于事后 BER 统计；在线状态、参数和动作均未读取标签。
                     ber_data = _ber(logits[frame.data_mask], frame.bits[frame.data_mask])
+                    # frame.tail_symbols 仅用于仿真事后校准，不回流接收机状态。
+                    tail_diagnostics = _tail_posterior_diagnostics(posterior, frame.tail_symbols)
                     rows.append(
                         {
                             "method": "Pilot State Tracking Frozen NN",
@@ -170,13 +220,16 @@ def run_state_tracking_online(
                             "snr_db": float(snr_db),
                             "frame_index": int(frame_index),
                             "ber_data": float(ber_data),
-                            "state_update_committed": bool(update.committed),
+                            "state_update_committed": bool(state_update_accepted),
                             "state_update_reason": update.reason,
                             "adapt_pilot_count": int(update.adapt_pilot_count),
                             "cir_delta_norm": float(torch.linalg.vector_norm(posterior.cir - prior_posterior.cir).detach().cpu()),
                             "residual_cfo": float(posterior.phase.cfo_cycles_per_symbol),
                             "phase_confidence": float(posterior.phase.confidence),
                             "tail_variance_mean": float(posterior.tail.variance.mean().detach().cpu()),
+                            "tail_confidence": float(posterior.tail.confidence),
+                            "tail_update_source": "adapt_pilot_map" if state_update_accepted else "frozen_prior",
+                            **tail_diagnostics,
                             "pilot_risk_score": float(risk.score),
                             "pilot_risk_abstain": bool(risk.abstain),
                             "pilot_risk_confidence": float(risk.confidence),
@@ -202,6 +255,16 @@ def run_state_tracking_online(
         "frame_count": len(rows),
         "mean_ber_data": float(sum(row["ber_data"] for row in rows) / len(rows)),
         "mean_pilot_risk_score": float(sum(row["pilot_risk_score"] for row in rows) / len(rows)),
+        "mean_tail_nmse": float(sum(row["tail_nmse"] for row in rows) / len(rows)),
+        "mean_tail_normalized_error": float(
+            sum(row["tail_normalized_error"] for row in rows) / len(rows)
+        ),
+        "tail_coverage": {
+            str(percentile): float(
+                sum(row[f"tail_{percentile}_coverage"] for row in rows) / len(rows)
+            )
+            for percentile in (50, 90, 95)
+        },
         "rows": rows,
     }
     (target / "frame_metrics.jsonl").write_text(

@@ -102,3 +102,45 @@ def test_tail_belief_rejects_shape_mismatch():
         pass
     else:
         raise AssertionError("形状不一致的 tail belief 必须被拒绝")
+
+
+def test_tail_posterior_diagnostics_report_complex_gaussian_coverage():
+    from training.state_tracking_online import _tail_posterior_diagnostics
+
+    posterior = initial_state(
+        torch.tensor([1 + 0j]),
+        torch.zeros(4, dtype=torch.complex64),
+    )
+    exact = _tail_posterior_diagnostics(posterior, torch.zeros(4, dtype=torch.complex64))
+    assert exact["tail_nmse"] == 0.0
+    assert exact["tail_50_coverage"] == 1.0
+    assert exact["tail_90_coverage"] == 1.0
+    assert exact["tail_95_coverage"] == 1.0
+
+    posterior = replace(
+        posterior,
+        tail=TailBelief(
+            torch.ones(4, dtype=torch.complex64),
+            torch.ones(4),
+            0.0,
+        ),
+    )
+    unit_error = _tail_posterior_diagnostics(posterior, torch.zeros(4, dtype=torch.complex64))
+    assert unit_error["tail_normalized_error"] == 1.0
+    assert unit_error["tail_50_coverage"] == 0.0
+    assert unit_error["tail_90_coverage"] == 1.0
+    assert unit_error["tail_95_coverage"] == 1.0
+
+
+def test_tail_uncertainty_propagation_is_conservative_and_data_independent():
+    from agent.state_tracking import inflate_tail_uncertainty
+
+    prior = TailBelief(
+        torch.full((3,), 0.8 + 0j, dtype=torch.complex64),
+        torch.full((3,), 0.2),
+        0.8,
+    )
+    propagated = inflate_tail_uncertainty(prior, variance_increment=0.25, mean_decay=0.2)
+    assert torch.allclose(propagated.mean, prior.mean * 0.8)
+    assert torch.allclose(propagated.variance, torch.full((3,), 0.45))
+    assert abs(propagated.confidence - 0.55) < 1e-6

@@ -26,6 +26,8 @@
 
 F2 组件消融可用 `compare.py --state-tracking-mode phase_only|cir_only|joint`。`phase_only` 与 `cir_only` 冻结 tail belief；`joint` 才使用 Adapt Pilot MAP tail 后验。所有模式都只在整帧冻结检测后计算 Data BER。当前 tail MAP 方差因 `0.05` 下限而长期贴边，必须先验证真值覆盖率与跨帧稳定性，不能作为校准置信度使用。CIR 与 phase 当前共享置信度提交门槛，后续 replay 需分别记录两类状态的误差与提交决策。
 
+仿真可事后用 `frame.tail_symbols` 审计 tail NMSE、标准化误差和复数方差覆盖率，但该字段只允许在状态更新和检测结束后用于离线评估。原子提交修复后的 5 seeds × 60 帧校准显示，5/10/15 dB 接受帧的 90% 覆盖率分别为 0.456/0.271/0.213，标准化平方误差均值为 33.14/28.31/26.01；因此当前 MAP 协方差不可用作置信度或门控量。新 tail 后验必须基于 Adapt Pilot 独立生成，并在未见轨迹同时通过覆盖率校准和 F1 配对 BER 检验后，才可进入提交策略。
+
 ## Pilot 代理排序门槛
 
 使用多个独立 seed/连续轨迹，冻结每个候选的 Pilot-only 分数；事后计算未来 H 帧 Data 硬 BER。按 SNR、delay、drift、CFO、phase noise、acquisition gap 单独报告：
