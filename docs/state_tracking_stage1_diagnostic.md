@@ -157,12 +157,54 @@ Reward Pilot 风险仍只作留出物理一致性记录，`pilot_risk_validated_
 
 回到原连续均值后，单独验证原子提交及 tail 失败不确定度传播，仍为 3 seeds × 12 帧。F2 在 0/5/10/15 dB 的 BER 为 `0.274957/0.065213/0.010634/0.001989`，F1 为 `0.274957/0.061089/0.010236/0.001989`；5 dB 有 21/36 帧冻结先验，10/15 dB 无拒绝。结果位于 `logs/atomic_tail_original_mean_3s12f_20261020/`。该小样本显示原子修复后 F2 在 5/10 dB 仍不如 F1；它仅验证提交行为与方向，不能替代 5 seeds × 60 帧正式矩阵。
 
+### 状态配平消融（短筛选）
+
+新增六种状态组合：`phase_only`、`cir_only`、`tail_only`、`phase_tail`、`cir_tail`、`joint`。所有模式使用相同 checkpoint、Level B 主信道、prefix Pilot 和 3 seeds × 12 帧，SNR 5/10 dB；Data 仅用于事后 BER。CIR-only 的 tap 拟合固定使用先验 CFO，避免 phase 候选通过 `cfo_hint` 泄漏到 CIR 单变量实验。表中差值为该模式 BER 减 F1，负值更好；这些短窗仅用于筛选。
+
+| 模式 | 5 dB BER | 5 dB F2−F1 | 10 dB BER | 10 dB F2−F1 |
+|---|---:|---:|---:|---:|
+| F1 | 0.061089 | — | 0.010236 | — |
+| phase_only | 0.057798 | -0.003291 | 0.010272 | +0.000036 |
+| cir_only | 0.061921 | +0.000832 | 0.011068 | +0.000832 |
+| tail_only | 0.060258 | -0.000831 | 0.010453 | +0.000217 |
+| phase_tail | 0.057762 | -0.003327 | 0.009693 | -0.000543 |
+| cir_tail | 0.061234 | +0.000145 | 0.011068 | +0.000832 |
+| joint | 0.065213 | +0.004124 | 0.010634 | +0.000398 |
+
+逐帧状态变化记录位于 `logs/state_attribution_<mode>_3s12f_5_10db_20261027/`；CIR-only 与 CIR+tail 已在解除 phase 置信度门控后重跑，最新数值和接受率见 `logs/state_attribution_{cir_only,cir_tail}_regated_3s12f_5_10db_20261027/`。旧 CIR 短筛选日志仅作实现差异诊断。重跑后 CIR-only 和 CIR+tail 两档 SNR 都劣于 F1；phase+tail 是唯一两档短窗均优于 F1 的组合，tail-only 只在 5 dB 有轻微改善。每格只有 36 帧，不能据此宣称收益。
+
+### phase+tail 主矩阵
+
+将 phase+tail 扩展到 5 seeds × 60 帧、四档主 SNR，输出位于 `logs/state_attribution_phase_tail_5s60f_20261027/summary.json`：
+
+| SNR | F1 | phase+tail | 配对差值 F2−F1（95% seed bootstrap CI） | 状态接受数 |
+|---:|---:|---:|---:|---:|
+| 0 dB | 0.223924 | 0.223924 | 0.000000 [0.000000, 0.000000] | 0/300 |
+| 5 dB | 0.057309 | 0.058229 | +0.000920 [-0.000464, +0.002478] | 179/300 |
+| 10 dB | 0.009566 | 0.009002 | -0.000564 [-0.001784, +0.000286] | 298/300 |
+| 15 dB | 0.001615 | 0.001237 | -0.000378 [-0.000924, -0.000043] | 297/300 |
+
+phase+tail 消除了 joint 在 5 dB 的明显退化，15 dB 的改善区间不跨 0；5 dB、10 dB 区间均跨 0，0 dB 全部 abstain。因此它是当前更稳妥的候选，但还没有证明每个 SNR 稳定超过 F1。逐帧日志记录 CIR、phase0/CFO、tail 均值和方差的前后变化及更新来源。
+
+### phase+tail 与公平传统基线
+
+在同一原子提交实现、Level B 配置和 5 seeds × 60 帧轨迹上，比较 phase+tail 与带 Pilot CFO/decision-directed phase 补偿的 `CFO+DD-Phase DFE-RLS`。完整日志位于 `logs/state_attribution_phase_tail_vs_dfe_5s60f_20261027/`：
+
+| SNR | phase+tail | CFO+DD-Phase DFE-RLS | 配对差值（phase+tail−DFE，95% seed bootstrap CI） |
+|---:|---:|---:|---:|
+| 0 dB | 0.223924 | 0.439926 | -0.216003 [-0.234236, -0.198559] |
+| 5 dB | 0.058229 | 0.157821 | -0.099592 [-0.121641, -0.077543] |
+| 10 dB | 0.009002 | 0.054427 | -0.045425 [-0.064974, -0.027261] |
+| 15 dB | 0.001237 | 0.032839 | -0.031602 [-0.050946, -0.016324] |
+
+负差值表示 phase+tail BER 更低。四档 bootstrap 区间均不跨 0，说明该候选在当前 checkpoint、主信道和该传统基线实现上优于 DFE-RLS；不能据此泛化到其它传统方法或信道。它满足了本轮公平传统对照，但仍未满足逐配置稳定超过 F1：5 dB 无显著差异，10 dB 区间跨 0，15 dB 改善显著，0 dB 与 F1 持平。
+
 ## 下一阶段
 
-1. 对逐帧日志按相同 seed/frame 对齐 F1 与 F2，拆解状态候选提交前后的 CIR、phase/CFO、tail 变化和 BER 差值；重点定位 5 dB 接受更新为何有害。
-2. 重建 tail 后验：将 BPSK 符号先验、Pilot-only 似然和 CIR/CFO/phase 不确定度合并，使用独立轨迹校准覆盖率；真实 tail 仍只做事后校准。
-3. 解耦 CIR、phase/CFO 的估计置信度和提交门槛，再进行单变量 replay；同时保留严格 F1 fallback。
-4. 扩大同一传统基线对照的独立 seed 数，确认目前四个 SNR 上的优势区间在更多轨迹上仍成立。
-5. 在独立连续轨迹上完成 Pilot 代理对未来窗口 Data BER 的分桶排序与 bootstrap；未通过正向关联门槛时，代理继续只记录、不控制。
+1. 对 phase+tail 主矩阵按 seed/frame 做 Pilot-only 候选残差归因，定位 5 dB 哪些状态更新没有稳定收益；保留 F1 fallback，不按事后 Data BER 选在线阈值。
+2. 在更多 seeds、独立连续轨迹和 heldout_edge/acquisition gap 上复现 phase+tail 对 F1 与传统基线的差异。
+3. 在不改变 phase+tail 已验证 BER 路径的前提下重建 tail 后验，融合 BPSK 离散先验、Pilot-only 似然和 CIR/CFO/phase 不确定度，并单独校准覆盖率。
+4. 按 active component 分别校准置信度：CIR-only 不借用 phase 拟合置信度；phase 和 tail 候选受各自可观测性约束。
+5. 在独立连续轨迹上验证 Pilot 代理对未来窗口 Data BER 的排序关系；通过前继续只记录、不控制。
 
 完整逐帧输出保存在本机忽略目录 `logs/state_tracking_compliant_main_5s60f_20261019/` 和 `logs/compare_baseline_key_5s60f_20261020/`。任何正式主结果都必须使用 Pilot-only tail 路径和上述隔离协议。

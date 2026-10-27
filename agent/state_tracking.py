@@ -191,7 +191,11 @@ def update_from_adapt_pilot(
                 prior.tail.mean,
                 max_paths=int(max_paths),
                 alpha=float(cir_alpha),
-                cfo_hint=float(phase.cfo_cycles_per_symbol),
+                cfo_hint=float(
+                    phase.cfo_cycles_per_symbol
+                    if track_phase
+                    else prior.phase.cfo_cycles_per_symbol
+                ),
             )
             if track_cir
             else prior.cir.clone()
@@ -199,8 +203,8 @@ def update_from_adapt_pilot(
     except (RuntimeError, ValueError, torch.linalg.LinAlgError):
         return PilotStateUpdate(prior, prior, False, "pilot_estimation_failed", count)
     confidence = float(phase.confidence)
-    if not torch.isfinite(updated_cir).all() or confidence < float(min_confidence):
-        reason = "low_pilot_confidence" if confidence < float(min_confidence) else "nonfinite_cir"
+    if not torch.isfinite(updated_cir).all() or (track_phase and confidence < float(min_confidence)):
+        reason = "low_pilot_confidence" if track_phase and confidence < float(min_confidence) else "nonfinite_cir"
         return PilotStateUpdate(prior, prior, False, reason, count)
     committed_phase = phase if track_phase else prior.phase.clone()
     innovation = float(torch.mean(torch.abs(updated_cir - prior.cir).square()).detach().cpu())

@@ -24,7 +24,7 @@
 3. 固定状态候选集，分别评估 Reward Pilot 上的复数重构、末端边界残差、连续采样 innovation whiteness、后验不确定度和 posterior predictive risk；Adapt Pilot 仅用于更新或单独对照，不得混入留出分数。不允许同时改候选生成和代理公式。
 4. 最后才比较状态跟踪 + 固定神经调制、有限 PEFT 和离散 RL 调度。任何动作只能在 Data 标签不可见时选择。
 
-F2 组件消融可用 `compare.py --state-tracking-mode phase_only|cir_only|joint`。`phase_only` 与 `cir_only` 冻结 tail belief；`joint` 才使用 Adapt Pilot MAP tail 后验。所有模式都只在整帧冻结检测后计算 Data BER。当前 tail MAP 方差因 `0.05` 下限而长期贴边，必须先验证真值覆盖率与跨帧稳定性，不能作为校准置信度使用。CIR 与 phase 当前共享置信度提交门槛，后续 replay 需分别记录两类状态的误差与提交决策。
+状态配平消融可用 `compare.py --state-tracking-mode joint|phase_only|cir_only|tail_only|phase_tail|cir_tail`。模式分别表示更新 CIR/phase/CFO/tail 的组合：`phase_only`、`cir_only` 冻结 tail，`tail_only` 固定 CIR 与 phase/CFO，`phase_tail` 固定 CIR，`cir_tail` 固定 phase/CFO，`joint` 更新三者。CIR-only 的 CIR 拟合固定使用先验 CFO，避免当前帧 phase/CFO 候选泄漏进 CIR 单变量实验；未跟踪 phase 的模式也不再用 phase 拟合置信度拒绝 CIR 候选。所有模式都只用 Adapt Pilot 构造状态，整帧冻结检测后才计算 Data BER；组件模式用于归因，不替代正式 joint 接收机协议。当前 tail MAP 方差因 `0.05` 下限而长期贴边，不能作为校准置信度使用；每个模式需记录候选前后 CIR、phase/CFO 和 tail 的实际变化。
 
 仿真可事后用 `frame.tail_symbols` 审计 tail NMSE、标准化误差和复数方差覆盖率，但该字段只允许在状态更新和检测结束后用于离线评估。原子提交修复后的 5 seeds × 60 帧校准显示，5/10/15 dB 接受帧的 90% 覆盖率分别为 0.456/0.271/0.213，标准化平方误差均值为 33.14/28.31/26.01；因此当前 MAP 协方差不可用作置信度或门控量。新 tail 后验必须基于 Adapt Pilot 独立生成，并在未见轨迹同时通过覆盖率校准和 F1 配对 BER 检验后，才可进入提交策略。
 

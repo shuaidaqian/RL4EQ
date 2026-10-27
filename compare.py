@@ -98,6 +98,23 @@ TRADITIONAL_METHODS = (
     "CFO+DD-Phase DFE-RLS",
 )
 
+
+def _state_tracking_components(mode: str) -> tuple[bool, bool, bool]:
+    """返回消融模式启用的 CIR、phase/CFO、tail 状态分量。"""
+
+    components = {
+        "joint": (True, True, True),
+        "phase_only": (False, True, False),
+        "cir_only": (True, False, False),
+        "tail_only": (False, False, True),
+        "phase_tail": (False, True, True),
+        "cir_tail": (True, False, True),
+    }
+    try:
+        return components[str(mode)]
+    except KeyError as exc:
+        raise ValueError(f"未知的物理状态消融模式：{mode}") from exc
+
 NEURAL_IMPLEMENTATION_METHODS = (
     "F0 Acquisition Frozen NN",
     "F1 Pilot-Conditioned Frozen NN",
@@ -223,9 +240,9 @@ def main() -> None:
     parser.add_argument("--state-split", choices=["offline_train", "heldout_edge", "drift"], default=None)
     parser.add_argument(
         "--state-tracking-mode",
-        choices=["joint", "phase_only", "cir_only"],
+        choices=["joint", "phase_only", "cir_only", "tail_only", "phase_tail", "cir_tail"],
         default="joint",
-        help="F2 物理状态消融；单变量模式冻结 soft-tail belief。",
+        help="F2 Pilot-only 物理状态配平消融模式。",
     )
     parser.add_argument(
         "--impairment-profile",
@@ -1281,23 +1298,33 @@ def _run_new_or_single_method(
         if method == "F2 Pilot State Tracking Frozen NN":
             if state.posterior is None:
                 raise RuntimeError("Pilot State Tracking 缺少初始物理状态后验。")
-            update = update_from_adapt_pilot(
-                frame_device,
-                state.posterior,
-                snr_db=float(snr_db),
-                cfo_limit=float(state.phase_tracking_cfo_limit),
-                phase_smoothing=float(state.phase_tracking_smoothing),
-                min_confidence=float(state.phase_tracking_min_confidence),
-                cir_alpha=float(state.cir_update_alpha),
-                max_paths=24,
-                frame_index=int(frame_index),
-                track_cir=state.state_tracking_mode != "phase_only",
-                track_phase=state.state_tracking_mode != "cir_only",
+            prior_posterior = state.posterior.clone()
+            mode_tracks_cir, mode_tracks_phase, mode_tracks_tail = _state_tracking_components(
+                state.state_tracking_mode
             )
-            state_update_accepted = is_safe_to_commit(update, minimum_confidence=0.15)
-            state.posterior = commit_if_safe(update, minimum_confidence=0.15)
+            update = None
+            if mode_tracks_cir or mode_tracks_phase:
+                update = update_from_adapt_pilot(
+                    frame_device,
+                    prior_posterior,
+                    snr_db=float(snr_db),
+                    cfo_limit=float(state.phase_tracking_cfo_limit),
+                    phase_smoothing=float(state.phase_tracking_smoothing),
+                    min_confidence=float(state.phase_tracking_min_confidence),
+                    cir_alpha=float(state.cir_update_alpha),
+                    max_paths=24,
+                    frame_index=int(frame_index),
+                    track_cir=mode_tracks_cir,
+                    track_phase=mode_tracks_phase,
+                )
+                state_update_accepted = is_safe_to_commit(update, minimum_confidence=0.15)
+                state.posterior = commit_if_safe(update, minimum_confidence=0.15)
+            else:
+                state_update_accepted = False
+                state.posterior = prior_posterior
             tail_update_source = "frozen_prior"
-            if state.state_tracking_mode == "joint" and state_update_accepted:
+            tail_update_accepted = False
+            if mode_tracks_tail and (state.state_tracking_mode == "tail_only" or state_update_accepted):
                 previous_tail = state.posterior.tail
                 pilot_tail = update_tail_from_adapt_pilot(
                     frame_device,
@@ -1312,6 +1339,7 @@ def _run_new_or_single_method(
                     tail_update_source = "uncertainty_propagation"
                 else:
                     tail_update_source = "adapt_pilot_map"
+                    tail_update_accepted = True
                 state.posterior = replace(state.posterior, tail=pilot_tail)
             state.cir = state.posterior.cir
             state.physical_state = state.posterior.phase
@@ -1360,12 +1388,18 @@ def _run_new_or_single_method(
                     "uses_rl": False,
                     "pretrained_loaded": state.pretrained_loaded,
                     "online_parameter_update": False,
-                    "physical_state_update": bool(state_update_accepted),
-                    "physical_state_update_reason": update.reason,
+                    "physical_state_update": bool(state_update_accepted or tail_update_accepted),
+                    "physical_state_update_reason": update.reason if update is not None else "tail_only_mode",
                     "state_tracking_mode": str(state.state_tracking_mode),
-                    "adapt_pilot_count": int(update.adapt_pilot_count),
+                    "adapt_pilot_count": int(update.adapt_pilot_count) if update is not None else int(frame_device.adapt_mask.sum().item()),
                     "physical_state_confidence": float(state.posterior.confidence),
                     "residual_cfo": float(state.posterior.phase.cfo_cycles_per_symbol),
+                    "cir_delta_norm": float(torch.linalg.vector_norm(state.posterior.cir - prior_posterior.cir).detach().cpu()),
+                    "phase0_delta": float(state.posterior.phase.phase0 - prior_posterior.phase.phase0),
+                    "cfo_delta": float(state.posterior.phase.cfo_cycles_per_symbol - prior_posterior.phase.cfo_cycles_per_symbol),
+                    "tail_mean_delta_norm": float(torch.linalg.vector_norm(state.posterior.tail.mean - prior_posterior.tail.mean).detach().cpu()),
+                    "tail_variance_delta_mean": float((state.posterior.tail.variance - prior_posterior.tail.variance).mean().detach().cpu()),
+                    "tail_update_accepted": bool(tail_update_accepted),
                     "tail_variance_mean": float(state.posterior.tail.variance.mean().detach().cpu()),
                     "tail_confidence": float(state.posterior.tail.confidence),
                     "tail_update_source": tail_update_source,

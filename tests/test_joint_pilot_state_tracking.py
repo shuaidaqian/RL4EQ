@@ -130,6 +130,51 @@ def test_state_tracking_component_modes_isolate_physical_state(mode, monkeypatch
     assert torch.equal(update.candidate.tail.mean, prior.tail.mean)
 
 
+def test_cir_only_uses_prior_cfo_and_ignores_phase_fit_gate(monkeypatch):
+    from dataclasses import replace
+
+    import agent.state_tracking as tracking
+    from agent.cir_estimator import PilotPhysicalState
+    from agent.state_tracking import initial_state, update_from_adapt_pilot
+
+    frame = _pilot_frame(cfo=0.0004)
+    cir = torch.zeros(41, dtype=torch.complex64)
+    cir[0] = 1.0
+    prior = initial_state(cir, torch.zeros(40, dtype=torch.complex64))
+    prior = replace(
+        prior,
+        phase=PilotPhysicalState(phase0=0.1, cfo_cycles_per_symbol=0.0002, confidence=0.8),
+    )
+    monkeypatch.setattr(
+        tracking,
+        "track_pilot_physical_state",
+        lambda *args, **kwargs: PilotPhysicalState(phase0=0.3, cfo_cycles_per_symbol=0.0007, confidence=0.01),
+    )
+    observed = {}
+
+    def fake_cir_update(*args, **kwargs):
+        observed["cfo_hint"] = kwargs["cfo_hint"]
+        return cir.clone()
+
+    monkeypatch.setattr(tracking, "pilot_sparse_cir_update", fake_cir_update)
+    update = update_from_adapt_pilot(frame, prior, snr_db=10.0, track_cir=True, track_phase=False)
+
+    assert update.committed
+    assert observed["cfo_hint"] == pytest.approx(0.0002)
+    assert update.candidate.phase == prior.phase
+
+
+def test_state_tracking_ablation_component_table_is_complete():
+    from compare import _state_tracking_components
+
+    assert _state_tracking_components("joint") == (True, True, True)
+    assert _state_tracking_components("phase_only") == (False, True, False)
+    assert _state_tracking_components("cir_only") == (True, False, False)
+    assert _state_tracking_components("tail_only") == (False, False, True)
+    assert _state_tracking_components("phase_tail") == (False, True, True)
+    assert _state_tracking_components("cir_tail") == (True, False, True)
+
+
 def test_uncertainty_aware_soft_tail_downweights_low_confidence_symbols():
     from agent.tail_state import SoftTailState, update_soft_tail_state
 
