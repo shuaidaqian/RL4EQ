@@ -78,3 +78,74 @@ def test_summary_rejects_data_waveform_used_online(tmp_path):
     )
     with pytest.raises(ValueError, match="Data 波形"):
         _load_rows([str(path)])
+
+
+@pytest.mark.parametrize("flag,value", [
+    ("data_labels_used_online", None),
+    ("data_waveform_used_online", None),
+    ("data_labels_used_online", "false"),
+    ("data_waveform_used_online", 0),
+    ("data_waveform_used_online", True),
+])
+def test_load_checks_isolation_even_without_candidates(tmp_path, flag, value):
+    import json
+
+    from scripts.summarize_pilot_ranking_replay import _load_rows
+
+    row = _frame(0, 10.0, 1)
+    row["reward_pilot_candidate_ranking"] = []
+    if value is None:
+        del row[flag]
+    else:
+        row[flag] = value
+    path = tmp_path / "frame_metrics.jsonl"
+    path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        _load_rows([str(path)])
+
+
+def test_within_frame_ordering_exposes_misleading_pooled_correlation():
+    from evaluation.metrics import spearman_reward_data
+    from scripts.summarize_pilot_ranking_replay import _within_trial_ordering
+
+    trials = {
+        ("日志", 5.0, 1, 1): [
+            {"pilot_score": 0.0, "data_ber_improvement": 1.0},
+            {"pilot_score": 1.0, "data_ber_improvement": 0.0},
+        ],
+        ("日志", 5.0, 2, 1): [
+            {"pilot_score": 10.0, "data_ber_improvement": 11.0},
+            {"pilot_score": 11.0, "data_ber_improvement": 10.0},
+        ],
+    }
+    rows = [row for candidates in trials.values() for row in candidates]
+    pooled = spearman_reward_data(
+        [row["pilot_score"] for row in rows],
+        [row["data_ber_improvement"] for row in rows],
+        threshold=0.6,
+    )
+    within = _within_trial_ordering(trials, "data_ber_improvement")
+
+    assert pooled.correlation > 0.0
+    assert within["comparable_trial_count"] == 2
+    assert within["discordant_pair_count"] == 2
+    assert within["frame_weighted_agreement"] == 0.0
+    assert within["per_seed"]["1"]["frame_weighted_agreement"] == 0.0
+
+
+def test_within_frame_ordering_does_not_count_ties_as_success():
+    import math
+
+    from scripts.summarize_pilot_ranking_replay import _within_trial_ordering
+
+    trials = {
+        ("日志", 10.0, 1, 1): [
+            {"pilot_score": 0.0, "data_ber_improvement": 0.0},
+            {"pilot_score": 1.0, "data_ber_improvement": 0.0},
+        ]
+    }
+    result = _within_trial_ordering(trials, "data_ber_improvement")
+
+    assert result["data_target_tie_pair_count"] == 1
+    assert result["comparable_trial_count"] == 0
+    assert math.isnan(result["frame_weighted_agreement"])

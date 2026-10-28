@@ -13,6 +13,7 @@ import json
 import math
 import sys
 from collections import defaultdict
+from itertools import combinations
 from pathlib import Path
 from typing import Iterable
 
@@ -60,13 +61,16 @@ def _load_rows(inputs: Iterable[str]) -> tuple[list[dict], list[dict]]:
             source_rows.append(source_row)
             if row.get("method") != ONLINE_METHOD:
                 continue
+            for flag in ("data_labels_used_online", "data_waveform_used_online"):
+                if flag not in row or not isinstance(row[flag], bool):
+                    raise ValueError(f"{path}:{line_number} 缺少有效的在线隔离字段 {flag}。")
+            if row["data_labels_used_online"]:
+                raise ValueError(f"{path}:{line_number} 声称在线使用了 Data 标签。")
+            if row["data_waveform_used_online"]:
+                raise ValueError(f"{path}:{line_number} 声称在线使用了 Data 波形。")
             ranking = row.get("reward_pilot_candidate_ranking")
             if not isinstance(ranking, list) or not ranking:
                 continue
-            if row.get("data_labels_used_online", False):
-                raise ValueError(f"{path}:{line_number} 声称在线使用了 Data 标签。")
-            if row.get("data_waveform_used_online", False):
-                raise ValueError(f"{path}:{line_number} 声称在线使用了 Data 波形。")
             for candidate in ranking:
                 if not isinstance(candidate, dict):
                     raise ValueError(f"{path}:{line_number} 候选记录不是对象。")
@@ -138,7 +142,7 @@ def _mean(rows: list[dict], key: str) -> float:
     return float(sum(values) / len(values)) if values else math.nan
 
 
-def _trial_groups(rows: list[dict]) -> dict[tuple[float, int, int], list[dict]]:
+def _trial_groups(rows: list[dict]) -> dict[tuple[str, float, int, int], list[dict]]:
     grouped: dict[tuple[str, float, int, int], list[dict]] = defaultdict(list)
     for row in rows:
         grouped[
@@ -167,6 +171,59 @@ def _summarize_group(rows: list[dict]) -> dict:
         )
         if rows
         else math.nan,
+    }
+
+
+def _within_trial_ordering(trials: dict, target: str) -> dict:
+    """只比较同一帧内候选顺序；并列不计为正确或错误。"""
+
+    concordant = discordant = pilot_ties = data_ties = 0
+    frame_agreements: list[float] = []
+    seed_agreements: dict[int, list[float]] = defaultdict(list)
+    for key, candidates in sorted(trials.items()):
+        frame_correct = frame_comparable = 0
+        for left, right in combinations(candidates, 2):
+            score_delta = left["pilot_score"] - right["pilot_score"]
+            data_delta = left[target] - right[target]
+            if score_delta == 0.0:
+                pilot_ties += 1
+                continue
+            if data_delta == 0.0:
+                data_ties += 1
+                continue
+            frame_comparable += 1
+            if (score_delta > 0.0) == (data_delta > 0.0):
+                concordant += 1
+                frame_correct += 1
+            else:
+                discordant += 1
+        if frame_comparable:
+            agreement = frame_correct / frame_comparable
+            frame_agreements.append(agreement)
+            seed_agreements[int(key[2])].append(agreement)
+
+    comparable = concordant + discordant
+    return {
+        "trial_count": len(trials),
+        "comparable_trial_count": len(frame_agreements),
+        "comparable_pair_count": comparable,
+        "concordant_pair_count": concordant,
+        "discordant_pair_count": discordant,
+        "pilot_score_tie_pair_count": pilot_ties,
+        "data_target_tie_pair_count": data_ties,
+        "pair_weighted_agreement": concordant / comparable if comparable else math.nan,
+        "frame_weighted_agreement": (
+            sum(frame_agreements) / len(frame_agreements) if frame_agreements else math.nan
+        ),
+        "per_seed": {
+            str(seed): {
+                "comparable_trial_count": len(values),
+                "frame_weighted_agreement": sum(values) / len(values),
+            }
+            for seed, values in sorted(seed_agreements.items())
+        },
+        "identity_included": False,
+        "interpretation": "同帧候选的事后排序诊断，不用于在线决策或自动通过门槛。",
     }
 
 
@@ -220,10 +277,17 @@ def summarize(rows: list[dict], source_rows: list[dict]) -> dict:
     by_snr: dict[str, dict] = {}
     trial_keys = sorted(trials)
     for snr in sorted({key[1] for key in trial_keys}):
-        # Use trial-level selected rows to keep each frame equally weighted.
+        # 只统计存在候选记录的帧；实际整条轨迹的收益应单独配对计算。
         indices = [index for index, key in enumerate(sorted(trials)) if key[1] == snr]
         selected = [actual_selected_rows[index] for index in indices]
         by_snr[str(snr)] = _summarize_group(selected)
+        snr_trials = {key: value for key, value in trials.items() if key[1] == snr}
+        by_snr[str(snr)]["within_trial_data_ber_ordering"] = _within_trial_ordering(
+            snr_trials, "data_ber_improvement"
+        )
+        by_snr[str(snr)]["within_trial_data_bce_ordering"] = _within_trial_ordering(
+            snr_trials, "data_bce_improvement"
+        )
     by_seed: dict[str, dict] = {}
     for seed in sorted({key[2] for key in trial_keys}):
         indices = [index for index, key in enumerate(sorted(trials)) if key[2] == seed]
@@ -243,6 +307,9 @@ def summarize(rows: list[dict], source_rows: list[dict]) -> dict:
         "candidate_count": len(rows),
         "pilot_score_vs_data_bce": _metric_summary(rows, "data_bce_improvement"),
         "pilot_score_vs_data_ber": _metric_summary(rows, "data_ber_improvement"),
+        "pooled_correlation_warning": "跨帧混合相关性仅供历史对照，不能作为在线排序通过门槛。",
+        "within_trial_data_ber_ordering": _within_trial_ordering(trials, "data_ber_improvement"),
+        "within_trial_data_bce_ordering": _within_trial_ordering(trials, "data_bce_improvement"),
         "pilot_top1_matches_data_bce_best_fraction": float(
             pilot_top_matches_bce / len(trials)
         ),
@@ -250,6 +317,7 @@ def summarize(rows: list[dict], source_rows: list[dict]) -> dict:
             pilot_top_matches_ber / len(trials)
         ),
         "actual_selected": _summarize_group(actual_selected_rows),
+        "actual_selected_scope": "仅包含有候选记录的帧，不代表全部帧的配对 BER。",
         "actual_selected_update_coverage": float(
             sum(name not in {"skip", "identity"} for name in actual_selected_names)
             / len(actual_selected_names)
