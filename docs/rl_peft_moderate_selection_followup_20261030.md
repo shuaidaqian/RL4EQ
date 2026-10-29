@@ -95,4 +95,26 @@ python compare.py --config configs/rl_peft_phase_signal_diagnostic.json --policy
 python compare.py --config configs/rl_peft_phase_signal_diagnostic.json --policy docs/results/assets/rl_peft_fixed_moderate_policy.pt --pretrained D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --methods 'Frozen Offline NN' 'RL-Modulated Neural Block Equalizer' --delays 116 --snrs 5 --seed-start 1061 --num-seeds 5 --frames 24 --pilot-total 256 --reward-pilot-total 32 --pilot-layout prefix --state-split heldout_edge --acquisition-to-data-gap-seconds 0 --update-interval 8 --cir-update fixed --online-condition-source pilot_cir_phase --device cpu --output-dir logs/rl_peft_fixedmoderate_gap0_heldout_edge_5db_5s24f_seed1061_1065_20261030
 ```
 
-下一步先改进 Pilot-only 的更新筛选：用 Adapt Pilot 内部留出/交叉验证信号，估计 PEFT 候选是否能在独立 Reward Pilot 窗口上保持改善，再由 Reward Pilot 做接受或回滚；固定 checkpoint、Pilot 总长、状态 split 和 Data 信息隔离保持不变。先用新的 seed 做 5 dB 小样本复核，只有收益幅度和 seed 稳定性都明显提升后，才扩大到 0/10/15 dB 与正式矩阵。gap=600 秒结果仍只作为 acquisition 老化诊断，不并入 gap=0 或 heldout_edge 主场景平均。
+## 新 seed 的 60 帧长轨迹复核
+
+为检查 24 帧正向迹象能否持续，在新的 seed 1066–1070 上重复同一 Level B `heldout_edge`、gap=0、5 dB 配置，每 seed 延长到 60 帧。moderate 起始 PPO 与高探索 PPO 使用同一组 Frozen 帧；逐帧 Frozen BER 和 `state_instance` 完全一致。
+
+| 策略 | Frozen BER | 在线 BER | 平均改善 | 正收益 seed | moderate 动作帧 | Reward 接受 / 拒绝 |
+|---|---:|---:|---:|---:|---:|---:|
+| moderate 起始 PPO | 4.9188% | 4.8503% | +0.0686 pp | 4/5 | 300/300 | 171 / 129 |
+| 高探索 PPO | 4.9188% | 4.8928% | +0.0260 pp | 2/5 | 88/300 | 54 / 34 |
+
+moderate 起始 PPO 的五个 seed 改善为 `+0.1128、+0.1497、+0.0195、−0.0087、+0.0694 pp`；高探索 PPO 为 `+0.0217、+0.1454、−0.0260、−0.0043、−0.0065 pp`。moderate 起始策略的 35 个完整窗口中有 17 个窗口级回滚；高探索 PPO 有 5 个。两种策略轨迹偏移都不超过 `0.05`，300 条在线记录都报告 Data 波形和标签未用于在线更新或动作选择。
+
+moderate 起始 PPO 按连续 20 帧段的平均配对改善是 `+0.0482、+0.0638、+0.0938 pp`，看起来平均优势随帧数增加；但正收益 seed 数从 `4/5` 变为 `3/5、3/5`，且五条 seed 级改善的近似 95% t 区间为 `−0.0122 到 +0.1493 pp`，仍包含零。高探索 PPO 三段平均改善为 `+0.0078、+0.0273、+0.0430 pp`，只有 2/5 seed 全程正向。新 seed 的长轨迹支持 moderate PEFT 候选有小幅持续收益、PPO 仍明显少选有效动作，但并未证明稳健或显著收益。
+
+机器可读数据见 JSON 中的 `gap0_heldout_edge_5db_new_seed_60_frame_comparison`；原始逐帧数据分别保存在被忽略的 `logs/rl_peft_moderate_init_gap0_heldout_edge_5db_5s60f_seed1066_1070_20261030/` 和 `logs/rl_peft_ppo_explore_episode_cap005_gap0_heldout_edge_5db_5s60f_seed1066_1070_20261030/`。
+
+复现命令（CPU）：
+
+```powershell
+python compare.py --config configs/rl_peft_phase_signal_diagnostic.json --policy docs/results/assets/rl_peft_fixed_moderate_policy.pt --pretrained D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --methods 'Frozen Offline NN' 'RL-Modulated Neural Block Equalizer' --delays 116 --snrs 5 --seed-start 1066 --num-seeds 5 --frames 60 --pilot-total 256 --reward-pilot-total 32 --pilot-layout prefix --state-split heldout_edge --acquisition-to-data-gap-seconds 0 --update-interval 8 --cir-update fixed --online-condition-source pilot_cir_phase --device cpu --output-dir logs/rl_peft_moderate_init_gap0_heldout_edge_5db_5s60f_seed1066_1070_20261030
+python compare.py --config configs/rl_peft_phase_signal_diagnostic.json --policy docs/results/assets/rl_peft_moderate_exploration_policy_init.pt --pretrained D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --methods 'Frozen Offline NN' 'RL-Modulated Neural Block Equalizer' --delays 116 --snrs 5 --seed-start 1066 --num-seeds 5 --frames 60 --pilot-total 256 --reward-pilot-total 32 --pilot-layout prefix --state-split heldout_edge --acquisition-to-data-gap-seconds 0 --update-interval 8 --cir-update fixed --online-condition-source pilot_cir_phase --device cpu --output-dir logs/rl_peft_ppo_explore_episode_cap005_gap0_heldout_edge_5db_5s60f_seed1066_1070_20261030
+```
+
+下一步应先提高 PPO 的 Pilot-only 选动作能力：当前策略编码器主要看到接收功率、Adapt Pilot 幅度统计和置信度，没有明确表示 Pilot 估计的相位/CIR 状态失配；这可能是 PPO 不知道“什么时候值得更新”的原因。下一轮先增加这些只由 Pilot 得到的状态特征，保持离线 checkpoint、PEFT 候选、Reward 验收和 Data 隔离不变，在同一 5 dB 条件下用独立 seed 做小样本对照；如果动作选择和 BER 收益没有一起改善，再调整更新筛选目标。gap=600 秒结果仍只作为 acquisition 老化诊断，不并入 gap=0 或 heldout_edge 主场景平均。

@@ -294,6 +294,73 @@
     "data_labels_used_online": false,
     "interpretation": "同条件下 moderate 起始策略的平均收益约为高探索 PPO 的两倍，支持候选 PEFT 有小幅收益信号且当前 PPO 选动作不足；5 seed、单 SNR 的诊断仍不足以证明稳定泛化收益。"
   },
+  "gap0_heldout_edge_5db_new_seed_60_frame_comparison": {
+    "diagnostic_only": true,
+    "state_split": "heldout_edge",
+    "acquisition_to_data_gap_seconds": 0.0,
+    "snr_db": 5.0,
+    "delay_symbols": 116,
+    "pilot_total": 256,
+    "adapt_pilot_total": 224,
+    "reward_pilot_total": 32,
+    "frames_per_seed": 60,
+    "online_frames_per_policy": 300,
+    "seeds": [1066, 1067, 1068, 1069, 1070],
+    "checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "checkpoint_retrained_or_modified": false,
+    "paired_frozen_rows_and_channel_states_identical_between_runs": true,
+    "frozen_reference_mean_ber": 0.049188368065903584,
+    "moderate_initialized_ppo": {
+      "policy_artifact": "docs/results/assets/rl_peft_fixed_moderate_policy.pt",
+      "online_mean_ber": 0.048502604160457846,
+      "mean_improvement_percentage_points": 0.06857639054457347,
+      "positive_seed_count": 4,
+      "moderate_action_frames": 300,
+      "moderate_candidate_accepted": 171,
+      "moderate_candidate_rejected": 129,
+      "complete_policy_windows": 35,
+      "window_reward_rollbacks": 17,
+      "maximum_episode_delta_norm": 0.05,
+      "seed_level_paired_t95_interval_percentage_points": [-0.012184749415162843, 0.14933753050430965],
+      "per_seed_improvement_percentage_points": [
+        {"seed": 1066, "improvement": 0.11284722636143371},
+        {"seed": 1067, "improvement": 0.1497396081686017},
+        {"seed": 1068, "improvement": 0.01953124379118279},
+        {"seed": 1069, "improvement": -0.008680584530035979},
+        {"seed": 1070, "improvement": 0.06944445893168477}
+      ],
+      "mean_improvement_by_20_frame_segment_percentage_points": [0.04817709699273115, 0.06380207464098939, 0.09374999999999994],
+      "positive_seed_count_by_20_frame_segment": [4, 3, 3],
+      "data_waveform_used_online": false,
+      "data_labels_used_online": false
+    },
+    "high_exploration_ppo": {
+      "policy_artifact": "docs/results/assets/rl_peft_moderate_exploration_policy_init.pt",
+      "online_mean_ber": 0.048927951380610464,
+      "mean_improvement_percentage_points": 0.026041668529311817,
+      "positive_seed_count": 2,
+      "identity_action_frames": 212,
+      "moderate_action_frames": 88,
+      "moderate_candidate_accepted": 54,
+      "moderate_candidate_rejected": 34,
+      "complete_policy_windows": 35,
+      "window_reward_rollbacks": 5,
+      "maximum_episode_delta_norm": 0.05,
+      "seed_level_paired_t95_interval_percentage_points": [-0.05944503823516756, 0.11152837529379106],
+      "per_seed_improvement_percentage_points": [
+        {"seed": 1066, "improvement": 0.021701393028100008},
+        {"seed": 1067, "improvement": 0.14539932832121835},
+        {"seed": 1068, "improvement": -0.02604167597989246},
+        {"seed": 1069, "improvement": -0.004340286056200848},
+        {"seed": 1070, "improvement": -0.006510416666666297}
+      ],
+      "mean_improvement_by_20_frame_segment_percentage_points": [0.007812507450580541, 0.027343733236193657, 0.042968764901161194],
+      "positive_seed_count_by_20_frame_segment": [3, 1, 3],
+      "data_waveform_used_online": false,
+      "data_labels_used_online": false
+    },
+    "interpretation": "新 seed 长轨迹中 moderate 起始策略的平均收益高于高探索 PPO，且 moderate 分段平均收益逐步增加，但两种策略的 seed 级区间均包含零。当前证据支持继续改进 Pilot-only 状态条件动作选择，不支持宣称目标已达成。"
+  },
   "policy_artifacts": {
     "fixed_moderate_policy": {
       "path": "docs/results/assets/rl_peft_fixed_moderate_policy.pt",
