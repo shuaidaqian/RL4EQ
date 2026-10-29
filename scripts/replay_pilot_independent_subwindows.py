@@ -94,10 +94,14 @@ def _masked_pilot_view(frame, visible_mask: torch.Tensor, *, adapt_mask: torch.T
     visible = visible_mask.to(device=frame.rx_symbols.device, dtype=torch.bool)
     return replace(
         frame,
+        bits=torch.where(visible, frame.bits, torch.zeros_like(frame.bits)),
+        tx_symbols=torch.where(visible, frame.tx_symbols, torch.zeros_like(frame.tx_symbols)),
         rx_symbols=torch.where(visible, frame.rx_symbols, torch.zeros_like(frame.rx_symbols)),
         adapt_mask=adapt_mask.to(device=frame.adapt_mask.device, dtype=torch.bool),
         reward_mask=reward_mask.to(device=frame.reward_mask.device, dtype=torch.bool),
         data_mask=torch.zeros_like(frame.data_mask, dtype=torch.bool),
+        tail_symbols=None,
+        true_cir=None,
     )
 
 

@@ -1,0 +1,181 @@
+{
+  "schema_version": "pilot-persistent-channel-residual-summary-v1",
+  "source_log": "pilot_persistent_peft_channel_residual_gap600_3s3snr12f_seed1051_1053_20261029.json",
+  "checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+  "checkpoint_modified_or_retrained": false,
+  "fixed_condition": {
+    "channel_level": "B",
+    "profile": "eme_long_memory_v2",
+    "delay_symbols": 116,
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "reward_pilot_total": 32,
+    "acquisition_gap_seconds": 600.0,
+    "snrs_db": [
+      5.0,
+      10.0,
+      15.0
+    ],
+    "seeds": [
+      1051,
+      1052,
+      1053
+    ],
+    "frames_per_seed_snr": 12,
+    "adapt_holdout_fraction": 0.25,
+    "condition_source": "pilot_cir_phase_from_adapt_update_window",
+    "update_group": "channel_residual",
+    "update_objective": "pilot_reconstruction",
+    "learning_rate": 0.0025,
+    "steps": 5,
+    "max_delta_norm": 0.05,
+    "min_reward_improvement": 0.0005,
+    "freeze_below_snr_db": 5.0,
+    "reward_history_frames": 1,
+    "reward_history_consistency_fraction": 0.6666666666666666,
+    "reward_requires_signal_reconstruction_improvement": true,
+    "device": "cpu",
+    "adapter_state_persists_after_reward_acceptance": true
+  },
+  "trial_count": 108,
+  "trajectory_count": 9,
+  "online_data_waveform_isolation_passed": true,
+  "data_metrics_used_online": false,
+  "metric_definition": "For each frame, compare the currently accumulated PEFT state against the frozen checkpoint on that frame’s Data segment, then average frame-level BER differences; this is not pooled BER over concatenated frames.",
+  "overall": {
+    "mean_per_frame_ber_gain": -0.00018084311374911554,
+    "positive_frame_fraction": 0.3148148148148148,
+    "negative_frame_fraction": 0.35185185185185186,
+    "accepted_updates": 38,
+    "rank_passes": 108,
+    "positive_seed_snr_trajectory_means": 3,
+    "mean_data_bce_gain": -0.006706678205066257,
+    "mean_data_logits_abs_delta": 0.1722489833417866,
+    "mean_data_logits_direction_change_fraction": 0.003532503875990019,
+    "mean_data_soft_abs_delta": 0.0035508229996560623,
+    "mean_final_peft_delta_norm": 0.11388740109072791,
+    "positive_seed_snr_trajectory_threshold_ber_gain": 0.0001
+  },
+  "by_snr": [
+    {
+      "snr_db": 5.0,
+      "frames": 36,
+      "mean_per_frame_ber_gain": 3.6170085271199547e-05,
+      "phase_trend_single_frame_mean_ber_gain": 0.0037977434694767,
+      "accepted_updates": 11,
+      "positive_seed_snr_trajectory_means": 1,
+      "positive_seed_snr_trajectory_threshold_ber_gain": 0.0001
+    },
+    {
+      "snr_db": 10.0,
+      "frames": 36,
+      "mean_per_frame_ber_gain": 0.0001085106697347429,
+      "phase_trend_single_frame_mean_ber_gain": 0.004087096287144555,
+      "accepted_updates": 13,
+      "positive_seed_snr_trajectory_means": 1,
+      "positive_seed_snr_trajectory_threshold_ber_gain": 0.0001
+    },
+    {
+      "snr_db": 15.0,
+      "frames": 36,
+      "mean_per_frame_ber_gain": -0.0006872100962532891,
+      "phase_trend_single_frame_mean_ber_gain": 0.0028573500199450385,
+      "accepted_updates": 14,
+      "positive_seed_snr_trajectory_means": 1,
+      "positive_seed_snr_trajectory_threshold_ber_gain": 0.0001
+    }
+  ],
+  "by_seed_snr": [
+    {
+      "seed": 1051,
+      "snr_db": 5.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": 0.0,
+      "last_frame_ber_gain": 0.0,
+      "positive_gain_frames": 0,
+      "accepted_updates": 0,
+      "final_peft_delta_norm": 0.0
+    },
+    {
+      "seed": 1052,
+      "snr_db": 5.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": -0.0005425301690896352,
+      "last_frame_ber_gain": 0.0,
+      "positive_gain_frames": 3,
+      "accepted_updates": 5,
+      "final_peft_delta_norm": 0.13756686449050903
+    },
+    {
+      "seed": 1053,
+      "snr_db": 5.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": 0.0006510404249032339,
+      "last_frame_ber_gain": -0.001302078366279602,
+      "positive_gain_frames": 6,
+      "accepted_updates": 6,
+      "final_peft_delta_norm": 0.14705950021743774
+    },
+    {
+      "seed": 1051,
+      "snr_db": 10.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": -0.0002170105775197347,
+      "last_frame_ber_gain": 0.002604186534881592,
+      "positive_gain_frames": 4,
+      "accepted_updates": 2,
+      "final_peft_delta_norm": 0.07369179278612137
+    },
+    {
+      "seed": 1052,
+      "snr_db": 10.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": 2.483526865641276e-09,
+      "last_frame_ber_gain": 0.001302093267440796,
+      "positive_gain_frames": 3,
+      "accepted_updates": 3,
+      "final_peft_delta_norm": 0.10057362914085388
+    },
+    {
+      "seed": 1053,
+      "snr_db": 10.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": 0.0005425401031970978,
+      "last_frame_ber_gain": 0.001302093267440796,
+      "positive_gain_frames": 7,
+      "accepted_updates": 8,
+      "final_peft_delta_norm": 0.177671417593956
+    },
+    {
+      "seed": 1051,
+      "snr_db": 15.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": -0.002604164183139801,
+      "last_frame_ber_gain": -0.002604156732559204,
+      "positive_gain_frames": 1,
+      "accepted_updates": 5,
+      "final_peft_delta_norm": 0.13772039115428925
+    },
+    {
+      "seed": 1052,
+      "snr_db": 15.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": -0.0003255208333333333,
+      "last_frame_ber_gain": -0.001302093267440796,
+      "positive_gain_frames": 3,
+      "accepted_updates": 4,
+      "final_peft_delta_norm": 0.11742255836725235
+    },
+    {
+      "seed": 1053,
+      "snr_db": 15.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": 0.000868054727713267,
+      "last_frame_ber_gain": 0.001302078366279602,
+      "positive_gain_frames": 7,
+      "accepted_updates": 5,
+      "final_peft_delta_norm": 0.1332804560661316
+    }
+  ],
+  "conclusion": "Channel residual updates are sometimes accepted but produce no reliable BER gain; overall mean is slightly negative, only 3/9 seed-SNR trajectories improve, and cumulative parameter drift exceeds the single-step cap in several trajectories."
+}

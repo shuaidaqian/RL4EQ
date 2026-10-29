@@ -1,0 +1,187 @@
+{
+  "schema_version": "pilot-reward-history-comparison-v1",
+  "source_log": "pilot_persistent_peft_history3_gap600_3s3snr12f_seed1051_1053_20261029.json",
+  "baseline_log": "pilot_persistent_peft_gap600_3s3snr12f_seed1051_1053_20261029.json",
+  "checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+  "checkpoint_modified_or_retrained": false,
+  "fixed_condition": {
+    "channel_level": "B",
+    "profile": "eme_long_memory_v2",
+    "delay_symbols": 116,
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "reward_pilot_total": 32,
+    "acquisition_gap_seconds": 600.0,
+    "snrs_db": [
+      5.0,
+      10.0,
+      15.0
+    ],
+    "seeds": [
+      1051,
+      1052,
+      1053
+    ],
+    "frames_per_seed_snr": 12,
+    "adapt_holdout_fraction": 0.25,
+    "condition_source": "pilot_cir_phase_from_adapt_update_window",
+    "update_objective": "pilot_signal_reconstruction",
+    "learning_rate": 0.0025,
+    "steps": 5,
+    "max_delta_norm": 0.05,
+    "min_reward_improvement": 0.0005,
+    "freeze_below_snr_db": 5.0,
+    "reward_history_frames": 3,
+    "reward_history_consistency_fraction": 0.6666666666666666,
+    "reward_requires_signal_reconstruction_improvement": true,
+    "device": "cpu",
+    "adapter_state_persists_after_reward_acceptance": true
+  },
+  "trial_count": 108,
+  "trajectory_count": 9,
+  "online_data_waveform_isolation_passed": true,
+  "data_metrics_used_online": false,
+  "baseline_single_frame": {
+    "mean_per_frame_ber_gain": 0.0035807299255220977,
+    "accepted_updates": 68,
+    "positive_frames": 44,
+    "negative_frames": 38,
+    "positive_seed_snr_trajectory_means": 7
+  },
+  "reward_history_3": {
+    "mean_per_frame_ber_gain": 0.0010127305846523355,
+    "accepted_updates": 44,
+    "rank_passes": 90,
+    "positive_frames": 40,
+    "negative_frames": 42,
+    "positive_seed_snr_trajectory_means": 6,
+    "mean_data_bce_gain": 0.01707342874120783,
+    "mean_data_logits_abs_delta": 0.9603383950543714,
+    "mean_data_logits_direction_change_fraction": 0.026813271682907792,
+    "mean_data_soft_abs_delta": 0.025698248972745915
+  },
+  "by_snr": [
+    {
+      "snr_db": 5.0,
+      "frames": 36,
+      "mean_per_frame_ber_gain": 0.00025318231847551133,
+      "single_frame_mean_ber_gain": 0.0037977434694767,
+      "accepted_updates": 19,
+      "single_frame_accepted_updates": 22,
+      "positive_seed_snr_trajectory_means": 2
+    },
+    {
+      "snr_db": 10.0,
+      "frames": 36,
+      "mean_per_frame_ber_gain": 0.0037977430555555555,
+      "single_frame_mean_ber_gain": 0.004087096287144555,
+      "accepted_updates": 13,
+      "single_frame_accepted_updates": 28,
+      "positive_seed_snr_trajectory_means": 3
+    },
+    {
+      "snr_db": 15.0,
+      "frames": 36,
+      "mean_per_frame_ber_gain": -0.0010127336200740603,
+      "single_frame_mean_ber_gain": 0.0028573500199450385,
+      "accepted_updates": 12,
+      "single_frame_accepted_updates": 18,
+      "positive_seed_snr_trajectory_means": 1
+    }
+  ],
+  "by_seed_snr": [
+    {
+      "seed": 1051,
+      "snr_db": 5.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": 0.0007595494389533997,
+      "last_frame_ber_gain": 0.0,
+      "positive_gain_frames": 3,
+      "accepted_updates": 6,
+      "final_adapter_delta_norm": 2.2891834305482917e-05
+    },
+    {
+      "seed": 1052,
+      "snr_db": 5.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": 0.0005425363779067993,
+      "last_frame_ber_gain": -0.0390625,
+      "positive_gain_frames": 5,
+      "accepted_updates": 6,
+      "final_adapter_delta_norm": 0.03550435230135918
+    },
+    {
+      "seed": 1053,
+      "snr_db": 5.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": -0.0005425388614336649,
+      "last_frame_ber_gain": -0.010416671633720398,
+      "positive_gain_frames": 4,
+      "accepted_updates": 7,
+      "final_adapter_delta_norm": 0.10746397078037262
+    },
+    {
+      "seed": 1051,
+      "snr_db": 10.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": 0.003580727924903234,
+      "last_frame_ber_gain": 0.006510436534881592,
+      "positive_gain_frames": 5,
+      "accepted_updates": 1,
+      "final_adapter_delta_norm": 0.01767095923423767
+    },
+    {
+      "seed": 1052,
+      "snr_db": 10.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": 0.0058593712747097015,
+      "last_frame_ber_gain": 0.018229156732559204,
+      "positive_gain_frames": 8,
+      "accepted_updates": 4,
+      "final_adapter_delta_norm": 0.03538031503558159
+    },
+    {
+      "seed": 1053,
+      "snr_db": 10.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": 0.0019531299670537314,
+      "last_frame_ber_gain": 0.018229171633720398,
+      "positive_gain_frames": 5,
+      "accepted_updates": 8,
+      "final_adapter_delta_norm": 0.07068048417568207
+    },
+    {
+      "seed": 1051,
+      "snr_db": 15.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": -0.0028211834530035653,
+      "last_frame_ber_gain": 0.045572906732559204,
+      "positive_gain_frames": 3,
+      "accepted_updates": 6,
+      "final_adapter_delta_norm": 0.035075996071100235
+    },
+    {
+      "seed": 1052,
+      "snr_db": 15.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": -0.0017361131807168324,
+      "last_frame_ber_gain": -0.010416656732559204,
+      "positive_gain_frames": 2,
+      "accepted_updates": 1,
+      "final_adapter_delta_norm": 0.017606783658266068
+    },
+    {
+      "seed": 1053,
+      "snr_db": 15.0,
+      "frames": 12,
+      "mean_per_frame_ber_gain": 0.0015190957734982173,
+      "last_frame_ber_gain": 0.018229156732559204,
+      "positive_gain_frames": 5,
+      "accepted_updates": 5,
+      "final_adapter_delta_norm": 0.0531911626458168
+    }
+  ],
+  "method_definition": "For each candidate, average current and up to two prior Reward Pilot BCE and signal-reconstruction improvements; require at least two-thirds of those windows to improve signal loss and not increase Reward Pilot hard errors, plus no current-frame hard-error increase.",
+  "metric_definition": "For each frame, compare the currently accumulated PEFT state against the frozen checkpoint on that frame’s Data segment, then average frame-level BER differences; this is not pooled BER over concatenated frames.",
+  "conclusion": "The three-frame gate reduced update acceptance but did not reduce negative Data-BER frames or improve the overall mean/trajectory consistency; it is not retained as the primary gate."
+}

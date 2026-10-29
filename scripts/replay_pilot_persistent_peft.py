@@ -21,6 +21,7 @@ from compare import _build_equalizer, _load_model_config
 from evaluation.pilot_replay_protocol import build_pilot_replay_episode
 from evaluation.research_diagnostics import (
     _frame_to_device,
+    _pilot_reconstruction_loss_for_diagnostic,
     _pilot_signal_reconstruction_loss_for_diagnostic,
     _retag_unfolded_peft_groups,
     apply_adapt_only_peft_update,
@@ -75,12 +76,82 @@ def _clip_candidate_delta(model, before: dict[str, torch.Tensor], group: str,
     return delta_norm
 
 
+def _clip_candidate_to_reference(model, reference, group: str,
+                                max_delta_norm: float) -> float:
+    """限制 PEFT 参数相对离线参考 checkpoint 的累计总偏移。"""
+
+    reference_parameters = {
+        name: parameter.detach().clone()
+        for name, parameter in _group_parameters(reference, group).items()
+    }
+    if not reference_parameters:
+        raise ValueError(f"参考模型没有 {group} 参数组。")
+    return _clip_candidate_delta(model, reference_parameters, group, max_delta_norm)
+
+
+def _aggregate_reward_history(scores: list[dict[str, float | int | bool]]) -> dict[str, float | int]:
+    """汇总同一候选在最近几帧 Reward Pilot 上的分数。"""
+
+    if not scores:
+        raise ValueError("Reward Pilot 历史不能为空。")
+    count = len(scores)
+    return {
+        "frame_count": count,
+        "bce_improvement": sum(float(item["bce_improvement"]) for item in scores) / count,
+        "signal_improvement": sum(float(item["signal_improvement"]) for item in scores) / count,
+        "signal_positive_fraction": sum(float(item["signal_improvement"]) > 0.0 for item in scores) / count,
+        "error_nonincrease_fraction": sum(
+            int(item["errors_after"]) <= int(item["errors_before"]) for item in scores
+        ) / count,
+    }
+
+
+def _reward_history_is_consistent(aggregate: dict[str, float | int],
+                                  minimum_fraction: float = 2.0 / 3.0) -> bool:
+    """要求多数历史 Reward Pilot 的信号分数和硬错数都不恶化。"""
+
+    threshold = float(minimum_fraction)
+    if not math.isfinite(threshold) or not 0.0 < threshold <= 1.0:
+        raise ValueError("minimum_fraction 必须在 (0, 1] 范围内。")
+    return bool(
+        float(aggregate["signal_positive_fraction"]) >= threshold
+        and float(aggregate["error_nonincrease_fraction"]) >= threshold
+    )
+
+
+def _score_reward_pair(model, reward_view, reward_signal_view, condition,
+                       tail: torch.Tensor, loss_function) -> dict[str, float | int]:
+    """只在 Pilot 波形上评分同一候选的前后状态。"""
+
+    reward_mask = reward_view.reward_mask.bool()
+    before_logits = _logits(model["before"], reward_view, condition, tail)
+    after_logits = _logits(model["after"], reward_view, condition, tail)
+    bce_before = _masked_bce(before_logits, reward_view, reward_mask)
+    bce_after = _masked_bce(after_logits, reward_view, reward_mask)
+    errors_before = _error_count(before_logits, reward_view, reward_mask)
+    errors_after = _error_count(after_logits, reward_view, reward_mask)
+    signal_before = float(loss_function(
+        model["before"], reward_signal_view, condition, tail,
+    ).detach().cpu())
+    signal_after = float(loss_function(
+        model["after"], reward_signal_view, condition, tail,
+    ).detach().cpu())
+    return {
+        "bce_improvement": bce_before - bce_after,
+        "signal_improvement": signal_before - signal_after,
+        "errors_before": errors_before,
+        "errors_after": errors_after,
+    }
+
+
 def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
                snr: float, seed: int, frames_count: int, delay: int,
                pilot_total: int, reward_pilot_total: int, gap_seconds: float,
                holdout_fraction: float, learning_rate: float, steps: int,
                max_delta_norm: float, min_reward_improvement: float,
-               freeze_below_snr_db: float) -> list[dict]:
+               freeze_below_snr_db: float,
+               reward_history_frames: int, peft_group: str,
+               max_cumulative_delta_norm: float | None) -> list[dict]:
     episode = build_pilot_replay_episode(
         experiment,
         model_config,
@@ -94,12 +165,22 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
         condition_source="pilot_cir_phase",
     )
     frozen = _build_equalizer(model_config, checkpoint, device)
-    frozen.attach_online_phase_trend_adapter()
+    if peft_group == "phase_trend":
+        frozen.attach_online_phase_trend_adapter()
+        update_objective = "pilot_signal_reconstruction"
+        reconstruction_loss = _pilot_signal_reconstruction_loss_for_diagnostic
+    elif peft_group == "channel_residual":
+        frozen.attach_online_channel_residual_adapter()
+        update_objective = "pilot_reconstruction"
+        reconstruction_loss = _pilot_reconstruction_loss_for_diagnostic
+    else:
+        raise ValueError(f"不支持的 PEFT 参数组：{peft_group}")
     frozen.eval()
     active = copy.deepcopy(frozen).eval()
     _retag_unfolded_peft_groups(active)
     tail = episode.start.initial_soft_tail.to(device).to(torch.complex64)
     rows = []
+    reward_history = []
 
     for frame_index in range(int(frames_count)):
         frame = _frame_to_device(episode.env.next_frame(), device)
@@ -121,35 +202,43 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
         active_before = active
         candidate = copy.deepcopy(active_before).eval()
         _retag_unfolded_peft_groups(candidate)
-        phase_parameters_before = {
+        peft_parameters_before = {
             name: parameter.detach().clone()
-            for name, parameter in _group_parameters(candidate, "phase_trend").items()
+            for name, parameter in _group_parameters(candidate, peft_group).items()
         }
         update_result = apply_adapt_only_peft_update(
             model=candidate,
             frame=update_view,
             condition=condition,
             soft_tail=tail,
-            groups={"phase_trend"},
+            groups={peft_group},
             lr=float(learning_rate),
             steps=int(steps),
-            objective="pilot_signal_reconstruction",
+            objective=update_objective,
             include_evaluation_metrics=False,
         )
         step_delta_norm = _clip_candidate_delta(
             candidate,
-            phase_parameters_before,
-            "phase_trend",
+            peft_parameters_before,
+            peft_group,
             float(max_delta_norm),
         )
+        if max_cumulative_delta_norm is not None:
+            _clip_candidate_to_reference(
+                candidate,
+                frozen,
+                peft_group,
+                float(max_cumulative_delta_norm),
+            )
+        candidate_total_delta_norm = _parameter_delta_norm(candidate, frozen, peft_group)
         candidate.eval()
 
         # 独立 Adapt Pilot 留出窗先决定是否把候选送入 Reward Pilot 验收。
         rank_mask = rank_view.adapt_mask.bool()
-        rank_before = float(_pilot_signal_reconstruction_loss_for_diagnostic(
+        rank_before = float(reconstruction_loss(
             active_before, rank_view, condition, tail,
         ).detach().cpu())
-        rank_after = float(_pilot_signal_reconstruction_loss_for_diagnostic(
+        rank_after = float(reconstruction_loss(
             candidate, rank_view, condition, tail,
         ).detach().cpu())
         rank_improvement = rank_before - rank_after
@@ -159,8 +248,19 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
         reward_bce_improvement = 0.0
         reward_signal_before = reward_signal_after = 0.0
         reward_signal_improvement = 0.0
+        reward_history_bce_improvement = 0.0
+        reward_history_signal_improvement = 0.0
+        reward_history_signal_positive_fraction = 0.0
+        reward_history_error_nonincrease_fraction = 0.0
+        reward_history_frame_count = 0
         reward_errors_before = reward_errors_after = 0
         accepted = False
+        reward_signal_view = _masked_pilot_view(
+            frame,
+            frame.reward_mask,
+            adapt_mask=frame.reward_mask,
+            reward_mask=torch.zeros_like(frame.adapt_mask, dtype=torch.bool),
+        )
         if reward_checked:
             reward_mask = reward_view.reward_mask.bool()
             before_reward_logits = _logits(active_before, reward_view, condition, tail)
@@ -170,32 +270,64 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
             reward_bce_improvement = reward_bce_before - reward_bce_after
             reward_errors_before = _error_count(before_reward_logits, reward_view, reward_mask)
             reward_errors_after = _error_count(after_reward_logits, reward_view, reward_mask)
-            no_mask = torch.zeros_like(reward_view.adapt_mask, dtype=torch.bool)
-            reward_signal_view = _masked_pilot_view(
-                frame,
-                frame.reward_mask,
-                adapt_mask=frame.reward_mask,
-                reward_mask=no_mask,
-            )
-            reward_signal_before = float(_pilot_signal_reconstruction_loss_for_diagnostic(
+            reward_signal_before = float(reconstruction_loss(
                 active_before, reward_signal_view, condition, tail,
             ).detach().cpu())
-            reward_signal_after = float(_pilot_signal_reconstruction_loss_for_diagnostic(
+            reward_signal_after = float(reconstruction_loss(
                 candidate, reward_signal_view, condition, tail,
             ).detach().cpu())
             reward_signal_improvement = reward_signal_before - reward_signal_after
+            history_limit = max(0, int(reward_history_frames) - 1)
+            history = reward_history[-history_limit:] if history_limit else []
+            score_models = {"before": active_before, "after": candidate}
+            reward_scores = [
+                _score_reward_pair(
+                    score_models,
+                    reward_view,
+                    reward_signal_view,
+                    condition,
+                    tail,
+                    reconstruction_loss,
+                )
+            ]
+            for history_item in history:
+                reward_scores.append(_score_reward_pair(
+                    score_models,
+                    history_item["reward_view"],
+                    history_item["reward_signal_view"],
+                    history_item["condition"],
+                    history_item["tail"],
+                    reconstruction_loss,
+                ))
+            reward_aggregate = _aggregate_reward_history(reward_scores)
+            reward_history_bce_improvement = float(reward_aggregate["bce_improvement"])
+            reward_history_signal_improvement = float(reward_aggregate["signal_improvement"])
+            reward_history_signal_positive_fraction = float(reward_aggregate["signal_positive_fraction"])
+            reward_history_error_nonincrease_fraction = float(reward_aggregate["error_nonincrease_fraction"])
+            reward_history_frame_count = int(reward_aggregate["frame_count"])
             accepted = _reward_gate(
                 snr=float(snr),
                 freeze_below_snr_db=float(freeze_below_snr_db),
-                reward_bce_improvement=reward_bce_improvement,
+                reward_bce_improvement=reward_history_bce_improvement,
                 min_reward_improvement=float(min_reward_improvement),
                 reward_errors_before=reward_errors_before,
                 reward_errors_after=reward_errors_after,
-                reward_signal_improvement=reward_signal_improvement,
+                reward_signal_improvement=reward_history_signal_improvement,
                 require_signal_improvement=True,
             )
+            history_consistent = _reward_history_is_consistent(reward_aggregate)
+            accepted = bool(accepted and history_consistent)
         if accepted:
             active = candidate
+
+        # 只缓存屏蔽 Data 的 Reward Pilot 视图，供后续候选做多帧一致性检查。
+        reward_history.append({
+            "reward_view": reward_view,
+            "reward_signal_view": reward_signal_view,
+            "condition": condition,
+            "tail": tail.detach().clone(),
+        })
+        reward_history = reward_history[-int(reward_history_frames):]
 
         # Adapt 排序及 Reward 接受/拒绝决定已结束；Data 才首次进入诊断前向。
         frozen_data_logits = _logits(frozen, frame, condition, tail)
@@ -212,12 +344,20 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
             "adapt_update_pilot_count": int(update_view.adapt_mask.sum()),
             "adapt_rank_pilot_count": int(rank_mask.sum()),
             "reward_pilot_total": int(reward_pilot_total),
-            "update_objective": "pilot_signal_reconstruction",
+            "update_group": peft_group,
+            "update_objective": update_objective,
             "update_learning_rate": float(learning_rate),
             "update_steps": int(steps),
             "per_step_delta_norm": float(step_delta_norm),
             "optimizer_reported_delta_norm": float(update_result["peft_delta_norm"]),
-            "cumulative_phase_adapter_delta_norm": _parameter_delta_norm(active, frozen, "phase_trend"),
+            "candidate_peft_delta_norm_before_reward": float(candidate_total_delta_norm),
+            "max_cumulative_delta_norm": (
+                None if max_cumulative_delta_norm is None else float(max_cumulative_delta_norm)
+            ),
+            "cumulative_peft_delta_norm": _parameter_delta_norm(active, frozen, peft_group),
+            **({
+                "cumulative_phase_adapter_delta_norm": _parameter_delta_norm(active, frozen, peft_group),
+            } if peft_group == "phase_trend" else {}),
             "rank_pilot_signal_before": rank_before,
             "rank_pilot_signal_after": rank_after,
             "rank_pilot_signal_improvement": rank_improvement,
@@ -228,6 +368,11 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
             "reward_signal_before": reward_signal_before,
             "reward_signal_after": reward_signal_after,
             "reward_signal_improvement": reward_signal_improvement,
+            "reward_history_frames": int(reward_history_frame_count),
+            "reward_history_bce_improvement": reward_history_bce_improvement,
+            "reward_history_signal_improvement": reward_history_signal_improvement,
+            "reward_history_signal_positive_fraction": reward_history_signal_positive_fraction,
+            "reward_history_error_nonincrease_fraction": reward_history_error_nonincrease_fraction,
             "reward_error_count_before": reward_errors_before,
             "reward_error_count_after": reward_errors_after,
             "reward_gate_accepted": accepted,
@@ -323,14 +468,21 @@ def main() -> None:
     parser.add_argument("--max-delta-norm", type=float, default=0.05)
     parser.add_argument("--min-reward-improvement", type=float, default=0.0005)
     parser.add_argument("--freeze-below-snr-db", type=float, default=5.0)
+    parser.add_argument("--reward-history-frames", type=int, default=1)
+    parser.add_argument("--peft-group", choices=["phase_trend", "channel_residual"], default="phase_trend")
+    parser.add_argument("--max-cumulative-delta-norm", type=float, default=None)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
     if not Path(args.pretrained).is_file():
         parser.error(f"checkpoint 不存在：{args.pretrained}")
-    if args.frames <= 0 or args.steps <= 0 or args.learning_rate <= 0:
-        parser.error("frames、steps 和 learning-rate 必须为正数。")
+    if args.frames <= 0 or args.steps <= 0 or args.learning_rate <= 0 or args.reward_history_frames <= 0:
+        parser.error("frames、steps、learning-rate 和 reward-history-frames 必须为正数。")
     if not math.isfinite(args.gap_seconds) or args.gap_seconds < 0:
         parser.error("gap-seconds 必须为有限非负数。")
+    if args.max_cumulative_delta_norm is not None and (
+        not math.isfinite(args.max_cumulative_delta_norm) or args.max_cumulative_delta_norm <= 0.0
+    ):
+        parser.error("max-cumulative-delta-norm 必须为正有限数。")
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     model_config = _load_model_config(config, Path(args.pretrained))
     max_delta_norm = float(args.max_delta_norm)
@@ -355,6 +507,9 @@ def main() -> None:
                 max_delta_norm=max_delta_norm,
                 min_reward_improvement=args.min_reward_improvement,
                 freeze_below_snr_db=args.freeze_below_snr_db,
+                reward_history_frames=args.reward_history_frames,
+                peft_group=args.peft_group,
+                max_cumulative_delta_norm=args.max_cumulative_delta_norm,
             ))
     result = summarize(all_rows)
     result.update({
@@ -374,12 +529,18 @@ def main() -> None:
             "frames_per_seed_snr": int(args.frames),
             "adapt_holdout_fraction": float(args.holdout_fraction),
             "condition_source": "pilot_cir_phase_from_adapt_update_window",
-            "update_objective": "pilot_signal_reconstruction",
+            "update_group": args.peft_group,
+            "update_objective": "pilot_signal_reconstruction" if args.peft_group == "phase_trend" else "pilot_reconstruction",
             "learning_rate": float(args.learning_rate),
             "steps": int(args.steps),
             "max_delta_norm": max_delta_norm,
+            "max_cumulative_delta_norm": (
+                None if args.max_cumulative_delta_norm is None else float(args.max_cumulative_delta_norm)
+            ),
             "min_reward_improvement": float(args.min_reward_improvement),
             "freeze_below_snr_db": float(args.freeze_below_snr_db),
+            "reward_history_frames": int(args.reward_history_frames),
+            "reward_history_consistency_fraction": 2.0 / 3.0,
             "reward_requires_signal_reconstruction_improvement": True,
             "device": args.device,
             "adapter_state_persists_after_reward_acceptance": True,

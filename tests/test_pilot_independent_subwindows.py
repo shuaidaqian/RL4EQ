@@ -45,6 +45,11 @@ def _fixture():
 
 def test_independent_pilot_views_expose_only_their_own_waveforms():
     _, frame, _, _ = _fixture()
+    frame = replace(
+        frame,
+        true_cir=torch.ones(5, dtype=torch.complex64),
+        tail_symbols=torch.ones(4, dtype=torch.complex64),
+    )
 
     update, rank, reward, update_mask, rank_mask = split_adapt_subwindows(frame, 0.25)
 
@@ -54,6 +59,14 @@ def test_independent_pilot_views_expose_only_their_own_waveforms():
     assert torch.count_nonzero(update.rx_symbols[~update_mask]) == 0
     assert torch.count_nonzero(rank.rx_symbols[~rank_mask]) == 0
     assert torch.count_nonzero(reward.rx_symbols[~(frame.adapt_mask | frame.reward_mask)]) == 0
+    assert torch.count_nonzero(update.bits[~update_mask]) == 0
+    assert torch.count_nonzero(rank.bits[~rank_mask]) == 0
+    assert torch.count_nonzero(reward.bits[frame.data_mask]) == 0
+    assert torch.count_nonzero(update.tx_symbols[~update_mask]) == 0
+    assert torch.count_nonzero(rank.tx_symbols[~rank_mask]) == 0
+    assert torch.count_nonzero(reward.tx_symbols[frame.data_mask]) == 0
+    assert update.true_cir is rank.true_cir is reward.true_cir is None
+    assert update.tail_symbols is rank.tail_symbols is reward.tail_symbols is None
     assert update.reward_mask.sum() == rank.reward_mask.sum() == 0
     assert update.data_mask.sum() == rank.data_mask.sum() == reward.data_mask.sum() == 0
 

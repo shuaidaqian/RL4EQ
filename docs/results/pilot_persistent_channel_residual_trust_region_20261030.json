@@ -1,0 +1,224 @@
+{
+  "schema_version": "channel-residual-trust-region-comparison-v1",
+  "phase_trend_single_frame": {
+    "source_log": "pilot_persistent_peft_gap600_3s3snr12f_seed1051_1053_20261029.json",
+    "checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "checkpoint_modified_or_retrained": false,
+    "fixed_condition": {
+      "channel_level": "B",
+      "profile": "eme_long_memory_v2",
+      "delay_symbols": 116,
+      "pilot_layout": "prefix",
+      "pilot_total": 256,
+      "reward_pilot_total": 32,
+      "acquisition_gap_seconds": 600.0,
+      "snrs_db": [
+        5.0,
+        10.0,
+        15.0
+      ],
+      "seeds": [
+        1051,
+        1052,
+        1053
+      ],
+      "frames_per_seed_snr": 12,
+      "adapt_holdout_fraction": 0.25,
+      "condition_source": "pilot_cir_phase_from_adapt_update_window",
+      "update_objective": "pilot_signal_reconstruction",
+      "learning_rate": 0.0025,
+      "steps": 5,
+      "max_delta_norm": 0.05,
+      "min_reward_improvement": 0.0005,
+      "freeze_below_snr_db": 5.0,
+      "reward_requires_signal_reconstruction_improvement": true,
+      "device": "cpu",
+      "adapter_state_persists_after_reward_acceptance": true
+    },
+    "frames": 108,
+    "trajectories": 9,
+    "online_data_waveform_isolation_passed": true,
+    "data_metrics_used_online": false,
+    "mean_per_frame_ber_gain": 0.0035807299255220977,
+    "mean_data_bce_gain": 0.058115331938973176,
+    "mean_data_logits_abs_delta": 0.8458516335806192,
+    "positive_frames": 44,
+    "negative_frames": 38,
+    "accepted_updates": 68,
+    "rank_passes": 90,
+    "positive_seed_snr_trajectory_means_above_0.01pp": 7,
+    "by_snr": [
+      {
+        "snr_db": 5.0,
+        "mean_per_frame_ber_gain": 0.0037977434694767,
+        "accepted_updates": 22,
+        "positive_trajectory_means_above_0.01pp": 3
+      },
+      {
+        "snr_db": 10.0,
+        "mean_per_frame_ber_gain": 0.004087096287144555,
+        "accepted_updates": 28,
+        "positive_trajectory_means_above_0.01pp": 2
+      },
+      {
+        "snr_db": 15.0,
+        "mean_per_frame_ber_gain": 0.0028573500199450385,
+        "accepted_updates": 18,
+        "positive_trajectory_means_above_0.01pp": 2
+      }
+    ]
+  },
+  "channel_residual_per_step_cap": {
+    "source_log": "pilot_persistent_peft_channel_residual_gap600_3s3snr12f_seed1051_1053_20261029.json",
+    "checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "checkpoint_modified_or_retrained": false,
+    "fixed_condition": {
+      "channel_level": "B",
+      "profile": "eme_long_memory_v2",
+      "delay_symbols": 116,
+      "pilot_layout": "prefix",
+      "pilot_total": 256,
+      "reward_pilot_total": 32,
+      "acquisition_gap_seconds": 600.0,
+      "snrs_db": [
+        5.0,
+        10.0,
+        15.0
+      ],
+      "seeds": [
+        1051,
+        1052,
+        1053
+      ],
+      "frames_per_seed_snr": 12,
+      "adapt_holdout_fraction": 0.25,
+      "condition_source": "pilot_cir_phase_from_adapt_update_window",
+      "update_group": "channel_residual",
+      "update_objective": "pilot_reconstruction",
+      "learning_rate": 0.0025,
+      "steps": 5,
+      "max_delta_norm": 0.05,
+      "min_reward_improvement": 0.0005,
+      "freeze_below_snr_db": 5.0,
+      "reward_history_frames": 1,
+      "reward_history_consistency_fraction": 0.6666666666666666,
+      "reward_requires_signal_reconstruction_improvement": true,
+      "device": "cpu",
+      "adapter_state_persists_after_reward_acceptance": true
+    },
+    "frames": 108,
+    "trajectories": 9,
+    "online_data_waveform_isolation_passed": true,
+    "data_metrics_used_online": false,
+    "mean_per_frame_ber_gain": -0.00018084311374911554,
+    "mean_data_bce_gain": -0.006706678205066257,
+    "mean_data_logits_abs_delta": 0.1722489833417866,
+    "positive_frames": 34,
+    "negative_frames": 38,
+    "accepted_updates": 38,
+    "rank_passes": 108,
+    "positive_seed_snr_trajectory_means_above_0.01pp": 3,
+    "by_snr": [
+      {
+        "snr_db": 5.0,
+        "mean_per_frame_ber_gain": 3.6170085271199547e-05,
+        "accepted_updates": 11,
+        "positive_trajectory_means_above_0.01pp": 1
+      },
+      {
+        "snr_db": 10.0,
+        "mean_per_frame_ber_gain": 0.0001085106697347429,
+        "accepted_updates": 13,
+        "positive_trajectory_means_above_0.01pp": 1
+      },
+      {
+        "snr_db": 15.0,
+        "mean_per_frame_ber_gain": -0.0006872100962532891,
+        "accepted_updates": 14,
+        "positive_trajectory_means_above_0.01pp": 1
+      }
+    ]
+  },
+  "channel_residual_total_cap_0.05": {
+    "source_log": "pilot_persistent_peft_channel_residual_globalcap005_gap600_3s3snr12f_20261030.json",
+    "checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "checkpoint_modified_or_retrained": false,
+    "fixed_condition": {
+      "channel_level": "B",
+      "profile": "eme_long_memory_v2",
+      "delay_symbols": 116,
+      "pilot_layout": "prefix",
+      "pilot_total": 256,
+      "reward_pilot_total": 32,
+      "acquisition_gap_seconds": 600.0,
+      "snrs_db": [
+        5.0,
+        10.0,
+        15.0
+      ],
+      "seeds": [
+        1051,
+        1052,
+        1053
+      ],
+      "frames_per_seed_snr": 12,
+      "adapt_holdout_fraction": 0.25,
+      "condition_source": "pilot_cir_phase_from_adapt_update_window",
+      "update_group": "channel_residual",
+      "update_objective": "pilot_reconstruction",
+      "learning_rate": 0.0025,
+      "steps": 5,
+      "max_delta_norm": 0.05,
+      "max_cumulative_delta_norm": 0.05,
+      "min_reward_improvement": 0.0005,
+      "freeze_below_snr_db": 5.0,
+      "reward_history_frames": 1,
+      "reward_history_consistency_fraction": 0.6666666666666666,
+      "reward_requires_signal_reconstruction_improvement": true,
+      "device": "cpu",
+      "adapter_state_persists_after_reward_acceptance": true
+    },
+    "frames": 108,
+    "trajectories": 9,
+    "online_data_waveform_isolation_passed": true,
+    "data_metrics_used_online": false,
+    "mean_per_frame_ber_gain": 2.4114080049373485e-05,
+    "mean_data_bce_gain": -0.0025227905975447763,
+    "mean_data_logits_abs_delta": 0.09538257761892897,
+    "positive_frames": 35,
+    "negative_frames": 29,
+    "accepted_updates": 40,
+    "rank_passes": 108,
+    "positive_seed_snr_trajectory_means_above_0.01pp": 4,
+    "by_snr": [
+      {
+        "snr_db": 5.0,
+        "mean_per_frame_ber_gain": 0.00010850777228673299,
+        "accepted_updates": 10,
+        "positive_trajectory_means_above_0.01pp": 1
+      },
+      {
+        "snr_db": 10.0,
+        "mean_per_frame_ber_gain": 0.00018084835675027635,
+        "accepted_updates": 13,
+        "positive_trajectory_means_above_0.01pp": 2
+      },
+      {
+        "snr_db": 15.0,
+        "mean_per_frame_ber_gain": -0.00021701388888888888,
+        "accepted_updates": 17,
+        "positive_trajectory_means_above_0.01pp": 1
+      }
+    ],
+    "max_candidate_total_delta_before_reward": 0.05000000819563866,
+    "max_cumulative_delta_norm": 0.05
+  },
+  "comparison": {
+    "single_frame_phase_trend_mean_gain_pp": 0.35807299255220976,
+    "channel_residual_without_total_cap_mean_gain_pp": -0.018084311374911555,
+    "channel_residual_total_cap_005_mean_gain_pp": 0.0024114080049373486,
+    "channel_residual_no_cap_negative_frames": 38,
+    "channel_residual_cap_negative_frames": 29,
+    "conclusion": "A total 0.05 L2 trust region limits cumulative drift and reduces negative-BER frames, but the average BER gain remains near zero and Data BCE does not improve; channel_residual is not retained as the main PEFT group."
+  }
+}

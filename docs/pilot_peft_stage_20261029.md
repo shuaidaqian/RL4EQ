@@ -70,6 +70,35 @@
 
 下一步继续在 Pilot-only replay 中改进多帧排序可靠性：固定 checkpoint、信道、pilot 总长和 seed 划分，比较当前单帧 Reward 与跨帧累计 Reward/状态一致性分数；只有留出 seed 的排序达到既定门槛、且各 SNR 不出现系统性 BER 退化，才进入正式矩阵。仍不使用 Data 波形或标签参与在线更新、动作选择或门控。
 
+## 多帧 Reward 一致性门控复核（2026-10-30）
+
+在相同 checkpoint、seed、SNR 和 12 帧信道轨迹上，将单帧 Reward 门控与最近 3 帧 Reward Pilot 一致性门控对照。多帧候选必须满足：最近至多 3 帧的平均 Reward BCE 和信号重构分数都改善；至少 `2/3` 的窗口信号误差改善且 Reward Pilot 硬错数不增加；当前帧硬错数也不能增加。历史视图只保留对应 Pilot 的波形/已知 Pilot 符号，Data 波形、Data 标签、真 CIR 和真实 tail 在 Pilot 视图中均被清零或移除。
+
+| 门控 | 平均逐帧 BER 改善 | 接受更新 | 正收益 seed×SNR 轨迹 | 5 dB | 10 dB | 15 dB |
+|---|---:|---:|---:|---:|---:|---:|
+| 单帧 Reward | `+0.3581 pp` | `68/108` | `7/9` | `+0.3798 pp` | `+0.4087 pp` | `+0.2857 pp` |
+| 最近 3 帧一致性 | `+0.1013 pp` | `44/108` | `6/9` | `+0.0253 pp` | `+0.3798 pp` | `−0.1013 pp` |
+
+多帧门控更谨慎，但没有减少 Data BER 退化帧（单帧 `38/108`，多帧 `42/108`），也没有让收益跨 seed 更稳定；15 dB 的平均收益转为负值。由此淘汰“最近 3 帧均值 + 多数一致性”作为当前主门控，后续不再按这组 seed 调阈值。精简对照结果见 [`pilot_reward_history3_comparison_20261030.json`](results/pilot_reward_history3_comparison_20261030.json)，完整逐帧日志仍在本机 `logs/`。
+
+此外，Pilot 视图现在会把不可见位置的 `bits`、`tx_symbols` 清零，并清除仿真真 CIR 与真实 tail；这让数据隔离从“调用方承诺不读”变成输入对象本身不含这些值。新增回归测试覆盖该约束和多帧门控汇总。
+
+下一步保留已较好的单帧 Reward 守门，改测直接作用于均衡器内部 CIR PEFT 的 `channel_residual` 参数组，继续固定离线 checkpoint；这样可以判断瓶颈是否来自相位趋势参数组表达能力不足，而不是继续调松多帧门槛。结果仍先作为 Pilot-only 诊断，未跨 seed 复现前不进入正式统计矩阵。
+
+## CIR 残差 PEFT 与累计偏移上限（2026-10-30）
+
+按上述计划，使用同一 Pilot 更新、单帧 Reward 门控，改为只训练 `channel_residual`。随后增加以冻结离线参数为中心、总 L2 偏移上限 `0.05` 的信任区域，对照原本仅限制“每帧单步增量不超过 `0.05`”的设置。两组均为 3 seeds × 3 SNR × 12 帧，固定 checkpoint 未变。
+
+| 参数组 / 限制 | 平均逐帧 BER 改善 | Data BCE 平均改善 | 接受更新 | 有意义正收益轨迹（>0.01 pp） | 最大最终参数偏移 |
+|---|---:|---:|---:|---:|---:|
+| `phase_trend`，单帧门控（参照） | `+0.3581 pp` | `+0.0581` | `68/108` | `7/9` | `0.0885` |
+| `channel_residual`，仅单步限幅 | `−0.0181 pp` | `−0.0067` | `38/108` | `3/9` | `0.1777` |
+| `channel_residual`，总偏移限幅 `0.05` | `+0.0024 pp` | `−0.0025` | `40/108` | `4/9` | `0.0500` |
+
+总偏移限制确实将参数偏移压在 `0.05` 内，也减少了 Data BER 退化帧（无总限幅 `38/108`，加总限幅 `29/108`），但平均收益仍接近零且 Data BCE 仍变差；15 dB 两个 CIR 残差版本的平均 BER 改善都为负。`channel_residual` 因此不保留为主更新对象。详细汇总见 [`pilot_persistent_channel_residual_gap600_3s3snr12f_20261030.json`](results/pilot_persistent_channel_residual_gap600_3s3snr12f_20261030.json) 和 [`pilot_persistent_channel_residual_trust_region_20261030.json`](results/pilot_persistent_channel_residual_trust_region_20261030.json)。
+
+至此，直接 Pilot 梯度 PEFT 的两个核心候选（`phase_trend` 与 `channel_residual`）和多帧 Reward 门控都还没有达到跨 seed、跨 SNR 稳定收益门槛。继续扩大这些消融只会增加样本，不能解决候选更新排序不稳。下一步回到仓库规定的离散安全动作路线：固定 PEFT 参数组，由 PPO 用 Pilot 状态选择是否更新及更新强度，Reward Pilot 用窗口级结果验收；先做小门槛比较，未跨配置稳定改善前不启动正式大矩阵。
+
 复核 OOF 诊断的命令：
 
 ```powershell
