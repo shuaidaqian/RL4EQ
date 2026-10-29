@@ -1,7 +1,14 @@
 {
   "schema_version": "rl-peft-moderate-selection-followup-v1",
   "date": "2026-10-30",
-  "status": "diagnostic_only_candidate_promising_policy_underselects",
+  "status": "strict_adapt_only_verified_small_positive_not_significant",
+  "protocol_audit": {
+    "required_boundary": "Adapt Pilot drives action observation, PEFT update, and receiver-state update; Reward Pilot is used only after the action for acceptance/reward/rollback; Data is evaluation-only.",
+    "data_waveform_allowed_during_online_control": false,
+    "data_labels_allowed_during_online_control": false,
+    "pre_boundary_fix_gap600_and_cross_snr_results": "historical_only_not_valid_evidence",
+    "gap0_heldout_edge_results": "explicit Adapt-only observation, conditioning, and state-update replay completed; key outputs exactly match the prior Adapt-only replay"
+  },
   "fixed_condition": {
     "channel_level": "B",
     "profile": "eme_long_memory_v2",
@@ -309,6 +316,18 @@
     "checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
     "checkpoint_retrained_or_modified": false,
     "paired_frozen_rows_and_channel_states_identical_between_runs": true,
+    "explicit_adapt_only_replay": {
+      "moderate_initialized_ppo_log_directory": "logs/rl_peft_moderate_init_explicit_adapt_v2_gap0_heldout_edge_5db_5s60f_seed1066_1070_20261030",
+      "high_exploration_ppo_log_directory": "logs/rl_peft_explore_explicit_adapt_v2_gap0_heldout_edge_5db_5s60f_seed1066_1070_20261030",
+      "online_rows_per_policy": 300,
+      "policy_observation_source": "adapt_pilot_only",
+      "reward_pilot_waveform_used_for_policy_observation_rows": 0,
+      "data_waveform_used_online_rows": 0,
+      "data_labels_used_online_rows": 0,
+      "all_frozen_and_channel_rows_match_previous_adapt_only_replay": true,
+      "all_compared_online_metrics_match_previous_adapt_only_replay": true,
+      "policy_or_offline_checkpoint_modified": false
+    },
     "frozen_reference_mean_ber": 0.049188368065903584,
     "moderate_initialized_ppo": {
       "policy_artifact": "docs/results/assets/rl_peft_fixed_moderate_policy.pt",
@@ -371,5 +390,5 @@
       "sha256": "149CBFF70E1561195FFD984E1249EFAE99C39EED6F7DFB0E13FB52F4155678E5"
     }
   },
-  "conclusion": "固定 moderate 加轨迹总偏移限制在四个 SNR 上有正均值且 18/20 轨迹改善；高探索 PPO 也转为正均值，但收益只有固定动作的约三分之一，并仍有 6/20 条轨迹未改善。以上全部为 acquisition gap 600 秒诊断，gap=0 主场景仍未验证。"
+  "conclusion": "文档中 acquisition gap 600 秒及跨 SNR 的旧数值来自 Reward Pilot 曾进入 PPO observation 的协议版本，只能作为历史诊断，不能证明当前路线有效。显式 Adapt-only 信息边界复核后，gap=0、heldout_edge、5 dB 下固定 moderate 起始 PPO 平均改善 0.0686 个百分点（4/5 seed），高探索 PPO 平均改善 0.0260 个百分点（2/5 seed）；两种结果均与先前 Adapt-only replay 逐行一致，但 seed 级区间都包含零。当前仅有小幅收益信号，尚未证明稳定或达到超过传统基线的研究目标。下一步应给 PPO 动作选择加入 Adapt Pilot 状态条件信息，再用独立 seed 验证是否能稳定挑中有益 PEFT 更新。"
 }

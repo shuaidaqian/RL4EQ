@@ -181,6 +181,92 @@ def test_focused_moderate_phase_action_is_bounded_and_explored():
     assert actions[names.index("peft_phase_signal_moderate")].peft_max_delta_norm == 0.05
 
 
+def test_discrete_policy_observation_is_independent_of_reward_pilot_waveform():
+    from types import SimpleNamespace
+
+    from agent.cir_estimator import condition_from_cir
+    from agent.discrete_safe_policy import DiscreteSafePolicy, safe_modulation_actions
+    from agent.rl_modulator import ModulationObservationEncoder
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+    from baseline.traditional_equalizers import estimate_phase_residual_vector
+    from env.comm_env import ReceiverState
+    from training.windowed_discrete_ppo import (
+        WindowedDiscreteOnlineState,
+        _adapt_receiver_view,
+        run_windowed_discrete_frame,
+    )
+
+    tx = torch.where(torch.arange(32) % 2 == 0, 1.0, -1.0).to(torch.complex64)
+    adapt_mask = torch.arange(32) < 8
+    reward_mask = (torch.arange(32) >= 8) & (torch.arange(32) < 12)
+    data_mask = torch.arange(32) >= 12
+    common_rx = tx * torch.exp(torch.tensor(0.1j))
+    first_rx = common_rx.clone()
+    second_rx = common_rx.clone()
+    first_rx[reward_mask] = 0.2 + 0.1j
+    second_rx[reward_mask] = -12.0 + 8.0j
+    common = {
+        "tx_symbols": tx,
+        "bits": (tx.real > 0.0),
+        "adapt_mask": adapt_mask,
+        "reward_mask": reward_mask,
+        "data_mask": data_mask,
+        "model_region_ids": torch.zeros(32, dtype=torch.long),
+    }
+    cir = torch.zeros(5, dtype=torch.complex64)
+    cir[0] = 1.0 + 0.0j
+    actions = safe_modulation_actions(num_blocks=1, action_names=["identity"])
+    encoder = ModulationObservationEncoder()
+
+    def observe(reward_waveform):
+        torch.manual_seed(147)
+        model = UnfoldedEqualizer(
+            UnfoldedConfig(frame_len=32, max_delay=4, iterations=1, d_model=16, num_heads=4)
+        )
+        policy = DiscreteSafePolicy(len(encoder.FIELDS), len(actions), hidden_size=8)
+        state = WindowedDiscreteOnlineState(
+            cir=cir.clone(),
+            receiver_state=ReceiverState(torch.zeros(4, dtype=torch.complex64)),
+            model=model,
+            policy=policy,
+            optimizer=torch.optim.AdamW(policy.parameters(), lr=1e-4),
+            encoder=encoder,
+            actions=actions,
+            hidden=policy.initial_hidden(),
+            window_size=4,
+            previous_window_reward=0.0,
+            last_action_delta_norm=0.0,
+            rollout=[],
+        )
+        frame = SimpleNamespace(rx_symbols=reward_waveform.clone(), **common)
+        phase_features = estimate_phase_residual_vector(
+            _adapt_receiver_view(frame),
+            cir,
+            torch.zeros(4, dtype=torch.complex64),
+            blocks=4,
+            cfo_hint=0.0,
+        )
+        condition = condition_from_cir(cir, 10.0, phase_features=phase_features)
+        row = run_windowed_discrete_frame(
+            state,
+            frame,
+            condition,
+            snr_db=10.0,
+            frame_index=1,
+            update_interval=8,
+        )
+        return state.current_observation, condition.latent_residual, row
+
+    first_observation, first_condition, first_row = observe(first_rx)
+    second_observation, second_condition, second_row = observe(second_rx)
+
+    assert torch.equal(first_observation, second_observation)
+    assert torch.equal(first_condition, second_condition)
+    assert first_row["policy_observation_source"] == "adapt_pilot_only"
+    assert first_row["reward_pilot_waveform_used_for_policy_observation"] is False
+    assert second_row["reward_pilot_waveform_used_for_policy_observation"] is False
+
+
 def test_window_peft_delta_projection_caps_cumulative_action_change():
     import pytest
 

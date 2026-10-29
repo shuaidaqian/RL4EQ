@@ -193,10 +193,13 @@ def pilot_sparse_cir_update(
         raise ValueError("max_paths 必须为正数。")
     if not 0.0 <= float(alpha) <= 1.0:
         raise ValueError("alpha 必须位于 [0, 1]。")
-    view = frame.receiver_view()
-    rx = view.rx_symbols.reshape(-1).to(torch.complex64)
-    adapt_symbols = view.adapt_symbols.reshape(-1).to(torch.complex64)
-    adapt_mask = view.adapt_mask.reshape(-1).to(torch.bool)
+    adapt_mask = frame.adapt_mask.reshape(-1).to(torch.bool)
+    rx_raw = frame.rx_symbols.reshape(-1)
+    tx_raw = frame.tx_symbols.reshape(-1)
+    rx = torch.where(adapt_mask, rx_raw, torch.zeros_like(rx_raw)).to(torch.complex64)
+    adapt_symbols = torch.where(
+        adapt_mask, tx_raw, torch.zeros_like(tx_raw)
+    ).to(torch.complex64)
     max_delay = previous.numel() - 1
     tail = soft_tail.reshape(-1).to(torch.complex64)
     if tail.numel() < max_delay:
@@ -287,10 +290,11 @@ def track_pilot_physical_state(
     if not 0.0 <= float(min_confidence) <= 1.0:
         raise ValueError("min_confidence 必须位于 [0, 1]。")
     prior = previous.clone() if previous is not None else PilotPhysicalState()
-    view = frame.receiver_view()
-    rx = view.rx_symbols.flatten().to(torch.complex64)
-    adapt = view.adapt_symbols.flatten().to(torch.complex64)
-    adapt_mask = view.adapt_mask.flatten().bool()
+    adapt_mask = frame.adapt_mask.flatten().bool()
+    rx_raw = frame.rx_symbols.flatten()
+    tx_raw = frame.tx_symbols.flatten()
+    rx = torch.where(adapt_mask, rx_raw, torch.zeros_like(rx_raw)).to(torch.complex64)
+    adapt = torch.where(adapt_mask, tx_raw, torch.zeros_like(tx_raw)).to(torch.complex64)
     cir = previous_cir.flatten().to(torch.complex64)
     max_delay = max(0, cir.numel() - 1)
     tail = soft_tail.flatten().to(torch.complex64)

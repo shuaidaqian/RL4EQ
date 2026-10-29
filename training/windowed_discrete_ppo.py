@@ -272,41 +272,39 @@ def run_windowed_discrete_frame(
     frame_index: int,
     update_interval: int,
 ) -> dict:
-    full_rx_iq = torch.stack(
-        (frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1
-    ).unsqueeze(0).float()
-    pilot_visible_mask = (frame.adapt_mask | frame.reward_mask).bool()
-    pilot_rx_symbols = torch.where(
-        pilot_visible_mask,
-        frame.rx_symbols,
-        torch.zeros_like(frame.rx_symbols),
-    )
-    rx_iq = torch.stack(
-        (pilot_rx_symbols.real, pilot_rx_symbols.imag), dim=-1
+    adapt_view = _adapt_receiver_view(frame)
+    adapt_only_mask = adapt_view.adapt_mask.to(dtype=torch.bool)
+    adapt_only_rx_iq = torch.stack(
+        (adapt_view.rx_symbols.real, adapt_view.rx_symbols.imag), dim=-1
     ).unsqueeze(0).float()
     region_ids = frame.model_region_ids.unsqueeze(0).long()
-    pilot_view = _pilot_receiver_view(frame)
-    adapt_symbols = pilot_view.adapt_symbols.unsqueeze(0).to(torch.complex64)
-    adapt_mask = frame.adapt_mask.unsqueeze(0).bool()
-    reward_symbols = pilot_view.reward_symbols
-    reward_labels = (reward_symbols.real > 0.0).to(frame.bits.dtype)
-    adapt_labels = (pilot_view.adapt_symbols.real > 0.0).to(frame.bits.dtype)
+    adapt_symbols = adapt_view.adapt_symbols.unsqueeze(0).to(torch.complex64)
+    adapt_mask = adapt_view.adapt_mask.unsqueeze(0).bool()
+    adapt_labels = (adapt_view.adapt_symbols.real > 0.0).to(frame.bits.dtype)
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
     identity = state.actions[0]
-    base_logits = refine_logits_with_tail(
-        state.model,
-        rx_iq,
-        condition,
-        region_ids,
-        tail,
-        modulation=identity.modulation,
-        passes=int(state.tail_refinement_passes),
-        adapt_symbols=adapt_symbols,
-        adapt_mask=adapt_mask,
-    )
-    base = base_logits.squeeze(0)
     if state.current_action is None or state.frames_in_window <= 0:
-        observation = state.encoder(_policy_view(frame, float(snr_db), base, state.previous_window_reward, state.last_action_delta_norm)).tensor.unsqueeze(0)
+        # PPO 的动作 observation 只由 Adapt Pilot 构成；Reward Pilot 留给动作后的验收。
+        policy_logits = refine_logits_with_tail(
+            state.model,
+            adapt_only_rx_iq,
+            condition,
+            region_ids,
+            tail,
+            modulation=identity.modulation,
+            passes=int(state.tail_refinement_passes),
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        ).squeeze(0)
+        observation = state.encoder(
+            _policy_view(
+                frame,
+                float(snr_db),
+                policy_logits,
+                state.previous_window_reward,
+                state.last_action_delta_norm,
+            )
+        ).tensor.unsqueeze(0)
         hidden_in = state.hidden.detach()
         sample = state.policy.sample(observation, hidden_in, state.actions)
         state.hidden = sample.hidden
@@ -324,6 +322,30 @@ def run_windowed_discrete_frame(
         state.current_window_cir_snapshot = state.cir.detach().clone()
         state.current_window_tail_snapshot = state.receiver_state.soft_tail.detach().clone()
         state.frames_in_window = 0
+    # 先完成动作选择，再构造 Reward Pilot 视图；该留出 Pilot 只用于验收与回滚。
+    reward_eval_mask = (frame.adapt_mask | frame.reward_mask).bool()
+    reward_eval_rx_symbols = torch.where(
+        reward_eval_mask,
+        frame.rx_symbols,
+        torch.zeros_like(frame.rx_symbols),
+    )
+    reward_eval_rx_iq = torch.stack(
+        (reward_eval_rx_symbols.real, reward_eval_rx_symbols.imag), dim=-1
+    ).unsqueeze(0).float()
+    reward_view = _pilot_receiver_view(frame)
+    reward_labels = (reward_view.reward_symbols.real > 0.0).to(frame.bits.dtype)
+    base_logits = refine_logits_with_tail(
+        state.model,
+        reward_eval_rx_iq,
+        condition,
+        region_ids,
+        tail,
+        modulation=identity.modulation,
+        passes=int(state.tail_refinement_passes),
+        adapt_symbols=adapt_symbols,
+        adapt_mask=adapt_mask,
+    )
+    base = base_logits.squeeze(0)
     sampled_action = state.current_action
     applied_action = identity if sampled_action.name == "rollback_identity" else sampled_action
     if state.current_window_cir_snapshot is None:
@@ -390,7 +412,7 @@ def run_windowed_discrete_frame(
             state.current_accumulator.action_delta_norm += float(peft_delta_norm)
     logits_after = refine_logits_with_tail(
         state.model,
-        rx_iq,
+        reward_eval_rx_iq,
         condition,
         region_ids,
         tail,
@@ -415,8 +437,8 @@ def run_windowed_discrete_frame(
             peft_delta_norm=float(peft_delta_norm),
         )
         if not peft_frame_accepted:
-            # 先用当前帧已知 Reward Pilot 验收 PEFT，再让整帧 Data 波形进入评估。
-            # 失败时本帧即恢复参数，并用冻结参数的 Pilot 输出递推 tail。
+            # 先用当前帧 Reward Pilot 验收 PEFT，再让 Data 波形进入最终评估。
+            # 失败时本帧立即恢复参数。
             _restore_snapshot(state.model, frame_peft_snapshot)
             after = base
     assert state.current_accumulator is not None
@@ -427,31 +449,26 @@ def run_windowed_discrete_frame(
         reward_ber_after=float(reward_after_ber),
     )
     tail_len = state.receiver_state.soft_tail.numel()
-    detected_tail = torch.complex(
-        torch.tanh(after[-tail_len:] / 2.0),
-        torch.zeros_like(after[-tail_len:]),
-    )
-    # 只有落在 Adapt/Reward Pilot 上的尾部符号可观测；前缀 Pilot 之外的
-    # logits 来自补零输入，不能当作接收尾状态更新。
-    tail_visible_mask = pilot_visible_mask[-tail_len:]
-    detected_tail = torch.where(
-        tail_visible_mask,
-        detected_tail,
-        state.receiver_state.soft_tail,
-    )
-    selected_tail_alpha = (
-        float(sampled_action.tail_alpha)
-        if getattr(sampled_action, "tail_alpha", None) is not None
-        else float(getattr(state, "tail_update_alpha", 1.0))
-    )
-    selected_tail_alpha = min(1.0, max(0.0, selected_tail_alpha))
-    previous_tail = state.receiver_state.soft_tail
-    next_tail = (1.0 - selected_tail_alpha) * previous_tail + selected_tail_alpha * detected_tail
-    state.receiver_state.update_tail(next_tail)
     if state.cir_update_mode == "decision_directed":
+        state_modulation = (
+            applied_action.modulation
+            if peft_frame_accepted
+            else identity.modulation
+        )
+        adapt_state_logits = refine_logits_with_tail(
+            state.model,
+            adapt_only_rx_iq,
+            condition,
+            region_ids,
+            tail,
+            modulation=state_modulation,
+            passes=int(state.tail_refinement_passes),
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        ).squeeze(0)
         state.cir = decision_directed_cir_update(
             frame,
-            after.detach(),
+            adapt_state_logits.detach(),
             int(tail_len),
             state.cir,
             alpha=selected_cir_alpha,
@@ -499,8 +516,45 @@ def run_windowed_discrete_frame(
         state.current_window_tail_snapshot = None
         state.frames_in_window = 0
     accepted = bool(peft_frame_accepted and not window_rollback)
+    # 接收端 tail 只从 Adapt Pilot 产生；Reward Pilot 只参与动作后的验收。
+    tail_visible_mask = adapt_only_mask[-tail_len:]
+    selected_tail_alpha = (
+        float(sampled_action.tail_alpha)
+        if getattr(sampled_action, "tail_alpha", None) is not None
+        else float(getattr(state, "tail_update_alpha", 1.0))
+    )
+    selected_tail_alpha = min(1.0, max(0.0, selected_tail_alpha))
+    if bool(tail_visible_mask.any()):
+        tail_modulation = (
+            identity.modulation
+            if window_rollback or not peft_frame_accepted
+            else applied_action.modulation
+        )
+        adapt_tail_logits = refine_logits_with_tail(
+            state.model,
+            adapt_only_rx_iq,
+            condition,
+            region_ids,
+            state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64),
+            modulation=tail_modulation,
+            passes=int(state.tail_refinement_passes),
+            adapt_symbols=adapt_symbols,
+            adapt_mask=adapt_mask,
+        ).squeeze(0)
+        detected_tail = torch.complex(
+            torch.tanh(adapt_tail_logits[-tail_len:] / 2.0),
+            torch.zeros_like(adapt_tail_logits[-tail_len:]),
+        )
+        previous_tail = state.receiver_state.soft_tail
+        next_tail = (1.0 - selected_tail_alpha) * previous_tail + selected_tail_alpha * detected_tail
+        state.receiver_state.update_tail(
+            torch.where(tail_visible_mask, next_tail, previous_tail)
+        )
     # 所有策略、PEFT 更新、Pilot reward 和窗口回滚完成后，才允许完整波形
     # 进入前向；以下两次输出只用于事后 Data 指标，不反馈给在线控制。
+    full_rx_iq = torch.stack(
+        (frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1
+    ).unsqueeze(0).float()
     current_peft_snapshot = (
         _snapshot_peft_groups(state.model, set(sampled_action.peft_groups))
         if sampled_action.peft_groups
@@ -610,6 +664,8 @@ def run_windowed_discrete_frame(
         "peft_objective": str(sampled_action.peft_objective),
         "data_labels_used_online": False,
         "data_waveform_used_online": False,
+        "policy_observation_source": "adapt_pilot_only",
+        "reward_pilot_waveform_used_for_policy_observation": False,
         "online_waveform_visibility": "adapt_pilot_for_update_reward_pilot_for_guard",
         "adapt_params": int(state.policy.parameter_count() if policy_loss is not None else 0),
         "adapt_steps": int(1 if policy_loss is not None else 0),
@@ -799,7 +855,7 @@ def _apply_adapt_peft_update(
         pilot_mask = frame.adapt_mask.to(device=frame.rx_symbols.device, dtype=torch.bool)
         pilot_rx = torch.where(pilot_mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols))
         device = pilot_rx.device
-        pilot_view = _pilot_receiver_view(frame)
+        pilot_view = _adapt_receiver_view(frame)
         if objective == "pilot_signal_reconstruction":
             if groups != {"phase_trend"}:
                 raise ValueError(
@@ -930,17 +986,16 @@ def _load_discrete_policy_if_available(
 
 
 def _policy_view(frame, snr_db: float, logits: torch.Tensor, previous_reward: float, last_delta_norm: float):
-    view = _pilot_receiver_view(frame)
-    pilot_visible_mask = view.adapt_mask | (view.reward_symbols != 0)
-    pilot_rx = torch.where(
-        pilot_visible_mask,
+    view = _adapt_receiver_view(frame)
+    adapt_only_mask = view.adapt_mask.to(dtype=torch.bool)
+    adapt_only_rx = torch.where(
+        adapt_only_mask,
         view.rx_symbols,
         torch.zeros_like(view.rx_symbols),
     )
     return SimpleNamespace(
-        # 策略 observation 只允许看到 Adapt/Reward Pilot 波形；Data 波形在
-        # 事后评估前始终清零。
-        rx_symbols=pilot_rx,
+        # 当前动作只看 Adapt Pilot；Reward Pilot 在动作完成后用于验收。
+        rx_symbols=adapt_only_rx,
         adapt_symbols=view.adapt_symbols,
         adapt_mask=view.adapt_mask,
         model_region_ids=view.model_region_ids,
@@ -951,11 +1006,35 @@ def _policy_view(frame, snr_db: float, logits: torch.Tensor, previous_reward: fl
     )
 
 
+def _adapt_receiver_view(frame):
+    """返回严格只含 Adapt Pilot 的接收端视图。
+
+    动作 observation、PEFT 梯度和接收状态递推只能读取此视图。
+    """
+
+    tx_symbols = getattr(frame, "tx_symbols", torch.zeros_like(frame.rx_symbols))
+    adapt_mask = frame.adapt_mask.to(dtype=torch.bool)
+    return SimpleNamespace(
+        rx_symbols=torch.where(
+            adapt_mask,
+            frame.rx_symbols,
+            torch.zeros_like(frame.rx_symbols),
+        ),
+        adapt_symbols=torch.where(
+            adapt_mask,
+            tx_symbols,
+            torch.zeros_like(tx_symbols),
+        ),
+        adapt_mask=adapt_mask.clone(),
+        model_region_ids=frame.model_region_ids.clone(),
+    )
+
+
 def _pilot_receiver_view(frame):
-    """返回只含 Adapt/Reward Pilot 的接收端视图。
+    """返回 Adapt/Reward Pilot 视图，只供动作后的 Reward 验收使用。
 
     真实环境使用 ``Frame.receiver_view``。轻量诊断桩可能只有基础字段，
-    此时按同样的 mask 从已知发送符号构造 Pilot 视图；Data 位置始终置零。
+    此时按相同的 mask 构造留出验收视图；Data 位置始终置零。
     """
 
     receiver_view = getattr(frame, "receiver_view", None)

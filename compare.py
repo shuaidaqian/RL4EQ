@@ -57,6 +57,7 @@ from training.continual_ppo import (
 from training.meta_training import _estimate_cir_from_known_frame
 from training.windowed_discrete_ppo import (
     WindowedDiscreteOnlineState,
+    _adapt_receiver_view,
     _load_discrete_policy_if_available,
     run_windowed_discrete_frame,
 )
@@ -1234,7 +1235,7 @@ def _run_new_or_single_method(
                 cfo_hint=float(state.acquisition_cfo),
             ).to(state.online_state.cir.device)
         phase_features = estimate_phase_residual_vector(
-            frame.receiver_view(),
+            _adapt_receiver_view(frame_device),
             state.online_state.cir,
             state.online_state.receiver_state.soft_tail,
             blocks=4,
@@ -1244,7 +1245,7 @@ def _run_new_or_single_method(
         row = run_windowed_discrete_frame(state.online_state, frame_device, condition, snr_db, frame_index, update_interval)
         return RealMethodResult(
             method=method,
-            input_hash=_hash_json({"frame": int(frame.frame_index), "method": method, "visible": "rx+adapt+reward"}),
+            input_hash=_hash_json({"frame": int(frame.frame_index), "method": method, "visible": "adapt_pilot_only_for_control"}),
             ber_data=float(row["ber_data"]),
             ber_reward_pilot=float(row["ber_reward_pilot"]),
             ber_adapt_pilot=float(row["ber_adapt_pilot"]),
