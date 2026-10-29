@@ -233,6 +233,67 @@
     "data_waveform_used_online": false,
     "data_labels_used_online": false
   },
+  "gap0_heldout_edge_5db_policy_comparison": {
+    "diagnostic_only": true,
+    "state_split": "heldout_edge",
+    "acquisition_to_data_gap_seconds": 0.0,
+    "snr_db": 5.0,
+    "delay_symbols": 116,
+    "pilot_total": 256,
+    "adapt_pilot_total": 224,
+    "reward_pilot_total": 32,
+    "frames_per_seed": 24,
+    "total_frames": 120,
+    "seeds": [1061, 1062, 1063, 1064, 1065],
+    "checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "checkpoint_retrained_or_modified": false,
+    "frozen_reference_mean_ber": 0.04290364586437742,
+    "paired_frozen_rows_and_channel_states_identical_between_runs": true,
+    "high_exploration_ppo": {
+      "online_mean_ber": 0.0423828126086543,
+      "mean_improvement_percentage_points": 0.05208332557231187,
+      "positive_seed_count": 3,
+      "tie_seed_count": 1,
+      "negative_seed_count": 1,
+      "moderate_action_frames": 56,
+      "identity_action_frames": 64,
+      "moderate_candidate_accepted": 28,
+      "moderate_candidate_rejected": 28,
+      "per_seed_improvement_percentage_points": [
+        {"seed": 1061, "improvement": 0.0},
+        {"seed": 1062, "improvement": -0.005425342048207918},
+        {"seed": 1063, "improvement": 0.21701387595385313},
+        {"seed": 1064, "improvement": 0.027126733524103958},
+        {"seed": 1065, "improvement": 0.021701360431810222}
+      ]
+    },
+    "moderate_initialized_ppo": {
+      "policy_artifact": "docs/results/assets/rl_peft_fixed_moderate_policy.pt",
+      "online_mean_ber": 0.04185112851361434,
+      "mean_improvement_percentage_points": 0.10525173507630824,
+      "positive_seed_count": 5,
+      "moderate_action_frames": 120,
+      "moderate_action_windows": 15,
+      "complete_windows": 15,
+      "moderate_candidate_accepted": 64,
+      "moderate_candidate_rejected": 56,
+      "window_reward_rollbacks": 10,
+      "maximum_episode_delta_norm": 0.05,
+      "seed_level_paired_t95_interval_percentage_points": [-0.09473147906700638, 0.3052349492196229],
+      "data_logits_changed_frames": 68,
+      "data_bce_improved_frames": 44,
+      "per_seed_improvement_percentage_points": [
+        {"seed": 1061, "improvement": 0.0705295397589604},
+        {"seed": 1062, "improvement": 0.010850668574372929},
+        {"seed": 1063, "improvement": 0.39062501552204293},
+        {"seed": 1064, "improvement": 0.027126733524103958},
+        {"seed": 1065, "improvement": 0.02712671800206105}
+      ]
+    },
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false,
+    "interpretation": "同条件下 moderate 起始策略的平均收益约为高探索 PPO 的两倍，支持候选 PEFT 有小幅收益信号且当前 PPO 选动作不足；5 seed、单 SNR 的诊断仍不足以证明稳定泛化收益。"
+  },
   "policy_artifacts": {
     "fixed_moderate_policy": {
       "path": "docs/results/assets/rl_peft_fixed_moderate_policy.pt",

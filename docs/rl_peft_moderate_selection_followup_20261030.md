@@ -73,4 +73,26 @@ PPO 在 300 帧中有 60 帧选择 moderate，PEFT 都实际改变了参数；47
 
 策略初始权重作为小型复现实验资产一并提交：固定 moderate 策略 [`docs/results/assets/rl_peft_fixed_moderate_policy.pt`](results/assets/rl_peft_fixed_moderate_policy.pt)，高探索 PPO 初始化 [`docs/results/assets/rl_peft_moderate_exploration_policy_init.pt`](results/assets/rl_peft_moderate_exploration_policy_init.pt)。机器可读摘要见 [`docs/results/rl_peft_moderate_selection_followup_20261030.json`](results/rl_peft_moderate_selection_followup_20261030.json)。原始逐帧日志仍保存在被 `.gitignore` 排除的 `logs/`。
 
-下一步回到项目主场景：保留离线 checkpoint，使用轨迹级偏移限制和 PPO 高探索先验，在 acquisition gap 为 0 的 Level B 配置先做 5 dB、5 seed × 24 帧配对复核；如果仍有 BER 改善，再扩到 0/10/15 dB。gap 600 秒的结果只能说明老化压力场景有收益，不能替代这个主场景验证。
+## gap=0 的 heldout_edge 配对复核
+
+为了检查更强的信道状态失配，在 acquisition gap 为 0、Level B `heldout_edge`、5 dB 下，用同一 checkpoint、seed 1061–1065、每 seed 24 帧和 Pilot=256，比较高探索 PPO 与从 moderate 起始策略出发的 PPO。两次运行的 Frozen BER 与逐帧 `state_instance` 完全一致，确认对照复用同一组信道状态。
+
+| 策略 | Frozen BER | 在线 BER | 平均改善 | 正收益 seed | moderate 动作帧 | Reward 接受 / 拒绝 |
+|---|---:|---:|---:|---:|---:|---:|
+| 高探索 PPO | 4.2904% | 4.2383% | +0.0521 pp | 3/5（1 平、1 负） | 56/120 | 28 / 28 |
+| moderate 起始 PPO | 4.2904% | 4.1851% | +0.1053 pp | 5/5 | 120/120 | 64 / 56 |
+
+高探索 PPO 的 seed 改善为 `0.0000、−0.0054、+0.2170、+0.0271、+0.0217 pp`；1061 没有尝试 PEFT，1062 略退化。moderate 起始策略的 seed 改善为 `+0.0705、+0.0109、+0.3906、+0.0271、+0.0271 pp`。加载的 moderate 起始策略在 15 个完整窗口中都选择 moderate；它仍按项目实现执行窗口级 PPO 更新，因此这是“策略始终选择 moderate”的观测结果，不是冻结策略权重的独立算法。
+
+moderate 起始策略的 120 帧都产生了非零 PEFT 候选偏移，轨迹偏移不超过 `0.05`；Reward Pilot 接受 64 帧、拒绝 56 帧，另有 10 个窗口级回滚。事后 Data 指标显示 68 帧的 logits 发生变化、44 帧 Data BCE 改善。所有在线行的 `data_waveform_used_online` 和 `data_labels_used_online` 都为 `false`；Data 只在 Pilot 更新和 Reward 验收/窗口回滚完成后用于评估。离线 checkpoint 未改变。
+
+这组小样本说明 moderate 更新候选有正向信号，PPO 的动作选择会漏掉部分可用更新；但收益只有 `0.1053 pp`，且改善幅度受 seed 影响明显。按 5 条 seed 级配对改善计算的近似 95% t 区间为 `−0.0947 到 +0.3052 pp`，包含零，因此目前不能说收益已被统计确认。它也只测了一个 SNR 和一个状态分布。机器可读逐配置结果见 JSON 中的 `gap0_heldout_edge_5db_policy_comparison`。原始逐帧日志位于被 `.gitignore` 排除的两个 `logs/` 目录。
+
+复现命令（CPU）：
+
+```powershell
+python compare.py --config configs/rl_peft_phase_signal_diagnostic.json --policy docs/results/assets/rl_peft_moderate_exploration_policy_init.pt --pretrained D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --methods 'Frozen Offline NN' 'RL-Modulated Neural Block Equalizer' --delays 116 --snrs 5 --seed-start 1061 --num-seeds 5 --frames 24 --pilot-total 256 --reward-pilot-total 32 --pilot-layout prefix --state-split heldout_edge --acquisition-to-data-gap-seconds 0 --update-interval 8 --cir-update fixed --online-condition-source pilot_cir_phase --device cpu --output-dir logs/rl_peft_ppo_explore_episode_cap005_gap0_heldout_edge_5db_5s24f_seed1061_1065_20261030
+python compare.py --config configs/rl_peft_phase_signal_diagnostic.json --policy docs/results/assets/rl_peft_fixed_moderate_policy.pt --pretrained D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --methods 'Frozen Offline NN' 'RL-Modulated Neural Block Equalizer' --delays 116 --snrs 5 --seed-start 1061 --num-seeds 5 --frames 24 --pilot-total 256 --reward-pilot-total 32 --pilot-layout prefix --state-split heldout_edge --acquisition-to-data-gap-seconds 0 --update-interval 8 --cir-update fixed --online-condition-source pilot_cir_phase --device cpu --output-dir logs/rl_peft_fixedmoderate_gap0_heldout_edge_5db_5s24f_seed1061_1065_20261030
+```
+
+下一步先改进 Pilot-only 的更新筛选：用 Adapt Pilot 内部留出/交叉验证信号，估计 PEFT 候选是否能在独立 Reward Pilot 窗口上保持改善，再由 Reward Pilot 做接受或回滚；固定 checkpoint、Pilot 总长、状态 split 和 Data 信息隔离保持不变。先用新的 seed 做 5 dB 小样本复核，只有收益幅度和 seed 稳定性都明显提升后，才扩大到 0/10/15 dB 与正式矩阵。gap=600 秒结果仍只作为 acquisition 老化诊断，不并入 gap=0 或 heldout_edge 主场景平均。
