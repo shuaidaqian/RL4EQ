@@ -1,0 +1,140 @@
+{
+  "schema_version": "rl-peft-multisnr-screen-v1",
+  "date": "2026-10-30",
+  "status": "diagnostic_screen_small_mean_gains_uncertain",
+  "protocol": {
+    "config": "configs/rl_peft_phase_signal_diagnostic.json",
+    "config_diagnostic_only": true,
+    "config_main_aggregation_allowed": false,
+    "channel_level": "B",
+    "profile": "eme_long_memory_v2",
+    "impairment_profile": "cfo_phase_tiny",
+    "state_split": "heldout_edge",
+    "delay_symbols": 116,
+    "snr_db": [0, 5, 10, 15],
+    "seeds": [1091, 1092, 1093, 1094, 1095],
+    "frames_per_seed": 60,
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "adapt_pilot_total": 224,
+    "reward_pilot_total": 32,
+    "acquisition_gap_seconds": 0,
+    "policy_learning_rate": 0.001,
+    "policy_window_size": 8,
+    "update_interval": 8,
+    "pilot_state_embedding": false,
+    "online_condition_source": "pilot_cir_phase",
+    "cir_update_mode": "fixed",
+    "methods": ["Frozen Offline NN", "RL-Modulated Neural Block Equalizer"],
+    "offline_checkpoint": "D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+    "offline_checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "offline_checkpoint_retrained_or_modified": false,
+    "policy_initialization": "docs/results/assets/rl_peft_moderate_exploration_policy_init.pt",
+    "policy_initialization_sha256": "149CBFF70E1561195FFD984E1249EFAE99C39EED6F7DFB0E13FB52F4155678E5",
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false,
+    "policy_observation_source": "adapt_pilot_only"
+  },
+  "comparison_semantics": {
+    "same_frame_object_passed_to_all_selected_methods": true,
+    "input_hash_includes_method_name": true,
+    "input_hash_equality_is_a_valid_pairing_test": false,
+    "pre_update_ber_is_frozen_method_ber": false,
+    "interpretation": "The comparison measures the whole online receiver chain against Frozen Offline NN. It does not isolate the causal contribution of PEFT parameters from other online receiver-state behavior."
+  },
+  "per_snr": [
+    {
+      "snr_db": 0,
+      "frozen_mean_ber_percent": 20.49522569,
+      "online_mean_ber_percent": 20.31727428,
+      "mean_improvement_pp": 0.17795141,
+      "positive_seed_count": 4,
+      "paired_95_percent_t_interval_pp": [-0.4706, 0.8265],
+      "per_seed": [
+        {"seed": 1091, "frozen_ber": 0.1782552076, "online_ber": 0.1840928808, "improvement_pp": -0.5837673197},
+        {"seed": 1092, "frozen_ber": 0.2009331595, "online_ber": 0.1999348965, "improvement_pp": 0.0998263061},
+        {"seed": 1093, "frozen_ber": 0.2185980910, "online_ber": 0.2181206598, "improvement_pp": 0.0477431218},
+        {"seed": 1094, "frozen_ber": 0.2164930560, "online_ber": 0.2108072912, "improvement_pp": 0.5685764800},
+        {"seed": 1095, "frozen_ber": 0.2104817705, "online_ber": 0.2029079857, "improvement_pp": 0.7573784764}
+      ],
+      "actions": {"identity": 180, "peft_phase_signal_moderate": 120},
+      "moderate_peft_frame_guard_accepts": 62,
+      "moderate_peft_frame_guard_rejects": 58,
+      "window_rollbacks": 2
+    },
+    {
+      "snr_db": 5,
+      "frozen_mean_ber_percent": 5.20355903,
+      "online_mean_ber_percent": 5.01562500,
+      "mean_improvement_pp": 0.18793402,
+      "positive_seed_count": 4,
+      "paired_95_percent_t_interval_pp": [-0.2485, 0.6244],
+      "per_seed": [
+        {"seed": 1091, "frozen_ber": 0.0394748263, "online_ber": 0.0382161457, "improvement_pp": 0.1258680597},
+        {"seed": 1092, "frozen_ber": 0.0467230902, "online_ber": 0.0460720486, "improvement_pp": 0.0651041605},
+        {"seed": 1093, "frozen_ber": 0.0570095488, "online_ber": 0.0590494793, "improvement_pp": -0.2039930473},
+        {"seed": 1094, "frozen_ber": 0.0625651041, "online_ber": 0.0605902779, "improvement_pp": 0.1974826244},
+        {"seed": 1095, "frozen_ber": 0.0544053818, "online_ber": 0.0468532987, "improvement_pp": 0.7552083147}
+      ],
+      "actions": {"identity": 188, "peft_phase_signal_moderate": 112},
+      "moderate_peft_frame_guard_accepts": 54,
+      "moderate_peft_frame_guard_rejects": 58,
+      "window_rollbacks": 5
+    },
+    {
+      "snr_db": 10,
+      "frozen_mean_ber_percent": 0.76519097,
+      "online_mean_ber_percent": 0.73046875,
+      "mean_improvement_pp": 0.03472222,
+      "positive_seed_count": 5,
+      "paired_95_percent_t_interval_pp": [-0.0151, 0.0846],
+      "per_seed": [
+        {"seed": 1091, "frozen_ber": 0.0039496528, "online_ber": 0.0039279514, "improvement_pp": 0.0021701382},
+        {"seed": 1092, "frozen_ber": 0.0066840278, "online_ber": 0.0065972222, "improvement_pp": 0.0086805547},
+        {"seed": 1093, "frozen_ber": 0.0095486111, "online_ber": 0.0094835069, "improvement_pp": 0.0065104149},
+        {"seed": 1094, "frozen_ber": 0.0104166667, "online_ber": 0.0097222222, "improvement_pp": 0.0694444430},
+        {"seed": 1095, "frozen_ber": 0.0076605903, "online_ber": 0.0067925348, "improvement_pp": 0.0868055529}
+      ],
+      "actions": {"identity": 160, "peft_phase_signal_moderate": 140},
+      "moderate_peft_frame_guard_accepts": 70,
+      "moderate_peft_frame_guard_rejects": 70,
+      "window_rollbacks": 12
+    },
+    {
+      "snr_db": 15,
+      "frozen_mean_ber_percent": 0.17187500,
+      "online_mean_ber_percent": 0.16710070,
+      "mean_improvement_pp": 0.00477431,
+      "positive_seed_count": 4,
+      "paired_95_percent_t_interval_pp": [-0.0029, 0.0125],
+      "per_seed": [
+        {"seed": 1091, "frozen_ber": 0.0006944445, "online_ber": 0.0006510417, "improvement_pp": 0.0043402777},
+        {"seed": 1092, "frozen_ber": 0.0022135417, "online_ber": 0.0020833334, "improvement_pp": 0.0130208339},
+        {"seed": 1093, "frozen_ber": 0.0019097223, "online_ber": 0.0019531250, "improvement_pp": -0.0043402781},
+        {"seed": 1094, "frozen_ber": 0.0021701389, "online_ber": 0.0021267361, "improvement_pp": 0.0043402779},
+        {"seed": 1095, "frozen_ber": 0.0016059028, "online_ber": 0.0015407986, "improvement_pp": 0.0065104165}
+      ],
+      "actions": {"identity": 144, "peft_phase_signal_moderate": 156},
+      "moderate_peft_frame_guard_accepts": 87,
+      "moderate_peft_frame_guard_rejects": 69,
+      "window_rollbacks": 10
+    }
+  ],
+  "online_behavior": {
+    "total_frames": 1200,
+    "identity_actions": 672,
+    "moderate_peft_actions": 528,
+    "rollback_identity_actions": 64,
+    "moderate_peft_frame_guard_accepts": 273,
+    "moderate_peft_frame_guard_rejects": 255,
+    "window_rollbacks": 29,
+    "positive_peft_delta_frames": 528,
+    "data_label_online_use_count": 0,
+    "data_waveform_online_use_count": 0,
+    "adapt_pilot_only_observation_count": 1200
+  },
+  "raw_logs": [
+    "logs/rl_peft_pilot_l1e3_gap0_heldout_edge_0_5_10_15db_5s60f_seed1091_1095_20261030/frame_metrics.jsonl"
+  ],
+  "interpretation": "The candidate has small positive mean BER differences at all four SNRs, but seed variability is material and every per-SNR paired 95% interval spans zero. This does not establish stable PEFT gains or the superiority of learning rate 0.001."
+}

@@ -30,7 +30,8 @@ Level A/B/C 可控信道族
 - 2026-10-29 的 RL-PEFT 执行链路审计和 seed 复核见[研究记录](docs/rl_peft_execution_audit_20261029.md)：修正 Reward 回滚时序、前缀 Pilot soft-tail 可观测范围、策略状态初始化和 PPO 动作编号；当前 SNR 复核尚未证明稳定 BER 收益。
 - 2026-10-29 的 Pilot-only PEFT 排序复核见[阶段结果](docs/pilot_peft_stage_20261029.md)：修复 Data 波形隔离漏洞，并完成累计目标、Reward 评分和当前 PEFT 候选的留 seed 排序诊断；排序门槛尚未通过，因此未启动正式大矩阵。
 - 2026-10-30 的 Pilot 状态 embedding 复核见[阶段结果](docs/rl_peft_pilot_state_embedding_update16_20261030.md)：Adapt-only 状态特征已接入 PPO，但在 5 seed × 60 帧中没有改变动作或 BER；在线收益仍小且 seed 区间包含零。
-- 2026-10-30 的 PPO 动作概率和学习率复核见[阶段结果](docs/rl_peft_policy_probability_lr_20261030.md)：高学习率在 5 dB 的新 seed 上改变了部分 PEFT 动作，10 seed 全部略有收益，但它相对默认学习率的增量仍不确定；需先通过四个主 SNR 验证。
+- 2026-10-30 的 PPO 动作概率和学习率复核见[阶段结果](docs/rl_peft_policy_probability_lr_20261030.md)：高学习率在 5 dB 的新 seed 上改变了部分 PEFT 动作，10 seed 全部略有收益，但它相对默认学习率的增量仍不确定。
+- 2026-10-30 的四 SNR 学习率筛查见[阶段结果](docs/rl_peft_multisnr_lr1e3_20261030.md)：`1e-3` 在四个 SNR 的平均 BER 都略好于 Frozen，但各 SNR 配对区间均跨零，且该运行使用 diagnostic 配置，不能作为正式主结果；下一步在冻结的 Level B 主配置下与传统 baseline 做同轨迹比较。
 - Pilot-Driven 单候选 PEFT 的历史回放见 [统一 Pilot replay 协议复核](docs/pilot_replay_protocol_audit_20261014.md) 与 [Reward logits 守门复核](docs/online_logit_guard_replay_20261015.md)。它曾在部分 SNR/seed 上获得小幅正增益，但更新目标和候选选择协议与当前 PPO 主方法不同，不能并入当前主结果，也没有证明所有主 SNR 稳定提升。
 - [10 dB 长窗口复核](docs/formal_signal_guard_logitcap01_gap0_10db_seed77_81_60f.md) 及其[严格门控对照](docs/formal_signal_guard_logitcap01_signalmin0005_gap0_10db_seed77_81_60f.md)表明，更多帧或更严格的 Reward 门控单独都不能解决 Pilot 到 Data 的迁移问题；均为 Pilot-Driven 历史路线的专项结果。
 - 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须包含基于 Pilot 的合理补偿，不能人为打残 baseline。
