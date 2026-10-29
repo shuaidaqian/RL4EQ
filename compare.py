@@ -1029,6 +1029,7 @@ def _build_method_states(
                 len(model.blocks),
                 device=device,
                 action_names=config.get("rl_action_names"),
+                peft_max_episode_delta_norm=config.get("rl_peft_max_episode_delta_norm"),
             )
             from agent.rl_modulator import ModulationObservationEncoder
 

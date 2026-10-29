@@ -148,5 +148,100 @@
     "data_waveform_used_online": false,
     "data_labels_used_online": false
   },
-  "conclusion": "固定 moderate 在 5、10、15 dB 取得正的总体收益，但仍有两个退化 seed×SNR 轨迹；PPO 提高探索后增加了 moderate 更新次数，却仍未达到固定 moderate 的收益，下一步验证轨迹级 PEFT 总偏移限制。"
+  "trajectory_cap_fixed_moderate_5db": {
+    "frames_per_seed": 24,
+    "max_episode_delta_norm": 0.05,
+    "frozen_mean_ber": 0.30876736106971897,
+    "online_mean_ber": 0.30363498205939926,
+    "mean_improvement_percentage_points": 0.513237901031971,
+    "positive_seed_count": 4,
+    "per_seed": [
+      {"seed": 1061, "improvement_percentage_points": 0.7324217508236567},
+      {"seed": 1062, "improvement_percentage_points": 0.42860228568315506},
+      {"seed": 1063, "improvement_percentage_points": 0.6944447134931883},
+      {"seed": 1064, "improvement_percentage_points": -0.21158835540215173},
+      {"seed": 1065, "improvement_percentage_points": 0.9223091105620066}
+    ],
+    "maximum_observed_episode_delta_norm": 0.05000000447034836,
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false
+  },
+  "trajectory_cap_fixed_moderate_four_snr_screen": {
+    "snrs_db": [0.0, 5.0, 10.0, 15.0],
+    "seeds": [1061, 1062, 1063, 1064, 1065],
+    "frames_per_seed_snr": 24,
+    "total_frames": 480,
+    "max_episode_delta_norm": 0.05,
+    "frozen_mean_ber": 0.31961805649722613,
+    "online_mean_ber": 0.3148030601131419,
+    "mean_improvement_percentage_points": 0.48149963840842247,
+    "positive_seed_snr_trajectories": 18,
+    "total_seed_snr_trajectories": 20,
+    "by_snr": [
+      {"snr_db": 0.0, "mean_improvement_percentage_points": 0.5664063369234403, "positive_seed_count": 5},
+      {"snr_db": 5.0, "mean_improvement_percentage_points": 0.513237901031971, "positive_seed_count": 4},
+      {"snr_db": 10.0, "mean_improvement_percentage_points": 0.4698350963493188, "positive_seed_count": 5},
+      {"snr_db": 15.0, "mean_improvement_percentage_points": 0.37651921932895976, "positive_seed_count": 4}
+    ],
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false
+  },
+  "ppo_high_exploration_episode_cap_four_snr": {
+    "snrs_db": [0.0, 5.0, 10.0, 15.0],
+    "seeds": [1061, 1062, 1063, 1064, 1065],
+    "frames_per_seed_snr": 24,
+    "total_frames": 480,
+    "window_frames": 8,
+    "max_episode_delta_norm": 0.05,
+    "moderate_action_windows": 22,
+    "identity_action_windows": 37,
+    "rollback_identity_windows": 1,
+    "moderate_update_reward_accepted": 111,
+    "moderate_update_reward_rejected": 65,
+    "frozen_mean_ber": 0.31961805649722613,
+    "ppo_online_mean_ber": 0.317990452144295,
+    "mean_improvement_percentage_points": 0.16276043529311815,
+    "positive_seed_snr_trajectories": 14,
+    "total_seed_snr_trajectories": 20,
+    "by_snr": [
+      {
+        "snr_db": 0.0,
+        "mean_improvement_percentage_points": 0.12044270833333333,
+        "positive_seed_count": 5,
+        "per_seed": [0.0326, 0.0922, 0.0977, 0.179, 0.2007]
+      },
+      {
+        "snr_db": 5.0,
+        "mean_improvement_percentage_points": 0.24305567145347595,
+        "positive_seed_count": 2,
+        "per_seed": [0.0, -0.1031, 0.548, -0.1194, 0.8898]
+      },
+      {
+        "snr_db": 10.0,
+        "mean_improvement_percentage_points": 0.06727424760659535,
+        "positive_seed_count": 3,
+        "per_seed": [0.0543, 0.0, 0.1953, 0.0868, 0.0]
+      },
+      {
+        "snr_db": 15.0,
+        "mean_improvement_percentage_points": 0.220269113779068,
+        "positive_seed_count": 4,
+        "per_seed": [0.2224, 0.0977, 0.4612, 0.3201, 0.0]
+      }
+    ],
+    "maximum_observed_episode_delta_norm": 0.05000000447034836,
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false
+  },
+  "policy_artifacts": {
+    "fixed_moderate_policy": {
+      "path": "docs/results/assets/rl_peft_fixed_moderate_policy.pt",
+      "sha256": "E0088B1F49461AFB86ADF0A3320EDCA970EF64B25270834526E14E73E85ABCFC"
+    },
+    "higher_exploration_initial_policy": {
+      "path": "docs/results/assets/rl_peft_moderate_exploration_policy_init.pt",
+      "sha256": "149CBFF70E1561195FFD984E1249EFAE99C39EED6F7DFB0E13FB52F4155678E5"
+    }
+  },
+  "conclusion": "固定 moderate 加轨迹总偏移限制在四个 SNR 上有正均值且 18/20 轨迹改善；高探索 PPO 也转为正均值，但收益只有固定动作的约三分之一，并仍有 6/20 条轨迹未改善。以上全部为 acquisition gap 600 秒诊断，gap=0 主场景仍未验证。"
 }

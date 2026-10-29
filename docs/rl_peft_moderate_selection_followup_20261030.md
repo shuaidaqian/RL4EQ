@@ -55,6 +55,22 @@ PPO 在 300 帧中有 60 帧选择 moderate，PEFT 都实际改变了参数；47
 - 相对 Frozen 的平均 BER 改善为 `+0.1769` 个百分点，超过原先验的 `+0.0825`，但低于固定 moderate 的 `+0.5154`。
 - 逐 seed 改善为 `0.0000 / −0.1031 / +0.5480 / −0.4991 / +0.9386` 个百分点；仍是 2/5 正收益、2/5 负收益、1/5 未触发更新。
 
-提高探索确实让 PPO 多试更新，但没有复制固定 moderate 的收益。结合固定更新在少数 seed 的累计退化，下一步先测试**相对轨迹起点的 PEFT 总偏移上限**，看它能否减少跨窗口反复更新造成的退化；先在 5 dB、相同 5 个 seed 上验证，通过后再测其他 SNR。仍不进入正式大矩阵。
+提高探索确实让 PPO 多试更新，但没有复制固定 moderate 的收益。随后为诊断配置增加了可选的轨迹总偏移上限：PEFT 相对该轨迹首次更新时的参数变化不能超过 `0.05`。单独重跑固定 moderate 后，5 dB 的平均收益仍为 `+0.5132` 个百分点，4/5 seed 为正；之前最差的 seed 从 `−0.6727` 收窄至 `−0.2116` 个百分点，但没有消除退化。
 
-机器可读摘要：[`docs/results/rl_peft_moderate_selection_followup_20261030.json`](results/rl_peft_moderate_selection_followup_20261030.json)。本轮原始日志及固定动作策略 checkpoint 位于被 `.gitignore` 排除的 `logs/` 目录。
+固定 moderate + 轨迹总偏移 `0.05` 的四 SNR 筛查（各 5 seed × 24 帧，共 480 帧）结果如下：
+
+| SNR | Frozen BER | 固定 moderate BER | 平均改善（百分点） | 正收益 seed 轨迹 |
+|---:|---:|---:|---:|---:|
+| 0 dB | 39.1200% | 38.5536% | +0.5664 | 5/5 |
+| 5 dB | 30.8767% | 30.3635% | +0.5132 | 4/5 |
+| 10 dB | 29.2676% | 28.7977% | +0.4698 | 5/5 |
+| 15 dB | 28.5829% | 28.2064% | +0.3765 | 4/5 |
+| **全部** | **31.9618%** | **31.4803%** | **+0.4815** | **18/20** |
+
+然后把高 moderate 探索先验与同一轨迹总偏移上限一起用于 PPO，并在同样四 SNR、5 seed × 24 帧下复核。PPO 总体 BER 改善为 `+0.1628` 个百分点，14/20 条 seed×SNR 轨迹为正；逐 SNR 改善为 0 dB `+0.1204`（5/5）、5 dB `+0.2431`（2/5）、10 dB `+0.0673`（3/5）、15 dB `+0.2203`（4/5）。60 个动作窗口里 moderate 占 22 个，identity 占 37 个，rollback_identity 占 1 个；moderate 帧级更新通过 Reward 111 次、拒绝 65 次。总偏移上限和 Data 隔离标记均通过。
+
+这一步把结果推进到了：**固定 Pilot 驱动 PEFT 候选在 acquisition 老化压力下有跨 SNR 的稳定正均值；PPO 版本也有正均值，但比固定候选小很多，且 5 dB 的 seed 排序仍不稳定。**它仍是 gap 600 秒诊断，不是 gap=0 主场景结果，也未达到“稳定明显超过传统 baseline”的主门槛。
+
+策略初始权重作为小型复现实验资产一并提交：固定 moderate 策略 [`docs/results/assets/rl_peft_fixed_moderate_policy.pt`](results/assets/rl_peft_fixed_moderate_policy.pt)，高探索 PPO 初始化 [`docs/results/assets/rl_peft_moderate_exploration_policy_init.pt`](results/assets/rl_peft_moderate_exploration_policy_init.pt)。机器可读摘要见 [`docs/results/rl_peft_moderate_selection_followup_20261030.json`](results/rl_peft_moderate_selection_followup_20261030.json)。原始逐帧日志仍保存在被 `.gitignore` 排除的 `logs/`。
+
+下一步回到项目主场景：保留离线 checkpoint，使用轨迹级偏移限制和 PPO 高探索先验，在 acquisition gap 为 0 的 Level B 配置先做 5 dB、5 seed × 24 帧配对复核；如果仍有 BER 改善，再扩到 0/10/15 dB。gap 600 秒的结果只能说明老化压力场景有收益，不能替代这个主场景验证。

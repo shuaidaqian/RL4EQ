@@ -211,6 +211,65 @@ def test_window_peft_delta_projection_caps_cumulative_action_change():
     assert _snapshot_delta_norm(model, snapshot) <= 0.050001
 
 
+def test_trajectory_peft_delta_projection_caps_repeated_window_updates():
+    import pytest
+
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+    from training.windowed_discrete_ppo import (
+        _clip_peft_delta_to_snapshot,
+        _snapshot_delta_norm,
+        _snapshot_peft_groups,
+    )
+
+    model = UnfoldedEqualizer(UnfoldedConfig(
+        frame_len=32,
+        max_delay=4,
+        iterations=1,
+        d_model=16,
+        num_heads=4,
+    ))
+    model.attach_online_phase_trend_adapter()
+    trajectory_snapshot = _snapshot_peft_groups(model, {"phase_trend"})
+    parameters = dict(model.named_parameters())
+    parameter_name = next(iter(trajectory_snapshot))
+    parameter = parameters[parameter_name]
+
+    with torch.no_grad():
+        parameter.view(-1)[0].add_(0.03)
+    first_window_norm = _clip_peft_delta_to_snapshot(model, trajectory_snapshot, 0.05)
+    with torch.no_grad():
+        parameter.view(-1)[0].add_(0.03)
+    second_window_norm = _clip_peft_delta_to_snapshot(model, trajectory_snapshot, 0.05)
+
+    assert first_window_norm == pytest.approx(0.03, abs=1e-6)
+    assert second_window_norm == pytest.approx(0.05, abs=1e-6)
+    assert _snapshot_delta_norm(model, trajectory_snapshot) <= 0.050001
+
+
+def test_peft_episode_delta_cap_is_optional_and_validated():
+    import pytest
+
+    from agent.discrete_safe_policy import safe_modulation_actions
+
+    names = ["identity", "peft_phase_signal_moderate", "rollback_identity"]
+    uncapped = safe_modulation_actions(num_blocks=3, action_names=names)
+    capped = safe_modulation_actions(
+        num_blocks=3,
+        action_names=names,
+        peft_max_episode_delta_norm=0.05,
+    )
+
+    assert uncapped[1].peft_max_episode_delta_norm is None
+    assert capped[1].peft_max_episode_delta_norm == 0.05
+    assert capped[0].peft_max_episode_delta_norm is None
+    with pytest.raises(ValueError, match="正有限数"):
+        safe_modulation_actions(
+            num_blocks=3,
+            action_names=names,
+            peft_max_episode_delta_norm=0.0,
+        )
+
+
 def test_safe_policy_can_learn_different_actions_for_different_pilot_observations():
     from agent.discrete_safe_policy import (
         DiscreteSafePolicy,

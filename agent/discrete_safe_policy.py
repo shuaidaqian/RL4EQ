@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import torch
@@ -29,6 +30,7 @@ class DiscreteSafeAction:
     tail_alpha: float | None = None
     peft_objective: str = "bce"
     peft_max_delta_norm: float | None = None
+    peft_max_episode_delta_norm: float | None = None
 
 
 @dataclass(frozen=True)
@@ -44,8 +46,17 @@ def safe_modulation_actions(
     num_blocks: int,
     device: torch.device | str = "cpu",
     action_names: list[str] | tuple[str, ...] | None = None,
+    peft_max_episode_delta_norm: float | None = None,
 ) -> list[DiscreteSafeAction]:
     """返回固定顺序的离散安全动作表。"""
+
+    episode_delta_cap = (
+        None if peft_max_episode_delta_norm is None else float(peft_max_episode_delta_norm)
+    )
+    if episode_delta_cap is not None and (
+        not math.isfinite(episode_delta_cap) or episode_delta_cap <= 0.0
+    ):
+        raise ValueError("PEFT 轨迹总偏移上限必须为正有限数。")
 
     config = ModulationConfig(num_adapter_gates=int(num_blocks), num_lora_scales=int(num_blocks))
     identity = ModulationState.identity(config, device=device)
@@ -97,6 +108,7 @@ def safe_modulation_actions(
                     else "bce"
                 ),
                 peft_max_delta_norm=0.05 if peft_groups else None,
+                peft_max_episode_delta_norm=(episode_delta_cap if peft_groups else None),
             )
         )
     return actions

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -105,6 +105,7 @@ class WindowedDiscreteOnlineState:
     current_value: torch.Tensor | None = None
     current_accumulator: WindowRewardAccumulator | None = None
     current_window_peft_snapshot: dict[str, torch.Tensor] | None = None
+    trajectory_peft_snapshot: dict[str, torch.Tensor] = field(default_factory=dict)
     current_window_cir_snapshot: torch.Tensor | None = None
     current_window_tail_snapshot: torch.Tensor | None = None
     frames_in_window: int = 0
@@ -173,6 +174,7 @@ def run_windowed_discrete_online(
                     len(model.blocks),
                     device=device,
                     action_names=config.get("rl_action_names"),
+                    peft_max_episode_delta_norm=config.get("rl_peft_max_episode_delta_norm"),
                 )
                 encoder = ModulationObservationEncoder()
                 policy = DiscreteSafePolicy(len(encoder.FIELDS), len(actions)).to(device)
@@ -333,6 +335,9 @@ def run_windowed_discrete_frame(
         if sampled_action.peft_groups
         else {}
     )
+    if sampled_action.peft_max_episode_delta_norm is not None:
+        for name, value in frame_peft_snapshot.items():
+            state.trajectory_peft_snapshot.setdefault(name, value.detach().clone())
     selected_cir_alpha = (
         float(sampled_action.cir_alpha)
         if getattr(sampled_action, "cir_alpha", None) is not None
@@ -340,6 +345,11 @@ def run_windowed_discrete_frame(
     )
     peft_delta_norm = 0.0
     window_peft_delta_norm = 0.0
+    trajectory_peft_delta_norm = (
+        _snapshot_delta_norm(state.model, state.trajectory_peft_snapshot)
+        if state.trajectory_peft_snapshot
+        else 0.0
+    )
     if sampled_action.peft_groups:
         _apply_adapt_peft_update(
             state.model,
@@ -359,14 +369,23 @@ def run_windowed_discrete_frame(
                     state.current_window_peft_snapshot,
                     float(sampled_action.peft_max_delta_norm),
                 )
-            peft_delta_norm = _snapshot_delta_norm(state.model, frame_peft_snapshot)
-            if state.current_window_peft_snapshot is not None:
-                window_peft_delta_norm = _snapshot_delta_norm(
-                    state.model,
-                    state.current_window_peft_snapshot,
-                )
-        else:
-            peft_delta_norm = _snapshot_delta_norm(state.model, frame_peft_snapshot)
+        if sampled_action.peft_max_episode_delta_norm is not None:
+            _clip_peft_delta_to_snapshot(
+                state.model,
+                state.trajectory_peft_snapshot,
+                float(sampled_action.peft_max_episode_delta_norm),
+            )
+        peft_delta_norm = _snapshot_delta_norm(state.model, frame_peft_snapshot)
+        if state.current_window_peft_snapshot is not None:
+            window_peft_delta_norm = _snapshot_delta_norm(
+                state.model,
+                state.current_window_peft_snapshot,
+            )
+        if state.trajectory_peft_snapshot:
+            trajectory_peft_delta_norm = _snapshot_delta_norm(
+                state.model,
+                state.trajectory_peft_snapshot,
+            )
         if state.current_accumulator is not None:
             state.current_accumulator.action_delta_norm += float(peft_delta_norm)
     logits_after = refine_logits_with_tail(
@@ -582,6 +601,11 @@ def run_windowed_discrete_frame(
             None if sampled_action.peft_max_delta_norm is None
             else float(sampled_action.peft_max_delta_norm)
         ),
+        "peft_max_episode_delta_norm": (
+            None if sampled_action.peft_max_episode_delta_norm is None
+            else float(sampled_action.peft_max_episode_delta_norm)
+        ),
+        "trajectory_peft_delta_norm_before_reward": float(trajectory_peft_delta_norm),
         "window_peft_delta_norm_before_reward": float(window_peft_delta_norm),
         "peft_objective": str(sampled_action.peft_objective),
         "data_labels_used_online": False,
