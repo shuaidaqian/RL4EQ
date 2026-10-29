@@ -36,6 +36,7 @@ class DiscreteSafeAction:
 @dataclass(frozen=True)
 class DiscretePolicySample:
     action: DiscreteSafeAction
+    probabilities: torch.Tensor
     log_prob: torch.Tensor
     value: torch.Tensor
     entropy: torch.Tensor
@@ -194,6 +195,7 @@ class DiscreteSafePolicy(nn.Module):
         action = actions[int(index.flatten()[0].item())]
         return DiscretePolicySample(
             action=action,
+            probabilities=dist.probs,
             log_prob=dist.log_prob(index),
             value=self.value_head(state).squeeze(-1),
             entropy=dist.entropy(),

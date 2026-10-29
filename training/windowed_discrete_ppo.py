@@ -108,6 +108,7 @@ class WindowedDiscreteOnlineState:
     cir_update_mode: str = "fixed"
     cir_update_alpha: float = 0.2
     current_action: DiscreteSafeAction | None = None
+    current_action_probabilities: torch.Tensor | None = None
     current_observation: torch.Tensor | None = None
     current_pilot_state_embedding: torch.Tensor | None = None
     current_hidden: torch.Tensor | None = None
@@ -348,6 +349,7 @@ def run_windowed_discrete_frame(
             )
         state.hidden = sample.hidden
         state.current_action = sample.action
+        state.current_action_probabilities = sample.probabilities.detach().clone()
         state.current_observation = observation.detach()
         state.current_hidden = hidden_in.detach()
         state.current_log_prob = sample.log_prob.detach()
@@ -673,6 +675,7 @@ def run_windowed_discrete_frame(
         "reward_pilot_ber_before": float(reward_before_ber),
         "reward_pilot_ber_after": float(reward_after_ber),
         "policy_learning": "windowed_discrete_safe_ppo",
+        "policy_learning_rate": float(state.optimizer.param_groups[0]["lr"]),
         "cir_update_mode": str(state.cir_update_mode),
         "cir_update_alpha": float(getattr(state, "cir_update_alpha", 0.0)),
         "selected_cir_update_alpha": float(selected_cir_alpha),
@@ -681,6 +684,27 @@ def run_windowed_discrete_frame(
         "receiver_action_type": _receiver_action_type(sampled_action),
         "policy_loss": policy_loss,
         "policy_action_name": sampled_action.name,
+        "policy_action_probabilities": (
+            None
+            if state.current_action_probabilities is None
+            else {
+                action.name: float(probability)
+                for action, probability in zip(
+                    state.actions,
+                    state.current_action_probabilities.detach().cpu().reshape(-1).tolist(),
+                )
+            }
+        ),
+        "selected_action_probability": (
+            None
+            if state.current_action_probabilities is None
+            else float(
+                state.current_action_probabilities.reshape(-1)[sampled_action.index]
+                .detach()
+                .cpu()
+                .item()
+            )
+        ),
         "applied_action_name": applied_action.name,
         "safe_action_accepted": bool(accepted),
         "peft_frame_accepted": bool(peft_frame_accepted),

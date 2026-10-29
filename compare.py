@@ -286,6 +286,12 @@ def main() -> None:
     )
     parser.add_argument("--update-interval", type=int, default=32)
     parser.add_argument(
+        "--online-ppo-learning-rate",
+        type=float,
+        default=None,
+        help="覆盖离散 PPO 的在线学习率；未指定时沿用配置默认值。",
+    )
+    parser.add_argument(
         "--scheduler",
         choices=["fixed", "bandit"],
         default=None,
@@ -440,6 +446,7 @@ def main() -> None:
             "online_drift_gate_threshold": args.online_drift_gate_threshold,
             "online_condition_source": args.online_condition_source,
             "online_ppo_pilot_state_embedding": args.online_ppo_pilot_state_embedding,
+            "online_ppo_learning_rate": args.online_ppo_learning_rate,
             "online_scheduler": scheduler,
         },
     )
@@ -1048,6 +1055,14 @@ def _build_method_states(
             )
             policy = DiscreteSafePolicy(len(encoder.FIELDS), len(actions)).to(device)
             initialize_safe_discrete_policy_prior(policy, actions)
+            configured_ppo_learning_rate = config.get("online_ppo_learning_rate")
+            ppo_learning_rate = (
+                3e-5
+                if configured_ppo_learning_rate is None
+                else float(configured_ppo_learning_rate)
+            )
+            if not math.isfinite(ppo_learning_rate) or ppo_learning_rate <= 0.0:
+                raise ValueError("离散 PPO 在线学习率必须是正的有限数。")
             policy_loaded = _load_discrete_policy_if_available(
                 policy,
                 policy_path,
@@ -1061,7 +1076,9 @@ def _build_method_states(
                     receiver_state=ReceiverState(initial_soft_tail.clone().to(device)),
                     model=model,
                     policy=policy,
-                    optimizer=torch.optim.AdamW(policy.parameters(), lr=3e-5),
+                    optimizer=torch.optim.AdamW(
+                        policy.parameters(), lr=ppo_learning_rate
+                    ),
                     encoder=encoder,
                     actions=actions,
                     hidden=policy.initial_hidden(batch_size=1, device=torch.device(device)),

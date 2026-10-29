@@ -267,6 +267,10 @@ def test_discrete_policy_observation_is_independent_of_reward_pilot_waveform():
     assert first_row["policy_observation_source"] == "adapt_pilot_only"
     assert first_row["reward_pilot_waveform_used_for_policy_observation"] is False
     assert second_row["reward_pilot_waveform_used_for_policy_observation"] is False
+    assert abs(sum(first_row["policy_action_probabilities"].values()) - 1.0) < 1e-6
+    assert first_row["selected_action_probability"] == first_row[
+        "policy_action_probabilities"
+    ][first_row["policy_action_name"]]
 
 
 def test_old_discrete_policy_checkpoint_zero_pads_new_pilot_state_inputs(tmp_path):
@@ -313,6 +317,7 @@ def test_old_discrete_policy_checkpoint_zero_pads_new_pilot_state_inputs(tmp_pat
     )
 
     assert old_sample.action.name == new_sample.action.name
+    assert torch.equal(old_sample.probabilities, new_sample.probabilities)
     assert torch.equal(old_sample.log_prob, new_sample.log_prob)
 
 
@@ -754,8 +759,15 @@ def test_rollback_alias_keeps_sampled_action_index_for_ppo(monkeypatch, tmp_path
         del generator
         action = next(action for action in actions if action.name == "rollback_identity")
         index = torch.tensor([action.index], device=observation.device)
-        log_prob, value, entropy = self.evaluate_action(observation, hidden, index)
-        return DiscretePolicySample(action, log_prob, value, entropy, hidden)
+        dist, state, next_hidden = self._dist(observation, hidden)
+        return DiscretePolicySample(
+            action=action,
+            probabilities=dist.probs,
+            log_prob=dist.log_prob(index),
+            value=self.value_head(state).squeeze(-1),
+            entropy=dist.entropy(),
+            hidden=next_hidden,
+        )
 
     def capture_rollout(policy, optimizer, rollout):
         del optimizer
