@@ -12,18 +12,26 @@ from types import SimpleNamespace
 import torch
 import torch.nn.functional as F
 
-from agent.cir_estimator import CIRCondition, condition_from_cir
-from agent.cir_estimator import decision_directed_cir_update
+from agent.cir_estimator import (
+    CIRCondition,
+    condition_from_cir,
+    decision_directed_cir_update,
+    pilot_sparse_cir_update,
+)
 from agent.discrete_safe_policy import (
     DiscreteSafeAction,
     DiscreteSafePolicy,
     initialize_safe_discrete_policy_prior,
     safe_modulation_actions,
 )
+from agent.pilot_state import PilotStateEmbedding, build_pilot_state_summary
 from agent.rl_modulator import ModulationObservationEncoder
 from agent.unfolded_equalizer import UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate
-from baseline.traditional_equalizers import estimate_phase_residual_vector
+from baseline.traditional_equalizers import (
+    estimate_phase_residual_features,
+    estimate_phase_residual_vector,
+)
 from env.comm_env import CommunicationEnvironment, ReceiverState
 from env.experiment_config import (
     build_comm_env_config,
@@ -96,10 +104,12 @@ class WindowedDiscreteOnlineState:
     previous_window_reward: float
     last_action_delta_norm: float
     rollout: list[dict]
+    policy_generator: torch.Generator | None = None
     cir_update_mode: str = "fixed"
     cir_update_alpha: float = 0.2
     current_action: DiscreteSafeAction | None = None
     current_observation: torch.Tensor | None = None
+    current_pilot_state_embedding: torch.Tensor | None = None
     current_hidden: torch.Tensor | None = None
     current_log_prob: torch.Tensor | None = None
     current_value: torch.Tensor | None = None
@@ -162,6 +172,7 @@ def run_windowed_discrete_online(
     rows = []
     last_policy: DiscreteSafePolicy | None = None
     last_actions: list[DiscreteSafeAction] = []
+    last_observation_fields: tuple[str, ...] = ()
     for delay in selected_delays:
         for snr_db in selected_snrs:
             for seed in range(int(num_seeds)):
@@ -176,7 +187,7 @@ def run_windowed_discrete_online(
                     action_names=config.get("rl_action_names"),
                     peft_max_episode_delta_norm=config.get("rl_peft_max_episode_delta_norm"),
                 )
-                encoder = ModulationObservationEncoder()
+                encoder = ModulationObservationEncoder(include_pilot_state=True)
                 policy = DiscreteSafePolicy(len(encoder.FIELDS), len(actions)).to(device)
                 initialize_safe_discrete_policy_prior(policy, actions)
                 policy_loaded = _load_discrete_policy_if_available(
@@ -189,6 +200,7 @@ def run_windowed_discrete_online(
                 optimizer = torch.optim.AdamW(policy.parameters(), lr=3e-5)
                 last_policy = policy
                 last_actions = actions
+                last_observation_fields = encoder.FIELDS
                 env_config = env_configs[(int(delay), float(snr_db), int(seed))]
                 env = CommunicationEnvironment(env_config)
                 start = env.reset_episode()
@@ -205,6 +217,9 @@ def run_windowed_discrete_online(
                     encoder=encoder,
                     actions=actions,
                     hidden=policy.initial_hidden(batch_size=1, device=torch.device(device)),
+                    policy_generator=torch.Generator(
+                        device=torch.device(device)
+                    ).manual_seed(72_000 + int(seed)),
                     window_size=int(window_size),
                     previous_window_reward=0.0,
                     last_action_delta_norm=0.0,
@@ -217,7 +232,7 @@ def run_windowed_discrete_online(
                 for frame_index in range(1, int(frames) + 1):
                     frame = _frame_to_device(env.next_frame(), device)
                     phase_features = estimate_phase_residual_vector(
-                        frame.receiver_view(),
+                        _adapt_receiver_view(frame),
                         state.cir,
                         state.receiver_state.soft_tail,
                         blocks=4,
@@ -258,6 +273,7 @@ def run_windowed_discrete_online(
                 "schema_version": "windowed-discrete-policy-v1",
                 "state_dict": last_policy.state_dict(),
                 "action_names": [action.name for action in last_actions],
+                "observation_fields": list(last_observation_fields),
             },
             target / "policy.pt",
         )
@@ -296,6 +312,15 @@ def run_windowed_discrete_frame(
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
         ).squeeze(0)
+        pilot_state_embedding = None
+        if bool(getattr(state.encoder, "include_pilot_state", False)):
+            pilot_state_embedding = _build_adapt_pilot_state_embedding(
+                frame,
+                state.cir,
+                tail.squeeze(0),
+                condition,
+                policy_logits,
+            )
         observation = state.encoder(
             _policy_view(
                 frame,
@@ -303,10 +328,24 @@ def run_windowed_discrete_frame(
                 policy_logits,
                 state.previous_window_reward,
                 state.last_action_delta_norm,
+                pilot_state_embedding=pilot_state_embedding,
             )
         ).tensor.unsqueeze(0)
+        state.current_pilot_state_embedding = (
+            None
+            if pilot_state_embedding is None
+            else pilot_state_embedding.detach().clone()
+        )
         hidden_in = state.hidden.detach()
-        sample = state.policy.sample(observation, hidden_in, state.actions)
+        if state.policy_generator is None:
+            sample = state.policy.sample(observation, hidden_in, state.actions)
+        else:
+            sample = state.policy.sample(
+                observation,
+                hidden_in,
+                state.actions,
+                generator=state.policy_generator,
+            )
         state.hidden = sample.hidden
         state.current_action = sample.action
         state.current_observation = observation.detach()
@@ -666,6 +705,15 @@ def run_windowed_discrete_frame(
         "data_waveform_used_online": False,
         "policy_observation_source": "adapt_pilot_only",
         "reward_pilot_waveform_used_for_policy_observation": False,
+        "pilot_state_embedding_used": bool(
+            getattr(state.encoder, "include_pilot_state", False)
+        ),
+        "pilot_state_embedding": (
+            None
+            if state.current_pilot_state_embedding is None
+            else state.current_pilot_state_embedding.detach().cpu().tolist()
+        ),
+        "policy_observation_fields": list(getattr(state.encoder, "FIELDS", ())),
         "online_waveform_visibility": "adapt_pilot_for_update_reward_pilot_for_guard",
         "adapt_params": int(state.policy.parameter_count() if policy_loss is not None else 0),
         "adapt_steps": int(1 if policy_loss is not None else 0),
@@ -975,6 +1023,26 @@ def _load_discrete_policy_if_available(
     state_dict = checkpoint.get("state_dict")
     if not state_dict:
         raise ValueError("policy checkpoint 缺少非空 state_dict。")
+    state_dict = dict(state_dict)
+    input_weight_name = "encoder.0.weight"
+    target_state = policy.state_dict()
+    stored_input_weight = state_dict.get(input_weight_name)
+    target_input_weight = target_state.get(input_weight_name)
+    if (
+        stored_input_weight is not None
+        and target_input_weight is not None
+        and stored_input_weight.ndim == 2
+        and target_input_weight.ndim == 2
+        and stored_input_weight.shape[0] == target_input_weight.shape[0]
+        and stored_input_weight.shape[1] < target_input_weight.shape[1]
+    ):
+        # 旧策略只认识基础 observation；复制原列，新增状态列从零权重开始，
+        # 因此加载瞬间旧策略行为不变，在线 PPO 再学习新状态特征。
+        padded_weight = torch.zeros_like(target_input_weight)
+        padded_weight[:, : stored_input_weight.shape[1]] = stored_input_weight.to(
+            device=padded_weight.device, dtype=padded_weight.dtype
+        )
+        state_dict[input_weight_name] = padded_weight
     try:
         policy.load_state_dict(state_dict, strict=True)
     except RuntimeError as exc:
@@ -985,7 +1053,14 @@ def _load_discrete_policy_if_available(
     return True
 
 
-def _policy_view(frame, snr_db: float, logits: torch.Tensor, previous_reward: float, last_delta_norm: float):
+def _policy_view(
+    frame,
+    snr_db: float,
+    logits: torch.Tensor,
+    previous_reward: float,
+    last_delta_norm: float,
+    pilot_state_embedding: torch.Tensor | None = None,
+):
     view = _adapt_receiver_view(frame)
     adapt_only_mask = view.adapt_mask.to(dtype=torch.bool)
     adapt_only_rx = torch.where(
@@ -1003,7 +1078,49 @@ def _policy_view(frame, snr_db: float, logits: torch.Tensor, previous_reward: fl
         confidence=torch.sigmoid(torch.abs(logits)).mean(),
         previous_reward=torch.tensor(previous_reward, device=logits.device),
         last_modulation_delta_norm=torch.tensor(last_delta_norm, device=logits.device),
+        pilot_state_embedding=pilot_state_embedding,
     )
+
+
+def _build_adapt_pilot_state_embedding(
+    frame,
+    cir: torch.Tensor,
+    soft_tail: torch.Tensor,
+    condition: CIRCondition,
+    adapt_logits: torch.Tensor,
+) -> torch.Tensor:
+    """把当前 Adapt Pilot 的信道与 phase 诊断压成有界状态向量。"""
+
+    latent = condition.latent_residual.reshape(-1)
+    phase0, cfo = estimate_phase_residual_features(
+        _adapt_receiver_view(frame), cir, soft_tail
+    )
+    candidate_cir = pilot_sparse_cir_update(
+        frame,
+        cir.detach(),
+        soft_tail.detach(),
+        max_paths=24,
+        alpha=1.0,
+        cfo_hint=cfo,
+    ).to(cir.device)
+    adapt_mask = frame.adapt_mask.to(device=adapt_logits.device, dtype=torch.bool)
+    confidence = torch.sigmoid(torch.abs(adapt_logits[adapt_mask])).mean()
+    residual_indices = torch.arange(3, min(latent.numel(), 16), 4, device=latent.device)
+    reconstruction_error = (
+        latent[residual_indices].mean()
+        if residual_indices.numel() > 0
+        else torch.zeros((), dtype=torch.float32, device=cir.device)
+    )
+    summary = build_pilot_state_summary(
+        cir=candidate_cir,
+        reference_cir=cir,
+        phase0=phase0,
+        cfo_cycles_per_symbol=cfo,
+        noise_variance=condition.noise_variance,
+        confidence=confidence,
+        reconstruction_error=reconstruction_error,
+    )
+    return PilotStateEmbedding()(summary).to(device=adapt_logits.device)
 
 
 def _adapt_receiver_view(frame):

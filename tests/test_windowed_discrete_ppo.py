@@ -216,7 +216,7 @@ def test_discrete_policy_observation_is_independent_of_reward_pilot_waveform():
     cir = torch.zeros(5, dtype=torch.complex64)
     cir[0] = 1.0 + 0.0j
     actions = safe_modulation_actions(num_blocks=1, action_names=["identity"])
-    encoder = ModulationObservationEncoder()
+    encoder = ModulationObservationEncoder(include_pilot_state=True)
 
     def observe(reward_waveform):
         torch.manual_seed(147)
@@ -262,9 +262,58 @@ def test_discrete_policy_observation_is_independent_of_reward_pilot_waveform():
 
     assert torch.equal(first_observation, second_observation)
     assert torch.equal(first_condition, second_condition)
+    assert first_observation.shape[-1] == len(encoder.BASE_FIELDS) + 6
+    assert torch.equal(first_observation[..., -6:], second_observation[..., -6:])
     assert first_row["policy_observation_source"] == "adapt_pilot_only"
     assert first_row["reward_pilot_waveform_used_for_policy_observation"] is False
     assert second_row["reward_pilot_waveform_used_for_policy_observation"] is False
+
+
+def test_old_discrete_policy_checkpoint_zero_pads_new_pilot_state_inputs(tmp_path):
+    from agent.discrete_safe_policy import DiscreteSafePolicy, safe_modulation_actions
+    from training.windowed_discrete_ppo import _load_discrete_policy_if_available
+
+    old_policy = DiscreteSafePolicy(observation_dim=16, action_count=3, hidden_size=8)
+    new_policy = DiscreteSafePolicy(observation_dim=22, action_count=3, hidden_size=8)
+    checkpoint_path = tmp_path / "old_policy.pt"
+    torch.save(
+        {
+            "state_dict": old_policy.state_dict(),
+            "action_names": ["identity", "moderate", "rollback"],
+        },
+        checkpoint_path,
+    )
+
+    loaded = _load_discrete_policy_if_available(
+        new_policy,
+        checkpoint_path,
+        "cpu",
+        required=True,
+        expected_action_names=["identity", "moderate", "rollback"],
+    )
+
+    assert loaded
+    assert torch.equal(
+        new_policy.encoder[0].weight[:, :16], old_policy.encoder[0].weight
+    )
+    assert torch.count_nonzero(new_policy.encoder[0].weight[:, 16:]) == 0
+    actions = safe_modulation_actions(
+        num_blocks=1,
+        action_names=["identity", "peft_phase_signal_moderate", "rollback_identity"],
+    )
+    old_observation = torch.randn(1, 16)
+    new_observation = torch.cat((old_observation, torch.zeros(1, 6)), dim=-1)
+    old_generator = torch.Generator().manual_seed(913)
+    new_generator = torch.Generator().manual_seed(913)
+    old_sample = old_policy.sample(
+        old_observation, old_policy.initial_hidden(), actions, generator=old_generator
+    )
+    new_sample = new_policy.sample(
+        new_observation, new_policy.initial_hidden(), actions, generator=new_generator
+    )
+
+    assert old_sample.action.name == new_sample.action.name
+    assert torch.equal(old_sample.log_prob, new_sample.log_prob)
 
 
 def test_window_peft_delta_projection_caps_cumulative_action_change():
@@ -701,7 +750,8 @@ def test_rollback_alias_keeps_sampled_action_index_for_ppo(monkeypatch, tmp_path
 
     captured = []
 
-    def sample_rollback(self, observation, hidden, actions):
+    def sample_rollback(self, observation, hidden, actions, generator=None):
+        del generator
         action = next(action for action in actions if action.name == "rollback_identity")
         index = torch.tensor([action.index], device=observation.device)
         log_prob, value, entropy = self.evaluate_action(observation, hidden, index)

@@ -180,9 +180,17 @@ class DiscreteSafePolicy(nn.Module):
         observation: torch.Tensor,
         hidden: torch.Tensor,
         actions: list[DiscreteSafeAction],
+        generator: torch.Generator | None = None,
     ) -> DiscretePolicySample:
         dist, state, next_hidden = self._dist(observation, hidden)
-        index = dist.sample()
+        if generator is None:
+            index = dist.sample()
+        else:
+            index = torch.multinomial(
+                dist.probs,
+                num_samples=1,
+                generator=generator,
+            ).squeeze(-1)
         action = actions[int(index.flatten()[0].item())]
         return DiscretePolicySample(
             action=action,

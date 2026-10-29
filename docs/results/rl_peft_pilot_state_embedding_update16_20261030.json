@@ -1,0 +1,147 @@
+{
+  "schema_version": "rl-peft-pilot-state-embedding-update16-v1",
+  "date": "2026-10-30",
+  "status": "diagnostic_only_embedding_no_measurable_gain",
+  "protocol": {
+    "channel_level": "B",
+    "profile": "eme_long_memory_v2",
+    "impairment_profile": "cfo_phase_tiny",
+    "state_split": "heldout_edge",
+    "delay_symbols": 116,
+    "snr_db": 5,
+    "acquisition_gap_seconds": 0,
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "adapt_pilot_total": 224,
+    "reward_pilot_total": 32,
+    "seeds": [1081, 1082, 1083, 1084, 1085],
+    "frames_per_seed": 60,
+    "update_interval": 16,
+    "policy_window_size": 8,
+    "online_condition_source": "pilot_cir_phase",
+    "cir_update_mode": "fixed",
+    "device": "cpu",
+    "offline_checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "offline_checkpoint_retrained_or_modified": false,
+    "policy_initialization": "docs/results/assets/rl_peft_moderate_exploration_policy_init.pt",
+    "policy_initialization_sha256": "149CBFF70E1561195FFD984E1249EFAE99C39EED6F7DFB0E13FB52F4155678E5"
+  },
+  "comparison": {
+    "design": "paired same-seed, same-frame replay; Adapt-only six-feature state embedding on versus off",
+    "observation_dimensions": {
+      "embedding_off": 16,
+      "embedding_on": 22
+    },
+    "pilot_state_features": [
+      "pilot_cir_residual_norm",
+      "pilot_phase0",
+      "pilot_cfo_cycles_per_symbol",
+      "pilot_noise_variance",
+      "pilot_confidence",
+      "pilot_reconstruction_error"
+    ],
+    "embedding_on_distinct_vectors": 40,
+    "embedding_on_frames": 300,
+    "online_action_counts_both_arms": {
+      "identity": 176,
+      "peft_phase_signal_moderate": 124
+    },
+    "action_sequence_differences": 0,
+    "paired_data_ber_frame_differences": 0,
+    "paired_frozen_state_or_input_hash_differences": 0,
+    "policy_loss_updates": 15,
+    "policy_loss_update_rows_with_different_values": 7,
+    "moderate_peft_candidates": 124,
+    "moderate_candidates_reward_accepted": 63,
+    "moderate_candidates_reward_rejected": 61,
+    "window_reward_rollbacks": 9,
+    "frames_with_changed_data_logits_eval_only": 67,
+    "mean_data_logits_abs_delta_eval_only": 0.025700087528675794,
+    "mean_data_bce_improvement_eval_only": 0.00023502091566721597,
+    "online_data_waveform_or_label_boundary_violations": 0
+  },
+  "update_interval_control": {
+    "design": "same five seeds and frames; pilot state embedding disabled in both arms",
+    "intervals_compared": [8, 16],
+    "frozen_mean_ber_percent_both_arms": 5.578125,
+    "online_mean_ber_percent_both_arms": 5.476996521155039,
+    "mean_improvement_percentage_points_both_arms": 0.101128478844961,
+    "per_seed_improvements_pp_both_arms": {
+      "1081": 0.04340277363856693,
+      "1082": -0.004340279847383499,
+      "1083": 0.34505213300387094,
+      "1084": 0.11067708333333304,
+      "1085": 0.01085068409641643
+    },
+    "policy_loss_updates_interval8": 35,
+    "policy_loss_updates_interval16": 15,
+    "online_action_counts_both_arms": {
+      "identity": 176,
+      "peft_phase_signal_moderate": 124
+    },
+    "moderate_candidates_reward_accepted_both_arms": 63,
+    "moderate_candidates_reward_rejected_both_arms": 61,
+    "window_reward_rollbacks_both_arms": 9,
+    "paired_frame_ber_differences": 0,
+    "paired_input_hash_or_state_differences": 0,
+    "mean_gain_difference_update8_minus_update16_pp": 0,
+    "interpretation": "More frequent PPO loss updates did not change any sampled action, PEFT acceptance, or frame BER on these paired trajectories."
+  },
+  "ber_results": {
+    "aggregation": "mean of frame BER across 300 frames; seed-level comparisons are paired",
+    "frozen_mean_ber_percent": 5.578125,
+    "online_mean_ber_percent_both_arms": 5.476996521155039,
+    "mean_improvement_percentage_points_both_arms": 0.101128478844961,
+    "positive_seed_count_both_arms": 4,
+    "seed_count": 5,
+    "seed_level_improvement_95_percent_t_interval_pp": [
+      -0.076863,
+      0.27912
+    ],
+    "per_seed": [
+      {
+        "seed": 1081,
+        "frozen_ber_percent": 4.273003476361434,
+        "online_ber_percent": 4.229600702722867,
+        "improvement_pp": 0.04340277363856693
+      },
+      {
+        "seed": 1082,
+        "frozen_ber_percent": 5.36241317478319,
+        "online_ber_percent": 5.366753454630573,
+        "improvement_pp": -0.004340279847383499
+      },
+      {
+        "seed": 1083,
+        "frozen_ber_percent": 8.207465292265018,
+        "online_ber_percent": 7.8624131592611475,
+        "improvement_pp": 0.34505213300387094
+      },
+      {
+        "seed": 1084,
+        "frozen_ber_percent": 4.9999999813735485,
+        "online_ber_percent": 4.8893228980402155,
+        "improvement_pp": 0.11067708333333304
+      },
+      {
+        "seed": 1085,
+        "frozen_ber_percent": 5.04774307521681,
+        "online_ber_percent": 5.036892391120394,
+        "improvement_pp": 0.01085068409641643
+      }
+    ]
+  },
+  "information_boundary": {
+    "policy_observation_source": "adapt_pilot_only",
+    "reward_pilot_used_only_after_action_for_acceptance_reward_and_rollback": true,
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false,
+    "data_metrics_are_evaluation_only": true
+  },
+  "raw_logs": [
+    "logs/rl_peft_pilot_state_embedding_rngpaired_gap0_heldout_edge_5db_5s60f_update16_seed1081_1085_20261030/",
+    "logs/rl_peft_pilot_no_state_embedding_rngpaired_gap0_heldout_edge_5db_5s60f_update16_seed1081_1085_20261030/",
+    "logs/rl_peft_pilot_no_state_embedding_rngpaired_gap0_heldout_edge_5db_5s60f_update8_seed1081_1085_20261030/"
+  ],
+  "conclusion": "The six Adapt-Pilot state features changed the observation and some PPO loss values, but all 300 online actions, PEFT decisions, and frame-level Data BER results matched exactly with embedding off. The embedding adds no measurable online equalization benefit in this replay. On the same seeds, changing the PPO loss update interval from 16 to 8 also left all actions and BER identical despite increasing optimizer updates from 15 to 35. The small mean PEFT gain versus Frozen Offline NN is +0.1011 pp and its seed-level 95% interval includes zero."
+}

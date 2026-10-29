@@ -32,7 +32,7 @@ class ModulationObservationEncoder:
     计算 reward；Data 标签只在仿真评估中使用。
     """
 
-    FIELDS = (
+    BASE_FIELDS = (
         "rx_power_mean",
         "rx_power_std",
         "adapt_fraction",
@@ -50,6 +50,21 @@ class ModulationObservationEncoder:
         "adapt_symbol_std",
         "reserved_0",
     )
+
+    PILOT_STATE_FIELDS = (
+        "pilot_cir_residual_norm",
+        "pilot_phase0",
+        "pilot_cfo_cycles_per_symbol",
+        "pilot_noise_variance",
+        "pilot_confidence",
+        "pilot_reconstruction_error",
+    )
+
+    def __init__(self, include_pilot_state: bool = False) -> None:
+        self.include_pilot_state = bool(include_pilot_state)
+        self.FIELDS = self.BASE_FIELDS + (
+            self.PILOT_STATE_FIELDS if self.include_pilot_state else ()
+        )
 
     def __call__(self, view: Any) -> ModulationObservation:
         rx = _as_complex(getattr(view, "rx_symbols")).flatten()
@@ -79,6 +94,19 @@ class ModulationObservationEncoder:
                 torch.zeros((), device=device),
             )
         ).to(torch.float32)
+        if self.include_pilot_state:
+            pilot_state = getattr(view, "pilot_state_embedding", None)
+            if pilot_state is None:
+                pilot_state = torch.zeros(
+                    len(self.PILOT_STATE_FIELDS), dtype=torch.float32, device=device
+                )
+            else:
+                pilot_state = torch.as_tensor(
+                    pilot_state, dtype=torch.float32, device=device
+                ).reshape(-1)
+            if pilot_state.numel() != len(self.PILOT_STATE_FIELDS):
+                raise ValueError("Pilot 状态 embedding 必须是 6 维。")
+            features = torch.cat((features, pilot_state))
         return ModulationObservation(features, self.FIELDS)
 
 

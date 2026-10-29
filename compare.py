@@ -366,6 +366,12 @@ def main() -> None:
         choices=["acquisition", "pilot_phase", "pilot_cir_phase"],
         default=None,
     )
+    parser.add_argument(
+        "--online-ppo-pilot-state-embedding",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="把 Adapt Pilot 的 CIR/phase 状态摘要加入离散 PPO 动作 observation。",
+    )
     parser.add_argument("--output-dir", default="logs/compare")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--resume", action="store_true")
@@ -433,6 +439,7 @@ def main() -> None:
             "online_adaptation_freeze_below_snr_db": args.online_freeze_below_snr_db,
             "online_drift_gate_threshold": args.online_drift_gate_threshold,
             "online_condition_source": args.online_condition_source,
+            "online_ppo_pilot_state_embedding": args.online_ppo_pilot_state_embedding,
             "online_scheduler": scheduler,
         },
     )
@@ -1034,7 +1041,11 @@ def _build_method_states(
             )
             from agent.rl_modulator import ModulationObservationEncoder
 
-            encoder = ModulationObservationEncoder()
+            encoder = ModulationObservationEncoder(
+                include_pilot_state=bool(
+                    config.get("online_ppo_pilot_state_embedding", True)
+                )
+            )
             policy = DiscreteSafePolicy(len(encoder.FIELDS), len(actions)).to(device)
             initialize_safe_discrete_policy_prior(policy, actions)
             policy_loaded = _load_discrete_policy_if_available(
@@ -1054,6 +1065,11 @@ def _build_method_states(
                     encoder=encoder,
                     actions=actions,
                     hidden=policy.initial_hidden(batch_size=1, device=torch.device(device)),
+                    policy_generator=torch.Generator(
+                        device=torch.device(device)
+                    ).manual_seed(
+                        _method_seed("discrete_policy_sampling", seed, delay, snr_db)
+                    ),
                     window_size=int(config.get("ppo_window_size", 8)),
                     previous_window_reward=0.0,
                     last_action_delta_norm=0.0,
