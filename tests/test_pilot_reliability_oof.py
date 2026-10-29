@@ -21,6 +21,7 @@ def _rows():
                     "reconstruction_error": 0.3,
                     "confidence": 0.8,
                     "data_labels_used_online": False,
+                    "data_waveform_used_online": False,
                 }
                 rows.extend(
                     [
@@ -80,4 +81,12 @@ def test_oof_calibrator_rejects_logs_that_used_data_labels_online():
     rows[0]["data_labels_used_online"] = True
 
     with pytest.raises(ValueError, match="在线使用了 Data 标签"):
+        evaluate_rows(rows)
+
+
+def test_oof_calibrator_rejects_logs_that_used_data_waveforms_online():
+    rows = _rows()
+    rows[0]["data_waveform_used_online"] = True
+
+    with pytest.raises(ValueError, match="在线使用了 Data 波形"):
         evaluate_rows(rows)

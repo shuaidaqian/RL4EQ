@@ -1,0 +1,281 @@
+{
+  "schema_version": "pilot-peft-stage-results-v1",
+  "date": "2026-10-29",
+  "study": "固定离线 checkpoint 的 Pilot-only PEFT 候选排序诊断；Data 只用于事后评估。",
+  "checkpoint": {
+    "path": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+    "sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "modified_or_retrained": false
+  },
+  "fixed_conditions": {
+    "channel": "Level B / eme_long_memory_v2",
+    "maximum_delay_symbols": 116,
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "adapt_pilot": 224,
+    "reward_pilot": 32,
+    "snr_db": [
+      5,
+      10,
+      15
+    ],
+    "acquisition_gap_seconds": 600,
+    "gap_is_stress_diagnostic_not_main_average": true
+  },
+  "isolation": {
+    "adapt_update_uses_only_adapt_pilot_waveform": true,
+    "reward_gate_uses_only_pilot_waveforms": true,
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false,
+    "data_metrics_are_post_decision_diagnostics": true,
+    "protocol_fix": "对 Adapt 前向/状态特征、Reward 验收前向分别屏蔽不可见波形；未被前缀 Pilot 覆盖的尾状态不更新。"
+  },
+  "cumulative_objective_replay": {
+    "trials": 81,
+    "ranking_groups": 27,
+    "adapt_objectives": [
+      "BCE",
+      "信号重构",
+      "联合 BCE+信号重构"
+    ],
+    "adapt_history_frames": [
+      1,
+      3,
+      5
+    ],
+    "pilot_reward_vs_future_data_bce": {
+      "comparable_pairs": 62,
+      "concordant_pairs": 27,
+      "discordant_pairs": 35,
+      "tied_pairs": 19,
+      "agreement": 0.43548387096774194,
+      "interpretation": "只在相同 SNR、seed 和累计窗口的目标之间配对；并列不计入分母。"
+    },
+    "pilot_reward_vs_future_data_ber": {
+      "comparable_pairs": 31,
+      "concordant_pairs": 15,
+      "discordant_pairs": 16,
+      "tied_pairs": 50,
+      "agreement": 0.4838709677419355,
+      "interpretation": "只在相同 SNR、seed 和累计窗口的目标之间配对；并列不计入分母。"
+    },
+    "objective_summary": [
+      {
+        "adapt_objective": "bce",
+        "train_frame_count": 1,
+        "seed_snr_trials": 9,
+        "reward_acceptance_fraction": 0.2222222222222222,
+        "mean_adapt_bce_improvement": 0.002386874622768826,
+        "mean_candidate_data_ber_improvement": 0.0004050905505816142,
+        "mean_candidate_data_bce_improvement": 0.00727791256374783,
+        "positive_data_ber_trial_fraction": 0.6666666666666666,
+        "mean_committed_data_ber_improvement": 8.680489328172472e-05,
+        "positive_committed_ber_trial_fraction": 0.1111111111111111
+      },
+      {
+        "adapt_objective": "bce",
+        "train_frame_count": 3,
+        "seed_snr_trials": 9,
+        "reward_acceptance_fraction": 0.1111111111111111,
+        "mean_adapt_bce_improvement": 0.0007674197355906168,
+        "mean_candidate_data_ber_improvement": 0.00011573864354027643,
+        "mean_candidate_data_bce_improvement": 0.004670634534623888,
+        "positive_data_ber_trial_fraction": 0.5555555555555556,
+        "mean_committed_data_ber_improvement": -1.655684577094184e-10,
+        "positive_committed_ber_trial_fraction": 0.0
+      },
+      {
+        "adapt_objective": "bce",
+        "train_frame_count": 5,
+        "seed_snr_trials": 9,
+        "reward_acceptance_fraction": 0.2222222222222222,
+        "mean_adapt_bce_improvement": 0.0010330180327097576,
+        "mean_candidate_data_ber_improvement": -0.00017361392577489216,
+        "mean_candidate_data_bce_improvement": 0.003925077782736885,
+        "positive_data_ber_trial_fraction": 0.4444444444444444,
+        "mean_committed_data_ber_improvement": -3.311369154188368e-10,
+        "positive_committed_ber_trial_fraction": 0.0
+      },
+      {
+        "adapt_objective": "joint",
+        "train_frame_count": 1,
+        "seed_snr_trials": 9,
+        "reward_acceptance_fraction": 0.3333333333333333,
+        "mean_adapt_bce_improvement": 0.0012553268008761937,
+        "mean_candidate_data_ber_improvement": 0.0004050905505816142,
+        "mean_candidate_data_bce_improvement": 0.006013489431805081,
+        "positive_data_ber_trial_fraction": 0.6666666666666666,
+        "mean_committed_data_ber_improvement": 5.787031518088447e-05,
+        "positive_committed_ber_trial_fraction": 0.1111111111111111
+      },
+      {
+        "adapt_objective": "joint",
+        "train_frame_count": 3,
+        "seed_snr_trials": 9,
+        "reward_acceptance_fraction": 0.2222222222222222,
+        "mean_adapt_bce_improvement": 0.0006122191747029623,
+        "mean_candidate_data_ber_improvement": 2.8933253553178584e-05,
+        "mean_candidate_data_bce_improvement": -0.001607684956656562,
+        "positive_data_ber_trial_fraction": 0.4444444444444444,
+        "mean_committed_data_ber_improvement": -5.78709774547153e-05,
+        "positive_committed_ber_trial_fraction": 0.0
+      },
+      {
+        "adapt_objective": "joint",
+        "train_frame_count": 5,
+        "seed_snr_trials": 9,
+        "reward_acceptance_fraction": 0.2222222222222222,
+        "mean_adapt_bce_improvement": 0.0010001394483778211,
+        "mean_candidate_data_ber_improvement": -0.0002893538938628303,
+        "mean_candidate_data_bce_improvement": 0.003938455051845974,
+        "positive_data_ber_trial_fraction": 0.4444444444444444,
+        "mean_committed_data_ber_improvement": -3.311369154188368e-10,
+        "positive_committed_ber_trial_fraction": 0.0
+      },
+      {
+        "adapt_objective": "signal_reconstruction",
+        "train_frame_count": 1,
+        "seed_snr_trials": 9,
+        "reward_acceptance_fraction": 0.2222222222222222,
+        "mean_adapt_bce_improvement": 0.001217537456088596,
+        "mean_candidate_data_ber_improvement": 0.00011573880910873415,
+        "mean_candidate_data_bce_improvement": 0.005076031552420722,
+        "positive_data_ber_trial_fraction": 0.5555555555555556,
+        "mean_committed_data_ber_improvement": -2.8935571511586506e-05,
+        "positive_committed_ber_trial_fraction": 0.0
+      },
+      {
+        "adapt_objective": "signal_reconstruction",
+        "train_frame_count": 3,
+        "seed_snr_trials": 9,
+        "reward_acceptance_fraction": 0.3333333333333333,
+        "mean_adapt_bce_improvement": 0.0004560218916998969,
+        "mean_candidate_data_ber_improvement": -0.00026041931576199003,
+        "mean_candidate_data_bce_improvement": -0.0024455613560146754,
+        "positive_data_ber_trial_fraction": 0.3333333333333333,
+        "mean_committed_data_ber_improvement": -0.00023148357868194578,
+        "positive_committed_ber_trial_fraction": 0.0
+      },
+      {
+        "adapt_objective": "signal_reconstruction",
+        "train_frame_count": 5,
+        "seed_snr_trials": 9,
+        "reward_acceptance_fraction": 0.2222222222222222,
+        "mean_adapt_bce_improvement": 0.00043067336082458496,
+        "mean_candidate_data_ber_improvement": -0.00034722487131754555,
+        "mean_candidate_data_bce_improvement": 0.0026439355479346382,
+        "positive_data_ber_trial_fraction": 0.3333333333333333,
+        "mean_committed_data_ber_improvement": -5.7871474160088426e-05,
+        "positive_committed_ber_trial_fraction": 0.0
+      }
+    ],
+    "interpretation": "没有一个 Adapt 目标或累计窗口表现为稳定赢家。"
+  },
+  "reward_score_replay": {
+    "same_candidate_data_outcomes_across_scores": true,
+    "scores": [
+      {
+        "reward_score": "bce_relative",
+        "candidate_trials": 27,
+        "acceptance_fraction": 0.2962962962962963,
+        "mean_committed_data_ber_improvement": -0.00020254789679138749,
+        "positive_committed_data_ber_fraction": 0.0,
+        "accepted_data_ber_negative_fraction": 1.0
+      },
+      {
+        "reward_score": "joint_relative",
+        "candidate_trials": 27,
+        "acceptance_fraction": 0.25925925925925924,
+        "mean_committed_data_ber_improvement": -0.00010609687478454025,
+        "positive_committed_data_ber_fraction": 0.0,
+        "accepted_data_ber_negative_fraction": 1.0
+      },
+      {
+        "reward_score": "signal_reconstruction",
+        "candidate_trials": 27,
+        "acceptance_fraction": 0.5185185185185185,
+        "mean_committed_data_ber_improvement": 0.00012538438593899764,
+        "positive_committed_data_ber_fraction": 0.2962962962962963,
+        "accepted_data_ber_negative_fraction": 0.42857142857142855
+      }
+    ],
+    "strict_per_frame_signal_reconstruction": {
+      "candidate_trials": 27,
+      "acceptance_fraction": 0.3333333333333333,
+      "mean_committed_data_ber_improvement": -6.75167750429224e-05,
+      "positive_committed_data_ber_fraction": 0.1111111111111111,
+      "accepted_data_ber_negative_fraction": 0.6666666666666666
+    },
+    "interpretation": "信号重构评分相对较好，但提交后正 BER 收益试验不足三分之一；逐帧严格门控没有改善稳定性。"
+  },
+  "current_peft_leave_one_seed_out": {
+    "trials": 36,
+    "candidate_rows": 216,
+    "heldout_seeds": [
+      60,
+      61,
+      62
+    ],
+    "candidate_groups": [
+      "phase-trend",
+      "普通 Adapter",
+      "attention LoRA",
+      "head",
+      "identity"
+    ],
+    "pilot_reward_vs_data_ber": {
+      "spearman": 0.11156994575325414,
+      "sample_count": 216,
+      "spearman_gate_pass": false
+    },
+    "pilot_reward_vs_nonidentity_data_ber": {
+      "spearman": 0.11798957842547647,
+      "sample_count": 180,
+      "spearman_gate_pass": false
+    },
+    "oof_reliability_vs_data_ber": {
+      "spearman": -0.039625842518468186,
+      "sample_count": 216,
+      "spearman_gate_pass": false
+    },
+    "oof_reliability_vs_data_bce": {
+      "spearman": 0.3402700713004295,
+      "sample_count": 216,
+      "spearman_gate_pass": false
+    },
+    "oof_policy_comparison": {
+      "freeze": {
+        "trial_count": 36,
+        "update_coverage": 0.0,
+        "mean_data_ber_improvement": 0.0,
+        "mean_data_bce_improvement": 0.0,
+        "positive_ber_trial_fraction": 0.0
+      },
+      "pilot_reward": {
+        "trial_count": 36,
+        "update_coverage": 1.0,
+        "mean_data_ber_improvement": 0.00018084463145997789,
+        "mean_data_bce_improvement": 0.004295239018069373,
+        "positive_ber_trial_fraction": 0.2222222222222222
+      },
+      "oof_reliability": {
+        "trial_count": 36,
+        "update_coverage": 0.8888888888888888,
+        "mean_data_ber_improvement": 7.233768701553345e-05,
+        "mean_data_bce_improvement": 0.002875367800394694,
+        "positive_ber_trial_fraction": 0.19444444444444445
+      },
+      "offline_bce_oracle": {
+        "trial_count": 36,
+        "update_coverage": 1.0,
+        "mean_data_ber_improvement": 0.00018084463145997789,
+        "mean_data_bce_improvement": 0.004678583807415432,
+        "positive_ber_trial_fraction": 0.25
+      }
+    },
+    "required_spearman_gate": 0.6,
+    "gate_passed": false
+  },
+  "decision": "不启动正式 5 seed × 60 帧矩阵；当前尚未证明 Pilot-only Reward 能稳定筛出 Data BER 获益的 PEFT 更新。",
+  "raw_logs_are_gitignored": true
+}

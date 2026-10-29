@@ -59,7 +59,12 @@ def test_cumulative_mapping_learns_residual_and_ignores_hidden_labels(objective)
     changed_bits, changed_tx = frame.bits.clone(), frame.tx_symbols.clone()
     changed_bits[hidden] = ~changed_bits[hidden]
     changed_tx[hidden] = -changed_tx[hidden]
-    poisoned = replace(frame, bits=changed_bits, tx_symbols=changed_tx)
+    changed_rx = frame.rx_symbols.clone()
+    changed_rx[hidden] = torch.complex(
+        torch.full_like(changed_rx[hidden].real, 1e3),
+        torch.full_like(changed_rx[hidden].imag, -1e3),
+    )
+    poisoned = replace(frame, bits=changed_bits, tx_symbols=changed_tx, rx_symbols=changed_rx)
     second = copy.deepcopy(model)
     original = copy.deepcopy(model.state_dict())
     embedding = torch.tensor([0.4, 0.2, 0.1, 0.5, 0.8, 0.3])
@@ -86,6 +91,37 @@ def test_cumulative_mapping_learns_residual_and_ignores_hidden_labels(objective)
         assert torch.equal(parameter, second.state_dict()[name])
         if not name.startswith("online_phase_trend_adapter.state_to_phase_cfo."):
             assert torch.equal(parameter, original[name])
+
+
+def test_cumulative_replay_masks_data_waveforms_from_pilot_views():
+    """Adapt 更新和 Reward 打分前向都不应随 Data 波形改变。"""
+    from scripts.replay_cumulative_state_mapping import (
+        _adapt_only_frame,
+        _logits,
+        _pilot_visible_frame,
+    )
+
+    model, frame, condition, tail = _phase_fixture()
+    hidden = frame.data_mask.bool()
+    changed_rx = frame.rx_symbols.clone()
+    changed_rx[hidden] = torch.complex(
+        torch.full_like(changed_rx[hidden].real, -1e3),
+        torch.full_like(changed_rx[hidden].imag, 1e3),
+    )
+    changed = replace(frame, rx_symbols=changed_rx)
+    adapt = _adapt_only_frame(changed)
+    visible = _pilot_visible_frame(changed)
+    assert torch.count_nonzero(adapt.rx_symbols[~frame.adapt_mask]) == 0
+    assert torch.count_nonzero(visible.rx_symbols[frame.data_mask]) == 0
+
+    item = {"frame": frame, "condition": condition, "tail": tail, "embedding": torch.zeros(6)}
+    changed_item = {
+        "frame": changed,
+        "condition": condition,
+        "tail": tail,
+        "embedding": torch.zeros(6),
+    }
+    assert torch.equal(_logits(model, item), _logits(model, changed_item))
 
 
 def test_direct_phase_cfo_update_changes_only_adapter_parameters():
@@ -229,12 +265,18 @@ def test_future_reward_validation_precedes_disjoint_data_evaluation(monkeypatch,
     """未来验收帧不参与梯度，也不纳入 Data 指标；验收决定先于 Data 标签读取。"""
     import scripts.replay_cumulative_state_mapping as replay
 
-    model, frame, condition, tail = _phase_fixture()
+    model, frame, condition_value, tail = _phase_fixture()
     frames = iter([replace(frame, frame_index=index) for index in range(8)])
+    def condition_fn(current_frame, current_tail):
+        assert torch.count_nonzero(
+            current_frame.rx_symbols[~current_frame.adapt_mask]
+        ) == 0
+        return condition_value
+
     episode = SimpleNamespace(
         env=SimpleNamespace(next_frame=lambda: next(frames)),
-        start=SimpleNamespace(initial_soft_tail=tail), cir=condition.complex_cir,
-        condition=lambda *args: condition, metadata=lambda: {},
+        start=SimpleNamespace(initial_soft_tail=tail), cir=condition_value.complex_cir,
+        condition=condition_fn, metadata=lambda: {},
     )
     monkeypatch.setattr(replay, "build_pilot_replay_episode", lambda *args, **kwargs: episode)
     monkeypatch.setattr(replay, "_build_equalizer", lambda *args: model)
@@ -255,9 +297,14 @@ def test_future_reward_validation_precedes_disjoint_data_evaluation(monkeypatch,
         events.append(("data", current_frame.frame_index))
         return {}
 
+    def data_logits(current, item):
+        events.append(("data_logits", item["frame"].frame_index))
+        return torch.zeros(128)
+
     monkeypatch.setattr(replay, "_adapt_mapping", adapt)
     monkeypatch.setattr(replay, "_reward_gate", gate)
     monkeypatch.setattr(replay, "_data_metrics", metrics)
+    monkeypatch.setattr(replay, "_data_logits", data_logits)
     rows = replay._run_trial(
         experiment={}, model_config=model.config, checkpoint=Path("unused.pt"), device="cpu",
         snr=10, seed=0, frames_count=8, train_counts=[1, 3], delay=4,
@@ -270,7 +317,13 @@ def test_future_reward_validation_precedes_disjoint_data_evaluation(monkeypatch,
     ]
     assert all(value == 2 for kind, value in events if kind == "gate")
     assert all(value >= 5 for kind, value in events if kind == "data")
-    assert events[0][0] == "adapt" and events[1][0] == "gate" and events[2][0] == "data"
+    for index, (kind, _) in enumerate(events):
+        if kind not in {"data", "data_logits"}:
+            continue
+        last_adapt = max(i for i, event in enumerate(events[:index]) if event[0] == "adapt")
+        last_gate = max(i for i, event in enumerate(events[:index]) if event[0] == "gate")
+        assert last_gate > last_adapt
+        assert not any(event[0] in {"adapt", "gate"} for event in events[last_gate + 1:index])
     assert all(row["reward_validation_frame_indices"] == [3, 4] for row in rows)
     assert all(row["reward_gate_mode"] == "future_reward_only" for row in rows)
     assert all(set(row["train_frame_indices"]).isdisjoint(row["reward_validation_frame_indices"])
@@ -302,6 +355,9 @@ def test_hold_monitor_aggregation_controls_single_frame_rollback(monkeypatch, ag
     monkeypatch.setattr(replay, "_build_equalizer", lambda *args: model)
     monkeypatch.setattr(replay, "pilot_state_embedding", lambda *args: torch.zeros(6))
     monkeypatch.setattr(replay, "_logits", lambda current, item: torch.ones(128) * (
+        2.0 if getattr(current, "candidate_ready", False) else 1.0
+    ))
+    monkeypatch.setattr(replay, "_data_logits", lambda current, item: torch.ones(128) * (
         2.0 if getattr(current, "candidate_ready", False) else 1.0
     ))
 

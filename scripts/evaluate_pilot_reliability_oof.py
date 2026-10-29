@@ -124,6 +124,8 @@ def evaluate_rows(rows: list[dict], *, alpha: float = 10.0) -> dict:
         raise ValueError("候选 replay 不能为空。")
     if any(bool(row.get("data_labels_used_online", False)) for row in rows):
         raise ValueError("输入日志声称在线使用了 Data 标签，不能用于此校准诊断。")
+    if any(bool(row.get("data_waveform_used_online", False)) for row in rows):
+        raise ValueError("输入日志声称在线使用了 Data 波形，不能用于此校准诊断。")
 
     normalized = []
     for source in rows:

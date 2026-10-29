@@ -28,6 +28,7 @@ Level A/B/C 可控信道族
 - 接收机是整帧缓冲、非因果块神经均衡器；“在线”指信道运行期间按帧持续适配，不是逐符号即时输出。
 - 当前 proposed 主路线是离散安全动作 PPO 调制的神经块均衡器；主对照包含传统非神经、非 RL 均衡器和同轨迹 `Frozen Offline NN` 参考。旧 `Pilot-Driven Online Adaptation` 仅保留为专项消融，不混入主方法组。
 - 2026-10-29 的 RL-PEFT 执行链路审计和 seed 复核见[研究记录](docs/rl_peft_execution_audit_20261029.md)：修正 Reward 回滚时序、前缀 Pilot soft-tail 可观测范围、策略状态初始化和 PPO 动作编号；当前 SNR 复核尚未证明稳定 BER 收益。
+- 2026-10-29 的 Pilot-only PEFT 排序复核见[阶段结果](docs/pilot_peft_stage_20261029.md)：修复 Data 波形隔离漏洞，并完成累计目标、Reward 评分和当前 PEFT 候选的留 seed 排序诊断；排序门槛尚未通过，因此未启动正式大矩阵。
 - Pilot-Driven 单候选 PEFT 的历史回放见 [统一 Pilot replay 协议复核](docs/pilot_replay_protocol_audit_20261014.md) 与 [Reward logits 守门复核](docs/online_logit_guard_replay_20261015.md)。它曾在部分 SNR/seed 上获得小幅正增益，但更新目标和候选选择协议与当前 PPO 主方法不同，不能并入当前主结果，也没有证明所有主 SNR 稳定提升。
 - [10 dB 长窗口复核](docs/formal_signal_guard_logitcap01_gap0_10db_seed77_81_60f.md) 及其[严格门控对照](docs/formal_signal_guard_logitcap01_signalmin0005_gap0_10db_seed77_81_60f.md)表明，更多帧或更严格的 Reward 门控单独都不能解决 Pilot 到 Data 的迁移问题；均为 Pilot-Driven 历史路线的专项结果。
 - 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须包含基于 Pilot 的合理补偿，不能人为打残 baseline。

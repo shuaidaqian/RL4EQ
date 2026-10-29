@@ -9,6 +9,7 @@ import json
 import math
 import sys
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
 
 import torch
@@ -23,6 +24,26 @@ from evaluation.research_diagnostics import (
     _frame_to_device, _model_logits, _next_soft_tail_from_logits,
     _pilot_signal_reconstruction_loss_for_diagnostic,
 )
+
+
+def _adapt_only_frame(frame):
+    """只保留 Adapt Pilot 接收波形，供条件、状态与梯度路径使用。"""
+
+    mask = frame.adapt_mask.bool()
+    return replace(
+        frame,
+        rx_symbols=torch.where(mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols)),
+    )
+
+
+def _pilot_visible_frame(frame):
+    """只保留 Adapt/Reward Pilot 接收波形，供留出 Pilot 验收使用。"""
+
+    mask = frame.adapt_mask.bool() | frame.reward_mask.bool()
+    return replace(
+        frame,
+        rx_symbols=torch.where(mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols)),
+    )
 
 
 def _adapt_mapping(model, contexts: list[dict], *, lr: float, steps: int,
@@ -72,7 +93,8 @@ def _adapt_mapping(model, contexts: list[dict], *, lr: float, steps: int,
     def reconstruction():
         return torch.stack([
             _pilot_signal_reconstruction_loss_for_diagnostic(
-                model, item["frame"], item["condition"], item["tail"],
+                model, item.get("adapt_frame", _adapt_only_frame(item["frame"])),
+                item["condition"], item["tail"],
                 state_embedding=item["embedding"],
             ) for item in contexts
         ]).mean()
@@ -109,7 +131,8 @@ def _adapt_mapping(model, contexts: list[dict], *, lr: float, steps: int,
                 loss = _adapt_bce(model, item)
                 if objective == "joint":
                     signal = _pilot_signal_reconstruction_loss_for_diagnostic(
-                        model, item["frame"], item["condition"], item["tail"],
+                        model, item.get("adapt_frame", _adapt_only_frame(item["frame"])),
+                        item["condition"], item["tail"],
                         state_embedding=item["embedding"],
                     )
                     loss = (joint_bce_weight * loss / bce_scale
@@ -149,7 +172,7 @@ def _adapt_mapping(model, contexts: list[dict], *, lr: float, steps: int,
 def _adapt_bce(model, item: dict) -> torch.Tensor:
     """用接收端可见的 Adapt 已知符号监督均衡器输出，保留参数梯度。"""
 
-    frame = item["frame"]
+    frame = item.get("adapt_frame", _adapt_only_frame(item["frame"]))
     view = frame.receiver_view()
     mask = view.adapt_mask.bool()
     if not bool(mask.any()):
@@ -163,6 +186,17 @@ def _adapt_bce(model, item: dict) -> torch.Tensor:
 
 
 def _logits(model, item: dict) -> torch.Tensor:
+    with torch.no_grad():
+        return _model_logits(
+            model, item.get("pilot_frame", _pilot_visible_frame(item["frame"])), item["condition"],
+            item["tail"].reshape(1, -1).to(torch.complex64),
+            state_embedding=item["embedding"],
+        ).detach()
+
+
+def _data_logits(model, item: dict) -> torch.Tensor:
+    """仅在 Pilot 决策完成后对完整帧做事后 Data 评估。"""
+
     with torch.no_grad():
         return _model_logits(
             model, item["frame"], item["condition"],
@@ -192,7 +226,8 @@ def _reward_loss(model, item: dict, score: str) -> float:
     if score != "signal_reconstruction":
         raise ValueError("未知 Reward 评分。")
     loss = _reward_signal_reconstruction_loss(
-        model, item["frame"], item["condition"], item["tail"], state_embedding=item["embedding"],
+        model, item.get("pilot_frame", _pilot_visible_frame(item["frame"])),
+        item["condition"], item["tail"], state_embedding=item["embedding"],
     )
     noise = item["condition"].noise_variance.reshape(-1).mean().clamp_min(1e-8)
     return float((loss / noise).cpu())
@@ -307,13 +342,23 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
     contexts = []
     for _ in range(frames_count):
         frame = _frame_to_device(episode.env.next_frame(), device)
-        condition = episode.condition(frame, tail)
-        embedding = pilot_state_embedding(frame, episode.cir, tail, condition)
-        item = {"frame": frame, "condition": condition, "tail": tail.detach().clone(),
-                "embedding": embedding}
+        adapt_frame = _adapt_only_frame(frame)
+        pilot_frame = _pilot_visible_frame(frame)
+        condition = episode.condition(adapt_frame, tail)
+        embedding = pilot_state_embedding(adapt_frame, episode.cir, tail, condition)
+        item = {
+            "frame": frame,
+            "adapt_frame": adapt_frame,
+            "pilot_frame": pilot_frame,
+            "condition": condition,
+            "tail": tail.detach().clone(),
+            "embedding": embedding,
+        }
         item["frozen_logits"] = _logits(frozen, item)
         contexts.append(item)
         detected = _next_soft_tail_from_logits(item["frozen_logits"], tail.numel())
+        visible_tail = (frame.adapt_mask | frame.reward_mask)[-tail.numel():]
+        detected = torch.where(visible_tail, detected, tail)
         tail = (1.0 - tail_alpha) * tail + tail_alpha * detected
 
     # 所有累计长度都使用同一未来窗口；较短长度不会多占测试帧。
@@ -392,8 +437,15 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
                 monitor_rollback = active and not keep
                 # 同一候选回滚后不再激活；原始候选保留在诊断副本中以供配对评估。
                 active = active and keep
-            raw = _data_metrics(before, candidate, item["frame"])
-            committed = _data_metrics(before, candidate if active else before, item["frame"])
+            # 先完整结束当前帧的 Pilot 验收/回滚，再首次读取 Data 波形与标签。
+            data_before = _data_logits(frozen, item)
+            data_candidate = _data_logits(model, item)
+            raw = _data_metrics(data_before, data_candidate, item["frame"])
+            committed = _data_metrics(
+                data_before,
+                data_candidate if active else data_before,
+                item["frame"],
+            )
             rows.append({
                 **episode.metadata(), **adaptation,
                 "snr_db": snr, "seed": seed, "train_frame_count": train_count,
@@ -432,6 +484,7 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
                 ),
                 **{f"candidate_{key}": value for key, value in raw.items()},
                 **committed, "data_labels_used_online": False,
+                "data_waveform_used_online": False,
                 "diagnostic_uses_data_labels": True,
             })
     return rows
