@@ -94,3 +94,35 @@ D:\Research\RL4EQ\.venv-gpu\Scripts\python.exe compare.py --config logs/peft_fix
 以上仅为固定 PEFT 策略消融。当前仓库 `AGENTS.md` 已将 RL 调制均衡器列为唯一主
 研究路线；任何后续 RL 验证都应单独报告，并确保在线只使用 Pilot reward 和状态，不使用
 Data 标签。当前结论仍未达到 PEFT 多 SNR 稳定正收益或项目整体主成功门槛。
+
+## 2026-10-29：RL 调制 PEFT 主路线 smoke
+
+按当前 `AGENTS.md` 路线，用同一离线 checkpoint 在 Level B、delay=116、prefix
+Pilot=256（Adapt=224、Reward=32）、gap=0、5 dB、seed 20–22、每条轨迹 24 帧，对比
+`RL-Modulated Neural Block Equalizer` 与 `Frozen Offline NN`。离线 checkpoint SHA256
+仍为 `8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4`，CIR 更新固定，
+窗口 8 帧，策略每个窗口用 Reward Pilot reward 更新；随机初始化安全策略，没有加载预训练策略。
+
+| seed | Frozen BER | RL BER | 改善（百分点） |
+|---:|---:|---:|---:|
+| 20 | 3.72% | 3.70% | +0.0217 |
+| 21 | 4.70% | 6.10% | -1.3997 |
+| 22 | 5.18% | 5.08% | +0.1031 |
+| 合并逐帧 | 4.53% | 4.96% | -0.4250 |
+
+本轮 RL 选了 64 次 identity 和 8 次 `tail_alpha_nominal`；**72 帧中 PEFT 参数更新
+为 0 次**。9 个策略窗口中 Reward 有 0 个为正，发生 1 次窗口回滚。所有在线记录均报告
+Data 波形和标签没有参与在线决策，且读取了固定离线 checkpoint。
+
+因此这轮不能解读为“PEFT 参数更新导致 BER 变差”：RL 实际没有选择任何 PEFT 更新动作。
+它暴露了主路线当前更前置的问题：安全先验与稀疏窗口 reward 让策略留在 identity/tail
+动作，没有探索目标要求的均衡器 PEFT 参数。下一步必须先确保策略在安全约束下真实尝试
+PEFT 动作并记录窗口 reward、参数变化和回滚，再谈比较 Data BER；否则扩大 seed/frame
+矩阵只会重复测试冻结模型。此结果仍是 1 个 SNR、3 个 seed 的 smoke，不是正式结果。
+
+复现命令：
+
+```powershell
+$env:PYTHONDONTWRITEBYTECODE='1'
+D:\Research\RL4EQ\.venv-gpu\Scripts\python.exe compare.py --config configs/eme_long_memory_v2.json --pretrained D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --methods 'Frozen Offline NN' 'RL-Modulated Neural Block Equalizer' --delays 116 --snrs 5 --seed-start 20 --num-seeds 3 --frames 24 --pilot-total 256 --reward-pilot-total 32 --pilot-layout prefix --acquisition-to-data-gap-seconds 0 --update-interval 8 --cir-update fixed --online-condition-source pilot_cir_phase --device cuda --output-dir logs/peft_rl_modulated_gap0_5db_3s24f_seed20_22_20261029
+```

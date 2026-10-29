@@ -2,9 +2,9 @@
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。
-> 旧的 Frozen/Online 数值来自已废弃的条件边界，不能作为当前主结果。当前主实验要求重新
-> 在同一 Level B 轨迹上比较参数冻结但使用当前帧 Pilot 条件的 Frozen 与 Pilot 驱动恢复/微调的
-> Online，并单独报告 Online 相对 Frozen 的配对增益；acquisition 老化只作为独立压力测试。
+> 当前主结果以 `AGENTS.md` 的离散安全动作 PPO 路线为准。`Frozen Offline NN` 是同轨迹
+> 参考，用来测量在线动作带来的增量；Pilot-Driven 单候选 PEFT 结果保留为历史专项消融。
+> acquisition 老化测试和 gap=0 主场景分开报告。
 
 本项目研究 EME 启发但不等同于完整物理 EME 的极端稀疏长时延扩展信道。当前主线使用独立的 `eme_long_memory_v2` 长记忆 profile；`eme_measurement_v1` 保留作历史兼容和对照，不把二者混合平均。主线是：
 
@@ -12,13 +12,13 @@
 Level A/B/C 可控信道族
 -> 全程 Pilot 条件课程监督预训练
 -> 整帧缓冲、非因果神经块均衡器
--> Adapt Pilot 驱动受限 PEFT 在线微调
--> Reward Pilot 安全门控与跨帧 soft-tail 递推
--> 跨帧延迟效应成立时才替换为安全 Recurrent Double DQN
+-> 离散安全 PPO 按 Pilot 状态选择有界均衡器动作
+-> Adapt Pilot 更新选定的 Adapter/LoRA/head 参数
+-> Reward Pilot 验收、拒绝和回滚；窗口级 reward 更新策略
 -> 与传统非神经、非 RL baseline 公平比较
 ```
 
-研究目标不是超过所有可能的强模型驱动序列检测器，也不是只找到一个传统方法很弱的工作区。当前第一性目标是在 Level B 主论文场景中，让同一离线 checkpoint 初始化的 `Pilot-Driven Online Adaptation` 相对 `Frozen Offline NN` 产生可重复的额外收益，并同时明显超过传统非神经、非 RL 均衡器。`BER_data < 0.01` 保留为辅助系统指标，不再作为第一成功门槛。
+研究目标不是超过所有可能的强模型驱动序列检测器，也不是只找到一个传统方法很弱的工作区。当前第一性目标是在 Level B 主论文场景中，让离散安全动作 PPO 调制的神经均衡器逐配置明显超过传统非神经、非 RL 均衡器，并相对同 checkpoint 的 `Frozen Offline NN` 展现可重复的在线增益。`BER_data < 0.01` 保留为辅助系统指标，不再作为第一成功门槛。
 
 ## 研究契约
 
@@ -26,11 +26,10 @@ Level A/B/C 可控信道族
 - Pilot 只放在帧前缀；`two_block` 和 `multi_block` 不再作为主论文 Pilot 布局。
 - Level A 用于课程学习和可达性校准；Level C 只作为压力测试，不混入 Level B 主平均。
 - 接收机是整帧缓冲、非因果块神经均衡器；“在线”指信道运行期间按帧持续适配，不是逐符号即时输出。
-- 当前主比较只保留传统均衡器、`Frozen Offline NN` 和 `Pilot-Driven Online Adaptation`；早期 PPO/调制策略仅作为代码兼容或专项消融，不作为主对照。
-- 最新 PEFT 回放协议与结果见 [统一 Pilot replay 协议复核](docs/pilot_replay_protocol_audit_20261014.md)：保持离线 checkpoint 不变，只用 Adapt Pilot 更新均衡器内部 Adapter 参数，Reward Pilot 负责验收/回滚，Data 标签只用于事后评估。长空档后过期的信道历史已修正清除；修正前的 gap=600 s 数值不作为有效结论。当前 gap=0 主场景和修正后的老化压力测试都还未证明稳定在线增益，gap=120 的联合 BCE/重构目标也未通过保留门槛。
-- 最新的 logits 改变量上限复核见 [Reward logits 守门复核](docs/online_logit_guard_replay_20261015.md)：在全新 seed 72--76 上，5 dB 平均改善 0.0705 个百分点且 5/5 seed 非负，15 dB 平均改善 0.0260 个百分点且 4/5 seed 正收益；10 dB 平均仅改善 0.0033 个百分点，仍不能宣称所有主 SNR 稳定超过冻结离线模型。
-- 10 dB 的 60 帧长期复核见 [10 dB 长窗口复核](docs/formal_signal_guard_logitcap01_gap0_10db_seed77_81_60f.md)：seed 77--81 平均改善 0.0126 个百分点，但只有 2/5 seed 正收益，说明延长帧数不能单独解决 Reward 到 Data 的排序失配。
-- 进一步把 Reward 信号重构守门收紧为至少改善 0.0005 后，10 dB seed 77--81 变为 3/5 正收益、2/5 持平、0/5 负收益，但平均改善降至 0.0052 个百分点；详见 [严格门控对照](docs/formal_signal_guard_logitcap01_signalmin0005_gap0_10db_seed77_81_60f.md)。这能止损，不能把在线增益变成稳定且明显的主结果。
+- 当前 proposed 主路线是离散安全动作 PPO 调制的神经块均衡器；主对照包含传统非神经、非 RL 均衡器和同轨迹 `Frozen Offline NN` 参考。旧 `Pilot-Driven Online Adaptation` 仅保留为专项消融，不混入主方法组。
+- 2026-10-29 的 RL-PEFT 执行链路审计和 seed 复核见[研究记录](docs/rl_peft_execution_audit_20261029.md)：修正 Reward 回滚时序、前缀 Pilot soft-tail 可观测范围、策略状态初始化和 PPO 动作编号；当前 SNR 复核尚未证明稳定 BER 收益。
+- Pilot-Driven 单候选 PEFT 的历史回放见 [统一 Pilot replay 协议复核](docs/pilot_replay_protocol_audit_20261014.md) 与 [Reward logits 守门复核](docs/online_logit_guard_replay_20261015.md)。它曾在部分 SNR/seed 上获得小幅正增益，但更新目标和候选选择协议与当前 PPO 主方法不同，不能并入当前主结果，也没有证明所有主 SNR 稳定提升。
+- [10 dB 长窗口复核](docs/formal_signal_guard_logitcap01_gap0_10db_seed77_81_60f.md) 及其[严格门控对照](docs/formal_signal_guard_logitcap01_signalmin0005_gap0_10db_seed77_81_60f.md)表明，更多帧或更严格的 Reward 门控单独都不能解决 Pilot 到 Data 的迁移问题；均为 Pilot-Driven 历史路线的专项结果。
 - 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须包含基于 Pilot 的合理补偿，不能人为打残 baseline。
 - Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真 `BER_data` 评估。
 - 在线 observation、reward、动作选择和调制更新不使用数据标签上界。

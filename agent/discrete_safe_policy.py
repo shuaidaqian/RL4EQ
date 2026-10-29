@@ -27,6 +27,7 @@ class DiscreteSafeAction:
     peft_steps: int = 0
     cir_alpha: float | None = None
     tail_alpha: float | None = None
+    peft_objective: str = "bce"
 
 
 @dataclass(frozen=True)
@@ -38,7 +39,11 @@ class DiscretePolicySample:
     hidden: torch.Tensor
 
 
-def safe_modulation_actions(num_blocks: int, device: torch.device | str = "cpu") -> list[DiscreteSafeAction]:
+def safe_modulation_actions(
+    num_blocks: int,
+    device: torch.device | str = "cpu",
+    action_names: list[str] | tuple[str, ...] | None = None,
+) -> list[DiscreteSafeAction]:
     """返回固定顺序的离散安全动作表。"""
 
     config = ModulationConfig(num_adapter_gates=int(num_blocks), num_lora_scales=int(num_blocks))
@@ -57,8 +62,18 @@ def safe_modulation_actions(num_blocks: int, device: torch.device | str = "cpu")
         ("peft_adapter_lora_conservative", identity, {"adapter", "attention_lora", "ffn_lora"}, 5e-5, 1, None, None),
         ("peft_adapter_lora_light", identity, {"adapter", "attention_lora", "ffn_lora"}, 1e-4, 1, None, None),
         ("peft_adapter_lora_head_light", identity, {"adapter_lora_head"}, 1e-4, 1, None, None),
+        ("peft_phase_signal_conservative", identity, {"phase_trend"}, 5e-4, 1, None, None),
         ("rollback_identity", identity, None, 0.0, 0, None, None),
     ]
+    if action_names is not None:
+        requested = {str(name) for name in action_names}
+        available = {row[0] for row in raw_actions}
+        unknown = requested - available
+        if unknown:
+            raise ValueError(f"安全动作配置包含未知名称：{sorted(unknown)}")
+        if "identity" not in requested:
+            raise ValueError("安全动作子集必须保留 identity 动作。")
+        raw_actions = [row for row in raw_actions if row[0] in requested]
     actions = []
     for index, (name, modulation, peft_groups, peft_lr, peft_steps, cir_alpha, tail_alpha) in enumerate(raw_actions):
         modulation_delta = float(torch.norm(modulation.to_vector() - identity_vector).detach().cpu())
@@ -74,6 +89,11 @@ def safe_modulation_actions(num_blocks: int, device: torch.device | str = "cpu")
                 peft_steps=int(peft_steps),
                 cir_alpha=cir_alpha,
                 tail_alpha=tail_alpha,
+                peft_objective=(
+                    "pilot_signal_reconstruction"
+                    if name == "peft_phase_signal_conservative"
+                    else "bce"
+                ),
             )
         )
     return actions
@@ -83,13 +103,16 @@ def initialize_safe_discrete_policy_prior(policy: "DiscreteSafePolicy", actions:
     """为未训练策略设置安全探索先验。
 
     先验不使用 Data 标签。当前 Offline NN 已经是强接收机，未训练 PPO
-    不能在部署初期大量扰动 PEFT；因此默认从 identity 保守启动，只保留
-    小概率 PEFT 探索。
+    不能在部署初期大量扰动 PEFT；因此默认仍优先 identity，同时给 PEFT
+    候选保留可观测的探索概率，避免策略长期只采样不更新动作。
     """
 
     with torch.no_grad():
-        for parameter in policy.parameters():
-            parameter.zero_()
+        # 保留编码器和 GRU 的随机特征，避免全零对称性使策略只能学习动作常数偏置。
+        # 初始输出仍严格服从安全先验，与观测无关；训练后允许按 Pilot 状态区分动作。
+        policy.logits.weight.zero_()
+        policy.value_head.weight.zero_()
+        policy.value_head.bias.zero_()
         policy.logits.bias.fill_(0.0)
         if actions is None:
             policy.logits.bias[0] = 3.0
@@ -99,17 +122,25 @@ def initialize_safe_discrete_policy_prior(policy: "DiscreteSafePolicy", actions:
             if action.name == "identity":
                 policy.logits.bias[action.index] = 3.0
             elif action.name in {"tail_alpha_slow", "tail_alpha_nominal", "tail_alpha_fast"}:
-                policy.logits.bias[action.index] = -0.2
+                policy.logits.bias[action.index] = -1.0
             elif action.name in {"cir_alpha_slow", "cir_alpha_nominal", "cir_alpha_fast"}:
-                policy.logits.bias[action.index] = -0.2
+                policy.logits.bias[action.index] = -1.0
             elif action.name == "peft_head_fast":
                 policy.logits.bias[action.index] = -0.5
-            elif action.name == "peft_adapter_lora_conservative":
-                policy.logits.bias[action.index] = -0.2
-            elif action.name in {"peft_head_light", "peft_adapter_lora_light", "peft_adapter_lora_head_light"}:
-                policy.logits.bias[action.index] = -0.5
+            elif action.name == "peft_head_light":
+                policy.logits.bias[action.index] = 0.0
+            elif action.name in {"peft_phase_signal_conservative", "peft_adapter_lora_conservative"}:
+                policy.logits.bias[action.index] = 1.25
+            elif action.name == "peft_adapter_lora_light":
+                policy.logits.bias[action.index] = -1.0
+            elif action.name == "peft_adapter_lora_head_light":
+                policy.logits.bias[action.index] = -0.1
             elif action.name == "rollback_identity":
                 policy.logits.bias[action.index] = 0.0
+        selected_peft_actions = [action for action in actions if action.peft_groups]
+        if len(selected_peft_actions) == 1:
+            # 单候选筛选时给唯一 PEFT 候选可测的探索概率；Reward Pilot 仍负责拒绝有害更新。
+            policy.logits.bias[selected_peft_actions[0].index] = 1.25
 
 
 class DiscreteSafePolicy(nn.Module):

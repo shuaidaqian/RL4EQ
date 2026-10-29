@@ -101,13 +101,13 @@ NEURAL_IMPLEMENTATION_METHODS = (
     "RL-Modulated Neural Block Equalizer",
 )
 
-# 当前论文主矩阵只比较冻结离线模型和在线微调模型；其余实现保留为
-# 历史兼容或专项消融，不能通过主方法组混入主平均。
+# 当前研究契约把离散安全动作 PPO 均衡器列为唯一 proposed。
+# Frozen 用于同轨迹参考；旧 Pilot-Driven 方法只通过显式方法名做专项消融。
 PRIMARY_PROPOSED_METHODS = (
-    "Frozen Offline NN",
-    "Pilot-Driven Online Adaptation",
+    "RL-Modulated Neural Block Equalizer",
 )
 PROPOSED_METHODS = PRIMARY_PROPOSED_METHODS
+FROZEN_REFERENCE_METHODS = ("Frozen Offline NN",)
 
 DIAGNOSTIC_METHODS = (
     "Perfect-CSI Block",
@@ -136,8 +136,8 @@ def method_group(name: str) -> tuple[str, ...]:
         "traditional": TRADITIONAL_METHODS,
         "proposed": PRIMARY_PROPOSED_METHODS,
         "diagnostic": DIAGNOSTIC_METHODS,
-        "main": TRADITIONAL_METHODS + PRIMARY_PROPOSED_METHODS,
-        "all": TRADITIONAL_METHODS + PRIMARY_PROPOSED_METHODS + DIAGNOSTIC_METHODS,
+        "main": TRADITIONAL_METHODS + FROZEN_REFERENCE_METHODS + PRIMARY_PROPOSED_METHODS,
+        "all": TRADITIONAL_METHODS + FROZEN_REFERENCE_METHODS + PRIMARY_PROPOSED_METHODS + DIAGNOSTIC_METHODS,
     }
     if name not in groups:
         raise ValueError(f"未知方法组：{name}")
@@ -1024,7 +1024,12 @@ def _build_method_states(
             if torch.cuda.is_available():
                 torch.cuda.manual_seed_all(_method_seed("rl_modulated", seed, delay, snr_db))
             model = _build_equalizer(model_config, pretrained_path, device)
-            actions = safe_modulation_actions(len(model.blocks), device=device)
+            model.attach_online_phase_trend_adapter()
+            actions = safe_modulation_actions(
+                len(model.blocks),
+                device=device,
+                action_names=config.get("rl_action_names"),
+            )
             from agent.rl_modulator import ModulationObservationEncoder
 
             encoder = ModulationObservationEncoder()

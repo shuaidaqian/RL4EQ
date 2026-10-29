@@ -30,6 +30,7 @@ from env.experiment_config import (
     validate_model_dimensions,
 )
 from training.meta_training import estimate_acquisition_cir_for_profile
+from training.online_adaptation import _pilot_signal_reconstruction_loss
 from training.rl_modulated_online import _build_equalizer, _load_model_config
 
 
@@ -166,7 +167,12 @@ def run_windowed_discrete_online(
                 if torch.cuda.is_available():
                     torch.cuda.manual_seed_all(71_000 + int(seed))
                 model = _build_equalizer(model_config, pretrained_path, device)
-                actions = safe_modulation_actions(len(model.blocks), device=device)
+                model.attach_online_phase_trend_adapter()
+                actions = safe_modulation_actions(
+                    len(model.blocks),
+                    device=device,
+                    action_names=config.get("rl_action_names"),
+                )
                 encoder = ModulationObservationEncoder()
                 policy = DiscreteSafePolicy(len(encoder.FIELDS), len(actions)).to(device)
                 initialize_safe_discrete_policy_prior(policy, actions)
@@ -301,7 +307,7 @@ def run_windowed_discrete_frame(
         hidden_in = state.hidden.detach()
         sample = state.policy.sample(observation, hidden_in, state.actions)
         state.hidden = sample.hidden
-        state.current_action = identity if sample.action.name == "rollback_identity" else sample.action
+        state.current_action = sample.action
         state.current_observation = observation.detach()
         state.current_hidden = hidden_in.detach()
         state.current_log_prob = sample.log_prob.detach()
@@ -316,7 +322,7 @@ def run_windowed_discrete_frame(
         state.current_window_tail_snapshot = state.receiver_state.soft_tail.detach().clone()
         state.frames_in_window = 0
     sampled_action = state.current_action
-    applied_action = sampled_action
+    applied_action = identity if sampled_action.name == "rollback_identity" else sampled_action
     if state.current_window_cir_snapshot is None:
         state.current_window_cir_snapshot = state.cir.detach().clone()
     if state.current_window_tail_snapshot is None:
@@ -341,6 +347,7 @@ def run_windowed_discrete_frame(
             groups=sampled_action.peft_groups,
             lr=float(sampled_action.peft_lr),
             steps=int(sampled_action.peft_steps),
+            objective=str(sampled_action.peft_objective),
         )
         if state.current_accumulator is not None:
             state.current_accumulator.action_delta_norm += float(peft_delta_norm)
@@ -360,6 +367,21 @@ def run_windowed_discrete_frame(
     reward_after_loss = _masked_bce(after, reward_labels, frame.reward_mask)
     reward_before_ber = bit_error_rate(base[frame.reward_mask], reward_labels[frame.reward_mask])
     reward_after_ber = bit_error_rate(after[frame.reward_mask], reward_labels[frame.reward_mask])
+    peft_frame_accepted = True
+    if sampled_action.peft_groups and peft_delta_norm > 0.0:
+        peft_frame_accepted = should_accept_reward_guard(
+            reward_loss_before=float(reward_before_loss.detach().cpu()),
+            reward_loss_after=float(reward_after_loss.detach().cpu()),
+            reward_ber_before=float(reward_before_ber),
+            reward_ber_after=float(reward_after_ber),
+            allow_loss_only=True,
+            peft_delta_norm=float(peft_delta_norm),
+        )
+        if not peft_frame_accepted:
+            # 先用当前帧已知 Reward Pilot 验收 PEFT，再让整帧 Data 波形进入评估。
+            # 失败时本帧即恢复参数，并用冻结参数的 Pilot 输出递推 tail。
+            _restore_snapshot(state.model, frame_peft_snapshot)
+            after = base
     assert state.current_accumulator is not None
     state.current_accumulator.add_frame(
         reward_loss_before=float(reward_before_loss.detach().cpu()),
@@ -372,8 +394,14 @@ def run_windowed_discrete_frame(
         torch.tanh(after[-tail_len:] / 2.0),
         torch.zeros_like(after[-tail_len:]),
     )
-    # 这里的 logits 来自已经清零 Data 波形的 Pilot-only 前向，因此可以用
-    # 它估计跨帧 soft tail；没有把原始 Data 接收样本带入在线更新。
+    # 只有落在 Adapt/Reward Pilot 上的尾部符号可观测；前缀 Pilot 之外的
+    # logits 来自补零输入，不能当作接收尾状态更新。
+    tail_visible_mask = pilot_visible_mask[-tail_len:]
+    detected_tail = torch.where(
+        tail_visible_mask,
+        detected_tail,
+        state.receiver_state.soft_tail,
+    )
     selected_tail_alpha = (
         float(sampled_action.tail_alpha)
         if getattr(sampled_action, "tail_alpha", None) is not None
@@ -400,7 +428,7 @@ def run_windowed_discrete_frame(
     window_rollback = False
     if window_closed:
         window_reward = state.current_accumulator.finalize()
-        if window_reward.reward <= 0.0 and sampled_action.name != "identity":
+        if window_reward.reward <= 0.0 and applied_action.name != "identity":
             if state.current_window_peft_snapshot is not None:
                 _restore_snapshot(state.model, state.current_window_peft_snapshot)
             if state.current_window_cir_snapshot is not None:
@@ -433,7 +461,7 @@ def run_windowed_discrete_frame(
         state.current_window_cir_snapshot = None
         state.current_window_tail_snapshot = None
         state.frames_in_window = 0
-    accepted = not bool(window_rollback)
+    accepted = bool(peft_frame_accepted and not window_rollback)
     # 所有策略、PEFT 更新、Pilot reward 和窗口回滚完成后，才允许完整波形
     # 进入前向；以下两次输出只用于事后 Data 指标，不反馈给在线控制。
     current_peft_snapshot = (
@@ -443,13 +471,14 @@ def run_windowed_discrete_frame(
     )
     if sampled_action.peft_groups:
         _restore_snapshot(state.model, frame_peft_snapshot)
+    data_evaluation_tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
     with torch.no_grad():
         full_before_logits = refine_logits_with_tail(
             state.model,
             full_rx_iq,
             condition,
             region_ids,
-            tail,
+            data_evaluation_tail,
             modulation=identity.modulation,
             passes=int(state.tail_refinement_passes),
             adapt_symbols=adapt_symbols,
@@ -464,7 +493,7 @@ def run_windowed_discrete_frame(
             full_rx_iq,
             condition,
             region_ids,
-            tail,
+            data_evaluation_tail,
             modulation=final_modulation,
             passes=int(state.tail_refinement_passes),
             adapt_symbols=adapt_symbols,
@@ -478,14 +507,36 @@ def run_windowed_discrete_frame(
     data_after_ber = bit_error_rate(
         full_after[frame.data_mask], frame.bits[frame.data_mask]
     )
+    data_before_logits = full_before[frame.data_mask]
+    data_after_logits = full_after[frame.data_mask]
+    data_bce_before = _masked_bce(full_before, frame.bits, frame.data_mask)
+    data_bce_after = _masked_bce(full_after, frame.bits, frame.data_mask)
+    data_logits_abs_delta = torch.mean(torch.abs(data_after_logits - data_before_logits))
+    data_logits_direction_change = (
+        (data_before_logits >= 0.0) != (data_after_logits >= 0.0)
+    ).to(torch.float32).mean()
+    data_soft_output_delta = torch.mean(
+        torch.abs(torch.sigmoid(data_after_logits) - torch.sigmoid(data_before_logits))
+    )
     return {
         "method": "RL-Modulated Neural Block Equalizer",
         "snr_db": float(snr_db),
         "frame": int(frame_index),
         "ber_data": float(data_after_ber),
+        # 这是本帧动作前的同一接收状态对照，不是独立 Frozen 方法结果。
+        "pre_update_ber_data": float(data_before_ber),
         "ber_reward_pilot": float(reward_after_ber),
         "ber_adapt_pilot": bit_error_rate(after[frame.adapt_mask], adapt_labels[frame.adapt_mask]),
-        "offline_identity_ber_data": float(data_before_ber),
+        "data_bce_before_eval_only": float(data_bce_before.detach().cpu()),
+        "data_bce_after_eval_only": float(data_bce_after.detach().cpu()),
+        "data_bce_improvement_eval_only": float(
+            (data_bce_before - data_bce_after).detach().cpu()
+        ),
+        "data_logits_abs_delta_mean_eval_only": float(data_logits_abs_delta.detach().cpu()),
+        "data_logits_direction_change_rate_eval_only": float(
+            data_logits_direction_change.detach().cpu()
+        ),
+        "data_soft_output_delta_mean_eval_only": float(data_soft_output_delta.detach().cpu()),
         "reward": float(window_reward.reward if window_reward else 0.0),
         "reward_pilot_loss_before": float(reward_before_loss.detach().cpu()),
         "reward_pilot_loss_after": float(reward_after_loss.detach().cpu()),
@@ -502,12 +553,14 @@ def run_windowed_discrete_frame(
         "policy_action_name": sampled_action.name,
         "applied_action_name": applied_action.name,
         "safe_action_accepted": bool(accepted),
+        "peft_frame_accepted": bool(peft_frame_accepted),
         "window_reward_rollback": bool(window_rollback),
         "policy_window_closed": bool(window_closed),
         "window_size": int(state.window_size),
         "action_delta_norm": float(sampled_action.delta_norm),
         "modulation_delta_norm": float(applied_action.delta_norm),
         "peft_delta_norm": float(peft_delta_norm),
+        "peft_objective": str(sampled_action.peft_objective),
         "data_labels_used_online": False,
         "data_waveform_used_online": False,
         "online_waveform_visibility": "adapt_pilot_for_update_reward_pilot_for_guard",
@@ -670,6 +723,7 @@ def _apply_adapt_peft_update(
     groups: set[str],
     lr: float,
     steps: int,
+    objective: str = "bce",
 ) -> float:
     """只用 Adapt Pilot 对 PEFT 参数做候选更新，返回参数变化范数。"""
 
@@ -681,24 +735,51 @@ def _apply_adapt_peft_update(
         model.eval()
         model.set_trainable_groups(set())
         return 0.0
+    # CIR、状态置信度与 soft-tail 是已估计的在线输入；梯度只更新指定 PEFT 参数，
+    # 不跨帧反传到接收机状态或复用已经释放的计算图。
+    condition = replace(
+        condition,
+        complex_cir=condition.complex_cir.detach(),
+        support_probability=condition.support_probability.detach(),
+        noise_variance=condition.noise_variance.detach(),
+        confidence=condition.confidence.detach(),
+        latent_residual=condition.latent_residual.detach(),
+    )
+    tail = tail.detach()
     optimizer = torch.optim.AdamW(trainable, lr=float(lr))
     for _ in range(max(1, int(steps))):
         pilot_mask = frame.adapt_mask.to(device=frame.rx_symbols.device, dtype=torch.bool)
         pilot_rx = torch.where(pilot_mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols))
-        rx_iq = torch.stack((pilot_rx.real, pilot_rx.imag), dim=-1).unsqueeze(0).float()
-        region_ids = frame.model_region_ids.unsqueeze(0).long()
-        device = rx_iq.device
+        device = pilot_rx.device
         pilot_view = _pilot_receiver_view(frame)
-        logits, _ = model(
-            rx_iq,
-            condition,
-            region_ids,
-            tail,
-            adapt_symbols=pilot_view.adapt_symbols.to(device).unsqueeze(0).to(torch.complex64),
-            adapt_mask=frame.adapt_mask.to(device).unsqueeze(0).bool(),
-        )
-        adapt_labels = (pilot_view.adapt_symbols.real > 0.0).to(frame.bits.dtype)
-        loss = _masked_bce(logits.squeeze(0), adapt_labels, frame.adapt_mask)
+        if objective == "pilot_signal_reconstruction":
+            if groups != {"phase_trend"}:
+                raise ValueError(
+                    "Pilot 信号重构目标只允许更新 phase_trend 参数组。"
+                )
+            loss = _pilot_signal_reconstruction_loss(
+                model,
+                condition,
+                pilot_view.adapt_symbols.to(device),
+                pilot_rx,
+                frame.adapt_mask.to(device),
+                tail,
+            )
+        elif objective == "bce":
+            rx_iq = torch.stack((pilot_rx.real, pilot_rx.imag), dim=-1).unsqueeze(0).float()
+            region_ids = frame.model_region_ids.unsqueeze(0).long()
+            logits, _ = model(
+                rx_iq,
+                condition,
+                region_ids,
+                tail,
+                adapt_symbols=pilot_view.adapt_symbols.to(device).unsqueeze(0).to(torch.complex64),
+                adapt_mask=frame.adapt_mask.to(device).unsqueeze(0).bool(),
+            )
+            adapt_labels = (pilot_view.adapt_symbols.real > 0.0).to(frame.bits.dtype)
+            loss = _masked_bce(logits.squeeze(0), adapt_labels, frame.adapt_mask)
+        else:
+            raise ValueError(f"不支持的在线 PEFT 目标：{objective!r}")
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(trainable, 1.0)

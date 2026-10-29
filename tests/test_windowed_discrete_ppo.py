@@ -58,6 +58,7 @@ def test_discrete_safe_action_catalog_is_bounded_and_has_identity():
         "peft_adapter_lora_conservative",
         "peft_adapter_lora_light",
         "peft_adapter_lora_head_light",
+        "peft_phase_signal_conservative",
         "rollback_identity",
     ]
     assert actions[0].delta_norm == 0.0
@@ -74,6 +75,34 @@ def test_discrete_safe_action_catalog_is_bounded_and_has_identity():
     assert actions[names.index("peft_head_fast")].peft_lr == 5e-4
     assert actions[names.index("peft_adapter_lora_conservative")].peft_lr == 5e-5
     assert actions[names.index("peft_adapter_lora_light")].peft_groups == {"adapter", "attention_lora", "ffn_lora"}
+    assert actions[names.index("peft_phase_signal_conservative")].peft_groups == {"phase_trend"}
+    assert actions[names.index("peft_phase_signal_conservative")].peft_objective == "pilot_signal_reconstruction"
+
+
+def test_discrete_safe_action_catalog_can_focus_on_pilot_peft_actions():
+    import pytest
+
+    from agent.discrete_safe_policy import safe_modulation_actions
+
+    actions = safe_modulation_actions(
+        num_blocks=3,
+        device="cpu",
+        action_names=["identity", "peft_phase_signal_conservative", "rollback_identity"],
+    )
+    assert [action.name for action in actions] == [
+        "identity",
+        "peft_phase_signal_conservative",
+        "rollback_identity",
+    ]
+    assert [action.index for action in actions] == [0, 1, 2]
+    with pytest.raises(ValueError, match="identity"):
+        safe_modulation_actions(
+            num_blocks=3, device="cpu", action_names=["rollback_identity"]
+        )
+    with pytest.raises(ValueError, match="未知名称"):
+        safe_modulation_actions(
+            num_blocks=3, device="cpu", action_names=["identity", "unknown"]
+        )
 
 
 def test_discrete_policy_prior_starts_conservatively_from_identity():
@@ -90,6 +119,239 @@ def test_discrete_policy_prior_starts_conservatively_from_identity():
     assert probabilities[names.index("identity")] > 0.6
     assert probabilities[names.index("peft_head_fast")] < 0.1
     assert policy.logits.bias[names.index("rollback_identity")] < policy.logits.bias[names.index("identity")]
+    peft_probability = sum(
+        probabilities[index]
+        for index, action in enumerate(actions)
+        if action.peft_groups
+    )
+    assert peft_probability > 0.15
+    assert probabilities[names.index("peft_phase_signal_conservative")] > 0.1
+    assert probabilities[names.index("peft_adapter_lora_conservative")] > 0.08
+
+
+def test_focused_peft_candidate_keeps_identity_prior_and_gets_exploration_probability():
+    from agent.discrete_safe_policy import (
+        DiscreteSafePolicy,
+        initialize_safe_discrete_policy_prior,
+        safe_modulation_actions,
+    )
+
+    actions = safe_modulation_actions(
+        num_blocks=3,
+        device="cpu",
+        action_names=["identity", "peft_adapter_lora_light", "rollback_identity"],
+    )
+    policy = DiscreteSafePolicy(observation_dim=4, action_count=len(actions), hidden_size=8)
+    initialize_safe_discrete_policy_prior(policy, actions)
+    probabilities = torch.softmax(policy.logits.bias, dim=0)
+    names = [action.name for action in actions]
+
+    assert probabilities[names.index("identity")] > 0.6
+    assert probabilities[names.index("peft_adapter_lora_light")] > 0.1
+
+
+def test_safe_policy_can_learn_different_actions_for_different_pilot_observations():
+    from agent.discrete_safe_policy import (
+        DiscreteSafePolicy,
+        initialize_safe_discrete_policy_prior,
+        safe_modulation_actions,
+    )
+    from training.windowed_discrete_ppo import _ppo_update
+
+    torch.manual_seed(54)
+    actions = safe_modulation_actions(
+        num_blocks=1, action_names=["identity", "peft_phase_signal_conservative"]
+    )
+    policy = DiscreteSafePolicy(observation_dim=4, action_count=len(actions), hidden_size=8)
+    initialize_safe_discrete_policy_prior(policy, actions)
+    hidden = policy.initial_hidden()
+    observations = [torch.ones(1, 4), -torch.ones(1, 4)]
+    index = torch.tensor([1])
+    rollout = []
+    with torch.no_grad():
+        for observation, reward in zip(observations, [1.0, -1.0]):
+            log_prob, value, _ = policy.evaluate_action(observation, hidden, index)
+            rollout.append({
+                "observation": observation, "hidden": hidden.clone(), "action_index": index,
+                "old_log_prob": log_prob, "value": value, "reward": reward,
+            })
+    assert torch.equal(rollout[0]["old_log_prob"], rollout[1]["old_log_prob"])
+
+    _ppo_update(policy, torch.optim.AdamW(policy.parameters(), lr=0.01), rollout)
+
+    with torch.no_grad():
+        positive_log_prob, _, _ = policy.evaluate_action(observations[0], hidden, index)
+        negative_log_prob, _, _ = policy.evaluate_action(observations[1], hidden, index)
+    assert positive_log_prob.item() > negative_log_prob.item() + 1e-6
+
+
+def test_rl_phase_signal_action_updates_only_from_adapt_pilot():
+    from types import SimpleNamespace
+
+    from agent.cir_estimator import condition_from_cir
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+    from training.windowed_discrete_ppo import _apply_adapt_peft_update
+
+    torch.manual_seed(4)
+    config = UnfoldedConfig(
+        frame_len=32, max_delay=4, iterations=1, d_model=24, num_heads=4
+    )
+    first = UnfoldedEqualizer(config)
+    second = UnfoldedEqualizer(config)
+    first.attach_online_phase_trend_adapter()
+    second.attach_online_phase_trend_adapter()
+    second.load_state_dict(first.state_dict())
+    cir = torch.zeros(5, dtype=torch.complex64)
+    cir[0] = 1.0 + 0j
+    cir.requires_grad_()
+    condition = condition_from_cir(cir, 5.0)
+    tx = torch.where(torch.arange(32) % 2 == 0, 1.0, -1.0).to(torch.complex64)
+    rx = tx * torch.exp(torch.tensor(0.2j))
+    adapt_mask = torch.arange(32) < 16
+    common = {
+        "tx_symbols": tx,
+        "bits": (tx.real > 0).to(torch.bool),
+        "adapt_mask": adapt_mask,
+        "reward_mask": (torch.arange(32) >= 16) & (torch.arange(32) < 20),
+        "model_region_ids": torch.zeros(32, dtype=torch.long),
+    }
+    first_frame = SimpleNamespace(rx_symbols=rx.clone(), **common)
+    second_rx = rx.clone()
+    second_rx[~adapt_mask] = torch.complex(
+        torch.full((16,), 1000.0), torch.full((16,), -1000.0)
+    )
+    second_frame = SimpleNamespace(rx_symbols=second_rx, **common)
+
+    tail = torch.zeros(1, 4, dtype=torch.complex64, requires_grad=True)
+    first_delta = _apply_adapt_peft_update(
+        first,
+        first_frame,
+        condition,
+        tail,
+        groups={"phase_trend"},
+        lr=5e-4,
+        steps=1,
+        objective="pilot_signal_reconstruction",
+    )
+    second_delta = _apply_adapt_peft_update(
+        second,
+        second_frame,
+        condition,
+        tail,
+        groups={"phase_trend"},
+        lr=5e-4,
+        steps=1,
+        objective="pilot_signal_reconstruction",
+    )
+
+    assert first_delta > 0.0
+    assert second_delta == first_delta
+    assert cir.grad is None
+    assert tail.grad is None
+    assert all(
+        torch.equal(left, right)
+        for left, right in zip(first.state_dict().values(), second.state_dict().values())
+    )
+
+
+def test_rejected_peft_update_is_restored_before_full_data_evaluation(monkeypatch):
+    from types import SimpleNamespace
+
+    from agent.cir_estimator import condition_from_cir
+    from agent.discrete_safe_policy import DiscreteSafePolicy, safe_modulation_actions
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+    from env.comm_env import ReceiverState
+    from training import windowed_discrete_ppo
+    from training.windowed_discrete_ppo import (
+        WindowRewardAccumulator,
+        WindowedDiscreteOnlineState,
+        refine_logits_with_tail as original_refine_logits_with_tail,
+        run_windowed_discrete_frame,
+    )
+
+    torch.manual_seed(23)
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(frame_len=32, max_delay=4, iterations=1, d_model=24, num_heads=4)
+    )
+    model.attach_online_phase_trend_adapter()
+    actions = safe_modulation_actions(
+        num_blocks=len(model.blocks),
+        device="cpu",
+        action_names=["identity", "peft_phase_signal_conservative"],
+    )
+    candidate = actions[1]
+    frame = SimpleNamespace(
+        rx_symbols=torch.randn(32, dtype=torch.complex64),
+        tx_symbols=torch.where(torch.arange(32) % 2 == 0, 1.0, -1.0).to(torch.complex64),
+        bits=torch.randint(0, 2, (32,), dtype=torch.bool),
+        adapt_mask=torch.arange(32) < 8,
+        reward_mask=(torch.arange(32) >= 8) & (torch.arange(32) < 12),
+        data_mask=torch.arange(32) >= 12,
+        model_region_ids=torch.zeros(32, dtype=torch.long),
+    )
+    initial_phase = model.online_phase_trend_adapter.raw_phase.detach().clone()
+    captured_data_eval_phases = []
+
+    def force_candidate_update(*args, **kwargs):
+        del args, kwargs
+        with torch.no_grad():
+            model.online_phase_trend_adapter.raw_phase.fill_(0.25)
+        return 0.25
+
+    def reject_candidate(**kwargs):
+        del kwargs
+        return False
+
+    def capture_full_data_evaluation(model_arg, rx_iq, *args, **kwargs):
+        if bool(frame.data_mask.any()) and torch.count_nonzero(rx_iq[0, frame.data_mask]).item() > 0:
+            captured_data_eval_phases.append(
+                model_arg.online_phase_trend_adapter.raw_phase.detach().clone()
+            )
+        return original_refine_logits_with_tail(model_arg, rx_iq, *args, **kwargs)
+
+    monkeypatch.setattr(windowed_discrete_ppo, "_apply_adapt_peft_update", force_candidate_update)
+    monkeypatch.setattr(windowed_discrete_ppo, "should_accept_reward_guard", reject_candidate)
+    monkeypatch.setattr(windowed_discrete_ppo, "refine_logits_with_tail", capture_full_data_evaluation)
+
+    cir = torch.zeros(5, dtype=torch.complex64)
+    cir[0] = 1.0 + 0.0j
+    state = WindowedDiscreteOnlineState(
+        cir=cir,
+        receiver_state=ReceiverState(torch.zeros(4, dtype=torch.complex64)),
+        model=model,
+        policy=DiscreteSafePolicy(observation_dim=4, action_count=len(actions), hidden_size=8),
+        optimizer=torch.optim.AdamW(model.parameters(), lr=1e-4),
+        encoder=SimpleNamespace(),
+        actions=actions,
+        hidden=torch.zeros(1, 1, 8),
+        window_size=4,
+        previous_window_reward=0.0,
+        last_action_delta_norm=0.0,
+        rollout=[],
+        current_action=candidate,
+        current_accumulator=WindowRewardAccumulator(action_delta_norm=0.0),
+        frames_in_window=1,
+    )
+
+    row = run_windowed_discrete_frame(
+        state,
+        frame,
+        condition_from_cir(cir, 10.0),
+        snr_db=10.0,
+        frame_index=1,
+        update_interval=16,
+    )
+
+    assert row["peft_frame_accepted"] is False
+    assert row["safe_action_accepted"] is False
+    assert torch.equal(model.online_phase_trend_adapter.raw_phase, initial_phase)
+    assert len(captured_data_eval_phases) == 2
+    assert all(torch.equal(value, initial_phase) for value in captured_data_eval_phases)
+    assert row["pre_update_ber_data"] == row["ber_data"]
+    assert row["data_bce_improvement_eval_only"] == 0.0
+    assert row["data_logits_abs_delta_mean_eval_only"] == 0.0
+    assert row["data_logits_direction_change_rate_eval_only"] == 0.0
+    assert row["data_soft_output_delta_mean_eval_only"] == 0.0
 
 
 def test_window_reward_uses_reward_pilot_metrics_not_data_labels():
@@ -227,6 +489,43 @@ def test_windowed_discrete_runner_can_enable_decision_directed_cir_update(tmp_pa
     assert result["rows"][0]["cir_update_uses_data_labels"] is False
 
 
+def test_rollback_alias_keeps_sampled_action_index_for_ppo(monkeypatch, tmp_path):
+    from agent.discrete_safe_policy import DiscretePolicySample, DiscreteSafePolicy
+    from training import windowed_discrete_ppo
+
+    captured = []
+
+    def sample_rollback(self, observation, hidden, actions):
+        action = next(action for action in actions if action.name == "rollback_identity")
+        index = torch.tensor([action.index], device=observation.device)
+        log_prob, value, entropy = self.evaluate_action(observation, hidden, index)
+        return DiscretePolicySample(action, log_prob, value, entropy, hidden)
+
+    def capture_rollout(policy, optimizer, rollout):
+        del optimizer
+        for row in rollout:
+            captured.append(int(row["action_index"].item()))
+            log_prob, _, _ = policy.evaluate_action(
+                row["observation"], row["hidden"], row["action_index"]
+            )
+            assert torch.allclose(log_prob, row["old_log_prob"])
+        return 0.0
+
+    monkeypatch.setattr(DiscreteSafePolicy, "sample", sample_rollback)
+    monkeypatch.setattr(windowed_discrete_ppo, "_ppo_update", capture_rollout)
+    result = windowed_discrete_ppo.run_windowed_discrete_online(
+        config_path="configs/continual_ppo.json", frames=1, num_seeds=1,
+        output_dir=tmp_path, delays=[20], snrs=[10], pilot_total=64,
+        pilot_layout="prefix", window_size=1, update_interval=1, device="cpu",
+    )
+    row = result["rows"][0]
+    assert row["policy_action_name"] == "rollback_identity"
+    assert row["applied_action_name"] == "identity"
+    assert row["window_reward_rollback"] is False
+    assert len(captured) == 1
+    assert captured[0] > 0
+
+
 def test_windowed_frame_can_use_receiver_level_cir_alpha_action(monkeypatch):
     from agent.cir_estimator import condition_from_cir
     from agent.discrete_safe_policy import DiscreteSafePolicy, safe_modulation_actions
@@ -290,7 +589,7 @@ def test_windowed_frame_can_use_receiver_level_cir_alpha_action(monkeypatch):
     assert row["cir_update_uses_data_labels"] is False
 
 
-def test_window_action_rollback_does_not_rewind_dynamic_tail_state(monkeypatch):
+def test_window_action_rollback_preserves_pilot_observed_tail_state(monkeypatch):
     from agent.cir_estimator import condition_from_cir
     from agent.discrete_safe_policy import DiscreteSafeAction, DiscreteSafePolicy, safe_modulation_actions
     from agent.modulation import ModulationConfig, ModulationState
@@ -302,10 +601,12 @@ def test_window_action_rollback_does_not_rewind_dynamic_tail_state(monkeypatch):
     class DummyModel:
         def __init__(self):
             self.calls = 0
+            self.tails = []
 
         def __call__(self, rx_iq, condition, region_ids, tail, modulation=None):
-            del condition, region_ids, tail, modulation
+            del condition, region_ids, modulation
             self.calls += 1
+            self.tails.append(tail.detach().clone())
             value = 10.0 if self.calls == 1 else -10.0
             return torch.full(rx_iq.shape[:2], value), torch.empty(rx_iq.shape[:2])
 
@@ -333,9 +634,9 @@ def test_window_action_rollback_does_not_rewind_dynamic_tail_state(monkeypatch):
         rx_symbols=torch.randn(32, dtype=torch.complex64),
         tx_symbols=torch.ones(32, dtype=torch.complex64),
         bits=torch.ones(32, dtype=torch.bool),
-        adapt_mask=torch.arange(32) < 8,
+        adapt_mask=(torch.arange(32) < 8) | (torch.arange(32) >= 28),
         reward_mask=(torch.arange(32) >= 8) & (torch.arange(32) < 12),
-        data_mask=torch.arange(32) >= 12,
+        data_mask=(torch.arange(32) >= 12) & (torch.arange(32) < 28),
         model_region_ids=torch.zeros(32, dtype=torch.long),
     )
     initial_cir = torch.zeros(5, dtype=torch.complex64)
@@ -382,7 +683,123 @@ def test_window_action_rollback_does_not_rewind_dynamic_tail_state(monkeypatch):
         torch.zeros_like(initial_tail.real),
     )
     assert torch.allclose(state.receiver_state.soft_tail, expected_latest_tail)
+    assert all(
+        torch.allclose(tail, expected_latest_tail.unsqueeze(0))
+        for tail in model.tails[-2:]
+    )
     assert captured["alphas"] == [0.8]
+
+
+def test_prefix_pilots_do_not_update_unobserved_rl_tail():
+    from types import SimpleNamespace
+
+    from agent.cir_estimator import condition_from_cir
+    from agent.discrete_safe_policy import DiscreteSafePolicy, safe_modulation_actions
+    from env.comm_env import ReceiverState
+    from training.windowed_discrete_ppo import (
+        WindowRewardAccumulator,
+        WindowedDiscreteOnlineState,
+        run_windowed_discrete_frame,
+    )
+
+    class DummyModel:
+        def __init__(self):
+            self.tails = []
+
+        def __call__(self, rx_iq, condition, region_ids, tail, modulation=None):
+            del condition, region_ids, modulation
+            self.tails.append(tail.detach().clone())
+            logits = torch.full(rx_iq.shape[:2], 10.0)
+            return logits, torch.sigmoid(logits)
+
+    model = DummyModel()
+    actions = safe_modulation_actions(num_blocks=1, device="cpu", action_names=["identity"])
+    identity = actions[0]
+    initial_tail = torch.full((4,), 0.2 + 0.1j, dtype=torch.complex64)
+    frame = SimpleNamespace(
+        rx_symbols=torch.randn(32, dtype=torch.complex64),
+        tx_symbols=torch.ones(32, dtype=torch.complex64),
+        bits=torch.ones(32, dtype=torch.bool),
+        adapt_mask=torch.arange(32) < 8,
+        reward_mask=(torch.arange(32) >= 8) & (torch.arange(32) < 12),
+        data_mask=torch.arange(32) >= 12,
+        model_region_ids=torch.zeros(32, dtype=torch.long),
+    )
+    cir = torch.zeros(5, dtype=torch.complex64)
+    cir[0] = 1.0 + 0.0j
+    state = WindowedDiscreteOnlineState(
+        cir=cir,
+        receiver_state=ReceiverState(initial_tail.clone()),
+        model=model,
+        policy=DiscreteSafePolicy(observation_dim=4, action_count=1, hidden_size=8),
+        optimizer=torch.optim.AdamW([torch.nn.Parameter(torch.zeros(()))], lr=1e-4),
+        encoder=SimpleNamespace(),
+        actions=actions,
+        hidden=torch.zeros(1, 1, 8),
+        window_size=4,
+        previous_window_reward=0.0,
+        last_action_delta_norm=0.0,
+        rollout=[],
+        current_action=identity,
+        current_accumulator=WindowRewardAccumulator(action_delta_norm=0.0),
+        frames_in_window=1,
+    )
+
+    run_windowed_discrete_frame(
+        state,
+        frame,
+        condition_from_cir(cir, 10.0),
+        snr_db=10.0,
+        frame_index=1,
+        update_interval=16,
+    )
+
+    assert torch.equal(state.receiver_state.soft_tail, initial_tail)
+    assert all(torch.equal(tail, initial_tail.unsqueeze(0)) for tail in model.tails[-2:])
+
+
+def test_identity_rl_matches_frozen_over_prefix_pilot_frames(tmp_path):
+    import compare
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+    from env.comm_env import CommEnvConfig, CommunicationEnvironment
+
+    torch.manual_seed(53)
+    model = UnfoldedEqualizer(
+        UnfoldedConfig(
+            frame_len=128, max_delay=4, iterations=1, d_model=8, num_heads=2,
+            pilot_conditioned=True, enable_phase_correction_branch=True,
+        )
+    )
+    (tmp_path / "model_config.json").write_text(
+        json.dumps(model.config.to_dict(), ensure_ascii=False), encoding="utf-8"
+    )
+    torch.save({"state_dict": model.state_dict()}, tmp_path / "model_best.pt")
+    env = CommunicationEnvironment(
+        CommEnvConfig(frame_len=128, max_delay=4, total_pilot=64, layout="prefix", seed=53)
+    )
+    start = env.reset_episode()
+    methods = ("Frozen Offline NN", "RL-Modulated Neural Block Equalizer")
+    states = compare._build_method_states(
+        methods, start.initial_soft_tail, env.channel.last_cir_used(),
+        {"model": model.config.to_dict(), "rl_action_names": ["identity"], "tail_update_alpha": 0.5},
+        delay=4, snr_db=10.0, seed=53,
+        pretrained_path=tmp_path / "model_best.pt", device="cpu", cir_update_mode="fixed",
+    )
+
+    for frame_index in range(1, 4):
+        results = compare._run_methods_for_frame(
+            methods, env.next_frame(), 10.0, states,
+            delay=4, frame_index=frame_index, update_interval=8,
+        )
+        frozen = results[methods[0]]
+        online = results[methods[1]]
+        assert online.ber_data == frozen.ber_data
+        assert online.extra["peft_delta_norm"] == 0.0
+        assert online.extra["data_logits_abs_delta_mean_eval_only"] == 0.0
+        assert torch.equal(
+            states[methods[1]].online_state.receiver_state.soft_tail,
+            states[methods[0]].receiver_state.soft_tail,
+        )
 
 
 def test_tail_refinement_reuses_current_frame_soft_tail_without_labels():

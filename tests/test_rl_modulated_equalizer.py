@@ -179,13 +179,10 @@ def test_compare_proposed_group_uses_pretrained_and_resume_without_duplicates(tm
     ]
     keys = [(row["method"], row["delay"], row["snr_db"], row["seed"], row["frame"], row["pilot_total"], row["pilot_layout"]) for row in rows]
 
-    assert len(rows) == 2
+    assert len(rows) == 1
     assert len(keys) == len(set(keys))
     assert all(row["pretrained_loaded"] is True for row in rows)
-    assert {row["method"] for row in rows} == {
-        "Frozen Offline NN",
-        "Pilot-Driven Online Adaptation",
-    }
+    assert {row["method"] for row in rows} == {"RL-Modulated Neural Block Equalizer"}
 
 
 def test_compare_rl_modulated_loads_policy_checkpoint(tmp_path):
