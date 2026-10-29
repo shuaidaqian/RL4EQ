@@ -1,0 +1,152 @@
+{
+  "schema_version": "rl-peft-moderate-selection-followup-v1",
+  "date": "2026-10-30",
+  "status": "diagnostic_only_candidate_promising_policy_underselects",
+  "fixed_condition": {
+    "channel_level": "B",
+    "profile": "eme_long_memory_v2",
+    "delay_symbols": 116,
+    "impairment_profile": "cfo_phase_tiny",
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "adapt_pilot_total": 224,
+    "reward_pilot_total": 32,
+    "acquisition_gap_seconds": 600.0,
+    "checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "checkpoint_retrained_or_modified": false,
+    "seeds": [1061, 1062, 1063, 1064, 1065],
+    "device": "cpu",
+    "torch_version": "2.11.0+cpu"
+  },
+  "fixed_moderate_24_frames_at_5db": {
+    "snr_db": 5.0,
+    "frames_per_seed": 24,
+    "total_frames": 120,
+    "window_frames": 8,
+    "update_group": "phase_trend",
+    "objective": "pilot_signal_reconstruction",
+    "learning_rate": 0.0025,
+    "steps_per_frame": 5,
+    "max_window_delta_norm": 0.05,
+    "fixed_frozen_mean_ber": 0.30876736106971897,
+    "fixed_moderate_mean_ber": 0.3036132818708817,
+    "mean_improvement_percentage_points": 0.515407919883728,
+    "positive_seed_count": 4,
+    "negative_seed_count": 1,
+    "reward_accepted_updates": 80,
+    "reward_rejected_updates": 40,
+    "per_seed": [
+      {"seed": 1061, "improvement_percentage_points": 0.7324217508236567, "accepted": 17, "rejected": 7},
+      {"seed": 1062, "improvement_percentage_points": 0.4014757151405017, "accepted": 19, "rejected": 5},
+      {"seed": 1063, "improvement_percentage_points": 0.9874134014050165, "accepted": 11, "rejected": 13},
+      {"seed": 1064, "improvement_percentage_points": -0.6727431590358416, "accepted": 15, "rejected": 9},
+      {"seed": 1065, "improvement_percentage_points": 1.1284718910853069, "accepted": 18, "rejected": 6}
+    ],
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false
+  },
+  "ppo_selected_60_frames_at_5db": {
+    "snr_db": 5.0,
+    "frames_per_seed": 60,
+    "total_frames": 300,
+    "window_frames": 8,
+    "complete_policy_windows": 35,
+    "partial_final_windows": 5,
+    "frozen_mean_ber": 0.31699218692878883,
+    "ppo_online_mean_ber": 0.3178732643276453,
+    "mean_improvement_percentage_points": -0.08810773988564809,
+    "moderate_action_windows": 8,
+    "identity_action_windows": 32,
+    "moderate_action_frames": 60,
+    "reward_accepted_updates": 42,
+    "reward_rejected_updates": 18,
+    "window_reward_rollbacks": 0,
+    "max_window_delta_norm": 0.05000000447034836,
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false,
+    "per_seed": [
+      {"seed": 1061, "improvement_percentage_points": 0.0, "moderate_windows": 0},
+      {"seed": 1062, "improvement_percentage_points": 0.04123258093992869, "moderate_windows": 2},
+      {"seed": 1063, "improvement_percentage_points": 0.0, "moderate_windows": 0},
+      {"seed": 1064, "improvement_percentage_points": -0.6206599871317545, "moderate_windows": 2},
+      {"seed": 1065, "improvement_percentage_points": 0.13888870676358542, "moderate_windows": 4}
+    ]
+  },
+  "fixed_moderate_10_15db_screen": {
+    "frames_per_seed_snr": 24,
+    "total_frames": 240,
+    "snrs_db": [10.0, 15.0],
+    "frozen_mean_ber": 0.2892523883531491,
+    "fixed_moderate_mean_ber": 0.285167101273934,
+    "mean_improvement_percentage_points": 0.408528707921505,
+    "positive_seed_snr_trajectories": 9,
+    "total_seed_snr_trajectories": 10,
+    "reward_accepted_updates": 164,
+    "reward_rejected_updates": 76,
+    "peft_parameters_changed_frames": 240,
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false,
+    "by_snr": [
+      {
+        "snr_db": 10.0,
+        "frozen_mean_ber": 0.2926757825538516,
+        "fixed_moderate_mean_ber": 0.2879665806889534,
+        "mean_improvement_percentage_points": 0.4709201864898205,
+        "positive_seed_count": 5,
+        "per_seed_improvement_percentage_points": [
+          {"seed": 1061, "improvement": 0.4015},
+          {"seed": 1062, "improvement": 0.7975},
+          {"seed": 1063, "improvement": 0.1628},
+          {"seed": 1064, "improvement": 0.3635},
+          {"seed": 1065, "improvement": 0.6293}
+        ],
+        "reward_accepted": 88,
+        "reward_rejected": 32
+      },
+      {
+        "snr_db": 15.0,
+        "frozen_mean_ber": 0.2858289941524466,
+        "fixed_moderate_mean_ber": 0.2823676218589147,
+        "mean_improvement_percentage_points": 0.34613722935318947,
+        "positive_seed_count": 4,
+        "per_seed_improvement_percentage_points": [
+          {"seed": 1061, "improvement": 0.5371},
+          {"seed": 1062, "improvement": 0.5588},
+          {"seed": 1063, "improvement": 0.5697},
+          {"seed": 1064, "improvement": 0.2279},
+          {"seed": 1065, "improvement": -0.1628}
+        ],
+        "reward_accepted": 76,
+        "reward_rejected": 44
+      }
+    ]
+  },
+  "ppo_higher_exploration_24_frames_at_5db": {
+    "frames_per_seed": 24,
+    "total_frames": 120,
+    "initial_action_probabilities": {
+      "identity": 0.6037489175796509,
+      "peft_phase_signal_moderate": 0.3661922216415405,
+      "rollback_identity": 0.030058886855840683
+    },
+    "moderate_action_windows": 7,
+    "total_policy_windows": 15,
+    "moderate_action_frames": 56,
+    "reward_accepted_updates": 32,
+    "reward_rejected_updates": 24,
+    "window_reward_rollbacks": 1,
+    "frozen_mean_ber": 0.30876736106971897,
+    "ppo_online_mean_ber": 0.3069986982891957,
+    "mean_improvement_percentage_points": 0.17686627805233002,
+    "per_seed": [
+      {"seed": 1061, "improvement_percentage_points": 0.0, "moderate_windows": 0},
+      {"seed": 1062, "improvement_percentage_points": -0.10308157652616501, "moderate_windows": 1},
+      {"seed": 1063, "improvement_percentage_points": 0.5479602143168449, "moderate_windows": 2},
+      {"seed": 1064, "improvement_percentage_points": -0.4991321514050166, "moderate_windows": 2},
+      {"seed": 1065, "improvement_percentage_points": 0.9385849038759867, "moderate_windows": 2}
+    ],
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false
+  },
+  "conclusion": "固定 moderate 在 5、10、15 dB 取得正的总体收益，但仍有两个退化 seed×SNR 轨迹；PPO 提高探索后增加了 moderate 更新次数，却仍未达到固定 moderate 的收益，下一步验证轨迹级 PEFT 总偏移限制。"
+}
