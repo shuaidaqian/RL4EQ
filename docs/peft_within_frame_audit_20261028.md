@@ -53,3 +53,44 @@ D:\Research\RL4EQ\.venv-gpu\Scripts\python.exe scripts/summarize_pilot_ranking_r
 ## 下一步
 
 继续采用预先固定单一候选，或探索使用 Adapt Pilot 内部留出部分选择候选；Reward Pilot 只对选中的一个候选做接受或回滚。固定 checkpoint、Pilot 总长度、信息边界和评估协议后，用独立 seed 检查低接受率的原因及候选影响、接受率与逐帧配对 BER，再决定是否扩大矩阵。不得用 Data 指标调在线阈值；在排序和收益证据不足时不引入 Bandit。
+
+## 2026-10-29：对照已有 PEFT 进度并复核 5 dB 验收
+
+回看已有进度记录后，确认此前较好的 5 dB 数字来自不同实验条件：2026-10-15 的
+Reward-logit 守门实验在 seed 72–76、每条 24 帧中报告平均改善 `+0.0705 pp`、
+5/5 seed 非负；它使用双窗口、Reward 信号重构检查、logit 改变量上限 `0.1`，并沿用
+包含多个候选的配置。固定调度器代码会用 Reward 分数比较通过守门的候选。因此它不能
+直接当作“预先固定单一 PEFT 候选、Reward 仅验收/回滚”的复现证据。该 5 dB 结果仍是
+有价值的历史筛选结果，但没有证明严格单候选协议在新 seed 上能稳定收益；同一实验的
+10 dB 结果也只有 2/5 seed 正收益，0 dB 则被冻结。
+
+为定位近期 5 dB 单候选全部不更新的问题，固定 `phase_signal_moderate` 唯一候选、同一
+checkpoint、Level B、gap=0、5 dB、seed 11–15、每条 12 帧，对照不同 Reward 守门：
+
+| 守门设置 | 冻结 BER | 在线 BER | 帧级改善 / 持平 / 变差 | PEFT 更新 / 回滚 |
+|---|---:|---:|---:|---:|
+| 单窗口，基础守门 | 4.48% | 4.49% | 0 / 55 / 5 | 2 / 1 |
+| 双窗口 + Reward 信号重构守门 + logits 改变量 ≤ 0.1 | 4.48% | 4.48% | 0 / 60 / 0 | 0 / 0 |
+
+单窗口只在 seed 14、15 各接受过一次更新，整体平均恶化约 `0.0109 pp`；没有 seed
+获得净改善。较严格的双窗口设置在 5 个 seed 上全部拒绝更新，因而安全地退回 Frozen，
+却没有提供在线收益。两种设置的 60 帧配对均使用相同冻结 BER；所有在线记录都显式
+报告 Data 波形和标签未用于在线决策。
+
+这解释了为何读起来像“退步”：此前 5 dB 的正向结果与当前固定候选测试的**候选选择方式、
+守门组合、seed 和帧数都不同**。放宽到单窗口会放进少量有害更新；收紧到双窗口复合守门
+则完全不更新。关键瓶颈仍是可迁移的候选收益，不是离线模型或 PEFT 参数路径消失。
+
+复现命令：
+
+```powershell
+$env:PYTHONDONTWRITEBYTECODE='1'
+# 单窗口基础守门
+D:\Research\RL4EQ\.venv-gpu\Scripts\python.exe compare.py --config logs/peft_fixed_candidate_20261028/config.json --pretrained D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --methods 'Frozen Offline NN' 'Pilot-Driven Online Adaptation' --delays 116 --snrs 5 --seed-start 11 --num-seeds 5 --frames 12 --pilot-total 256 --reward-pilot-total 32 --pilot-layout prefix --acquisition-to-data-gap-seconds 0 --online-freeze-below-snr-db -1 --online-reward-windows 1 --scheduler fixed --cir-update fixed --online-condition-source pilot_cir_phase --device cuda --output-dir logs/peft_fixed_candidate_gap0_5db_w1_seed11_15_12f_20261029
+# 双窗口复合守门
+D:\Research\RL4EQ\.venv-gpu\Scripts\python.exe compare.py --config logs/peft_fixed_candidate_20261028/config.json --pretrained D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --methods 'Frozen Offline NN' 'Pilot-Driven Online Adaptation' --delays 116 --snrs 5 --seed-start 11 --num-seeds 5 --frames 12 --pilot-total 256 --reward-pilot-total 32 --pilot-layout prefix --acquisition-to-data-gap-seconds 0 --online-freeze-below-snr-db -1 --online-min-reward-improvement 0.0005 --online-reward-windows 2 --online-require-reward-signal-reconstruction --online-reward-signal-tolerance 0 --online-reward-logit-change-tolerance 0.1 --scheduler fixed --cir-update fixed --online-condition-source pilot_cir_phase --device cuda --output-dir logs/peft_fixed_candidate_gap0_5db_w2_signal_logitcap_seed11_15_12f_20261029
+```
+
+以上仅为固定 PEFT 策略消融。当前仓库 `AGENTS.md` 已将 RL 调制均衡器列为唯一主
+研究路线；任何后续 RL 验证都应单独报告，并确保在线只使用 Pilot reward 和状态，不使用
+Data 标签。当前结论仍未达到 PEFT 多 SNR 稳定正收益或项目整体主成功门槛。
