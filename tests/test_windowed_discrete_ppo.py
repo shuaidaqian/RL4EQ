@@ -59,6 +59,7 @@ def test_discrete_safe_action_catalog_is_bounded_and_has_identity():
         "peft_adapter_lora_light",
         "peft_adapter_lora_head_light",
         "peft_phase_signal_conservative",
+        "peft_phase_signal_moderate",
         "rollback_identity",
     ]
     assert actions[0].delta_norm == 0.0
@@ -77,6 +78,13 @@ def test_discrete_safe_action_catalog_is_bounded_and_has_identity():
     assert actions[names.index("peft_adapter_lora_light")].peft_groups == {"adapter", "attention_lora", "ffn_lora"}
     assert actions[names.index("peft_phase_signal_conservative")].peft_groups == {"phase_trend"}
     assert actions[names.index("peft_phase_signal_conservative")].peft_objective == "pilot_signal_reconstruction"
+    assert actions[names.index("peft_phase_signal_conservative")].peft_max_delta_norm == 0.05
+    moderate = actions[names.index("peft_phase_signal_moderate")]
+    assert moderate.peft_groups == {"phase_trend"}
+    assert moderate.peft_lr == 2.5e-3
+    assert moderate.peft_steps == 5
+    assert moderate.peft_max_delta_norm == 0.05
+    assert moderate.peft_objective == "pilot_signal_reconstruction"
 
 
 def test_discrete_safe_action_catalog_can_focus_on_pilot_peft_actions():
@@ -127,6 +135,7 @@ def test_discrete_policy_prior_starts_conservatively_from_identity():
     assert peft_probability > 0.15
     assert probabilities[names.index("peft_phase_signal_conservative")] > 0.1
     assert probabilities[names.index("peft_adapter_lora_conservative")] > 0.08
+    assert probabilities[names.index("identity")] > 0.55
 
 
 def test_focused_peft_candidate_keeps_identity_prior_and_gets_exploration_probability():
@@ -148,6 +157,58 @@ def test_focused_peft_candidate_keeps_identity_prior_and_gets_exploration_probab
 
     assert probabilities[names.index("identity")] > 0.6
     assert probabilities[names.index("peft_adapter_lora_light")] > 0.1
+
+
+def test_focused_moderate_phase_action_is_bounded_and_explored():
+    from agent.discrete_safe_policy import (
+        DiscreteSafePolicy,
+        initialize_safe_discrete_policy_prior,
+        safe_modulation_actions,
+    )
+
+    actions = safe_modulation_actions(
+        num_blocks=3,
+        device="cpu",
+        action_names=["identity", "peft_phase_signal_moderate", "rollback_identity"],
+    )
+    policy = DiscreteSafePolicy(observation_dim=4, action_count=len(actions), hidden_size=8)
+    initialize_safe_discrete_policy_prior(policy, actions)
+    probabilities = torch.softmax(policy.logits.bias, dim=0)
+    names = [action.name for action in actions]
+
+    assert probabilities[names.index("identity")] > 0.6
+    assert probabilities[names.index("peft_phase_signal_moderate")] > 0.1
+    assert actions[names.index("peft_phase_signal_moderate")].peft_max_delta_norm == 0.05
+
+
+def test_window_peft_delta_projection_caps_cumulative_action_change():
+    import pytest
+
+    from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+    from training.windowed_discrete_ppo import (
+        _clip_peft_delta_to_snapshot,
+        _snapshot_delta_norm,
+        _snapshot_peft_groups,
+    )
+
+    model = UnfoldedEqualizer(UnfoldedConfig(
+        frame_len=32,
+        max_delay=4,
+        iterations=1,
+        d_model=16,
+        num_heads=4,
+    ))
+    model.attach_online_phase_trend_adapter()
+    snapshot = _snapshot_peft_groups(model, {"phase_trend"})
+    with torch.no_grad():
+        for name, parameter in model.named_parameters():
+            if name in snapshot:
+                parameter.add_(0.25)
+
+    projected_norm = _clip_peft_delta_to_snapshot(model, snapshot, 0.05)
+
+    assert projected_norm == pytest.approx(0.05, abs=1e-6)
+    assert _snapshot_delta_norm(model, snapshot) <= 0.050001
 
 
 def test_safe_policy_can_learn_different_actions_for_different_pilot_observations():

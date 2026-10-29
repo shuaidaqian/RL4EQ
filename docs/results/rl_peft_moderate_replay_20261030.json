@@ -1,0 +1,74 @@
+{
+  "schema_version": "rl-peft-moderate-replay-v1",
+  "date": "2026-10-30",
+  "status": "diagnostic_only_no_stable_gain",
+  "fixed_condition": {
+    "channel_level": "B",
+    "profile": "eme_long_memory_v2",
+    "delay_symbols": 116,
+    "impairment_profile": "cfo_phase_tiny",
+    "snr_db": 5.0,
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "adapt_pilot_total": 224,
+    "reward_pilot_total": 32,
+    "acquisition_gap_seconds": 600.0,
+    "seeds": [1061, 1062, 1063, 1064, 1065],
+    "frames_per_seed": 24,
+    "window_size_frames": 8,
+    "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+    "checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "checkpoint_retrained_or_modified": false,
+    "device": "cpu",
+    "torch_version": "2.11.0+cpu"
+  },
+  "candidate": {
+    "action_names": ["identity", "peft_phase_signal_moderate", "rollback_identity"],
+    "peft_group": "phase_trend",
+    "objective": "pilot_signal_reconstruction",
+    "learning_rate": 0.0025,
+    "steps_per_frame": 5,
+    "max_window_parameter_delta_l2": 0.05,
+    "data_waveform_used_online": false,
+    "data_labels_used_online": false
+  },
+  "paired_ber": {
+    "frame_count": 120,
+    "frozen_mean_ber": 0.30876736106971897,
+    "online_mean_ber": 0.3079427090783914,
+    "mean_improvement_percentage_points": 0.08246519913276036,
+    "seeds_with_positive_mean_improvement": 1,
+    "seeds_with_negative_mean_improvement": 2,
+    "seeds_unchanged_identity_only": 2,
+    "per_seed": [
+      {"seed": 1061, "frozen_mean_ber": 0.3020290769636631, "online_mean_ber": 0.3020290769636631, "improvement_percentage_points": 0.0, "moderate_windows": 0},
+      {"seed": 1062, "frozen_mean_ber": 0.36718750062088173, "online_mean_ber": 0.3682183163861434, "improvement_percentage_points": -0.10308157652616501, "moderate_windows": 1},
+      {"seed": 1063, "frozen_mean_ber": 0.18679470693071684, "online_mean_ber": 0.18679470693071684, "improvement_percentage_points": 0.0, "moderate_windows": 0},
+      {"seed": 1064, "frozen_mean_ber": 0.2719184023638566, "online_mean_ber": 0.2761501756807168, "improvement_percentage_points": -0.4231773316860199, "moderate_windows": 1},
+      {"seed": 1065, "frozen_mean_ber": 0.4159071184694767, "online_mean_ber": 0.4065212694307168, "improvement_percentage_points": 0.9385849038759867, "moderate_windows": 2}
+    ]
+  },
+  "action_and_guard": {
+    "total_policy_windows": 15,
+    "moderate_action_windows": 4,
+    "identity_action_windows": 11,
+    "moderate_action_frames": 32,
+    "frames_with_nonzero_peft_delta": 32,
+    "frame_reward_accepted_updates": 22,
+    "frame_reward_rejected_updates": 10,
+    "window_reward_rollbacks": 0,
+    "max_observed_cumulative_window_delta_l2": 0.05000000447034836,
+    "max_delta_float_tolerance": 1e-6
+  },
+  "continuous_data_diagnostics_on_moderate_frames": {
+    "mean_logit_absolute_delta": 0.13065063567955804,
+    "mean_data_bce_improvement": 0.019960056990385056,
+    "mean_logit_direction_change_rate": 0.01416015622089617,
+    "mean_soft_output_delta": 0.012172588273188012
+  },
+  "conclusion": "PEFT 更新、Reward 拒绝和窗口偏移限幅均已触发，但 Data BER 收益跨 seed 不稳定；总体微小改善由单个 seed 主导，不满足稳定收益门槛。",
+  "raw_logs_ignored": [
+    "logs/rl_peft_moderate_gap600_5db_5s24f_seed1061_1065_20261030/frame_metrics.jsonl",
+    "logs/rl_peft_frozen_gap600_5db_5s24f_seed1061_1065_20261030/frame_metrics.jsonl"
+  ]
+}

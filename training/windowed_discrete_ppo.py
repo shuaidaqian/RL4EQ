@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -338,8 +339,9 @@ def run_windowed_discrete_frame(
         else float(getattr(state, "cir_update_alpha", 0.2))
     )
     peft_delta_norm = 0.0
+    window_peft_delta_norm = 0.0
     if sampled_action.peft_groups:
-        peft_delta_norm = _apply_adapt_peft_update(
+        _apply_adapt_peft_update(
             state.model,
             frame,
             condition,
@@ -348,7 +350,23 @@ def run_windowed_discrete_frame(
             lr=float(sampled_action.peft_lr),
             steps=int(sampled_action.peft_steps),
             objective=str(sampled_action.peft_objective),
+            max_delta_norm=sampled_action.peft_max_delta_norm,
         )
+        if sampled_action.peft_max_delta_norm is not None:
+            if state.current_window_peft_snapshot is not None:
+                _clip_peft_delta_to_snapshot(
+                    state.model,
+                    state.current_window_peft_snapshot,
+                    float(sampled_action.peft_max_delta_norm),
+                )
+            peft_delta_norm = _snapshot_delta_norm(state.model, frame_peft_snapshot)
+            if state.current_window_peft_snapshot is not None:
+                window_peft_delta_norm = _snapshot_delta_norm(
+                    state.model,
+                    state.current_window_peft_snapshot,
+                )
+        else:
+            peft_delta_norm = _snapshot_delta_norm(state.model, frame_peft_snapshot)
         if state.current_accumulator is not None:
             state.current_accumulator.action_delta_norm += float(peft_delta_norm)
     logits_after = refine_logits_with_tail(
@@ -560,6 +578,11 @@ def run_windowed_discrete_frame(
         "action_delta_norm": float(sampled_action.delta_norm),
         "modulation_delta_norm": float(applied_action.delta_norm),
         "peft_delta_norm": float(peft_delta_norm),
+        "peft_max_delta_norm": (
+            None if sampled_action.peft_max_delta_norm is None
+            else float(sampled_action.peft_max_delta_norm)
+        ),
+        "window_peft_delta_norm_before_reward": float(window_peft_delta_norm),
         "peft_objective": str(sampled_action.peft_objective),
         "data_labels_used_online": False,
         "data_waveform_used_online": False,
@@ -724,6 +747,7 @@ def _apply_adapt_peft_update(
     lr: float,
     steps: int,
     objective: str = "bce",
+    max_delta_norm: float | None = None,
 ) -> float:
     """只用 Adapt Pilot 对 PEFT 参数做候选更新，返回参数变化范数。"""
 
@@ -784,6 +808,8 @@ def _apply_adapt_peft_update(
         loss.backward()
         torch.nn.utils.clip_grad_norm_(trainable, 1.0)
         optimizer.step()
+    if max_delta_norm is not None:
+        _clip_peft_delta_to_snapshot(model, before, float(max_delta_norm))
     model.eval()
     model.set_trainable_groups(set())
     delta_sq = torch.zeros(())
@@ -800,6 +826,43 @@ def _snapshot_peft_groups(model: UnfoldedEqualizer, groups: set[str]) -> dict[st
         for name, parameter in model.named_parameters()
         if getattr(parameter, "_peft_group", None) in resolved
     }
+
+
+def _snapshot_delta_norm(model: UnfoldedEqualizer, snapshot: dict[str, torch.Tensor]) -> float:
+    """计算指定 PEFT 参数相对快照的总 L2 偏移。"""
+
+    parameters = dict(model.named_parameters())
+    if set(snapshot) - set(parameters):
+        raise ValueError("PEFT 参数快照与当前模型不匹配。")
+    delta_sq = torch.zeros((), dtype=torch.float32)
+    for name, value in snapshot.items():
+        delta_sq = delta_sq + (
+            parameters[name].detach().float() - value.to(parameters[name].device).float()
+        ).pow(2).sum().cpu()
+    return float(torch.sqrt(delta_sq).item())
+
+
+def _clip_peft_delta_to_snapshot(
+    model: UnfoldedEqualizer,
+    snapshot: dict[str, torch.Tensor],
+    max_delta_norm: float,
+) -> float:
+    """把单步或窗口累计 PEFT 偏移投影到预设 L2 信任区域内。"""
+
+    cap = float(max_delta_norm)
+    if not math.isfinite(cap) or cap <= 0.0:
+        raise ValueError("PEFT delta norm 上限必须为正有限数。")
+    current_norm = _snapshot_delta_norm(model, snapshot)
+    if current_norm > cap:
+        scale = cap / max(current_norm, 1e-12)
+        parameters = dict(model.named_parameters())
+        with torch.no_grad():
+            for name, value in snapshot.items():
+                parameter = parameters[name]
+                reference = value.to(parameter.device, dtype=parameter.dtype)
+                parameter.copy_(reference + scale * (parameter - reference))
+        current_norm = _snapshot_delta_norm(model, snapshot)
+    return current_norm
 
 
 def _restore_snapshot(model: UnfoldedEqualizer, snapshot: dict[str, torch.Tensor]) -> None:

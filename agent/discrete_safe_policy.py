@@ -28,6 +28,7 @@ class DiscreteSafeAction:
     cir_alpha: float | None = None
     tail_alpha: float | None = None
     peft_objective: str = "bce"
+    peft_max_delta_norm: float | None = None
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ def safe_modulation_actions(
         ("peft_adapter_lora_light", identity, {"adapter", "attention_lora", "ffn_lora"}, 1e-4, 1, None, None),
         ("peft_adapter_lora_head_light", identity, {"adapter_lora_head"}, 1e-4, 1, None, None),
         ("peft_phase_signal_conservative", identity, {"phase_trend"}, 5e-4, 1, None, None),
+        ("peft_phase_signal_moderate", identity, {"phase_trend"}, 2.5e-3, 5, None, None),
         ("rollback_identity", identity, None, 0.0, 0, None, None),
     ]
     if action_names is not None:
@@ -91,9 +93,10 @@ def safe_modulation_actions(
                 tail_alpha=tail_alpha,
                 peft_objective=(
                     "pilot_signal_reconstruction"
-                    if name == "peft_phase_signal_conservative"
+                    if name in {"peft_phase_signal_conservative", "peft_phase_signal_moderate"}
                     else "bce"
                 ),
+                peft_max_delta_norm=0.05 if peft_groups else None,
             )
         )
     return actions
@@ -131,6 +134,9 @@ def initialize_safe_discrete_policy_prior(policy: "DiscreteSafePolicy", actions:
                 policy.logits.bias[action.index] = 0.0
             elif action.name in {"peft_phase_signal_conservative", "peft_adapter_lora_conservative"}:
                 policy.logits.bias[action.index] = 1.25
+            elif action.name == "peft_phase_signal_moderate":
+                # 完整动作表中保持低先验；若单独筛选该候选，后面的安全探索规则会提高其概率。
+                policy.logits.bias[action.index] = -1.5
             elif action.name == "peft_adapter_lora_light":
                 policy.logits.bias[action.index] = -1.0
             elif action.name == "peft_adapter_lora_head_light":
