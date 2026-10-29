@@ -47,6 +47,29 @@
 3. 只在 Pilot 内重做候选筛选：用互不重叠的 Adapt 子窗口生成候选、另一段 Adapt Pilot 作筛选，再由独立 Reward Pilot 验收；全过程继续屏蔽 Data 波形和标签。
 4. 先在留出 seed 上达到预设 Spearman ≥ 0.6，且各 seed 的 Data BER 收益没有系统性退化，再进入正式矩阵。达不到时，应调整 PEFT 调制位置或 Pilot 可观测性，而不是继续扩大样本掩盖排序失败。
 
+## 连续帧参数持久化复核（2026-10-29）
+
+为确认被 Reward Pilot 接受的相位趋势 Adapter 是否会在后续帧保留并继续产生收益，固定 checkpoint 和 `gap=600 s`，运行 3 seeds × 3 SNR × 12 帧连续 replay。每条 seed/SNR 轨迹都从同一冻结模型开始；Reward 接受后把候选参数带入下一帧，拒绝则回到上一帧参数。Adapt、独立排序窗和 Reward Pilot 仍按原协议隔离，Data 指标只在该帧所有在线决定结束后计算。
+
+精简机器可读结果见 [`pilot_persistent_peft_gap600_3s3snr12f_20261029.json`](results/pilot_persistent_peft_gap600_3s3snr12f_20261029.json)；原始逐帧 replay 保存在被 `.gitignore` 排除的本机 `logs/` 目录。
+
+固定参数为 Level B `eme_long_memory_v2`、delay `116`、prefix Pilot `256`（Reward `32`）、SNR `5/10/15 dB`、seed `1051/1052/1053`、每轨迹 `12` 帧；更新对象为 `phase_trend`，目标为 Pilot 信号重构，学习率 `0.0025`、每帧 `5` 步、单次参数增量上限 `0.05`。checkpoint SHA256 仍为 `8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4`，未重新训练或修改。
+
+| 指标 | 结果 | 解读 |
+|---|---:|---|
+| 逐帧 Data BER 平均改善 | `+0.3581 pp` | 以当前累计 Adapter 状态对比冻结模型，在每帧 Data 上测量后再跨帧平均；不是把 12 帧拼接后计算的单一 BER |
+| seed×SNR 轨迹均值为正 | `7/9` | 5 dB 为 `3/3`，10 dB 为 `2/3`，15 dB 为 `2/3`；仍有两条轨迹平均退化 |
+| 最后一帧 BER 改善为正 | `6/9` | 另有一条为零、两条为负，无法证明每条轨迹都稳定改善 |
+| Reward 接受 / 独立排序通过 | `68/108` / `90/108` | 在线门控有实际更新，但更新接受并不保证每条轨迹最终受益 |
+| 连续输出变化 | Data BCE 平均改善 `0.0581`；logit 平均绝对变化 `0.846`；软输出变化 `0.0210`；方向翻转比例 `2.19%` | PEFT 确实影响 Data 输出，不是梯度路径失效 |
+| 前 6 帧 / 后 6 帧平均 BER 改善 | `+0.3159 pp` / `+0.4003 pp` | 后半段略高，但逐帧收益上下波动，不能说优势稳定随帧数扩大 |
+
+仅在 68 个已接受更新上做事后排序检查时，Reward Pilot 信号重构改善与该次更新实际 Data BER 改善的 Spearman `ρ=0.591`。按 seed 分别为 `0.696/0.488/0.563`，按 SNR 分别为 `0.627/0.486/0.581`。这是重复帧上的探索性相关，不是留出 seed OOF 结果；低于预设的跨 seed 稳定性要求，不能据此接入 bandit 或宣称 Pilot reward 已可靠预测 Data 收益。
+
+**阶段结论：**参数持久化后总体平均收益为正，且更新会明显改变 Data 连续输出；但收益幅度小、不同 seed/SNR 仍有退化，逐帧收益不单调，Reward 排序也没有跨 seed 稳定。因而在线 PEFT 仍未达到“稳定明确地超过冻结离线模型”的门槛。本矩阵是 gap 老化诊断，不替代 gap=0 主场景，也不计入正式主平均。
+
+下一步继续在 Pilot-only replay 中改进多帧排序可靠性：固定 checkpoint、信道、pilot 总长和 seed 划分，比较当前单帧 Reward 与跨帧累计 Reward/状态一致性分数；只有留出 seed 的排序达到既定门槛、且各 SNR 不出现系统性 BER 退化，才进入正式矩阵。仍不使用 Data 波形或标签参与在线更新、动作选择或门控。
+
 复核 OOF 诊断的命令：
 
 ```powershell
