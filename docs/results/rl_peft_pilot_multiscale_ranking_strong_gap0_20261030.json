@@ -1,7 +1,7 @@
 {
   "schema_version": "rl-peft-pilot-multiscale-ranking-strong-gap0-v1",
   "date": "2026-10-30",
-  "status": "pilot_rank_does_not_reliably_predict_data_ber",
+  "status": "superseded_initial_replay_did_not_apply_state_split",
   "protocol": {
     "config": "configs/diagnostics/eme_long_memory_v2_cfo_phase_light_pilot_multiscale.json",
     "channel_level": "B",
@@ -48,7 +48,10 @@
     "reward_gate": "Reward Pilot BCE 改善超过 0.0005 且硬错数不增加",
     "online_data_waveform_or_labels_used": false,
     "data_metrics_used_only_posthoc": true,
-    "diagnostic_only": true
+    "diagnostic_only": true,
+    "requested_state_split": "heldout_edge",
+    "state_split_applied": false,
+    "first_pass_limitation": "replay helper omitted state_split when building the channel; cfo_phase_light profile remained active, but heldout path-count/diffuse-energy ranges were not applied. Do not treat the first-pass ranking metrics as full heldout_edge evidence."
   },
   "pair_integrity": {
     "multiscale_rank_bce_trials": 60,
@@ -73,7 +76,8 @@
       "data_logits_abs_mean_delta": 240,
       "data_waveform_used_online": 240,
       "data_labels_used_online": 240
-    }
+    },
+    "state_split_applied_in_first_pass": false
   },
   "multiscale_rank_bce": {
     "trials": 60,

@@ -73,6 +73,7 @@ def build_pilot_replay_episode(
     gap_seconds: float | None,
     device: str,
     condition_source: str | None = None,
+    state_split: str | None = None,
 ) -> PilotReplayEpisode:
     """加载完整配置，严格检查维度，禁止静默使用旧版默认环境。"""
 
@@ -82,11 +83,15 @@ def build_pilot_replay_episode(
         if not math.isfinite(gap) or gap < 0.0:
             raise ValueError("gap_seconds 必须为有限非负数。")
         config["acquisition_to_data_gap_seconds"] = gap
+    selected_state_split = (
+        state_split if state_split is not None else config.get("state_split")
+    )
     source = _online_condition_source_from_config(config, condition_source)
     env_config = build_comm_env_config(
         config, level="B", snr_db=float(snr), seed=50_000 + int(seed),
         max_delay=int(delay), total_pilot=int(pilot_total),
         reward_pilot_total=reward_pilot_total, pilot_layout="prefix",
+        state_split=selected_state_split,
     )
     validate_model_dimensions(model_config, env_config)
     if env_config.acquisition_to_data_gap_seconds and env_config.profile_name == "legacy_sparse_v1":

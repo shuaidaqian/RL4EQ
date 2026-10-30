@@ -1,6 +1,10 @@
 # 强 CFO/相位失配下的 Pilot-only PEFT 候选排序（2026-10-30）
 
-## 结论
+## 复核说明
+
+这份记录中的首轮 pilot replay 虽使用 `cfo_phase_light` profile，但 replay 入口当时没有把 `heldout_edge` 状态划分传入信道构造器。因此 CFO/phase profile 生效，heldout 的强路径数和弥散能量范围没有生效。下面原始数值只作为该 profile 下的初步诊断，**不作为完整 heldout_edge 结果**；已修复状态划分传递，并将用同一 checkpoint 复跑后替换本报告结论。
+
+## 首轮诊断（已被协议复核标记，不用于路线结论）
 
 我固定离线 checkpoint，在强 CFO/相位失配下比较了三种 Pilot-only 选法：多尺度更新配 Adapt BCE 排序、多尺度更新配 Adapt 信号重构排序，以及 `phase_trend/head` 不同 PEFT 目标配 Adapt BCE 排序。三种方法的候选分数对事后 Data BER 的排序相关性都只有约 0.40–0.42，低于预设 0.6 门槛；收益主要来自 0 dB，5–15 dB 没有稳定改善。因此这轮仍不能证明在线 PEFT 能稳定超过离线模型。
 

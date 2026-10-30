@@ -151,7 +151,8 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
                max_delta_norm: float, min_reward_improvement: float,
                freeze_below_snr_db: float,
                reward_history_frames: int, peft_group: str,
-               max_cumulative_delta_norm: float | None) -> list[dict]:
+               max_cumulative_delta_norm: float | None,
+               state_split: str | None) -> list[dict]:
     episode = build_pilot_replay_episode(
         experiment,
         model_config,
@@ -163,6 +164,7 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
         gap_seconds=float(gap_seconds),
         device=device,
         condition_source="pilot_cir_phase",
+        state_split=state_split,
     )
     frozen = _build_equalizer(model_config, checkpoint, device)
     if peft_group == "phase_trend":
@@ -462,6 +464,7 @@ def main() -> None:
     parser.add_argument("--pilot-total", type=int, default=256)
     parser.add_argument("--reward-pilot-total", type=int, default=32)
     parser.add_argument("--gap-seconds", type=float, default=600.0)
+    parser.add_argument("--state-split", default=None)
     parser.add_argument("--holdout-fraction", type=float, default=0.25)
     parser.add_argument("--learning-rate", type=float, default=0.0025)
     parser.add_argument("--steps", type=int, default=5)
@@ -484,6 +487,7 @@ def main() -> None:
     ):
         parser.error("max-cumulative-delta-norm 必须为正有限数。")
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    state_split = args.state_split if args.state_split is not None else config.get("state_split")
     model_config = _load_model_config(config, Path(args.pretrained))
     max_delta_norm = float(args.max_delta_norm)
     all_rows = []
@@ -510,6 +514,7 @@ def main() -> None:
                 reward_history_frames=args.reward_history_frames,
                 peft_group=args.peft_group,
                 max_cumulative_delta_norm=args.max_cumulative_delta_norm,
+                state_split=state_split,
             ))
     result = summarize(all_rows)
     result.update({
@@ -524,6 +529,7 @@ def main() -> None:
             "pilot_total": int(args.pilot_total),
             "reward_pilot_total": int(args.reward_pilot_total),
             "acquisition_gap_seconds": float(args.gap_seconds),
+            "state_split": state_split,
             "snrs_db": [float(value) for value in args.snrs],
             "seeds": [int(value) for value in args.seeds],
             "frames_per_seed_snr": int(args.frames),

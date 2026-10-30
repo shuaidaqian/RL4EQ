@@ -208,6 +208,49 @@ def test_replay_uses_frozen_eme_config_and_explicit_condition_override(monkeypat
     assert experiment["online_condition_source"] == "pilot_cir_phase"
 
 
+def test_replay_applies_configured_heldout_state_split(monkeypatch):
+    import evaluation.pilot_replay_protocol as protocol
+
+    experiment = json.loads(
+        Path(
+            "configs/diagnostics/eme_long_memory_v2_cfo_phase_light_rl_peft.json"
+        ).read_text(encoding="utf-8")
+    )
+    experiment["state_split"] = "heldout_edge"
+    model_config = UnfoldedConfig.from_dict(experiment["model"])
+    monkeypatch.setattr(
+        protocol,
+        "estimate_acquisition_cir_with_cfo",
+        lambda *args, **kwargs: (torch.ones(117, dtype=torch.complex64), 0.001),
+    )
+    monkeypatch.setattr(
+        protocol,
+        "estimate_phase_residual_vector",
+        lambda *args, **kwargs: torch.zeros(16),
+    )
+
+    episode = build_pilot_replay_episode(
+        experiment,
+        model_config,
+        snr=10,
+        seed=9,
+        delay=116,
+        pilot_total=256,
+        reward_pilot_total=32,
+        gap_seconds=0,
+        device="cpu",
+        condition_source="pilot_cir_phase",
+    )
+    state = episode.env.state_metadata()
+
+    assert episode.env.config.state_split == "heldout_edge"
+    assert episode.env.config.state_ranges["cfo_abs_range"] == (0.001, 0.003)
+    assert 19 <= state["strong_path_count"] <= 24
+    assert 0.29 <= state["diffuse_energy_ratio"] <= 0.35
+    assert 0.001 <= abs(state["cfo_cycles_per_symbol"]) <= 0.003
+    assert 0.001 <= state["phase_noise_std"] <= 0.003
+
+
 def test_replay_can_apply_physical_eme_acquisition_gap_without_changing_profile(monkeypatch):
     import evaluation.pilot_replay_protocol as protocol
     experiment = json.loads(Path("configs/online_phase_signal_state_embedding_formal_moderate.json").read_text(encoding="utf-8"))

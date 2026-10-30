@@ -317,7 +317,8 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
                lr: float, steps: int, min_reward_improvement: float,
                freeze_below_snr_db: float,
                candidate_bank: tuple[dict, ...], rank_score: str,
-               require_reward_signal_improvement: bool) -> list[dict]:
+               require_reward_signal_improvement: bool,
+               state_split: str | None) -> list[dict]:
     episode = build_pilot_replay_episode(
         experiment,
         model_config,
@@ -329,6 +330,7 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
         gap_seconds=float(gap_seconds),
         device=device,
         condition_source="pilot_cir_phase",
+        state_split=state_split,
     )
     frozen = _build_equalizer(model_config, checkpoint, device)
     frozen.attach_online_phase_trend_adapter()
@@ -427,6 +429,7 @@ def _run_trial(*, experiment: dict, model_config, checkpoint: Path, device: str,
             "seed": int(seed),
             "snr_db": float(snr),
             "frame_index": int(frame_index),
+            "episode_metadata": episode.metadata(),
             "selected_candidate": str(selected["candidate_name"]),
             "selected_rank_pilot_bce_improvement": float(selected["rank_pilot_bce_improvement"]),
             "selected_pilot_rank_score_name": str(rank_score),
@@ -627,6 +630,7 @@ def main() -> None:
     parser.add_argument("--pilot-total", type=int, default=256)
     parser.add_argument("--reward-pilot-total", type=int, default=32)
     parser.add_argument("--gap-seconds", type=float, default=600.0)
+    parser.add_argument("--state-split", default=None)
     parser.add_argument("--holdout-fraction", type=float, default=0.25)
     parser.add_argument("--lr", type=float, default=0.0005)
     parser.add_argument("--steps", type=int, default=1)
@@ -648,6 +652,7 @@ def main() -> None:
     if not Path(args.pretrained).is_file():
         parser.error(f"checkpoint 不存在：{args.pretrained}")
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    state_split = args.state_split if args.state_split is not None else config.get("state_split")
     model_config = _load_model_config(config, Path(args.pretrained))
     min_reward = float(
         args.min_reward_improvement
@@ -689,6 +694,7 @@ def main() -> None:
                 candidate_bank=selected_candidates,
                 rank_score=args.rank_score,
                 require_reward_signal_improvement=args.require_reward_signal_improvement,
+                state_split=state_split,
             ))
     result = summarize(all_rows)
     result.update({
@@ -703,6 +709,7 @@ def main() -> None:
             "pilot_total": int(args.pilot_total),
             "reward_pilot_total": int(args.reward_pilot_total),
             "acquisition_gap_seconds": float(args.gap_seconds),
+            "state_split": state_split,
             "snrs_db": [float(value) for value in args.snrs],
             "seeds": [int(value) for value in args.seeds],
             "frames_per_seed_snr": int(args.frames),
