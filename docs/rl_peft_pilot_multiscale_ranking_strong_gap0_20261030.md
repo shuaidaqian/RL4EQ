@@ -53,11 +53,23 @@
 
 先按 seed 平均四个 SNR 后，平均改善为 +1.16 pp，95% 区间为 [-1.52, +3.84] pp；只有 3/5 个 seed 为正。seed 1092 在所有 SNR 都有较明显收益，其余 seed 多数接近零或有轻微回退，说明整体正均值被单个 seed 拉高。全程 160 次中有 55 次通过 Reward 接受门槛，Adapt 排序门槛通过 102 次；接受率本身没有转化为跨 seed 的稳定 Data BER 改善。
 
+## 跨帧累计 Adapt 更新复核
+
+为检验多帧 Pilot 是否能弥补单帧排序不稳，在 `cfo_phase_mid`、gap=0 下，将第 0 帧起连续 1/3/5 帧的 Adapt Pilot 信号重构损失累计用于更新 `phase_trend` 内的 state-mapping 参数（14 个参数，lr=0.0025，5 步）。三个候选共用第 5、6 帧的独立 Reward Pilot 窗口做验收，再在第 7、8 帧测 Data；因此 1/3/5 帧比较使用相同未来验收与测试帧。共 5 seeds × 4 SNR，每种累计长度 20 条轨迹、40 个 Data 帧。
+
+| Adapt 累计帧数 | Reward 接受轨迹 | 0 dB BER 改善 | 5 dB BER 改善 | 10 dB BER 改善 | 15 dB BER 改善 |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 16/20 | -0.82 pp（0/5 seed 为正） | +2.16 pp（5/5） | +1.12 pp（5/5） | +0.46 pp（3/5） |
+| 3 | 14/20 | -0.36 pp（0/5） | +0.57 pp（2/5） | +1.20 pp（5/5） | +0.48 pp（4/5） |
+| 5 | 16/20 | -1.35 pp（0/5） | +0.56 pp（4/5） | +1.13 pp（5/5） | +0.63 pp（4/5） |
+
+每个 SNR、每种累计长度按 5 个 seed 计算的 95% 配对区间都跨过零。单帧 Adapt 在 5/10 dB 的方向较一致，但在 0 dB 变差；累积到 3/5 帧没有带来更大、更稳的收益。更重要的是，在 0 dB 有害候选仍可能通过信号重构 Reward。由此看，当前卡点从“多看几帧”转到 **Reward Pilot 的验收分数能否识别有害 PEFT 更新**；还没有满足四个 SNR 都可靠改善的目标。
+
 ## 对研究路线的影响
 
 已确认的进展是：在线更新作用于真实 `phase_trend` PEFT 参数；通过 Reward 的更新会保留并跨帧影响模型；在线过程不使用 Data；正确的 heldout 强失配已经覆盖。尚未解决的核心问题是：**Pilot 上哪个候选更好，仍不能可靠代表后续 Data 均衡更好；而持续更新的 BER 改善也未在多个 seed 上稳定出现。**
 
-因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。下一步应验证**跨帧累计 Adapt Pilot 排序**：在相同 Pilot-only 约束下，将连续多帧的 Adapt Pilot 证据累积后再挑选 PEFT 候选，检查候选排序是否比单帧更能预测后续 Data BER；先用小样本、多 seed/SNR replay，仍以 Spearman ≥0.6 为准入门槛，未通过就不做正式矩阵。
+因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。下一步固定最有希望的单帧 Adapt state-mapping 更新和相同未来帧，配对比较 Reward Pilot 的 BCE、信号重构、联合分数三种接受门控，重点查能否拒绝 0 dB 下事后有害的更新，同时保留 5/10 dB 的收益。所有门控只看 Reward Pilot；只有事后 Data BER 在多个 seed/SNR 都稳定改善，才继续扩大矩阵。
 
 机器可读汇总见 [`docs/results/rl_peft_pilot_corrected_replay_20261030.json`](results/rl_peft_pilot_corrected_replay_20261030.json)。逐帧原始日志保存在被 Git 忽略的 `logs/` 目录。
 

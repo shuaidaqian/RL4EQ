@@ -181,7 +181,43 @@
     "positive_seed_count": 3,
     "seed_count": 5,
     "formal_matrix_gate_passed": false,
-    "recommended_next_experiment": "检验跨帧累计 Adapt Pilot 证据能否比单帧分数可靠地排序候选；未达到 Spearman 0.6 前不进入正式性能矩阵。"
+    "recommended_next_experiment": "在同一候选与未来窗口上配对比较 Reward Pilot BCE、信号重构、联合分数门控，检验是否能避免有害更新。"
+  },
+  "cross_frame_adapt_update": {
+    "trial_count_per_train_frame_count": 20,
+    "rows_per_train_frame_count": 40,
+    "train_frame_counts": [1, 3, 5],
+    "reward_validation_frame_indices": [5, 6],
+    "data_test_frame_indices": [7, 8],
+    "update_scope": "phase_trend.state_mapping",
+    "updated_parameter_count": 14,
+    "adapt_objective": "pilot_signal_reconstruction",
+    "reward_score": "signal_reconstruction",
+    "reward_aggregation": "aggregate",
+    "learning_rate": 0.0025,
+    "steps": 5,
+    "reward_accepted_trials_by_train_count": {
+      "1": 16,
+      "3": 14,
+      "5": 16
+    },
+    "data_waveform_or_labels_used_online": false,
+    "same_future_reward_and_data_frames_for_all_train_counts": true,
+    "by_train_count_snr": [
+      {"train_frames": 1, "snr_db": 0, "mean_ber_improvement": -0.008203125, "ci95_t": [-0.030978651254, 0.014572401254], "positive_seeds": 0, "seed_count": 5},
+      {"train_frames": 1, "snr_db": 5, "mean_ber_improvement": 0.021614583395, "ci95_t": [-0.006314744501, 0.049543911292], "positive_seeds": 5, "seed_count": 5},
+      {"train_frames": 1, "snr_db": 10, "mean_ber_improvement": 0.011197916244, "ci95_t": [-0.007943679782, 0.030339512270], "positive_seeds": 5, "seed_count": 5},
+      {"train_frames": 1, "snr_db": 15, "mean_ber_improvement": 0.004557291674, "ci95_t": [-0.005075608087, 0.014190191436], "positive_seeds": 3, "seed_count": 5},
+      {"train_frames": 3, "snr_db": 0, "mean_ber_improvement": -0.003645832837, "ci95_t": [-0.013768287570, 0.006476621897], "positive_seeds": 0, "seed_count": 5},
+      {"train_frames": 3, "snr_db": 5, "mean_ber_improvement": 0.005729165860, "ci95_t": [-0.006993433113, 0.018451764832], "positive_seeds": 2, "seed_count": 5},
+      {"train_frames": 3, "snr_db": 10, "mean_ber_improvement": 0.011979166383, "ci95_t": [-0.006845733223, 0.030804065990], "positive_seeds": 5, "seed_count": 5},
+      {"train_frames": 3, "snr_db": 15, "mean_ber_improvement": 0.004817708349, "ci95_t": [-0.004619874918, 0.014255291616], "positive_seeds": 4, "seed_count": 5},
+      {"train_frames": 5, "snr_db": 0, "mean_ber_improvement": -0.013541667163, "ci95_t": [-0.051139362675, 0.024056028349], "positive_seeds": 0, "seed_count": 5},
+      {"train_frames": 5, "snr_db": 5, "mean_ber_improvement": 0.005598957278, "ci95_t": [-0.002597182337, 0.013795096893], "positive_seeds": 4, "seed_count": 5},
+      {"train_frames": 5, "snr_db": 10, "mean_ber_improvement": 0.011328124825, "ci95_t": [-0.006277013299, 0.028933262950], "positive_seeds": 5, "seed_count": 5},
+      {"train_frames": 5, "snr_db": 15, "mean_ber_improvement": 0.006250000047, "ci95_t": [-0.007126102650, 0.019626102743], "positive_seeds": 4, "seed_count": 5}
+    ],
+    "stable_all_snr_gain_gate_passed": false
   },
   "raw_logs_git_ignored": [
     "logs/pilot_multiscale_heldout_split_rank_bce_5s4snr3f_20261030.json",
@@ -190,7 +226,6 @@
     "logs/pilot_multiscale_heldout_split50_rank_signal_5s4snr3f_20261030.json",
     "logs/pilot_objective_heldout_split_rank_bce_5s4snr3f_20261030.json",
     "logs/pilot_peft_mid_gap0_phase_trend_5s4snr8f_20261030.json",
-    "logs/pilot_multiscale_heldout_split50_rank_bce_5s4snr3f_20261030.json",
-    "logs/pilot_multiscale_heldout_split50_rank_signal_5s4snr3f_20261030.json"
+    "logs/pilot_cumulative_mid_gap0_state_mapping_5s4snr9f_20261030.json"
   ]
 }
