@@ -65,11 +65,23 @@
 
 每个 SNR、每种累计长度按 5 个 seed 计算的 95% 配对区间都跨过零。单帧 Adapt 在 5/10 dB 的方向较一致，但在 0 dB 变差；累积到 3/5 帧没有带来更大、更稳的收益。更重要的是，在 0 dB 有害候选仍可能通过信号重构 Reward。由此看，当前卡点从“多看几帧”转到 **Reward Pilot 的验收分数能否识别有害 PEFT 更新**；还没有满足四个 SNR 都可靠改善的目标。
 
+## Reward Pilot 验收分数对照
+
+为定位低 SNR 的有害更新，同一单帧 Adapt 信号重构更新分别用未来两帧 Reward Pilot 的信号重构误差、BCE、相对联合分数验收。三组使用相同 checkpoint、seed/SNR 轨迹、相同 Adapt 更新与相同 Data 测试帧（第 3、4 帧）；候选更新前的 Data 输出逐项完全一致，只有 Reward 验收分数不同。
+
+| Reward 验收分数 | 接受轨迹 | 0 dB BER 改善 | 5 dB BER 改善 | 10 dB BER 改善 | 15 dB BER 改善 |
+|---|---:|---:|---:|---:|---:|
+| 信号重构 | 14/20 | -0.51 pp（1/5 seed 正） | +0.59 pp（2/5） | +0.82 pp（5/5） | +0.40 pp（3/5） |
+| BCE | 7/20 | -0.51 pp（1/5） | +0.60 pp（2/5） | +0.16 pp（2/5） | +0.04 pp（1/5） |
+| 相对联合分数 | 11/20 | -0.51 pp（1/5） | +0.59 pp（2/5） | +0.66 pp（3/5） | +0.36 pp（2/5） |
+
+所有 SNR 的 seed 级 95% 区间仍跨零。三种门控在 0 dB 恰好接受相同轨迹：其中包含一个约 `-6.25 pp` 的有害 seed，说明换 Reward 分数没有识别出这个问题。单独 BCE 门控明显减少了接受次数，但也把 10/15 dB 的正收益大幅压低；联合分数没有解决 0 dB 风险。**因此，当前失败不能靠把 Reward 阈值收紧或简单混合分数来修复。**
+
 ## 对研究路线的影响
 
 已确认的进展是：在线更新作用于真实 `phase_trend` PEFT 参数；通过 Reward 的更新会保留并跨帧影响模型；在线过程不使用 Data；正确的 heldout 强失配已经覆盖。尚未解决的核心问题是：**Pilot 上哪个候选更好，仍不能可靠代表后续 Data 均衡更好；而持续更新的 BER 改善也未在多个 seed 上稳定出现。**
 
-因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。下一步固定最有希望的单帧 Adapt state-mapping 更新和相同未来帧，配对比较 Reward Pilot 的 BCE、信号重构、联合分数三种接受门控，重点查能否拒绝 0 dB 下事后有害的更新，同时保留 5/10 dB 的收益。所有门控只看 Reward Pilot；只有事后 Data BER 在多个 seed/SNR 都稳定改善，才继续扩大矩阵。
+因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。下一步固定相同信道轨迹和 Reward BCE 门控，比较 Adapt Pilot 的 BCE 微调与信号重构微调；这是直接检验“用已知 Pilot 比特训练 PEFT 参数”能否比“拟合接收波形”更能避免低 SNR 有害更新。所有在线更新仍只看 Adapt Pilot，Reward 只验收/回滚，Data 只作事后评估；只有跨 seed/SNR 均有可复现收益，才扩大矩阵。
 
 机器可读汇总见 [`docs/results/rl_peft_pilot_corrected_replay_20261030.json`](results/rl_peft_pilot_corrected_replay_20261030.json)。逐帧原始日志保存在被 Git 忽略的 `logs/` 目录。
 
