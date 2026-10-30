@@ -1,0 +1,130 @@
+{
+  "schema_version": "rl-peft-pilot-corrected-replay-v1",
+  "date": "2026-10-30",
+  "status": "pilot_ranking_gate_failed_no_stable_online_ber_gain",
+  "fixed_protocol": {
+    "channel_level": "B",
+    "profile": "eme_long_memory_v2",
+    "delay_symbols": 116,
+    "state_split": "heldout_edge",
+    "impairment_profile": "cfo_phase_mid",
+    "cfo_abs_range": [0.003, 0.008],
+    "phase_noise_std_range": [0.003, 0.008],
+    "snrs_db": [0, 5, 10, 15],
+    "seeds": [1091, 1092, 1093, 1094, 1095],
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "adapt_pilot_symbols": 224,
+    "reward_pilot_symbols": 32,
+    "acquisition_gap_seconds": 0,
+    "checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "checkpoint_retrained_or_modified": false,
+    "data_waveform_or_labels_used_online": false,
+    "data_metrics_used_only_posthoc": true
+  },
+  "state_split_protocol_audit": {
+    "initial_replay_applied_heldout_edge": false,
+    "initial_replay_used_for_conclusions": false,
+    "helper_fixed_to_apply_state_split": true,
+    "actual_state_reconstructed_for_20_seed_snr_episodes": true,
+    "reconstructed_actual_state_ranges": {
+      "strong_path_count": [22, 24],
+      "diffuse_energy_ratio": [0.291173, 0.340727],
+      "cfo_abs": [0.003599, 0.006701],
+      "phase_noise_std": [0.003219, 0.006615]
+    },
+    "future_replay_logs_include_channel_state_metadata": true,
+    "focused_protocol_and_ranking_tests_passed": 25,
+    "full_test_suite": {
+      "command": "python -m pytest -q -p no:cacheprovider",
+      "passed": 633,
+      "failed": 0
+    }
+  },
+  "pilot_only_candidate_ranking": {
+    "trials_per_method": 60,
+    "candidate_rows_per_method": 240,
+    "spearman_pass_threshold": 0.6,
+    "methods": [
+      {
+        "method": "multiscale_phase_trend_adapt_bce_rank",
+        "spearman_data_ber": 0.2823035821593484,
+        "reward_accepts": 14,
+        "mean_committed_data_ber_improvement": 0.0016493053485949834,
+        "positive_trial_fraction": 0.16666666666666666,
+        "ranking_gate_passed": false
+      },
+      {
+        "method": "multiscale_phase_trend_adapt_signal_reconstruction_rank",
+        "spearman_data_ber": 0.2962790070187221,
+        "reward_accepts": 22,
+        "mean_committed_data_ber_improvement": 0.0016927082324400544,
+        "positive_trial_fraction": 0.21666666666666667,
+        "ranking_gate_passed": false
+      },
+      {
+        "method": "objective_bank_adapt_bce_rank",
+        "spearman_data_ber": 0.2082965043241075,
+        "reward_accepts": 24,
+        "mean_committed_data_ber_improvement": 0.0015842011528244863,
+        "positive_trial_fraction": 0.18333333333333332,
+        "ranking_gate_passed": false
+      }
+    ]
+  },
+  "persistent_peft_replay": {
+    "trial_count": 160,
+    "seeds": [1091, 1092, 1093, 1094, 1095],
+    "frames_per_seed_snr": 8,
+    "update_group": "phase_trend",
+    "update_objective": "pilot_signal_reconstruction",
+    "learning_rate": 0.0025,
+    "steps": 5,
+    "per_update_delta_norm_cap": 0.05,
+    "cumulative_delta_norm_cap": 0.05,
+    "reward_acceptances": 55,
+    "adapt_rank_passes": 102,
+    "trajectory_final_cumulative_ber_improvement_by_snr": [
+      {
+        "snr_db": 0,
+        "mean": 0.014583333333333334,
+        "ci95_t": [-0.033082012117, 0.062248680770],
+        "positive_seeds": 2,
+        "seed_count": 5
+      },
+      {
+        "snr_db": 5,
+        "mean": 0.01171875,
+        "ci95_t": [-0.011542231812, 0.034979731812],
+        "positive_seeds": 2,
+        "seed_count": 5
+      },
+      {
+        "snr_db": 10,
+        "mean": 0.012239583333333334,
+        "ci95_t": [-0.007046555936, 0.031525721796],
+        "positive_seeds": 3,
+        "seed_count": 5
+      },
+      {
+        "snr_db": 15,
+        "mean": 0.0078125,
+        "ci95_t": [-0.010478937933, 0.026103937747],
+        "positive_seeds": 2,
+        "seed_count": 5
+      }
+    ],
+    "seed_balanced_all_snr_mean_improvement": 0.011588541666666667,
+    "seed_balanced_all_snr_ci95_t": [-0.015174348573, 0.038351432154],
+    "positive_seed_count": 3,
+    "seed_count": 5,
+    "formal_matrix_gate_passed": false,
+    "recommended_next_experiment": "保持checkpoint、环境、候选、总Pilot长度不变，将独立Adapt排序视图由56增至112符号；配对比较Adapt BCE和信号重构排序。"
+  },
+  "raw_logs_git_ignored": [
+    "logs/pilot_multiscale_heldout_split_rank_bce_5s4snr3f_20261030.json",
+    "logs/pilot_multiscale_heldout_split_rank_signal_5s4snr3f_20261030.json",
+    "logs/pilot_objective_heldout_split_rank_bce_5s4snr3f_20261030.json",
+    "logs/pilot_peft_mid_gap0_phase_trend_5s4snr8f_20261030.json"
+  ]
+}

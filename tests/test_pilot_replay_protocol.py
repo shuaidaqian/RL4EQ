@@ -242,6 +242,7 @@ def test_replay_applies_configured_heldout_state_split(monkeypatch):
         condition_source="pilot_cir_phase",
     )
     state = episode.env.state_metadata()
+    replay_metadata = episode.metadata()
 
     assert episode.env.config.state_split == "heldout_edge"
     assert episode.env.config.state_ranges["cfo_abs_range"] == (0.001, 0.003)
@@ -249,6 +250,7 @@ def test_replay_applies_configured_heldout_state_split(monkeypatch):
     assert 0.29 <= state["diffuse_energy_ratio"] <= 0.35
     assert 0.001 <= abs(state["cfo_cycles_per_symbol"]) <= 0.003
     assert 0.001 <= state["phase_noise_std"] <= 0.003
+    assert replay_metadata["channel_state_metadata"] == state
 
 
 def test_replay_can_apply_physical_eme_acquisition_gap_without_changing_profile(monkeypatch):

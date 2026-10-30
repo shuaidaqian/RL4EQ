@@ -49,6 +49,7 @@ class PilotReplayEpisode:
         return {
             "replay_protocol_version": "configured-channel-phase-aligned-v3",
             "environment_config": asdict(self.env.config),
+            "channel_state_metadata": self.env.state_metadata(),
             "acquisition_cfo": self.acquisition_cfo,
             "condition_source": self.condition_source,
             "condition_role": (

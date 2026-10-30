@@ -1,43 +1,55 @@
-# 强 CFO/相位失配下的 Pilot-only PEFT 候选排序（2026-10-30）
+# 强 CFO/相位失配下的 Pilot-only PEFT 复核（2026-10-30）
 
-## 复核说明
+## 当前结论
 
-这份记录中的首轮 pilot replay 虽使用 `cfo_phase_light` profile，但 replay 入口当时没有把 `heldout_edge` 状态划分传入信道构造器。因此 CFO/phase profile 生效，heldout 的强路径数和弥散能量范围没有生效。下面原始数值只作为该 profile 下的初步诊断，**不作为完整 heldout_edge 结果**；已修复状态划分传递，并将用同一 checkpoint 复跑后替换本报告结论。
+离线 checkpoint、Level B 信道和 Pilot 总长度保持固定后，三种 Pilot-only 候选排序都无法可靠预测后续 Data BER；在 `cfo_phase_mid` 下做 5 seed × 4 SNR × 8 帧的持续 PEFT 更新，也没有证明稳定超过冻结模型。少数 seed 的收益明显，但 seed 间差异大，四个 SNR 的 95% 配对区间都跨过零。**目前不应进入正式 5 seed × 60 帧矩阵，也没有理由接入 Bandit。**
 
-## 首轮诊断（已被协议复核标记，不用于路线结论）
+## 固定条件与数据隔离
 
-我固定离线 checkpoint，在强 CFO/相位失配下比较了三种 Pilot-only 选法：多尺度更新配 Adapt BCE 排序、多尺度更新配 Adapt 信号重构排序，以及 `phase_trend/head` 不同 PEFT 目标配 Adapt BCE 排序。三种方法的候选分数对事后 Data BER 的排序相关性都只有约 0.40–0.42，低于预设 0.6 门槛；收益主要来自 0 dB，5–15 dB 没有稳定改善。因此这轮仍不能证明在线 PEFT 能稳定超过离线模型。
+- Level B `eme_long_memory_v2`，116 符号最大时延，前缀 Pilot，总长度 256（224 Adapt Pilot + 32 Reward Pilot），acquisition gap=0。
+- 使用 `heldout_edge` 状态划分，`cfo_phase_mid` 的 CFO 绝对值和 phase-noise 标准差范围均为 0.003–0.008；SNR 为 0/5/10/15 dB。
+- 两批实验使用相同离线 checkpoint，SHA256 为 `8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4`；未重训、未修改。
+- Adapt Pilot 负责更新/候选排序，Reward Pilot 负责接受或拒绝；Data 波形和标签仅在所有在线决定完成后用于仿真评估。160 帧 replay 的每条记录均标记 `data_waveform_used_for_update_or_decision=false`、`data_labels_used_for_update_or_decision=false`。
 
-## 实验怎么做
+## 先前 replay 的协议修正
 
-- Level B `eme_long_memory_v2`，heldout_edge 强失配、gap=0；SNR 0/5/10/15 dB，5 个 seed，每个 seed/SNR 3 帧，共 60 个小样本 trial/排序方法。
-- 每帧的 224 个 Adapt Pilot 拆成不重叠的更新子窗（168 符号）和排序子窗（56 符号）；Reward Pilot 32 符号单独负责验收。Reward BCE 必须改善超过 `0.0005`，且硬错数不能增加。
-- 离线 checkpoint SHA256 为 `8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4`，未训练或修改。Data 波形和标签没有进入在线更新、排序、Reward 或拒绝决策，只在决策结束后计算 BER/BCE。
-- 两种多尺度排序方法使用完全相同的 240 个候选和逐候选 Data 事后指标；只有 Adapt Pilot 排序分数不同。
+最初几组候选排序 replay 虽加载了失配 profile，但辅助入口没有把 `heldout_edge` 传给信道构造器，因此 heldout 的强路径数和弥散能量范围没有生效。那批首轮结果不作为 heldout_edge 证据。状态划分传递已经修正。对这轮旧日志，我又按相同配置和 seed 重建了 20 个信道状态，确认实际路径数为 22–24、弥散能量占比为 0.291–0.341、`|CFO|` 为 0.00360–0.00670、phase-noise 标准差为 0.00322–0.00662，均落在配置范围内。为避免之后只能依赖重建，replay 日志现已增加逐条 `channel_state_metadata`；相关 25 项协议与排序测试通过。以下候选排序数字均来自修正后的 replay。
 
-## 结果
+## 修正后的 Pilot-only 候选排序
 
-| Pilot-only 方法 | 候选分数与 Data BER 的 Spearman | Reward 接受 | 平均事后 BER 改善 | BER 正收益 trial |
+每种方法为 5 seed × 4 SNR × 3 帧，共 60 个 trial、240 个候选。每个 trial 内比较候选分数排序与事后 Data BER 排序；预先设定的 Spearman 通过门槛为 0.6。
+
+| 候选与 Pilot 排序分数 | Spearman 与 Data BER | Reward 接受 | 平均提交 BER 改善 | 获得正 BER 改善的 trial |
 |---|---:|---:|---:|---:|
-| 多尺度候选 + Adapt BCE 排序 | 0.412 | 16/60 | +0.119 pp | 13.3% |
-| 多尺度候选 + Adapt 信号重构排序 | 0.400 | 22/60 | +0.128 pp | 15.0% |
-| BCE/信号/Head 候选 + Adapt BCE 排序 | 0.421 | 21/60 | +0.119 pp | 16.7% |
+| 多尺度 `phase_trend` 候选 + Adapt BCE 排序 | 0.282 | 14/60 | 0.165 pp | 16.7% |
+| 多尺度 `phase_trend` 候选 + Adapt 信号重构排序 | 0.296 | 22/60 | 0.169 pp | 21.7% |
+| BCE/信号/Head 候选 + Adapt BCE 排序 | 0.208 | 24/60 | 0.158 pp | 18.3% |
 
-按 SNR 看，平均 BER 改善（正值代表优于冻结 checkpoint）为：
+三种方法都远低于 0.6 门槛。正向平均值主要来自 0 dB；在 10/15 dB，提交后的 Data BER 大多持平或只有极小变化。Reward 接受只能说明留出的 Reward Pilot 达到门槛，不能保证 Data BER 改善。
 
-| SNR | 多尺度 + Adapt BCE | 多尺度 + Adapt 信号重构 | BCE/信号/Head 候选 |
+## `cfo_phase_mid` 持续 PEFT replay
+
+固定使用 `phase_trend` PEFT 参数，Adapt Pilot 上以信号重构损失做 5 步更新，学习率 0.0025；Reward Pilot 验收，单次及累计参数变化上限均为 0.05。每个 seed/SNR 连续 8 帧，共 160 帧。验收通过的 PEFT 状态跨帧保留。
+
+主统计单位是每个 seed/SNR 轨迹的**最后一帧累计 BER 改善**，正值表示优于同轨迹冻结 checkpoint。每个 SNR 对 5 个 seed 求均值和 95% t 区间：
+
+| SNR | 平均 BER 改善 | 95% 区间 | 正收益 seed |
 |---:|---:|---:|---:|
-| 0 dB | +0.503 pp | +0.503 pp | +0.477 pp |
-| 5 dB | -0.035 pp | +0.017 pp | -0.009 pp |
-| 10 dB | +0.000 pp | -0.017 pp | -0.000 pp |
-| 15 dB | +0.009 pp | +0.009 pp | +0.009 pp |
+| 0 dB | +1.46 pp | [-3.31, +6.22] pp | 2/5 |
+| 5 dB | +1.17 pp | [-1.15, +3.50] pp | 2/5 |
+| 10 dB | +1.22 pp | [-0.70, +3.15] pp | 3/5 |
+| 15 dB | +0.78 pp | [-1.05, +2.61] pp | 2/5 |
 
-多尺度信号重构排序的 Data BER 相关性为 0.400，Adapt BCE 排序为 0.412；直接 BCE/信号/Head 候选的 Adapt BCE 排序为 0.421。三者都没有达到排序门槛。合并所有 SNR 的正平均值主要由 0 dB 贡献：5、10、15 dB 的改善接近零，且有些候选虽然通过 Reward Pilot，事后 Data BER 仍持平或轻微变差。
+先按 seed 平均四个 SNR 后，平均改善为 +1.16 pp，95% 区间为 [-1.52, +3.84] pp；只有 3/5 个 seed 为正。seed 1092 在所有 SNR 都有较明显收益，其余 seed 多数接近零或有轻微回退，说明整体正均值被单个 seed 拉高。全程 160 次中有 55 次通过 Reward 接受门槛，Adapt 排序门槛通过 102 次；接受率本身没有转化为跨 seed 的稳定 Data BER 改善。
 
-这说明目前卡点不是“参数没更新”：不同候选确实更新了 `phase_trend` 或 head，PEFT 参数 L2 变化随更新幅度增加；而是 **Pilot 子窗分数和 Reward Pilot 仍不能可靠判断哪一种参数变化会改善后续 Data BER**。高 SNR 下很多候选的 Data BER 完全持平，硬 BER 的离散性也会让小样本排序更难。
+## 对研究路线的影响
 
-## 决策
+已确认的进展是：在线更新作用于真实 `phase_trend` PEFT 参数；通过 Reward 的更新会保留并跨帧影响模型；在线过程不使用 Data；正确的 heldout 强失配已经覆盖。尚未解决的核心问题是：**Pilot 上哪个候选更好，仍不能可靠代表后续 Data 均衡更好；而持续更新的 BER 改善也未在多个 seed 上稳定出现。**
 
-这批结果是诊断筛选，不是正式性能矩阵；我不会据此挑出 Data 指标最好的候选，也不会把它部署为主方法。下一步应先回到信道失配强度：将 CFO/phase noise 从当前 `cfo_phase_light`（约 0.001–0.003）提升到已定义的 `cfo_phase_mid`（约 0.003–0.008），先做 identity-only 与固定 PEFT 的小型配对 replay，确认是否存在 PEFT 能明确解决、冻结模型无法处理的失配区间。若仍无明确差异，就该承认当前 checkpoint 在该设置下没有可转移的在线收益，再决定是否需要改变离线适应目标或论文问题定义；在此之前不做大矩阵。
+因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。下一步先做一个受控 Pilot-only 诊断：固定 checkpoint、信道、SNR、seed、总 Pilot 长度和候选更新，只把独立 Adapt 排序视图从 56 个符号扩大到 112 个（holdout fraction 从 0.25 改为 0.5），并配对比较 BCE 与信号重构排序。若排序相关性仍达不到 0.6，就停止微调当前分数/视图大小，转而验证不同帧 Pilot 状态的累计排序目标；只有排序可靠后再扩大在线性能矩阵。
 
-机器可读结果见 [`docs/results/rl_peft_pilot_multiscale_ranking_strong_gap0_20261030.json`](results/rl_peft_pilot_multiscale_ranking_strong_gap0_20261030.json)。三组逐候选原始日志保存在本机 `logs/`（被 Git 忽略）。
+机器可读汇总见 [`docs/results/rl_peft_pilot_corrected_replay_20261030.json`](results/rl_peft_pilot_corrected_replay_20261030.json)。逐帧原始日志保存在被 Git 忽略的 `logs/` 目录。
+
+## 验证记录
+
+为审计未来 replay 日志，本阶段加入 `channel_state_metadata` 字段，并新增测试核对日志与实际信道状态一致。完整测试套件通过：633 passed；相关协议与排序测试：25 passed。结果 JSON 可解析，`git diff --check` 通过。
