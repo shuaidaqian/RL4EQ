@@ -1,0 +1,730 @@
+{
+  "schema_version": "rl-peft-main-comparison-v1",
+  "date": "2026-10-30",
+  "status": "main_matrix_complete_but_peft_gain_over_frozen_is_small_and_uncertain",
+  "protocol": {
+    "config": "configs/eme_long_memory_v2_rl_peft_main.json",
+    "aggregation_role": "main",
+    "diagnostic_only": false,
+    "main_aggregation_allowed": true,
+    "channel_level": "B",
+    "profile": "eme_long_memory_v2",
+    "impairment_profile": "cfo_phase_tiny",
+    "state_split": "heldout_edge",
+    "delay_symbols": 116,
+    "snr_db": [
+      0.0,
+      5.0,
+      10.0,
+      15.0
+    ],
+    "seeds": [
+      1091,
+      1092,
+      1093,
+      1094,
+      1095
+    ],
+    "frames_per_seed": 60,
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "adapt_pilot_total": 224,
+    "reward_pilot_total": 32,
+    "acquisition_gap_seconds": 0,
+    "policy_learning_rate": 0.001,
+    "policy_window_size": 8,
+    "update_interval": 8,
+    "pilot_state_embedding": false,
+    "online_condition_source": "pilot_cir_phase",
+    "cir_update_mode": "fixed",
+    "methods": [
+      "CFO+DD-Phase LMMSE-FIR",
+      "CFO+DD-Phase DFE-RLS",
+      "SC-FDE-MMSE",
+      "Frozen Offline NN",
+      "RL-Modulated Neural Block Equalizer"
+    ],
+    "offline_checkpoint": "D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+    "offline_checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "offline_checkpoint_retrained_or_modified": false,
+    "policy_initialization": "docs/results/assets/rl_peft_moderate_exploration_policy_init.pt",
+    "policy_initialization_sha256": "149CBFF70E1561195FFD984E1249EFAE99C39EED6F7DFB0E13FB52F4155678E5"
+  },
+  "integrity": {
+    "row_count": 6000,
+    "rows_per_method": {
+      "CFO+DD-Phase LMMSE-FIR": 1200,
+      "CFO+DD-Phase DFE-RLS": 1200,
+      "SC-FDE-MMSE": 1200,
+      "Frozen Offline NN": 1200,
+      "RL-Modulated Neural Block Equalizer": 1200
+    },
+    "complete_method_frame_keys": 1200,
+    "duplicate_method_snr_seed_frame_rows": 0,
+    "same_frame_object_passed_to_selected_methods": true,
+    "input_hash_includes_method_name": true,
+    "data_labels_used_online_count": 0,
+    "data_waveform_used_online_count": 0,
+    "adapt_pilot_only_observation_count": 1200,
+    "reward_pilot_waveform_used_for_policy_observation_count": 0
+  },
+  "per_snr": [
+    {
+      "snr_db": 0.0,
+      "method_metrics": {
+        "CFO+DD-Phase LMMSE-FIR": {
+          "mean_ber_percent": 45.785156294703484,
+          "per_seed_ber_percent": [
+            48.407117898265525,
+            46.59505228201548,
+            42.24175353844961,
+            45.61197901765505,
+            46.06987873713175
+          ]
+        },
+        "CFO+DD-Phase DFE-RLS": {
+          "mean_ber_percent": 43.246527686715126,
+          "per_seed_ber_percent": [
+            45.86154532929261,
+            41.49739565948645,
+            45.939670080939926,
+            40.753037979205445,
+            42.180989384651184
+          ]
+        },
+        "SC-FDE-MMSE": {
+          "mean_ber_percent": 49.88541677594185,
+          "per_seed_ber_percent": [
+            50.101996436715126,
+            49.943576604127884,
+            49.69618044793606,
+            50.25390644868215,
+            49.431423942248024
+          ]
+        },
+        "Frozen Offline NN": {
+          "mean_ber_percent": 20.495225690305233,
+          "per_seed_ber_percent": [
+            17.825520758827526,
+            20.093315951526165,
+            21.85980909814437,
+            21.64930559694767,
+            21.04817704608043
+          ]
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean_ber_percent": 20.317274277408917,
+          "per_seed_ber_percent": [
+            18.409288078546524,
+            19.993489645421505,
+            21.812065976361435,
+            21.08072911699613,
+            20.290798569718994
+          ]
+        }
+      },
+      "proposed_minus_baseline": {
+        "CFO+DD-Phase LMMSE-FIR": {
+          "mean_improvement_pp": 25.467882017294567,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            29.997829819719,
+            26.60156263659398,
+            20.429687562088173,
+            24.53124990065892,
+            25.77908016741276
+          ],
+          "paired_95_percent_t_interval_pp": [
+            21.16001717657068,
+            29.775746858018454
+          ]
+        },
+        "CFO+DD-Phase DFE-RLS": {
+          "mean_improvement_pp": 22.929253409306206,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            27.452257250746094,
+            21.503906014064945,
+            24.12760410457849,
+            19.672308862209317,
+            21.89019081493219
+          ],
+          "paired_95_percent_t_interval_pp": [
+            19.224954068847488,
+            26.633552749764924
+          ]
+        },
+        "SC-FDE-MMSE": {
+          "mean_improvement_pp": 29.56814249853293,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            31.6927083581686,
+            29.95008695870638,
+            27.884114471574623,
+            29.173177331686016,
+            29.140625372529026
+          ],
+          "paired_95_percent_t_interval_pp": [
+            27.830714593884352,
+            31.305570403181505
+          ]
+        },
+        "Frozen Offline NN": {
+          "mean_improvement_pp": 0.177951412896315,
+          "positive_seed_count": 4,
+          "per_seed_improvement_pp": [
+            -0.5837673197189974,
+            0.09982630610465837,
+            0.04774312178293938,
+            0.5685764799515408,
+            0.7573784763614338
+          ],
+          "paired_95_percent_t_interval_pp": [
+            -0.47058683755397424,
+            0.8264896633466042
+          ]
+        }
+      },
+      "proposed_action_counts": {
+        "identity": 164,
+        "peft_phase_signal_moderate": 120,
+        "rollback_identity": 16
+      },
+      "proposed_peft_frame_guard_accepts": 87,
+      "proposed_peft_frame_guard_rejects": 33,
+      "proposed_window_rollbacks": 2
+    },
+    {
+      "snr_db": 5.0,
+      "method_metrics": {
+        "CFO+DD-Phase LMMSE-FIR": {
+          "mean_ber_percent": 26.493055614332363,
+          "per_seed_ber_percent": [
+            12.801649297277132,
+            21.436632076899212,
+            25.518663252393402,
+            29.672308986385666,
+            43.03602445870638
+          ]
+        },
+        "CFO+DD-Phase DFE-RLS": {
+          "mean_ber_percent": 24.36805564413468,
+          "per_seed_ber_percent": [
+            11.180555634200573,
+            28.0707465733091,
+            25.039062425494198,
+            27.81901059051355,
+            29.730902997155983
+          ]
+        },
+        "SC-FDE-MMSE": {
+          "mean_ber_percent": 49.93402773638566,
+          "per_seed_ber_percent": [
+            50.14322896798452,
+            50.138889104127884,
+            49.80468737582366,
+            50.12803800404072,
+            49.45529522995154
+          ]
+        },
+        "Frozen Offline NN": {
+          "mean_ber_percent": 5.203124998137356,
+          "per_seed_ber_percent": [
+            3.9474826337148743,
+            4.670138883714874,
+            5.700954881807168,
+            6.2565104104578495,
+            5.440538180992007
+          ]
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean_ber_percent": 5.015625003104409,
+          "per_seed_ber_percent": [
+            3.8216145740201073,
+            4.607204860076308,
+            5.904947929084301,
+            6.059027786056201,
+            4.685329866285126
+          ]
+        }
+      },
+      "proposed_minus_baseline": {
+        "CFO+DD-Phase LMMSE-FIR": {
+          "mean_improvement_pp": 21.477430611227952,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            8.980034723257024,
+            16.829427216822904,
+            19.6137153233091,
+            23.613281200329464,
+            38.350694592421256
+          ],
+          "paired_95_percent_t_interval_pp": [
+            8.012669186821856,
+            34.94219203563405
+          ]
+        },
+        "CFO+DD-Phase DFE-RLS": {
+          "mean_improvement_pp": 19.352430641030274,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            7.358941060180466,
+            23.463541713232793,
+            19.134114496409897,
+            21.759982804457348,
+            25.045573130870856
+          ],
+          "paired_95_percent_t_interval_pp": [
+            10.595902482303266,
+            28.108958799757282
+          ]
+        },
+        "SC-FDE-MMSE": {
+          "mean_improvement_pp": 44.918402733281255,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            46.32161439396442,
+            45.531684244051576,
+            43.89973944673935,
+            44.06901021798452,
+            44.769965363666415
+          ],
+          "paired_95_percent_t_interval_pp": [
+            43.6574914973093,
+            46.17931396925321
+          ]
+        },
+        "Frozen Offline NN": {
+          "mean_improvement_pp": 0.18749999503294604,
+          "positive_seed_count": 4,
+          "per_seed_improvement_pp": [
+            0.125868059694767,
+            0.06293402363856601,
+            -0.20399304727713313,
+            0.19748262440164865,
+            0.7552083147068817
+          ],
+          "paired_95_percent_t_interval_pp": [
+            -0.24921270200676224,
+            0.6242126920726543
+          ]
+        }
+      },
+      "proposed_action_counts": {
+        "identity": 164,
+        "peft_phase_signal_moderate": 112,
+        "rollback_identity": 24
+      },
+      "proposed_peft_frame_guard_accepts": 61,
+      "proposed_peft_frame_guard_rejects": 51,
+      "proposed_window_rollbacks": 5
+    },
+    {
+      "snr_db": 10.0,
+      "method_metrics": {
+        "CFO+DD-Phase LMMSE-FIR": {
+          "mean_ber_percent": 9.93402780747662,
+          "per_seed_ber_percent": [
+            3.33116318564862,
+            11.089409751196703,
+            9.518229166666666,
+            8.973524284859497,
+            16.757812649011612
+          ]
+        },
+        "CFO+DD-Phase DFE-RLS": {
+          "mean_ber_percent": 11.259114638436586,
+          "per_seed_ber_percent": [
+            3.213975717468808,
+            15.414496678858997,
+            10.904947929084301,
+            9.28168406089147,
+            17.480468805879354
+          ]
+        },
+        "SC-FDE-MMSE": {
+          "mean_ber_percent": 49.81727443138758,
+          "per_seed_ber_percent": [
+            50.134548880159855,
+            50.026041666666664,
+            49.6723090733091,
+            50.02821202079455,
+            49.225260516007744
+          ]
+        },
+        "Frozen Offline NN": {
+          "mean_ber_percent": 0.7651909713555748,
+          "per_seed_ber_percent": [
+            0.3949652788772558,
+            0.6684027763549238,
+            0.9548611065838486,
+            1.0416666668606922,
+            0.7660590281011537
+          ]
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean_ber_percent": 0.7304687506208817,
+          "per_seed_ber_percent": [
+            0.3927951406997939,
+            0.6597222217048209,
+            0.9483506916634117,
+            0.9722222238391016,
+            0.6792534751972804
+          ]
+        }
+      },
+      "proposed_minus_baseline": {
+        "CFO+DD-Phase LMMSE-FIR": {
+          "mean_improvement_pp": 9.203559056855738,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            2.9383680449488265,
+            10.429687529491881,
+            8.569878475003256,
+            8.001302061020397,
+            16.07855917381433
+          ],
+          "paired_95_percent_t_interval_pp": [
+            3.3190738713168546,
+            15.088044242394622
+          ]
+        },
+        "CFO+DD-Phase DFE-RLS": {
+          "mean_improvement_pp": 10.528645887815703,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            2.8211805767690143,
+            14.754774457154177,
+            9.956597237420889,
+            8.309461837052368,
+            16.801215330682073
+          ],
+          "paired_95_percent_t_interval_pp": [
+            3.676301194021753,
+            17.38099058160965
+          ]
+        },
+        "SC-FDE-MMSE": {
+          "mean_improvement_pp": 49.0868056807667,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            49.741753739460066,
+            49.366319444961846,
+            48.72395838164569,
+            49.055989796955444,
+            48.546007040810466
+          ],
+          "paired_95_percent_t_interval_pp": [
+            48.487499537329526,
+            49.68611182420388
+          ]
+        },
+        "Frozen Offline NN": {
+          "mean_improvement_pp": 0.034722220734693124,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            0.002170138177461957,
+            0.008680554650102989,
+            0.00651041492043692,
+            0.06944444302159053,
+            0.08680555290387325
+          ],
+          "paired_95_percent_t_interval_pp": [
+            -0.015137778896362641,
+            0.08458222036574889
+          ]
+        }
+      },
+      "proposed_action_counts": {
+        "identity": 152,
+        "peft_phase_signal_moderate": 140,
+        "rollback_identity": 8
+      },
+      "proposed_peft_frame_guard_accepts": 58,
+      "proposed_peft_frame_guard_rejects": 82,
+      "proposed_window_rollbacks": 12
+    },
+    {
+      "snr_db": 15.0,
+      "method_metrics": {
+        "CFO+DD-Phase LMMSE-FIR": {
+          "mean_ber_percent": 7.133680545220463,
+          "per_seed_ber_percent": [
+            1.9466145978852485,
+            8.645833351959785,
+            6.801215267429749,
+            6.9032117041448755,
+            11.371527804682652
+          ]
+        },
+        "CFO+DD-Phase DFE-RLS": {
+          "mean_ber_percent": 6.597222241301401,
+          "per_seed_ber_percent": [
+            1.8402777614149577,
+            8.498263893028101,
+            8.2660590360562,
+            6.321614651630322,
+            8.059895864377419
+          ]
+        },
+        "SC-FDE-MMSE": {
+          "mean_ber_percent": 49.762586948772274,
+          "per_seed_ber_percent": [
+            49.99131934096416,
+            49.915364968279995,
+            49.60286455849807,
+            50.08680573354165,
+            49.216580142577484
+          ]
+        },
+        "Frozen Offline NN": {
+          "mean_ber_percent": 0.17187500349245965,
+          "per_seed_ber_percent": [
+            0.06944444632002462,
+            0.2213541720993817,
+            0.19097222577935705,
+            0.21701389244602373,
+            0.1605902808175112
+          ]
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean_ber_percent": 0.16710069791103402,
+          "per_seed_ber_percent": [
+            0.06510416860692203,
+            0.20833333818397176,
+            0.19531250388051072,
+            0.21267361453889558,
+            0.15407986434487006
+          ]
+        }
+      },
+      "proposed_minus_baseline": {
+        "CFO+DD-Phase LMMSE-FIR": {
+          "mean_improvement_pp": 6.966579847309427,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            1.8815104292783265,
+            8.437500013775812,
+            6.6059027635492376,
+            6.69053808960598,
+            11.217447940337781
+          ],
+          "paired_95_percent_t_interval_pp": [
+            2.742966152061154,
+            11.1901935425577
+          ]
+        },
+        "CFO+DD-Phase DFE-RLS": {
+          "mean_improvement_pp": 6.430121543390365,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            1.7751735928080357,
+            8.289930554844128,
+            8.07074653217569,
+            6.1089410370914266,
+            7.905816000032548
+          ],
+          "paired_95_percent_t_interval_pp": [
+            3.024573021505803,
+            9.835670065274927
+          ]
+        },
+        "SC-FDE-MMSE": {
+          "mean_improvement_pp": 49.59548625086124,
+          "positive_seed_count": 5,
+          "per_seed_improvement_pp": [
+            49.92621517235724,
+            49.707031630096026,
+            49.407552054617554,
+            49.87413211900276,
+            49.06250027823262
+          ],
+          "paired_95_percent_t_interval_pp": [
+            49.14836027312769,
+            50.04261222859479
+          ]
+        },
+        "Frozen Offline NN": {
+          "mean_improvement_pp": 0.004774305581425636,
+          "positive_seed_count": 4,
+          "per_seed_improvement_pp": [
+            0.004340277713102598,
+            0.013020833915409948,
+            -0.004340278101153659,
+            0.004340277907128156,
+            0.00651041647264114
+          ],
+          "paired_95_percent_t_interval_pp": [
+            -0.0029405701705852915,
+            0.012489181333436565
+          ]
+        }
+      },
+      "proposed_action_counts": {
+        "peft_phase_signal_moderate": 156,
+        "identity": 128,
+        "rollback_identity": 16
+      },
+      "proposed_peft_frame_guard_accepts": 67,
+      "proposed_peft_frame_guard_rejects": 89,
+      "proposed_window_rollbacks": 10
+    }
+  ],
+  "overall_online_behavior": {
+    "frames": 1200,
+    "policy_action_counts": {
+      "identity": 608,
+      "peft_phase_signal_moderate": 528,
+      "rollback_identity": 64
+    },
+    "applied_action_counts": {
+      "identity": 672,
+      "peft_phase_signal_moderate": 528
+    },
+    "moderate_peft_guard_accepts": 273,
+    "moderate_peft_guard_rejects": 255,
+    "window_rollbacks": 29,
+    "positive_peft_delta_frames": 528
+  },
+  "baseline_validity_notes": {
+    "SC-FDE-MMSE": "结果约 49.76%–49.93% BER。实现直接对整帧做 FFT 频域均衡，环境则用无循环前缀的线性卷积算子；本轮不把该方法作为有效 baseline 优势证据。",
+    "CFO+DD-Phase LMMSE-FIR": "使用 41 taps 的时域自适应 FIR，应再核验它对 116 符号长记忆信道的容量是否足够。",
+    "CFO+DD-Phase DFE-RLS": "使用 41 taps 前向滤波和 5 taps 反馈，应再核验其对 116 符号长记忆信道的容量是否足够。"
+  },
+  "raw_logs": [
+    "logs/rl_peft_main_l1e3_gap0_heldout_edge_0_5_10_15db_5s60f_seed1091_1095_20261030/frame_metrics.jsonl",
+    "logs/rl_peft_main_l1e3_gap0_heldout_edge_0_5_10_15db_5s60f_seed1091_1095_20261030/summary.json"
+  ],
+  "confidence_interval_method": "Paired t interval on five seed-level mean BER differences; t(4), 95% critical value 2.776.",
+  "comparison_semantics": "This matrix compares the full online receiver chain with Frozen Offline NN; it does not isolate the causal PEFT contribution. Use an Adapt-only identity-action control for that.",
+  "temporal_gain_vs_frozen": [
+    {
+      "snr_db": 0.0,
+      "frame_periods": [
+        {
+          "frames": [
+            1,
+            20
+          ],
+          "frozen_ber_percent": 19.686197876930237,
+          "online_ber_percent": 19.4466145709157,
+          "improvement_pp": 0.23958330601453748
+        },
+        {
+          "frames": [
+            21,
+            40
+          ],
+          "frozen_ber_percent": 20.209635391831398,
+          "online_ber_percent": 19.960937455296516,
+          "improvement_pp": 0.24869793653488348
+        },
+        {
+          "frames": [
+            41,
+            60
+          ],
+          "frozen_ber_percent": 21.589843802154064,
+          "online_ber_percent": 21.544270806014538,
+          "improvement_pp": 0.0455729961395257
+        }
+      ]
+    },
+    {
+      "snr_db": 5.0,
+      "frame_periods": [
+        {
+          "frames": [
+            1,
+            20
+          ],
+          "frozen_ber_percent": 5.152343761175871,
+          "online_ber_percent": 4.9869791604578495,
+          "improvement_pp": 0.16536460071802164
+        },
+        {
+          "frames": [
+            21,
+            40
+          ],
+          "frozen_ber_percent": 5.0182291734963655,
+          "online_ber_percent": 4.998697916045785,
+          "improvement_pp": 0.019531257450580708
+        },
+        {
+          "frames": [
+            41,
+            60
+          ],
+          "frozen_ber_percent": 5.438802059739828,
+          "online_ber_percent": 5.061197932809591,
+          "improvement_pp": 0.3776041269302366
+        }
+      ]
+    },
+    {
+      "snr_db": 10.0,
+      "frame_periods": [
+        {
+          "frames": [
+            1,
+            20
+          ],
+          "frozen_ber_percent": 0.7460937513969839,
+          "online_ber_percent": 0.729166668956168,
+          "improvement_pp": 0.016927082440815894
+        },
+        {
+          "frames": [
+            21,
+            40
+          ],
+          "frozen_ber_percent": 0.7552083326736465,
+          "online_ber_percent": 0.725260415696539,
+          "improvement_pp": 0.029947916977107573
+        },
+        {
+          "frames": [
+            41,
+            60
+          ],
+          "frozen_ber_percent": 0.7942708299960941,
+          "online_ber_percent": 0.7369791672099382,
+          "improvement_pp": 0.05729166278615593
+        }
+      ]
+    },
+    {
+      "snr_db": 15.0,
+      "frame_periods": [
+        {
+          "frames": [
+            1,
+            20
+          ],
+          "frozen_ber_percent": 0.18750000384170562,
+          "online_ber_percent": 0.1861979205859825,
+          "improvement_pp": 0.0013020832557231144
+        },
+        {
+          "frames": [
+            21,
+            40
+          ],
+          "frozen_ber_percent": 0.15364583721384406,
+          "online_ber_percent": 0.15755208698101342,
+          "improvement_pp": -0.003906249767169365
+        },
+        {
+          "frames": [
+            41,
+            60
+          ],
+          "frozen_ber_percent": 0.17447916942182928,
+          "online_ber_percent": 0.15755208616610616,
+          "improvement_pp": 0.016927083255723105
+        }
+      ]
+    }
+  ]
+}
