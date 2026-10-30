@@ -7,9 +7,6 @@
     "profile": "eme_long_memory_v2",
     "delay_symbols": 116,
     "state_split": "heldout_edge",
-    "impairment_profile": "cfo_phase_mid",
-    "cfo_abs_range": [0.003, 0.008],
-    "phase_noise_std_range": [0.003, 0.008],
     "snrs_db": [0, 5, 10, 15],
     "seeds": [1091, 1092, 1093, 1094, 1095],
     "pilot_layout": "prefix",
@@ -22,16 +19,36 @@
     "data_waveform_or_labels_used_online": false,
     "data_metrics_used_only_posthoc": true
   },
+  "impairment_profiles": {
+    "pilot_only_candidate_ranking": {
+      "profile": "cfo_phase_light",
+      "cfo_abs_range": [0.001, 0.003],
+      "phase_noise_std_range": [0.001, 0.003]
+    },
+    "persistent_peft_replay": {
+      "profile": "cfo_phase_mid",
+      "cfo_abs_range": [0.003, 0.008],
+      "phase_noise_std_range": [0.003, 0.008]
+    }
+  },
   "state_split_protocol_audit": {
     "initial_replay_applied_heldout_edge": false,
     "initial_replay_used_for_conclusions": false,
     "helper_fixed_to_apply_state_split": true,
-    "actual_state_reconstructed_for_20_seed_snr_episodes": true,
-    "reconstructed_actual_state_ranges": {
-      "strong_path_count": [22, 24],
-      "diffuse_energy_ratio": [0.291173, 0.340727],
-      "cfo_abs": [0.003599, 0.006701],
-      "phase_noise_std": [0.003219, 0.006615]
+    "actual_states_reconstructed_for_each_20_episode_batch": true,
+    "reconstructed_actual_state_ranges_by_experiment": {
+      "pilot_only_candidate_ranking_cfo_phase_light": {
+        "strong_path_count": [22, 24],
+        "diffuse_energy_ratio": [0.291173, 0.340727],
+        "cfo_abs": [0.00124, 0.00248],
+        "phase_noise_std": [0.001088, 0.002446]
+      },
+      "persistent_peft_replay_cfo_phase_mid": {
+        "strong_path_count": [22, 24],
+        "diffuse_energy_ratio": [0.291173, 0.340727],
+        "cfo_abs": [0.003599, 0.006701],
+        "phase_noise_std": [0.003219, 0.006615]
+      }
     },
     "future_replay_logs_include_channel_state_metadata": true,
     "focused_protocol_and_ranking_tests_passed": 25,

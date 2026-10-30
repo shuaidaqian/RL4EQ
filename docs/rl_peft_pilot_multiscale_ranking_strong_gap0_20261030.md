@@ -7,13 +7,13 @@
 ## 固定条件与数据隔离
 
 - Level B `eme_long_memory_v2`，116 符号最大时延，前缀 Pilot，总长度 256（224 Adapt Pilot + 32 Reward Pilot），acquisition gap=0。
-- 使用 `heldout_edge` 状态划分，`cfo_phase_mid` 的 CFO 绝对值和 phase-noise 标准差范围均为 0.003–0.008；SNR 为 0/5/10/15 dB。
+- 两批实验都使用 `heldout_edge`、SNR 0/5/10/15 dB；候选排序批次使用 `cfo_phase_light`（CFO 绝对值和 phase-noise 标准差范围 0.001–0.003），持续 PEFT 批次使用更强的 `cfo_phase_mid`（范围 0.003–0.008）。
 - 两批实验使用相同离线 checkpoint，SHA256 为 `8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4`；未重训、未修改。
 - Adapt Pilot 负责更新/候选排序，Reward Pilot 负责接受或拒绝；Data 波形和标签仅在所有在线决定完成后用于仿真评估。160 帧 replay 的每条记录均标记 `data_waveform_used_for_update_or_decision=false`、`data_labels_used_for_update_or_decision=false`。
 
 ## 先前 replay 的协议修正
 
-最初几组候选排序 replay 虽加载了失配 profile，但辅助入口没有把 `heldout_edge` 传给信道构造器，因此 heldout 的强路径数和弥散能量范围没有生效。那批首轮结果不作为 heldout_edge 证据。状态划分传递已经修正。对这轮旧日志，我又按相同配置和 seed 重建了 20 个信道状态，确认实际路径数为 22–24、弥散能量占比为 0.291–0.341、`|CFO|` 为 0.00360–0.00670、phase-noise 标准差为 0.00322–0.00662，均落在配置范围内。为避免之后只能依赖重建，replay 日志现已增加逐条 `channel_state_metadata`；相关 25 项协议与排序测试通过。以下候选排序数字均来自修正后的 replay。
+最初几组候选排序 replay 虽加载了失配 profile，但辅助入口没有把 `heldout_edge` 传给信道构造器，因此 heldout 的强路径数和弥散能量范围没有生效。那批首轮结果不作为 heldout_edge 证据。状态划分传递已经修正。对本报告涉及的两批旧日志，我按相同配置和 seed 重建了各 20 个信道状态，确认实际路径数为 22–24、弥散能量占比为 0.291–0.341；候选排序批次实际 `|CFO|` 为 0.00124–0.00248、phase-noise 标准差为 0.00109–0.00245，持续 PEFT 批次分别为 0.00360–0.00670 和 0.00322–0.00662，均落在各自配置范围内。为避免之后只能依赖重建，replay 日志现已增加逐条 `channel_state_metadata`；相关 25 项协议与排序测试通过。以下候选排序数字均来自修正后的 replay。
 
 ## 修正后的 Pilot-only 候选排序
 
