@@ -181,7 +181,7 @@
     "positive_seed_count": 3,
     "seed_count": 5,
     "formal_matrix_gate_passed": false,
-    "recommended_next_experiment": "固定 Adapt 信号重构目标与 Reward BCE 门控，比较 state-mapping 参数和直接 phase/CFO Adapter 参数更新。"
+    "recommended_next_experiment": "固定 Adapt 信号重构与 Reward BCE 门控，联合更新 state-mapping 和直接 phase/CFO 参数。"
   },
   "cross_frame_adapt_update": {
     "trial_count_per_train_frame_count": 20,
@@ -298,6 +298,42 @@
     "all_snr_confidence_intervals_cross_zero": true,
     "stable_all_snr_gain_gate_passed": false
   },
+  "peft_update_scope_comparison": {
+    "trial_count_per_scope": 20,
+    "data_rows_per_scope": 40,
+    "adapt_objective": "signal_reconstruction",
+    "reward_score": "bce",
+    "reward_validation_frame_indices": [1, 2],
+    "data_test_frame_indices": [3, 4],
+    "same_channel_states_and_test_frames": true,
+    "data_waveform_or_labels_used_online": false,
+    "scopes": [
+      {
+        "update_scope": "state_mapping",
+        "updated_parameter_count": 14,
+        "accepted_trials": 7,
+        "ber_improvement_by_snr": [
+          {"snr_db": 0, "mean": -0.005078125, "ci95_t": [-0.049650312693, 0.039494062693], "positive_seeds": 1},
+          {"snr_db": 5, "mean": 0.005989583582, "ci95_t": [-0.005419678456, 0.017398845619], "positive_seeds": 2},
+          {"snr_db": 10, "mean": 0.001562499930, "ci95_t": [-0.001154890700, 0.004279890561], "positive_seeds": 2},
+          {"snr_db": 15, "mean": 0.000390625047, "ci95_t": [-0.000693923952, 0.001475174045], "positive_seeds": 1}
+        ]
+      },
+      {
+        "update_scope": "direct_phase_cfo",
+        "updated_parameter_count": 2,
+        "accepted_trials": 5,
+        "ber_improvement_by_snr": [
+          {"snr_db": 0, "mean": -0.003906251490, "ci95_t": [-0.014751744320, 0.006939241339], "positive_seeds": 0},
+          {"snr_db": 5, "mean": 0.001041666418, "ci95_t": [-0.001850463210, 0.003933796047], "positive_seeds": 1},
+          {"snr_db": 10, "mean": 0.000781249977, "ci95_t": [-0.000664815072, 0.002227315025], "positive_seeds": 2},
+          {"snr_db": 15, "mean": 0.000260416698, "ci95_t": [-0.000462615968, 0.000983449363], "positive_seeds": 1}
+        ]
+      }
+    ],
+    "all_snr_confidence_intervals_cross_zero": true,
+    "stable_all_snr_gain_gate_passed": false
+  },
   "raw_logs_git_ignored": [
     "logs/pilot_multiscale_heldout_split_rank_bce_5s4snr3f_20261030.json",
     "logs/pilot_multiscale_heldout_split_rank_signal_5s4snr3f_20261030.json",
@@ -309,6 +345,7 @@
     "logs/pilot_reward_score_gate_mid_gap0_signal_5s4snr5f_20261030.json",
     "logs/pilot_reward_score_gate_mid_gap0_bce_5s4snr5f_20261030.json",
     "logs/pilot_reward_score_gate_mid_gap0_joint_5s4snr5f_20261030.json",
-    "logs/pilot_adapt_objective_mid_gap0_bce_reward_5s4snr5f_20261030.json"
+    "logs/pilot_adapt_objective_mid_gap0_bce_reward_5s4snr5f_20261030.json",
+    "logs/pilot_update_scope_mid_gap0_direct_phase_bce_reward_5s4snr5f_20261030.json"
   ]
 }

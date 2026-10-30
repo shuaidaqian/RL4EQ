@@ -88,11 +88,22 @@
 
 每个 SNR 的 95% 区间仍跨零。Pilot BCE 更新没有修复 0 dB；在 10/15 dB 反而更差，其中 10 dB 的候选 Data BER 改善均值在 Reward 决策前已是负值。说明“用 Pilot 的已知比特做梯度”本身也不保证更新方向能泛化到 Data。
 
+## PEFT 参数位置对照
+
+最后保持 Adapt 信号重构目标、Reward BCE 门控、seed/SNR 和未来帧不变，把更新范围从 14 个 state-mapping Adapter 参数缩小到 2 个直接 phase/CFO Adapter 参数。两者使用相同轨迹：
+
+| PEFT 更新范围 | Reward 接受轨迹 | 0 dB BER 改善 | 5 dB BER 改善 | 10 dB BER 改善 | 15 dB BER 改善 |
+|---|---:|---:|---:|---:|---:|
+| 14 个 state-mapping 参数 | 7/20 | -0.51 pp（1/5 seed 正） | +0.60 pp（2/5） | +0.16 pp（2/5） | +0.04 pp（1/5） |
+| 2 个 phase/CFO 参数 | 5/20 | -0.39 pp（0/5） | +0.10 pp（1/5） | +0.08 pp（2/5） | +0.03 pp（1/5） |
+
+所有区间仍跨零。直接 phase/CFO 参数确实发生了更新，但候选 Data 收益整体更小，没能优于 state-mapping 更新。下一轮测试把两种 Adapter 参数放开一起更新，检查表达能力是否不足；如果组合更新仍没有稳定收益，就暂停继续盲目增加可训练参数。
+
 ## 对研究路线的影响
 
 已确认的进展是：在线更新作用于真实 `phase_trend` PEFT 参数；通过 Reward 的更新会保留并跨帧影响模型；在线过程不使用 Data；正确的 heldout 强失配已经覆盖。尚未解决的核心问题是：**Pilot 上哪个候选更好，仍不能可靠代表后续 Data 均衡更好；而持续更新的 BER 改善也未在多个 seed 上稳定出现。**
 
-因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。下一步应固定已经使用的单帧 Adapt 信号重构目标与 Reward BCE 门控，只把更新作用域从 14 个 state-mapping Adapter 参数改为直接的 phase/CFO Adapter 参数，检查更贴近该失配成因的 PEFT 位置是否能产生更可控的更新。所有在线更新仍只看 Adapt Pilot，Reward 只验收/回滚，Data 只作事后评估；只有跨 seed/SNR 均有可复现收益，才扩大矩阵。
+因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。下一步固定 Adapt 信号重构目标和 Reward BCE 门控，把 14 个 state-mapping 与 2 个 phase/CFO Adapter 参数一起更新，观察组合 PEFT 更新是否稳定提高 Data BER；若不通过多 seed/SNR 门槛，就停止扩大当前候选范围，回到数据/信道可辨识性问题。
 
 机器可读汇总见 [`docs/results/rl_peft_pilot_corrected_replay_20261030.json`](results/rl_peft_pilot_corrected_replay_20261030.json)。逐帧原始日志保存在被 Git 忽略的 `logs/` 目录。
 
