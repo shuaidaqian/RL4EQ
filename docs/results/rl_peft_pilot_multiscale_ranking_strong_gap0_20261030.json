@@ -1,0 +1,337 @@
+{
+  "schema_version": "rl-peft-pilot-multiscale-ranking-strong-gap0-v1",
+  "date": "2026-10-30",
+  "status": "pilot_rank_does_not_reliably_predict_data_ber",
+  "protocol": {
+    "config": "configs/diagnostics/eme_long_memory_v2_cfo_phase_light_pilot_multiscale.json",
+    "channel_level": "B",
+    "profile": "eme_long_memory_v2",
+    "state_split": "heldout_edge",
+    "impairment_profile": "cfo_phase_light",
+    "delay_symbols": 116,
+    "acquisition_gap_seconds": 0.0,
+    "snr_db": [
+      0.0,
+      5.0,
+      10.0,
+      15.0
+    ],
+    "seeds": [
+      1091,
+      1092,
+      1093,
+      1094,
+      1095
+    ],
+    "frames_per_seed_snr": 3,
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "adapt_pilot_total": 224,
+    "adapt_update_view_symbols": 168,
+    "adapt_rank_view_symbols": 56,
+    "reward_pilot_total": 32,
+    "offline_checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "checkpoint_retrained_or_modified": false,
+    "candidate_update_objective": "pilot_signal_reconstruction",
+    "candidate_update_group": "phase_trend",
+    "candidate_steps": 5,
+    "candidate_learning_rates": [
+      0.000625,
+      0.00125,
+      0.0025
+    ],
+    "candidate_delta_caps": [
+      0.0125,
+      0.05,
+      0.05
+    ],
+    "reward_gate": "Reward Pilot BCE 改善超过 0.0005 且硬错数不增加",
+    "online_data_waveform_or_labels_used": false,
+    "data_metrics_used_only_posthoc": true,
+    "diagnostic_only": true
+  },
+  "pair_integrity": {
+    "multiscale_rank_bce_trials": 60,
+    "multiscale_rank_signal_trials": 60,
+    "objective_bank_trials": 60,
+    "multiscale_candidate_rows_per_ranker": 240,
+    "unmatched_multiscale_candidate_keys": 0,
+    "all_candidate_metrics_identical_between_ranker_runs": true,
+    "same_checkpoint_sha256": true,
+    "data_isolation_passed": true,
+    "matched_candidate_field_counts": {
+      "objective": 240,
+      "updated_groups": 240,
+      "learning_rate": 240,
+      "adapt_steps": 240,
+      "max_delta_norm": 240,
+      "peft_delta_norm": 240,
+      "rank_pilot_bce_improvement": 240,
+      "rank_pilot_signal_improvement": 240,
+      "data_ber_improvement": 240,
+      "data_bce_improvement": 240,
+      "data_logits_abs_mean_delta": 240,
+      "data_waveform_used_online": 240,
+      "data_labels_used_online": 240
+    }
+  },
+  "multiscale_rank_bce": {
+    "trials": 60,
+    "candidate_rows": 240,
+    "reward_accept_count": 16,
+    "reward_acceptance_fraction": 0.26666666666666666,
+    "mean_committed_data_ber_improvement_pp": 0.11935760170066108,
+    "positive_committed_data_ber_fraction": 0.13333333333333333,
+    "accepted_data_ber_better": 8,
+    "accepted_data_ber_worse": 2,
+    "accepted_data_ber_same": 6,
+    "rank_vs_data_ber_spearman": 0.41233496180210827,
+    "rank_vs_data_ber_gate_pass": false,
+    "rank_vs_data_bce_spearman": 0.2833333333333333,
+    "selected_candidate_counts": {
+      "identity": 28,
+      "phase_signal_moderate": 32
+    },
+    "per_snr": [
+      {
+        "snr_db": 0.0,
+        "trials": 15,
+        "accepted": 8,
+        "selected_candidates": {
+          "identity": 4,
+          "phase_signal_moderate": 11
+        },
+        "mean_committed_data_ber_improvement_pp": 0.503472089767456,
+        "positive_committed_trials": 7,
+        "mean_accepted_data_ber_improvement_pp": 0.9440101683139801
+      },
+      {
+        "snr_db": 5.0,
+        "trials": 15,
+        "accepted": 3,
+        "selected_candidates": {
+          "identity": 5,
+          "phase_signal_moderate": 10
+        },
+        "mean_committed_data_ber_improvement_pp": -0.03472223877906799,
+        "positive_committed_trials": 0,
+        "mean_accepted_data_ber_improvement_pp": -0.17361119389533997
+      },
+      {
+        "snr_db": 10.0,
+        "trials": 15,
+        "accepted": 2,
+        "selected_candidates": {
+          "identity": 11,
+          "phase_signal_moderate": 4
+        },
+        "mean_committed_data_ber_improvement_pp": 0.0,
+        "positive_committed_trials": 0,
+        "mean_accepted_data_ber_improvement_pp": 0.0
+      },
+      {
+        "snr_db": 15.0,
+        "trials": 15,
+        "accepted": 3,
+        "selected_candidates": {
+          "phase_signal_moderate": 7,
+          "identity": 8
+        },
+        "mean_committed_data_ber_improvement_pp": 0.008680555814256271,
+        "positive_committed_trials": 1,
+        "mean_accepted_data_ber_improvement_pp": 0.04340277907128136
+      }
+    ]
+  },
+  "multiscale_rank_signal_reconstruction": {
+    "trials": 60,
+    "candidate_rows": 240,
+    "reward_accept_count": 22,
+    "reward_acceptance_fraction": 0.36666666666666664,
+    "mean_committed_data_ber_improvement_pp": 0.12803815751491734,
+    "positive_committed_data_ber_fraction": 0.15,
+    "accepted_data_ber_better": 9,
+    "accepted_data_ber_worse": 4,
+    "accepted_data_ber_same": 9,
+    "rank_vs_data_ber_spearman": 0.3996477322081972,
+    "rank_vs_data_ber_gate_pass": false,
+    "rank_vs_data_bce_spearman": 0.5933333333333334,
+    "selected_candidate_counts": {
+      "identity": 23,
+      "phase_signal_moderate": 36,
+      "phase_signal_conservative": 1
+    },
+    "per_snr": [
+      {
+        "snr_db": 0.0,
+        "trials": 15,
+        "accepted": 8,
+        "selected_candidates": {
+          "identity": 3,
+          "phase_signal_moderate": 12
+        },
+        "mean_committed_data_ber_improvement_pp": 0.503472089767456,
+        "positive_committed_trials": 7,
+        "mean_accepted_data_ber_improvement_pp": 0.9440101683139801
+      },
+      {
+        "snr_db": 5.0,
+        "trials": 15,
+        "accepted": 4,
+        "selected_candidates": {
+          "identity": 5,
+          "phase_signal_moderate": 10
+        },
+        "mean_committed_data_ber_improvement_pp": 0.017361094554265342,
+        "positive_committed_trials": 1,
+        "mean_accepted_data_ber_improvement_pp": 0.06510410457849503
+      },
+      {
+        "snr_db": 10.0,
+        "trials": 15,
+        "accepted": 4,
+        "selected_candidates": {
+          "identity": 8,
+          "phase_signal_moderate": 7
+        },
+        "mean_committed_data_ber_improvement_pp": -0.01736111007630825,
+        "positive_committed_trials": 0,
+        "mean_accepted_data_ber_improvement_pp": -0.06510416278615594
+      },
+      {
+        "snr_db": 15.0,
+        "trials": 15,
+        "accepted": 6,
+        "selected_candidates": {
+          "phase_signal_moderate": 7,
+          "identity": 7,
+          "phase_signal_conservative": 1
+        },
+        "mean_committed_data_ber_improvement_pp": 0.008680555814256271,
+        "positive_committed_trials": 1,
+        "mean_accepted_data_ber_improvement_pp": 0.02170138953564068
+      }
+    ]
+  },
+  "objective_bank_rank_bce": {
+    "trials": 60,
+    "candidate_rows": 240,
+    "reward_accept_count": 21,
+    "reward_acceptance_fraction": 0.35,
+    "mean_committed_data_ber_improvement_pp": 0.11935762556580205,
+    "positive_committed_data_ber_fraction": 0.16666666666666666,
+    "accepted_data_ber_better": 10,
+    "accepted_data_ber_worse": 2,
+    "accepted_data_ber_same": 9,
+    "rank_vs_data_ber_spearman": 0.421164063098303,
+    "rank_vs_data_ber_gate_pass": false,
+    "rank_vs_data_bce_spearman": 0.2437399056023749,
+    "selected_candidate_counts": {
+      "head_bce": 24,
+      "phase_trend_signal_reconstruction": 14,
+      "phase_trend_bce": 19,
+      "identity": 3
+    },
+    "per_snr": [
+      {
+        "snr_db": 0.0,
+        "trials": 15,
+        "accepted": 9,
+        "selected_candidates": {
+          "head_bce": 8,
+          "phase_trend_signal_reconstruction": 5,
+          "phase_trend_bce": 2
+        },
+        "mean_committed_data_ber_improvement_pp": 0.477430522441864,
+        "positive_committed_trials": 7,
+        "mean_accepted_data_ber_improvement_pp": 0.7957175374031067
+      },
+      {
+        "snr_db": 5.0,
+        "trials": 15,
+        "accepted": 3,
+        "selected_candidates": {
+          "head_bce": 6,
+          "phase_trend_signal_reconstruction": 4,
+          "phase_trend_bce": 4,
+          "identity": 1
+        },
+        "mean_committed_data_ber_improvement_pp": -0.008680572112401327,
+        "positive_committed_trials": 1,
+        "mean_accepted_data_ber_improvement_pp": -0.04340286056200664
+      },
+      {
+        "snr_db": 10.0,
+        "trials": 15,
+        "accepted": 5,
+        "selected_candidates": {
+          "identity": 2,
+          "head_bce": 2,
+          "phase_trend_bce": 9,
+          "phase_trend_signal_reconstruction": 2
+        },
+        "mean_committed_data_ber_improvement_pp": -3.880510727564493e-09,
+        "positive_committed_trials": 1,
+        "mean_accepted_data_ber_improvement_pp": -1.1641532182693481e-08
+      },
+      {
+        "snr_db": 15.0,
+        "trials": 15,
+        "accepted": 4,
+        "selected_candidates": {
+          "phase_trend_signal_reconstruction": 3,
+          "head_bce": 8,
+          "phase_trend_bce": 4
+        },
+        "mean_committed_data_ber_improvement_pp": 0.008680555814256271,
+        "positive_committed_trials": 1,
+        "mean_accepted_data_ber_improvement_pp": 0.032552084303461015
+      }
+    ]
+  },
+  "multiscale_actual_candidate_delta_norm": {
+    "phase_signal_conservative": {
+      "mean": 0.0043747202570860585,
+      "max": 0.004426217172294855
+    },
+    "phase_signal_standard": {
+      "mean": 0.00852345284074545,
+      "max": 0.008851084858179092
+    },
+    "phase_signal_moderate": {
+      "mean": 0.016011888114735483,
+      "max": 0.017676860094070435
+    }
+  },
+  "objective_candidate_posthoc": {
+    "head_bce": {
+      "selected": 24,
+      "reward_accepted": 5,
+      "mean_data_ber_improvement_pp": -0.006510404249032338,
+      "mean_data_bce_improvement": 0.00019910126815669097
+    },
+    "identity": {
+      "selected": 3,
+      "reward_accepted": 0,
+      "mean_data_ber_improvement_pp": 0.0,
+      "mean_data_bce_improvement": 0.0
+    },
+    "phase_trend_bce": {
+      "selected": 19,
+      "reward_accepted": 9,
+      "mean_data_ber_improvement_pp": 0.10416667287548383,
+      "mean_data_bce_improvement": 0.0006451835443838168
+    },
+    "phase_trend_signal_reconstruction": {
+      "selected": 14,
+      "reward_accepted": 7,
+      "mean_data_ber_improvement_pp": 0.10199647765451421,
+      "mean_data_bce_improvement": 0.001209636844357457
+    }
+  },
+  "local_log_files": [
+    "logs/pilot_multiscale_strong_gap0_rank_bce_5s4snr3f_20261030.json",
+    "logs/pilot_multiscale_strong_gap0_rank_signal_5s4snr3f_20261030.json",
+    "logs/pilot_objective_strong_gap0_rank_bce_5s4snr3f_20261030.json"
+  ]
+}
