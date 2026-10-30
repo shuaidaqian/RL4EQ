@@ -96,14 +96,15 @@
 |---|---:|---:|---:|---:|---:|
 | 14 个 state-mapping 参数 | 7/20 | -0.51 pp（1/5 seed 正） | +0.60 pp（2/5） | +0.16 pp（2/5） | +0.04 pp（1/5） |
 | 2 个 phase/CFO 参数 | 5/20 | -0.39 pp（0/5） | +0.10 pp（1/5） | +0.08 pp（2/5） | +0.03 pp（1/5） |
+| 16 个参数联合更新 | 7/20 | -1.78 pp（0/5） | +0.68 pp（2/5） | +0.17 pp（2/5） | +0.05 pp（1/5） |
 
-所有区间仍跨零。直接 phase/CFO 参数确实发生了更新，但候选 Data 收益整体更小，没能优于 state-mapping 更新。下一轮测试把两种 Adapter 参数放开一起更新，检查表达能力是否不足；如果组合更新仍没有稳定收益，就暂停继续盲目增加可训练参数。
+所有区间仍跨零。直接 phase/CFO 参数确实发生了更新，但候选 Data 收益整体更小；联合开放 16 个参数也没有改善，且 0 dB 更差。因此，当前问题看起来不只是 PEFT 参数位置或参数数量。
 
 ## 对研究路线的影响
 
 已确认的进展是：在线更新作用于真实 `phase_trend` PEFT 参数；通过 Reward 的更新会保留并跨帧影响模型；在线过程不使用 Data；正确的 heldout 强失配已经覆盖。尚未解决的核心问题是：**Pilot 上哪个候选更好，仍不能可靠代表后续 Data 均衡更好；而持续更新的 BER 改善也未在多个 seed 上稳定出现。**
 
-因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。下一步固定 Adapt 信号重构目标和 Reward BCE 门控，把 14 个 state-mapping 与 2 个 phase/CFO Adapter 参数一起更新，观察组合 PEFT 更新是否稳定提高 Data BER；若不通过多 seed/SNR 门槛，就停止扩大当前候选范围，回到数据/信道可辨识性问题。
+因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。原计划的 Reward Pilot 长度对照已完成，结果见[后续阶段记录](rl_peft_reward_pilot_length_replay_20261030.md)：64 符号版本在初始 seed 上拒绝了一个 -8.9 pp 的 0 dB 有害更新，但在独立新 seed 上仍接受了 -13.7 pp 的有害更新；四个 SNR 的收益区间仍跨零。增加验收符号数不足以让 Reward 稳定预测 Data 收益。下一步先检查更小的 PEFT 更新半径能否限制有害参数变化，同时保留中高 SNR 收益；若仍无跨 seed 稳定收益，就需要重新评估当前固定 checkpoint 和仅 Pilot 决策约束下的可行性。
 
 机器可读汇总见 [`docs/results/rl_peft_pilot_corrected_replay_20261030.json`](results/rl_peft_pilot_corrected_replay_20261030.json)。逐帧原始日志保存在被 Git 忽略的 `logs/` 目录。
 

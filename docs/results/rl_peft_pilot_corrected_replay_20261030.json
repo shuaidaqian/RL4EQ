@@ -181,7 +181,7 @@
     "positive_seed_count": 3,
     "seed_count": 5,
     "formal_matrix_gate_passed": false,
-    "recommended_next_experiment": "固定 Adapt 信号重构与 Reward BCE 门控，联合更新 state-mapping 和直接 phase/CFO 参数。"
+    "recommended_next_experiment": "固定 PEFT 更新目标和参数范围，将 Reward Pilot 从32增加到64符号（Adapt相应从224减到192），检查验收可靠性。"
   },
   "cross_frame_adapt_update": {
     "trial_count_per_train_frame_count": 20,
@@ -329,6 +329,17 @@
           {"snr_db": 10, "mean": 0.000781249977, "ci95_t": [-0.000664815072, 0.002227315025], "positive_seeds": 2},
           {"snr_db": 15, "mean": 0.000260416698, "ci95_t": [-0.000462615968, 0.000983449363], "positive_seeds": 1}
         ]
+      },
+      {
+        "update_scope": "mapping_plus_phase_cfo",
+        "updated_parameter_count": 16,
+        "accepted_trials": 7,
+        "ber_improvement_by_snr": [
+          {"snr_db": 0, "mean": -0.017838540673, "ci95_t": [-0.067366269609, 0.031689188263], "positive_seeds": 0},
+          {"snr_db": 5, "mean": 0.006770833209, "ci95_t": [-0.006931063377, 0.020472729795], "positive_seeds": 2},
+          {"snr_db": 10, "mean": 0.001692708232, "ci95_t": [-0.001310271399, 0.004695687863], "positive_seeds": 2},
+          {"snr_db": 15, "mean": 0.000520833349, "ci95_t": [-0.000925231853, 0.001966898551], "positive_seeds": 1}
+        ]
       }
     ],
     "all_snr_confidence_intervals_cross_zero": true,
@@ -346,6 +357,7 @@
     "logs/pilot_reward_score_gate_mid_gap0_bce_5s4snr5f_20261030.json",
     "logs/pilot_reward_score_gate_mid_gap0_joint_5s4snr5f_20261030.json",
     "logs/pilot_adapt_objective_mid_gap0_bce_reward_5s4snr5f_20261030.json",
-    "logs/pilot_update_scope_mid_gap0_direct_phase_bce_reward_5s4snr5f_20261030.json"
+    "logs/pilot_update_scope_mid_gap0_direct_phase_bce_reward_5s4snr5f_20261030.json",
+    "logs/pilot_update_scope_mid_gap0_mapping_phase_bce_reward_5s4snr5f_20261030.json"
   ]
 }

@@ -1,0 +1,128 @@
+{
+  "schema_version": "rl-peft-reward-pilot-length-replay-v1",
+  "date": "2026-10-30",
+  "research_question": "在固定 Pilot 总预算下，增加 Reward Pilot 并减少 Adapt Pilot，能否提高 Pilot-only PEFT 门控对 Data BER 收益的判别可靠性？",
+  "fixed_conditions": {
+    "channel_level": "B",
+    "channel_profile": "eme_long_memory_v2",
+    "state_split": "heldout_edge",
+    "impairment_profile": "cfo_phase_mid",
+    "delay_symbols": 116,
+    "acquisition_gap_seconds": 0,
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "snrs_db": [0, 5, 10, 15],
+    "frames_per_seed_snr": 5,
+    "update_scope": "mapping_plus_phase_cfo",
+    "updated_parameter_count": 16,
+    "adapt_objective": "signal_reconstruction",
+    "learning_rate": 0.0025,
+    "steps": 5,
+    "max_delta_norm": 0.05,
+    "reward_score": "BCE with hard error-count guard across two future validation frames",
+    "offline_checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "checkpoint_modified_or_retrained": false,
+    "data_waveform_or_labels_used_online": false
+  },
+  "pilot_allocations": {
+    "reward_32": {"adapt_symbols": 224, "reward_symbols": 32},
+    "reward_64": {"adapt_symbols": 192, "reward_symbols": 64}
+  },
+  "cohorts": {
+    "exploratory": {"seeds": [1091, 1092, 1093, 1094, 1095], "role": "初始方案筛选，不作为独立确认"},
+    "confirmatory": {"seeds": [2001, 2002, 2003, 2004, 2005], "role": "独立 seed 确认"}
+  },
+  "confirmatory_by_snr": [
+    {
+      "snr_db": 0,
+      "reward_32": {"mean_ber_improvement_pp": -0.313, "ci95_pp": [-2.939, 2.314], "positive_seeds": 1, "accepted_trials": 2, "harmful_accepted_trials": 1},
+      "reward_64": {"mean_ber_improvement_pp": -2.786, "ci95_pp": [-10.839, 5.266], "positive_seeds": 1, "accepted_trials": 3, "harmful_accepted_trials": 2},
+      "paired_reward64_minus_reward32_ci95_pp": [-10.855, 5.907]
+    },
+    {
+      "snr_db": 5,
+      "reward_32": {"mean_ber_improvement_pp": -0.013, "ci95_pp": [-0.158, 0.132], "positive_seeds": 1, "accepted_trials": 2, "harmful_accepted_trials": 1},
+      "reward_64": {"mean_ber_improvement_pp": -0.052, "ci95_pp": [-0.197, 0.093], "positive_seeds": 0, "accepted_trials": 1, "harmful_accepted_trials": 1},
+      "paired_reward64_minus_reward32_ci95_pp": [-0.305, 0.227]
+    },
+    {
+      "snr_db": 10,
+      "reward_32": {"mean_ber_improvement_pp": 0.234, "ci95_pp": [-0.419, 0.888], "positive_seeds": 2, "accepted_trials": 3, "harmful_accepted_trials": 1},
+      "reward_64": {"mean_ber_improvement_pp": 0.273, "ci95_pp": [-0.488, 1.035], "positive_seeds": 2, "accepted_trials": 3, "harmful_accepted_trials": 1},
+      "paired_reward64_minus_reward32_ci95_pp": [-0.069, 0.148]
+    },
+    {
+      "snr_db": 15,
+      "reward_32": {"mean_ber_improvement_pp": 0.065, "ci95_pp": [-0.164, 0.294], "positive_seeds": 1, "accepted_trials": 2, "harmful_accepted_trials": 1},
+      "reward_64": {"mean_ber_improvement_pp": 0.078, "ci95_pp": [-0.186, 0.343], "positive_seeds": 1, "accepted_trials": 2, "harmful_accepted_trials": 1},
+      "paired_reward64_minus_reward32_ci95_pp": [-0.023, 0.049]
+    }
+  ],
+  "combined_descriptive_10_seed_by_snr": [
+    {
+      "snr_db": 0,
+      "reward_32_mean_ber_improvement_pp": -1.048,
+      "reward_32_ci95_pp": [-3.777, 1.681],
+      "reward_64_mean_ber_improvement_pp": -1.393,
+      "reward_64_ci95_pp": [-5.402, 2.616],
+      "paired_reward64_minus_reward32_ci95_pp": [-5.339, 4.649]
+    },
+    {
+      "snr_db": 5,
+      "reward_32_mean_ber_improvement_pp": 0.332,
+      "reward_32_ci95_pp": [-0.392, 1.056],
+      "reward_64_mean_ber_improvement_pp": 0.443,
+      "reward_64_ci95_pp": [-0.620, 1.506],
+      "paired_reward64_minus_reward32_ci95_pp": [-1.223, 1.445]
+    },
+    {
+      "snr_db": 10,
+      "reward_32_mean_ber_improvement_pp": 0.202,
+      "reward_32_ci95_pp": [-0.138, 0.542],
+      "reward_64_mean_ber_improvement_pp": 0.521,
+      "reward_64_ci95_pp": [-0.333, 1.375],
+      "paired_reward64_minus_reward32_ci95_pp": [-0.508, 1.146]
+    },
+    {
+      "snr_db": 15,
+      "reward_32_mean_ber_improvement_pp": 0.059,
+      "reward_32_ci95_pp": [-0.069, 0.186],
+      "reward_64_mean_ber_improvement_pp": 0.267,
+      "reward_64_ci95_pp": [-0.291, 0.825],
+      "paired_reward64_minus_reward32_ci95_pp": [-0.350, 0.767]
+    }
+  ],
+  "reward_bce_vs_raw_candidate_data_gain_spearman_n10": {
+    "0_db": -0.358,
+    "5_db": 0.309,
+    "10_db": 0.122,
+    "15_db": 0.153,
+    "reliable_across_snr": false
+  },
+  "confirmatory_acceptance_false_positive": {
+    "seed": 2005,
+    "snr_db": 0,
+    "reward_pilot_total": 64,
+    "data_ber_improvement_pp": -13.737,
+    "mean_reward_bce_improvement": 0.013362,
+    "reward_error_count_changes": [0, 0],
+    "candidate_logits_abs_mean_delta": 0.380834,
+    "state_mapping_delta_norm": 0.046771,
+    "direct_phase_cfo_delta_norm": 0.017678
+  },
+  "audit": {
+    "initial_pair_rows": 40,
+    "confirmatory_pair_rows": 40,
+    "paired_channel_state_metadata_matches": true,
+    "checkpoint_hash_matches_fixed_value": true,
+    "data_isolation_passed": true,
+    "all_10_seed_snr_ber_confidence_intervals_cross_zero": true
+  },
+  "raw_replay_logs": [
+    "logs/pilot_update_scope_mid_gap0_mapping_phase_bce_reward_5s4snr5f_20261030.json",
+    "logs/pilot_update_scope_mid_gap0_mapping_phase_bce_reward64_5s4snr5f_20261030.json",
+    "logs/pilot_update_scope_mid_gap0_mapping_phase_bce_reward32_confirm_5s4snr5f_20261030.json",
+    "logs/pilot_update_scope_mid_gap0_mapping_phase_bce_reward64_confirm_5s4snr5f_20261030.json"
+  ],
+  "next_experiment": "固定 Reward Pilot=64、更新目标和参数组；在新配对 seeds 上比较 PEFT 最大更新半径 0.01、0.025 与 0.05，观察能否限制低 SNR 有害更新并保留中高 SNR BER 改善。"
+}
