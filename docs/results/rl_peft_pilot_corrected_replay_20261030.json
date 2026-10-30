@@ -181,7 +181,7 @@
     "positive_seed_count": 3,
     "seed_count": 5,
     "formal_matrix_gate_passed": false,
-    "recommended_next_experiment": "固定 PEFT 更新目标和参数范围，将 Reward Pilot 从32增加到64符号（Adapt相应从224减到192），检查验收可靠性。"
+    "recommended_next_experiment": "Reward 长度和 PEFT 更新半径筛查均已完成，当前固定 checkpoint 下未发现稳定收益；是否允许训练专门支持 Pilot 驱动 PEFT 的新 checkpoint，需要先与用户对齐。"
   },
   "cross_frame_adapt_update": {
     "trial_count_per_train_frame_count": 20,

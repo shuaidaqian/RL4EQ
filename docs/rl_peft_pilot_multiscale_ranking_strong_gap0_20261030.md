@@ -104,7 +104,7 @@
 
 已确认的进展是：在线更新作用于真实 `phase_trend` PEFT 参数；通过 Reward 的更新会保留并跨帧影响模型；在线过程不使用 Data；正确的 heldout 强失配已经覆盖。尚未解决的核心问题是：**Pilot 上哪个候选更好，仍不能可靠代表后续 Data 均衡更好；而持续更新的 BER 改善也未在多个 seed 上稳定出现。**
 
-因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。原计划的 Reward Pilot 长度对照已完成，结果见[后续阶段记录](rl_peft_reward_pilot_length_replay_20261030.md)：64 符号版本在初始 seed 上拒绝了一个 -8.9 pp 的 0 dB 有害更新，但在独立新 seed 上仍接受了 -13.7 pp 的有害更新；四个 SNR 的收益区间仍跨零。增加验收符号数不足以让 Reward 稳定预测 Data 收益。下一步先检查更小的 PEFT 更新半径能否限制有害参数变化，同时保留中高 SNR 收益；若仍无跨 seed 稳定收益，就需要重新评估当前固定 checkpoint 和仅 Pilot 决策约束下的可行性。
+因此不扩大正式矩阵、不开放 Data 参与在线更新，也不接入 Bandit。Reward Pilot 长度对照见[阶段记录](rl_peft_reward_pilot_length_replay_20261030.md)，PEFT 更新半径对照见[更新半径筛查](rl_peft_update_radius_replay_20261030.md)：64 符号 Reward 仍接受了 -13.7 pp 的 0 dB 有害更新；0.01/0.025/0.05 三档更新半径也都没有跨 seed、跨 SNR 的稳定增益。当前固定 checkpoint 下，继续微调这几类在线参数尚未达到目标。下一步需要先对齐是否允许离线训练专门支持 Pilot 驱动 PEFT 更新的新 checkpoint；若允许，旧 checkpoint 仍保留作 Frozen 对照，在线阶段继续隔离 Data。
 
 机器可读汇总见 [`docs/results/rl_peft_pilot_corrected_replay_20261030.json`](results/rl_peft_pilot_corrected_replay_20261030.json)。逐帧原始日志保存在被 Git 忽略的 `logs/` 目录。
 

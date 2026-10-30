@@ -1,0 +1,58 @@
+{
+  "schema_version": "rl-peft-update-radius-screen-v1",
+  "date": "2026-10-30",
+  "research_question": "在固定 Reward Pilot=64 的情况下，降低 PEFT 更新半径能否减少有害更新并保留 BER 增益？",
+  "fixed_conditions": {
+    "channel_level": "B",
+    "channel_profile": "eme_long_memory_v2",
+    "state_split": "heldout_edge",
+    "impairment_profile": "cfo_phase_mid",
+    "delay_symbols": 116,
+    "acquisition_gap_seconds": 0,
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "adapt_pilot_total": 192,
+    "reward_pilot_total": 64,
+    "snrs_db": [0, 5, 10, 15],
+    "seeds": [3001, 3002, 3003, 3004, 3005],
+    "frames_per_seed_snr": 5,
+    "update_scope": "mapping_plus_phase_cfo",
+    "updated_parameter_count": 16,
+    "adapt_objective": "signal_reconstruction",
+    "learning_rate": 0.0025,
+    "steps": 5,
+    "reward_score": "BCE with hard error-count guard across two future validation frames",
+    "offline_checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "checkpoint_modified_or_retrained": false,
+    "data_waveform_or_labels_used_online": false
+  },
+  "overall_equal_snr_mean_by_radius": [
+    {"max_delta_norm": 0.01, "mean_ber_improvement_pp": 0.618, "ci95_pp": [-0.380, 1.617], "positive_seeds": 4, "accepted_trials": 11, "trials": 20},
+    {"max_delta_norm": 0.025, "mean_ber_improvement_pp": 1.221, "ci95_pp": [-0.704, 3.146], "positive_seeds": 4, "accepted_trials": 11, "trials": 20},
+    {"max_delta_norm": 0.05, "mean_ber_improvement_pp": 1.354, "ci95_pp": [-0.797, 3.505], "positive_seeds": 4, "accepted_trials": 10, "trials": 20}
+  ],
+  "by_snr": [
+    {"snr_db": 0, "radius_0.01": {"mean_pp": 0.729, "ci95_pp": [-0.268, 1.726], "positive_seeds": 4, "accepted": 4, "harmful_accepted": 0}, "radius_0.025": {"mean_pp": 1.523, "ci95_pp": [-0.521, 3.568], "positive_seeds": 4, "accepted": 4, "harmful_accepted": 0}, "radius_0.05": {"mean_pp": 2.161, "ci95_pp": [-0.921, 5.244], "positive_seeds": 4, "accepted": 4, "harmful_accepted": 0}},
+    {"snr_db": 5, "radius_0.01": {"mean_pp": 0.833, "ci95_pp": [-0.588, 2.255], "positive_seeds": 2, "accepted": 2, "harmful_accepted": 0}, "radius_0.025": {"mean_pp": 1.654, "ci95_pp": [-1.182, 4.490], "positive_seeds": 2, "accepted": 2, "harmful_accepted": 0}, "radius_0.05": {"mean_pp": 2.214, "ci95_pp": [-1.704, 6.131], "positive_seeds": 2, "accepted": 2, "harmful_accepted": 0}},
+    {"snr_db": 10, "radius_0.01": {"mean_pp": 0.729, "ci95_pp": [-0.531, 1.990], "positive_seeds": 2, "accepted": 3, "harmful_accepted": 0}, "radius_0.025": {"mean_pp": 1.406, "ci95_pp": [-0.962, 3.775], "positive_seeds": 3, "accepted": 3, "harmful_accepted": 0}, "radius_0.05": {"mean_pp": 0.729, "ci95_pp": [-1.206, 2.665], "positive_seeds": 2, "accepted": 2, "harmful_accepted": 0}},
+    {"snr_db": 15, "radius_0.01": {"mean_pp": 0.182, "ci95_pp": [-0.370, 0.735], "positive_seeds": 1, "accepted": 2, "harmful_accepted": 1}, "radius_0.025": {"mean_pp": 0.299, "ci95_pp": [-0.578, 1.177], "positive_seeds": 1, "accepted": 2, "harmful_accepted": 1}, "radius_0.05": {"mean_pp": 0.312, "ci95_pp": [-0.601, 1.226], "positive_seeds": 1, "accepted": 2, "harmful_accepted": 1}}
+  ],
+  "paired_radius_difference_ci95_pp": {
+    "0.01_minus_0.05_equal_snr": [-1.892, 0.421],
+    "0.025_minus_0.05_equal_snr": [-0.402, 0.135]
+  },
+  "audit": {
+    "rows_per_radius": 40,
+    "paired_channel_state_metadata_matches": true,
+    "frozen_data_baseline_identical_across_radii": true,
+    "data_isolation_passed": true,
+    "all_snr_radius_confidence_intervals_cross_zero": true,
+    "radius_selected_or_formally_validated": false
+  },
+  "raw_replay_logs": [
+    "logs/pilot_peft_radius001_reward64_gap0_5s4snr5f_seed3001_3005_20261030.json",
+    "logs/pilot_peft_radius0025_reward64_gap0_5s4snr5f_seed3001_3005_20261030.json",
+    "logs/pilot_peft_radius005_reward64_gap0_5s4snr5f_seed3001_3005_20261030.json"
+  ],
+  "next_step_requires_user_alignment": "是否允许新增离线 PEFT-friendly 训练/checkpoint；旧 checkpoint 继续作为 Frozen 对照，在线仍只用 Adapt Pilot 更新 PEFT，Reward Pilot 验收，Data 只作事后评估。"
+}

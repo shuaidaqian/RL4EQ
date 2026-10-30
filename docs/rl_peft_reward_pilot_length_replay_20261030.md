@@ -39,9 +39,9 @@ Reward BCE 与候选 Data BER 改善的 Spearman 相关在 64 符号组仍不稳
 
 这一步排除了“单纯增加 Reward Pilot 长度就能解决 Pilot 到 Data 迁移”的简单解释。Reward 64 在 0 dB 仍接受 seed 2005 的有害候选：Data BER 恶化 13.7 pp，候选 logits 平均变化 0.381；两帧 Reward BCE 的平均改善为 0.0134，硬错误数变化均为 0。把门控阈值稍作提高未必能识别这种情况，因为 Reward 指标确实明显改善。
 
-观察到的 0 dB 有害候选有接近更新半径上限的参数偏移：该 seed 的 `state_mapping_delta_norm=0.0468`、`direct_phase_cfo_delta_norm=0.0177`，候选 logits 有明显变化。这使下一项诊断转为固定 Reward=64、固定损失和参数范围，只降低单次 PEFT 总更新半径（例如 0.01、0.025，对照 0.05），检查更小步幅能否减少有害更新并保留 5–15 dB 的收益。该实验仍然只让 Adapt Pilot 产生梯度，Reward Pilot 验收，Data 事后评估。
+观察到的 0 dB 有害候选有接近更新半径上限的参数偏移：该 seed 的 `state_mapping_delta_norm=0.0468`、`direct_phase_cfo_delta_norm=0.0177`，候选 logits 有明显变化。因此随后在新 seed 上比较了 0.01、0.025、0.05 三种更新半径；结果见[PEFT 更新半径筛查](rl_peft_update_radius_replay_20261030.md)。较小半径没有显示稳定优势，四个 SNR 的区间仍跨零。
 
-如果小步幅也不能在多 seed/SNR 上产生可信的 BER 增益，当前固定 checkpoint 和严格 Pilot-only 门控下的 PEFT 路线就仍未达到研究目标；届时应先讨论可允许调整的研究设定，不应把现有结果包装成成功。
+这说明只在现有固定 checkpoint 上继续调整 Reward 长度或梯度更新幅度，尚未找到稳定有效的在线策略。若要继续追求“离线训练适应信道，在线用 Pilot 微调 PEFT 参数并稳定提升”，下一步需要讨论是否允许离线训练一个专门适配 Pilot 更新的 checkpoint；原 checkpoint 保留作 Frozen 对照。在线阶段仍可以维持 Data 隔离。未经这项路线对齐，不应把当前结果包装成成功。
 
 ## 原始回放与审计
 
