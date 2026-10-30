@@ -51,6 +51,7 @@
       }
     },
     "future_replay_logs_include_channel_state_metadata": true,
+    "expanded_112_symbol_ranking_logs_include_actual_channel_state": true,
     "focused_protocol_and_ranking_tests_passed": 25,
     "full_test_suite": {
       "command": "python -m pytest -q -p no:cacheprovider",
@@ -88,6 +89,50 @@
         "ranking_gate_passed": false
       }
     ]
+  },
+  "holdout_view_size_comparison": {
+    "paired_trials_per_ranker": 60,
+    "candidate_rows_per_ranker": 240,
+    "candidate_and_data_outcomes_identical_between_rankers_at_each_view_size": true,
+    "view_sizes_in_adapt_symbols": [56, 112],
+    "by_rank_score": [
+      {
+        "rank_score": "adapt_bce",
+        "view_56": {
+          "spearman_data_ber": 0.2823035821593484,
+          "spearman_data_bce": 0.14,
+          "reward_acceptance_fraction": 0.23333333333333334,
+          "mean_committed_data_ber_improvement": 0.0016493053485949834,
+          "positive_trial_fraction": 0.16666666666666666
+        },
+        "view_112": {
+          "spearman_data_ber": 0.23656495654106377,
+          "spearman_data_bce": 0.3433333333333333,
+          "reward_acceptance_fraction": 0.35,
+          "mean_committed_data_ber_improvement": 0.0017144091213898113,
+          "positive_trial_fraction": 0.18333333333333332
+        }
+      },
+      {
+        "rank_score": "pilot_signal_reconstruction",
+        "view_56": {
+          "spearman_data_ber": 0.2962790070187221,
+          "spearman_data_bce": 0.3433333333333333,
+          "reward_acceptance_fraction": 0.36666666666666664,
+          "mean_committed_data_ber_improvement": 0.0016927082324400544,
+          "positive_trial_fraction": 0.21666666666666667
+        },
+        "view_112": {
+          "spearman_data_ber": 0.41465318225175224,
+          "spearman_data_bce": 0.4666666666666667,
+          "reward_acceptance_fraction": 0.4,
+          "mean_committed_data_ber_improvement": 0.001822915970114991,
+          "positive_trial_fraction": 0.21666666666666667
+        }
+      }
+    ],
+    "ranking_gate_passed": false,
+    "interpretation": "扩大 Pilot 排序视图对信号重构分数有帮助，但最高 BER Spearman 仍只有 0.415；BCE 排序与 Data BER 的相关性反而降低。"
   },
   "persistent_peft_replay": {
     "trial_count": 160,
@@ -136,12 +181,16 @@
     "positive_seed_count": 3,
     "seed_count": 5,
     "formal_matrix_gate_passed": false,
-    "recommended_next_experiment": "保持checkpoint、环境、候选、总Pilot长度不变，将独立Adapt排序视图由56增至112符号；配对比较Adapt BCE和信号重构排序。"
+    "recommended_next_experiment": "检验跨帧累计 Adapt Pilot 证据能否比单帧分数可靠地排序候选；未达到 Spearman 0.6 前不进入正式性能矩阵。"
   },
   "raw_logs_git_ignored": [
     "logs/pilot_multiscale_heldout_split_rank_bce_5s4snr3f_20261030.json",
     "logs/pilot_multiscale_heldout_split_rank_signal_5s4snr3f_20261030.json",
+    "logs/pilot_multiscale_heldout_split50_rank_bce_5s4snr3f_20261030.json",
+    "logs/pilot_multiscale_heldout_split50_rank_signal_5s4snr3f_20261030.json",
     "logs/pilot_objective_heldout_split_rank_bce_5s4snr3f_20261030.json",
-    "logs/pilot_peft_mid_gap0_phase_trend_5s4snr8f_20261030.json"
+    "logs/pilot_peft_mid_gap0_phase_trend_5s4snr8f_20261030.json",
+    "logs/pilot_multiscale_heldout_split50_rank_bce_5s4snr3f_20261030.json",
+    "logs/pilot_multiscale_heldout_split50_rank_signal_5s4snr3f_20261030.json"
   ]
 }

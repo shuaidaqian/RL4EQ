@@ -27,6 +27,17 @@
 
 三种方法都远低于 0.6 门槛。正向平均值主要来自 0 dB；在 10/15 dB，提交后的 Data BER 大多持平或只有极小变化。Reward 接受只能说明留出的 Reward Pilot 达到门槛，不能保证 Data BER 改善。
 
+随后把独立 Adapt 排序视图从 56 个符号扩大到 112 个，其他条件、候选、trial 和实际 Data 输出保持配对不变；两种排序方案各 60 个 trial、240 个候选。候选与 Data 指标在两次运行中逐项一致，只有 Pilot 排序分数改变：
+
+| Pilot 排序分数 | 排序视图 | Spearman 与 Data BER | Spearman 与 Data BCE | Reward 接受 | 正 BER 改善 trial |
+|---|---:|---:|---:|---:|---:|
+| Adapt BCE | 56 | 0.282 | 0.140 | 23.3% | 16.7% |
+| Adapt BCE | 112 | 0.237 | 0.343 | 35.0% | 18.3% |
+| 信号重构 | 56 | 0.296 | 0.343 | 36.7% | 21.7% |
+| 信号重构 | 112 | 0.415 | 0.467 | 40.0% | 21.7% |
+
+增加排序样本对信号重构分数有帮助，但仍未到 0.6 门槛；对 BCE 排序，Data BER 相关性反而下降。正向收益 trial 比例几乎没变，所以**仅仅把同一帧内用于排序的 Adapt Pilot 加长，不足以解决稳定迁移问题**。扩大窗口的配对实验也记录了逐 episode 的实际信道状态。
+
 ## `cfo_phase_mid` 持续 PEFT replay
 
 固定使用 `phase_trend` PEFT 参数，Adapt Pilot 上以信号重构损失做 5 步更新，学习率 0.0025；Reward Pilot 验收，单次及累计参数变化上限均为 0.05。每个 seed/SNR 连续 8 帧，共 160 帧。验收通过的 PEFT 状态跨帧保留。
@@ -46,10 +57,10 @@
 
 已确认的进展是：在线更新作用于真实 `phase_trend` PEFT 参数；通过 Reward 的更新会保留并跨帧影响模型；在线过程不使用 Data；正确的 heldout 强失配已经覆盖。尚未解决的核心问题是：**Pilot 上哪个候选更好，仍不能可靠代表后续 Data 均衡更好；而持续更新的 BER 改善也未在多个 seed 上稳定出现。**
 
-因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。下一步先做一个受控 Pilot-only 诊断：固定 checkpoint、信道、SNR、seed、总 Pilot 长度和候选更新，只把独立 Adapt 排序视图从 56 个符号扩大到 112 个（holdout fraction 从 0.25 改为 0.5），并配对比较 BCE 与信号重构排序。若排序相关性仍达不到 0.6，就停止微调当前分数/视图大小，转而验证不同帧 Pilot 状态的累计排序目标；只有排序可靠后再扩大在线性能矩阵。
+因此暂不扩大正式矩阵、不改变离线训练、不开放 Data 参与更新，也暂不引入 Bandit。下一步应验证**跨帧累计 Adapt Pilot 排序**：在相同 Pilot-only 约束下，将连续多帧的 Adapt Pilot 证据累积后再挑选 PEFT 候选，检查候选排序是否比单帧更能预测后续 Data BER；先用小样本、多 seed/SNR replay，仍以 Spearman ≥0.6 为准入门槛，未通过就不做正式矩阵。
 
 机器可读汇总见 [`docs/results/rl_peft_pilot_corrected_replay_20261030.json`](results/rl_peft_pilot_corrected_replay_20261030.json)。逐帧原始日志保存在被 Git 忽略的 `logs/` 目录。
 
 ## 验证记录
 
-为审计未来 replay 日志，本阶段加入 `channel_state_metadata` 字段，并新增测试核对日志与实际信道状态一致。完整测试套件通过：633 passed；相关协议与排序测试：25 passed。结果 JSON 可解析，`git diff --check` 通过。
+为审计 replay 日志，本阶段加入 `channel_state_metadata` 字段，并新增测试核对日志与实际信道状态一致。完整测试套件通过：633 passed；相关协议与排序测试：25 passed。结果 JSON 可解析，`git diff --check` 通过。
