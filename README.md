@@ -32,7 +32,7 @@ Level A/B/C 可控信道族
 - 2026-10-30 的 Pilot 状态 embedding 复核见[阶段结果](docs/rl_peft_pilot_state_embedding_update16_20261030.md)：Adapt-only 状态特征已接入 PPO，但在 5 seed × 60 帧中没有改变动作或 BER；在线收益仍小且 seed 区间包含零。
 - 2026-10-30 的 PPO 动作概率和学习率复核见[阶段结果](docs/rl_peft_policy_probability_lr_20261030.md)：高学习率在 5 dB 的新 seed 上改变了部分 PEFT 动作，10 seed 全部略有收益，但它相对默认学习率的增量仍不确定。
 - 2026-10-30 的四 SNR 学习率筛查见[阶段结果](docs/rl_peft_multisnr_lr1e3_20261030.md)：`1e-3` 在四个 SNR 的平均 BER 都略好于 Frozen，但各 SNR 配对区间均跨零。
-- 2026-10-30 的 Level B 主方法比较见[阶段结果](docs/rl_peft_main_comparison_l1e3_20261030.md)：在线 Proposed 胜过本轮 Pilot 传统 baseline，但相对 Frozen 的 PEFT 在线增量仍很小且不确定；SC-FDE 与无循环前缀的线性信道不匹配。下一步做 Adapt-only identity-action 对照，分离 PEFT 的实际贡献。
+- 2026-10-30 的 Level B 主方法比较见[阶段结果](docs/rl_peft_main_comparison_l1e3_20261030.md)，identity-only 因果对照见[后续结果](docs/rl_peft_identity_control_20261030.md)：在线收益确实来自 PEFT 参数更新，但四个 SNR 上都很小且不确定；下一步在更强状态失配下复核。
 - Pilot-Driven 单候选 PEFT 的历史回放见 [统一 Pilot replay 协议复核](docs/pilot_replay_protocol_audit_20261014.md) 与 [Reward logits 守门复核](docs/online_logit_guard_replay_20261015.md)。它曾在部分 SNR/seed 上获得小幅正增益，但更新目标和候选选择协议与当前 PPO 主方法不同，不能并入当前主结果，也没有证明所有主 SNR 稳定提升。
 - [10 dB 长窗口复核](docs/formal_signal_guard_logitcap01_gap0_10db_seed77_81_60f.md) 及其[严格门控对照](docs/formal_signal_guard_logitcap01_signalmin0005_gap0_10db_seed77_81_60f.md)表明，更多帧或更严格的 Reward 门控单独都不能解决 Pilot 到 Data 的迁移问题；均为 Pilot-Driven 历史路线的专项结果。
 - 传统 baseline 不使用神经网络，不使用 RL，只使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须包含基于 Pilot 的合理补偿，不能人为打残 baseline。

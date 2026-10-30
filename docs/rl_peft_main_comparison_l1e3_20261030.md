@@ -4,7 +4,7 @@
 
 在 Level B `heldout_edge` 信道上，离线神经均衡器整体明显好于本轮配置的传统均衡器；加上在线 Pilot 驱动 PPO/PEFT 后，平均 BER 在四个 SNR 都略有下降。但相对冻结离线网络的增量只有 **0.005–0.188 个百分点**，5 个 seed 的配对区间都跨零，所以“在线参数微调能稳定进一步提升”仍未被证明。
 
-这轮能确认的是：在线链路确实执行了 Adapter 参数更新，且 Data 波形和标签没有参与更新；还不能确认这些参数更新本身带来了多少收益。另一个问题是传统 baseline 中 SC-FDE 的实现与当前线性信道不匹配，不能用它的近随机 BER 来宣称 Proposed 的优势。
+这轮能确认的是：在线链路确实执行了 Adapter 参数更新，且 Data 波形和标签没有参与更新；这轮单独看还不能把增益归因于 PEFT。后续 identity-only 对照已经补上这个缺口，结果见[因果对照记录](rl_peft_identity_control_20261030.md)。另一个问题是传统 baseline 中 SC-FDE 的实现与当前线性信道不匹配，不能用它的近随机 BER 来宣称 Proposed 的优势。
 
 ## 实验与完整性
 
@@ -37,6 +37,6 @@
 
 ## 下一步
 
-先做 5 seed × 60 帧的 **Adapt-only identity-action 对照**：保留完全相同的在线 Pilot 状态处理、Reward 验收流程和 checkpoint，只固定动作不做 PEFT，再与当前 Proposed 的逐帧结果配对。若完整 Proposed 稳定胜过这个控制组，才说明 PEFT 参数更新贡献了收益；之后再调安全动作或奖励排序。与此同时，论文主比较中暂不依赖 SC-FDE，并补做长记忆传统 baseline 的滤波器容量校准。
+下一步是在更强状态失配 `cfo_phase_light` 下复跑完整 PEFT 与 identity-only 配对，以检验收益能否随失配增大而变得更明显；同时继续校准长记忆传统 baseline 的滤波器容量。
 
 机器可读汇总见 [`docs/results/rl_peft_main_comparison_l1e3_20261030.json`](results/rl_peft_main_comparison_l1e3_20261030.json)，逐帧日志位于 `logs/rl_peft_main_l1e3_gap0_heldout_edge_0_5_10_15db_5s60f_seed1091_1095_20261030/`。

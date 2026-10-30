@@ -1,0 +1,325 @@
+{
+  "schema_version": "rl-peft-identity-control-v1",
+  "date": "2026-10-30",
+  "status": "peft_causal_increment_small_and_uncertain",
+  "protocol": {
+    "full_config": "configs/eme_long_memory_v2_rl_peft_main.json",
+    "identity_control_config": "configs/eme_long_memory_v2_rl_peft_identity_control.json",
+    "channel_level": "B",
+    "profile": "eme_long_memory_v2",
+    "impairment_profile": "cfo_phase_tiny",
+    "state_split": "heldout_edge",
+    "delay_symbols": 116,
+    "snr_db": [
+      0.0,
+      5.0,
+      10.0,
+      15.0
+    ],
+    "seeds": [
+      1091,
+      1092,
+      1093,
+      1094,
+      1095
+    ],
+    "frames_per_seed": 60,
+    "pilot_total": 256,
+    "adapt_pilot_total": 224,
+    "reward_pilot_total": 32,
+    "offline_checkpoint_sha256": "8CD3912D1C957C9689C51730AFF9D27A8F74942186C802A7483E5781AF65AEC4",
+    "policy_learning_rate": 0.001,
+    "update_interval": 8,
+    "window_size": 8,
+    "cir_update_mode": "fixed",
+    "pilot_state_embedding": false
+  },
+  "pair_integrity": {
+    "full_peft_rows": 1200,
+    "identity_control_rows": 1200,
+    "missing_or_extra_frame_keys": 0,
+    "same_method_frame_identifiers": 1200,
+    "same_state_metadata": 1200,
+    "identity_control_action_counts": {
+      "identity": 1200
+    },
+    "identity_control_peft_delta_nonzero_count": 0,
+    "data_labels_used_online_count": 0,
+    "data_waveform_used_online_count": 0,
+    "adapt_pilot_only_observation_count": 2400
+  },
+  "overall_peft_action_metrics": {
+    "moderate_action_frames": 528,
+    "reward_guard_accepts": 273,
+    "reward_guard_rejects": 255,
+    "window_rollbacks": 29,
+    "accepted_action_mean_data_bce_improvement_eval_only": 0.002705863706272704,
+    "accepted_action_positive_data_bce_fraction_eval_only": 0.6336996336996337,
+    "accepted_action_mean_data_logits_abs_delta_eval_only": 0.15251976482737759,
+    "accepted_action_mean_data_soft_output_delta_eval_only": 0.004770461570681406
+  },
+  "per_snr": [
+    {
+      "snr_db": 0.0,
+      "mean_ber_percent": {
+        "frozen_offline_nn": 20.495225690305233,
+        "adapt_only_identity_control": 20.495225690305233,
+        "full_peft": 20.317274277408917
+      },
+      "per_seed_ber": [
+        {
+          "seed": 1091,
+          "frozen": 0.17825520758827526,
+          "identity_control": 0.17825520758827526,
+          "full_peft": 0.18409288078546523,
+          "peft_gain_pp": -0.5837673197189974
+        },
+        {
+          "seed": 1092,
+          "frozen": 0.20093315951526164,
+          "identity_control": 0.20093315951526164,
+          "full_peft": 0.19993489645421506,
+          "peft_gain_pp": 0.09982630610465837
+        },
+        {
+          "seed": 1093,
+          "frozen": 0.21859809098144373,
+          "identity_control": 0.21859809098144373,
+          "full_peft": 0.21812065976361433,
+          "peft_gain_pp": 0.04774312178293938
+        },
+        {
+          "seed": 1094,
+          "frozen": 0.2164930559694767,
+          "identity_control": 0.2164930559694767,
+          "full_peft": 0.2108072911699613,
+          "peft_gain_pp": 0.5685764799515408
+        },
+        {
+          "seed": 1095,
+          "frozen": 0.2104817704608043,
+          "identity_control": 0.2104817704608043,
+          "full_peft": 0.20290798569718996,
+          "peft_gain_pp": 0.7573784763614338
+        }
+      ],
+      "peft_gain_control_minus_full_pp": 0.177951412896315,
+      "positive_seed_count": 4,
+      "paired_95_percent_t_interval_pp": [
+        -0.47058683755397424,
+        0.8264896633466042
+      ],
+      "moderate_action_frames": 120,
+      "reward_guard_accepts": 87,
+      "reward_guard_rejects": 33,
+      "window_rollbacks": 2,
+      "accepted_action_data_eval": {
+        "mean_data_bce_improvement": 0.006378464657684852,
+        "positive_data_bce_fraction": 0.8735632183908046,
+        "mean_data_logits_abs_delta": 0.0414215715323714,
+        "mean_data_soft_output_delta": 0.008601577210189218,
+        "hard_ber_better_count": 64,
+        "hard_ber_worse_count": 17,
+        "hard_ber_same_count": 6
+      }
+    },
+    {
+      "snr_db": 5.0,
+      "mean_ber_percent": {
+        "frozen_offline_nn": 5.203124998137356,
+        "adapt_only_identity_control": 5.203124998137356,
+        "full_peft": 5.015625003104409
+      },
+      "per_seed_ber": [
+        {
+          "seed": 1091,
+          "frozen": 0.039474826337148744,
+          "identity_control": 0.039474826337148744,
+          "full_peft": 0.038216145740201074,
+          "peft_gain_pp": 0.125868059694767
+        },
+        {
+          "seed": 1092,
+          "frozen": 0.04670138883714874,
+          "identity_control": 0.04670138883714874,
+          "full_peft": 0.04607204860076308,
+          "peft_gain_pp": 0.06293402363856601
+        },
+        {
+          "seed": 1093,
+          "frozen": 0.05700954881807168,
+          "identity_control": 0.05700954881807168,
+          "full_peft": 0.05904947929084301,
+          "peft_gain_pp": -0.20399304727713313
+        },
+        {
+          "seed": 1094,
+          "frozen": 0.0625651041045785,
+          "identity_control": 0.0625651041045785,
+          "full_peft": 0.06059027786056201,
+          "peft_gain_pp": 0.19748262440164865
+        },
+        {
+          "seed": 1095,
+          "frozen": 0.05440538180992007,
+          "identity_control": 0.05440538180992007,
+          "full_peft": 0.046853298662851255,
+          "peft_gain_pp": 0.7552083147068817
+        }
+      ],
+      "peft_gain_control_minus_full_pp": 0.18749999503294604,
+      "positive_seed_count": 4,
+      "paired_95_percent_t_interval_pp": [
+        -0.24921270200676224,
+        0.6242126920726543
+      ],
+      "moderate_action_frames": 112,
+      "reward_guard_accepts": 61,
+      "reward_guard_rejects": 51,
+      "window_rollbacks": 5,
+      "accepted_action_data_eval": {
+        "mean_data_bce_improvement": 0.002618926348256283,
+        "positive_data_bce_fraction": 0.5901639344262295,
+        "mean_data_logits_abs_delta": 0.12086238043352229,
+        "mean_data_soft_output_delta": 0.007427636273711019,
+        "hard_ber_better_count": 29,
+        "hard_ber_worse_count": 22,
+        "hard_ber_same_count": 10
+      }
+    },
+    {
+      "snr_db": 10.0,
+      "mean_ber_percent": {
+        "frozen_offline_nn": 0.7651909713555748,
+        "adapt_only_identity_control": 0.7651909713555748,
+        "full_peft": 0.7304687506208817
+      },
+      "per_seed_ber": [
+        {
+          "seed": 1091,
+          "frozen": 0.003949652788772558,
+          "identity_control": 0.003949652788772558,
+          "full_peft": 0.003927951406997939,
+          "peft_gain_pp": 0.002170138177461957
+        },
+        {
+          "seed": 1092,
+          "frozen": 0.006684027763549238,
+          "identity_control": 0.006684027763549238,
+          "full_peft": 0.006597222217048208,
+          "peft_gain_pp": 0.008680554650102989
+        },
+        {
+          "seed": 1093,
+          "frozen": 0.009548611065838486,
+          "identity_control": 0.009548611065838486,
+          "full_peft": 0.009483506916634117,
+          "peft_gain_pp": 0.00651041492043692
+        },
+        {
+          "seed": 1094,
+          "frozen": 0.010416666668606921,
+          "identity_control": 0.010416666668606921,
+          "full_peft": 0.009722222238391016,
+          "peft_gain_pp": 0.06944444302159053
+        },
+        {
+          "seed": 1095,
+          "frozen": 0.007660590281011537,
+          "identity_control": 0.007660590281011537,
+          "full_peft": 0.006792534751972805,
+          "peft_gain_pp": 0.08680555290387325
+        }
+      ],
+      "peft_gain_control_minus_full_pp": 0.034722220734693124,
+      "positive_seed_count": 5,
+      "paired_95_percent_t_interval_pp": [
+        -0.015137778896362641,
+        0.08458222036574889
+      ],
+      "moderate_action_frames": 140,
+      "reward_guard_accepts": 58,
+      "reward_guard_rejects": 82,
+      "window_rollbacks": 12,
+      "accepted_action_data_eval": {
+        "mean_data_bce_improvement": 0.0006575900780293962,
+        "positive_data_bce_fraction": 0.5172413793103449,
+        "mean_data_logits_abs_delta": 0.32435939213710613,
+        "mean_data_soft_output_delta": 0.0013571087033126567,
+        "hard_ber_better_count": 21,
+        "hard_ber_worse_count": 9,
+        "hard_ber_same_count": 28
+      }
+    },
+    {
+      "snr_db": 15.0,
+      "mean_ber_percent": {
+        "frozen_offline_nn": 0.17187500349245965,
+        "adapt_only_identity_control": 0.17187500349245965,
+        "full_peft": 0.16710069791103402
+      },
+      "per_seed_ber": [
+        {
+          "seed": 1091,
+          "frozen": 0.0006944444632002463,
+          "identity_control": 0.0006944444632002463,
+          "full_peft": 0.0006510416860692203,
+          "peft_gain_pp": 0.004340277713102598
+        },
+        {
+          "seed": 1092,
+          "frozen": 0.002213541720993817,
+          "identity_control": 0.002213541720993817,
+          "full_peft": 0.0020833333818397175,
+          "peft_gain_pp": 0.013020833915409948
+        },
+        {
+          "seed": 1093,
+          "frozen": 0.0019097222577935705,
+          "identity_control": 0.0019097222577935705,
+          "full_peft": 0.001953125038805107,
+          "peft_gain_pp": -0.004340278101153659
+        },
+        {
+          "seed": 1094,
+          "frozen": 0.0021701389244602374,
+          "identity_control": 0.0021701389244602374,
+          "full_peft": 0.002126736145388956,
+          "peft_gain_pp": 0.004340277907128156
+        },
+        {
+          "seed": 1095,
+          "frozen": 0.0016059028081751119,
+          "identity_control": 0.0016059028081751119,
+          "full_peft": 0.0015407986434487005,
+          "peft_gain_pp": 0.00651041647264114
+        }
+      ],
+      "peft_gain_control_minus_full_pp": 0.004774305581425636,
+      "positive_seed_count": 4,
+      "paired_95_percent_t_interval_pp": [
+        -0.0029405701705852915,
+        0.012489181333436565
+      ],
+      "moderate_action_frames": 156,
+      "reward_guard_accepts": 67,
+      "reward_guard_rejects": 89,
+      "window_rollbacks": 10,
+      "accepted_action_data_eval": {
+        "mean_data_bce_improvement": -0.00021075171903689875,
+        "positive_data_bce_fraction": 0.4626865671641791,
+        "mean_data_logits_abs_delta": 0.17684730036060825,
+        "mean_data_soft_output_delta": 0.00033135334359784527,
+        "hard_ber_better_count": 5,
+        "hard_ber_worse_count": 12,
+        "hard_ber_same_count": 50
+      }
+    }
+  ],
+  "confidence_interval_method": "Paired t interval over five seed-level 60-frame mean BER differences; t(4), 95% critical value 2.776.",
+  "comparison_semantics": "The identity-action control preserves the same online receiver path but applies no PEFT parameter updates. Frozen Offline NN and identity control have identical BER on every SNR/seed. All Data metrics are post-action simulation evaluation only.",
+  "raw_logs": [
+    "logs/rl_peft_main_l1e3_gap0_heldout_edge_0_5_10_15db_5s60f_seed1091_1095_20261030/frame_metrics.jsonl",
+    "logs/rl_peft_identity_control_gap0_heldout_edge_0_5_10_15db_5s60f_seed1091_1095_20261030/frame_metrics.jsonl"
+  ]
+}
