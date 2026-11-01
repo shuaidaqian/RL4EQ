@@ -1,0 +1,2240 @@
+{
+  "schema_version": "linear-baseline-calibration-stage-20261101",
+  "status": "diagnostic_calibration_completed_not_main_gate",
+  "main_aggregation_allowed": false,
+  "frozen_selection": {
+    "schema_version": "linear-baseline-frozen-selection-v1",
+    "diagnostic_only": true,
+    "main_aggregation_allowed": false,
+    "calibration_file_sha256": "f75de40fb645849c3185a79ccbbdaa9c136e48895d7aa155f5bbff93d91885b8",
+    "config_sha256": "7c2bd20dc9841e824796ece673f348f081e58689bb0029a936230d3a2d1b78b7",
+    "selection_rule": "每个 SNR 分别以训练范围独立 seed 的平均 Data BER 选择 FIR 和 DFE；其余算法固定，不使用神经结果",
+    "calibration_seeds": [
+      36000,
+      36001,
+      36002
+    ],
+    "confirmation_seeds": [
+      46001,
+      46002,
+      46003,
+      46004,
+      46005
+    ],
+    "confirmation_frames": 8,
+    "confirmation_split": "heldout_edge",
+    "by_snr": {
+      "0": [
+        [
+          "fir",
+          41,
+          224
+        ],
+        [
+          "dfe",
+          41,
+          5
+        ],
+        [
+          "circular_fde",
+          0,
+          0
+        ],
+        [
+          "padded_fde",
+          0,
+          0
+        ],
+        [
+          "block_complex",
+          0,
+          0
+        ],
+        [
+          "block_real",
+          0,
+          0
+        ]
+      ],
+      "5": [
+        [
+          "fir",
+          41,
+          224
+        ],
+        [
+          "dfe",
+          41,
+          5
+        ],
+        [
+          "circular_fde",
+          0,
+          0
+        ],
+        [
+          "padded_fde",
+          0,
+          0
+        ],
+        [
+          "block_complex",
+          0,
+          0
+        ],
+        [
+          "block_real",
+          0,
+          0
+        ]
+      ],
+      "10": [
+        [
+          "fir",
+          117,
+          224
+        ],
+        [
+          "dfe",
+          41,
+          5
+        ],
+        [
+          "circular_fde",
+          0,
+          0
+        ],
+        [
+          "padded_fde",
+          0,
+          0
+        ],
+        [
+          "block_complex",
+          0,
+          0
+        ],
+        [
+          "block_real",
+          0,
+          0
+        ]
+      ],
+      "15": [
+        [
+          "fir",
+          117,
+          224
+        ],
+        [
+          "dfe",
+          41,
+          5
+        ],
+        [
+          "circular_fde",
+          0,
+          0
+        ],
+        [
+          "padded_fde",
+          0,
+          0
+        ],
+        [
+          "block_complex",
+          0,
+          0
+        ],
+        [
+          "block_real",
+          0,
+          0
+        ]
+      ]
+    }
+  },
+  "calibration": {
+    "diagnostic_only": true,
+    "main_aggregation_allowed": false,
+    "purpose": "传统接收机参数校准或固定设置的独立核验，不包含神经结果",
+    "state_split": "offline_train",
+    "config": {
+      "schema_version": "eme-long-memory-config-v2",
+      "channel_profile": "eme_long_memory_v2",
+      "profile_name": "eme_long_memory_v2",
+      "profile_frozen_before_proposed": true,
+      "frozen_candidate_id": "LM-B1",
+      "traditional_only_calibration": true,
+      "traditional_only_calibration_summary": "logs/eme_long_memory_v2_traditional_calibration_2026-08-28_fresh/summary.json",
+      "traditional_only_calibration_frames_per_seed": 20,
+      "traditional_only_calibration_status": "阶段性冻结；正式论文统计需无并发重跑至少 60 帧",
+      "proposed_results_used_for_freeze": false,
+      "semantics": "independent EME-inspired long-memory channel class constrained by published lunar radar delay-power envelopes",
+      "source_basis": [
+        "10.6028/jres.069d.195",
+        "10.1109/wescon.1958.1150219"
+      ],
+      "level": "B",
+      "main_level": "B",
+      "aggregation_role": "diagnostic",
+      "max_delay_seconds": 0.0116,
+      "sample_rate_hz": 10000,
+      "symbol_rate_hz": 10000,
+      "samples_per_symbol": 1,
+      "frame_len": 1024,
+      "frame_duration_seconds": 0.1024,
+      "max_delay": 116,
+      "main_delays": [
+        116
+      ],
+      "main_snrs": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_main": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_pressure": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "pilot_layout": "prefix",
+      "pilot_total": 256,
+      "reward_pilot_total": 32,
+      "pilot_sweep_totals": [
+        64,
+        96,
+        128,
+        160,
+        256
+      ],
+      "strong_path_count": [
+        12,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.2,
+        0.35
+      ],
+      "coherence_time_seconds": 1200,
+      "acquisition_to_data_gap_seconds": 0,
+      "rho_frame": 0.999914670307452,
+      "rho": 0.999914670307452,
+      "include_anomalous_scatterer": false,
+      "eme_physical_fields_passthrough": "implemented",
+      "impairment_profile": "cfo_phase_tiny",
+      "residual_cfo_limit": 0.0012,
+      "acquisition_cfo_limit": 0.004,
+      "traditional_methods": [
+        "CFO+DD-Phase LMMSE-FIR",
+        "CFO+DD-Phase DFE-RLS",
+        "SC-FDE-MMSE"
+      ],
+      "optional_impairments": {
+        "cfo": true,
+        "phase_perturbation": true,
+        "nonlinearity": false,
+        "coding": false,
+        "higher_order_modulation": false
+      },
+      "model_validation_sequence_state": true,
+      "training_tail_mode": "online_soft",
+      "tail_update_alpha": 0.5,
+      "online_adaptation_groups": [
+        "phase"
+      ],
+      "online_adaptation_algorithm": "rls",
+      "online_rls_forgetting_factor": 0.995,
+      "online_rls_ridge": 10,
+      "online_rls_warmup_symbols": 116,
+      "online_rls_target_logit": 2,
+      "online_rls_max_total_delta_norm": 0.5,
+      "online_rls_condition_source": "pilot_cir_phase",
+      "online_condition_source": "pilot_cir_phase",
+      "online_adaptation_learning_rate": 0.0004,
+      "online_adaptation_steps": 1,
+      "online_adaptation_max_delta_norm": 1,
+      "online_adaptation_proximal_weight": 0.1,
+      "online_hard_example_weighting": false,
+      "online_hard_example_temperature": 0.5,
+      "online_adaptation_freeze_below_snr_db": 5,
+      "online_adaptation_min_reward_improvement": 0.0005,
+      "online_bandit_action_cost": 1e-06,
+      "online_reward_windows": 2,
+      "online_cross_frame_rollback_tolerance": 1e-05,
+      "online_phase_tracking_smoothing": 0.5,
+      "online_phase_tracking_min_confidence": 0.5,
+      "online_phase_tracking_cfo_limit": 0.0012,
+      "online_adaptation_candidates": [
+        {
+          "name": "lora_conservative",
+          "groups": [
+            "phase"
+          ],
+          "learning_rate_scale": 0.5,
+          "steps": 1,
+          "max_delta_scale": 0.5
+        }
+      ],
+      "offline_state_split": "offline_train",
+      "offline_loss": "bce_all",
+      "online_state_splits": {
+        "offline_train": {
+          "strong_path_count": [
+            12,
+            18
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.28
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0006
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0006
+          ]
+        },
+        "heldout_edge": {
+          "strong_path_count": [
+            19,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.29,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0006,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0006,
+            0.0008
+          ]
+        },
+        "drift": {
+          "strong_path_count": [
+            12,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0008
+          ]
+        }
+      },
+      "model": {
+        "frame_len": 1024,
+        "max_delay": 116,
+        "iterations": 4,
+        "d_model": 64,
+        "num_heads": 4,
+        "adapter_rank": 8,
+        "lora_rank": 8,
+        "conditioner_uses_cir_summary": true,
+        "pilot_conditioned": true,
+        "enable_phase_correction_branch": true,
+        "phase_correction_segments": 4,
+        "phase_correction_initial_scale": 1,
+        "analytic_logit_skip_scale": 0,
+        "physics_warm_start_iterations": 8,
+        "physics_warm_start_scale": 1,
+        "neural_residual_scale": 0.1
+      },
+      "experiment_note": "真实神经 head 的离线更新后泛化机制实验；沿用既有 peft_head_fast 动作。",
+      "diagnostic_only": true,
+      "main_aggregation_allowed": false,
+      "rl_action_names": [
+        "identity",
+        "peft_head_fast",
+        "rollback_identity"
+      ],
+      "rl_peft_max_episode_delta_norm": 0.05,
+      "online_ppo_learning_rate": 0.001,
+      "online_ppo_pilot_state_embedding": false,
+      "ppo_window_size": 8,
+      "pilot_transfer": {
+        "objective": "post_adapt",
+        "seed": 34000,
+        "history_frames": 1,
+        "outer_learning_rate": 0.0001,
+        "inner_learning_rate": 0.0005,
+        "inner_steps": 1,
+        "max_delta_norm": 0.05,
+        "base_weight": 1,
+        "post_weight": 1,
+        "inner_groups": [
+          "head"
+        ],
+        "inner_objective": "bce"
+      }
+    },
+    "seeds": [
+      36000,
+      36001,
+      36002
+    ],
+    "frames": 4,
+    "linear_operator_backend": "fft",
+    "compensation": "acquisition CFO prior + current Adapt phase median",
+    "per_snr": [
+      {
+        "snr_db": 0,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.22059462095300356,
+          "ci95": [
+            0.17472739222671066,
+            0.2664618496792965
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.21809895833333334,
+          "ci95": [
+            0.1730178108829785,
+            0.2631801057836882
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.2134331613779068,
+          "ci95": [
+            0.159591356115464,
+            0.2672749666403496
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.2966579881807168,
+          "ci95": [
+            0.2670091305247676,
+            0.326306845836666
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.2832031262417634,
+          "ci95": [
+            0.25567375726290487,
+            0.31073249522062196
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.2517361131807168,
+          "ci95": [
+            0.23024497329427004,
+            0.27322725306716356
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.4148220469554265,
+          "ci95": [
+            0.390774954068228,
+            0.43886913984262504
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.3583984375,
+          "ci95": [
+            0.32569102644809106,
+            0.39110584855190894
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.2969835052887599,
+          "ci95": [
+            0.27642540931342113,
+            0.31754160126409864
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "dfe",
+        "filter_length": 41,
+        "regularizer_or_feedback": 5,
+        "ber_data": {
+          "mean": 0.2322048582136631,
+          "ci95": [
+            0.1757022987315918,
+            0.2887074176957344
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "dfe",
+        "filter_length": 117,
+        "regularizer_or_feedback": 116,
+        "ber_data": {
+          "mean": 0.4669053827722867,
+          "ci95": [
+            0.41455993635978267,
+            0.5192508291847907
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "circular_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.2587890612582366,
+          "ci95": [
+            0.05734389650334279,
+            0.46023422601313035
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "padded_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.24338107431928316,
+          "ci95": [
+            0.10177617284637636,
+            0.38498597579218996
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "block_complex",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.24186197544137636,
+          "ci95": [
+            0.10010092341209648,
+            0.38362302747065624
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "block_real",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.19032117972771326,
+          "ci95": [
+            0.0975412876512694,
+            0.2831010718041571
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.1215277761220932,
+          "ci95": [
+            0.07374049753109677,
+            0.16931505471308964
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.11935763930281003,
+          "ci95": [
+            0.07230117273706171,
+            0.16641410586855834
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.1177300363779068,
+          "ci95": [
+            0.07032743981157512,
+            0.16513263294423847
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.17545572916666666,
+          "ci95": [
+            0.13935565160541022,
+            0.2115558067279231
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.16742621610562006,
+          "ci95": [
+            0.1326234384108822,
+            0.20222899380035791
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.14073350777228674,
+          "ci95": [
+            0.10749725092780886,
+            0.1739697646167646
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.3511284689108531,
+          "ci95": [
+            0.3114447001032671,
+            0.3908122377184391
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.2690972201526165,
+          "ci95": [
+            0.21890731398522184,
+            0.31928712632001116
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.1970486119389534,
+          "ci95": [
+            0.16566412577973158,
+            0.22843309809817522
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "dfe",
+        "filter_length": 41,
+        "regularizer_or_feedback": 5,
+        "ber_data": {
+          "mean": 0.13357204819718996,
+          "ci95": [
+            0.06993916620312174,
+            0.19720493019125818
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "dfe",
+        "filter_length": 117,
+        "regularizer_or_feedback": 116,
+        "ber_data": {
+          "mean": 0.4231770808498065,
+          "ci95": [
+            0.4162680820857755,
+            0.4300860796138375
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "circular_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.0672743059694767,
+          "ci95": [
+            0.02561306679485336,
+            0.10893554514410003
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "padded_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.06445312531044085,
+          "ci95": [
+            0.02480508688367781,
+            0.1041011637372039
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "block_complex",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.0631510413562258,
+          "ci95": [
+            0.025717100712734316,
+            0.1005849819997173
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "block_real",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.05566406296566129,
+          "ci95": [
+            0.0037409006220001165,
+            0.10758722530932247
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.061740451492369175,
+          "ci95": [
+            0.025375682698320745,
+            0.0981052202864176
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.06130642397329211,
+          "ci95": [
+            0.0244771011540115,
+            0.09813574679257273
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.0616319440305233,
+          "ci95": [
+            0.01775383099562035,
+            0.10551005706542625
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.08170572916666667,
+          "ci95": [
+            0.04168832941239416,
+            0.12172312892093919
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.07649739707509677,
+          "ci95": [
+            0.03919469787384433,
+            0.11380009627634921
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.061197916666666664,
+          "ci95": [
+            0.030120514216052323,
+            0.09227531911728101
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.2779947904249032,
+          "ci95": [
+            0.2152900896228564,
+            0.34069949122695004
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.1970486119389534,
+          "ci95": [
+            0.13125337903361714,
+            0.2628438448442897
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.11512586784859498,
+          "ci95": [
+            0.06600259865843522,
+            0.16424913703875474
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "dfe",
+        "filter_length": 41,
+        "regularizer_or_feedback": 5,
+        "ber_data": {
+          "mean": 0.06944444480662544,
+          "ci95": [
+            0.005811557126090189,
+            0.1330773324871607
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "dfe",
+        "filter_length": 117,
+        "regularizer_or_feedback": 116,
+        "ber_data": {
+          "mean": 0.3822699636220932,
+          "ci95": [
+            0.332881183233928,
+            0.4316587440102584
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "circular_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.015733506918574374,
+          "ci95": [
+            -0.001710109346372845,
+            0.03317712318352159
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "padded_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.01280381945737948,
+          "ci95": [
+            -0.002460684026403393,
+            0.028068322941162356
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "block_complex",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.011284722151079526,
+          "ci95": [
+            -0.0041924875209242134,
+            0.026761931823083264
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "block_real",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.009006076482667899,
+          "ci95": [
+            -0.01855098495437644,
+            0.03656313791971223
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.03363715282951792,
+          "ci95": [
+            0.009025651826992023,
+            0.05824865383204382
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.03407118081425627,
+          "ci95": [
+            0.008999037798504753,
+            0.059143323830007796
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.03222656234477957,
+          "ci95": [
+            0.006198951298276079,
+            0.05825417339128307
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.02701822939949731,
+          "ci95": [
+            0.01019155024559373,
+            0.043844908553400896
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.024956597092871863,
+          "ci95": [
+            0.008898792231818425,
+            0.041014401953925306
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.01974826391475896,
+          "ci95": [
+            0.001409215379162134,
+            0.03808731245035579
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 1,
+        "ber_data": {
+          "mean": 0.24034288028875986,
+          "ci95": [
+            0.15181880750849558,
+            0.32886695306902414
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 16,
+        "ber_data": {
+          "mean": 0.1661241315305233,
+          "ci95": [
+            0.09576637436450658,
+            0.23648188869654002
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "fir",
+        "filter_length": 233,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.06521267381807168,
+          "ci95": [
+            0.04641581209040288,
+            0.08400953554574048
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "dfe",
+        "filter_length": 41,
+        "regularizer_or_feedback": 5,
+        "ber_data": {
+          "mean": 0.033203125232830644,
+          "ci95": [
+            -0.0042308156792838295,
+            0.07063706614494511
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "dfe",
+        "filter_length": 117,
+        "regularizer_or_feedback": 116,
+        "ber_data": {
+          "mean": 0.3434244791666667,
+          "ci95": [
+            0.3073787880557036,
+            0.37947017027762975
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "circular_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.005642361133747424,
+          "ci95": [
+            0.0015723027864270175,
+            0.009712419481067831
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "padded_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.0015190972674948473,
+          "ci95": [
+            0.000283881399448909,
+            0.0027543131355407856
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "block_complex",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.0006510416860692203,
+          "ci95": [
+            -0.0009662355181968077,
+            0.0022683188903352483
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "block_real",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.0007595486240461469,
+          "ci95": [
+            -0.0018398607583300936,
+            0.0033589580064223874
+          ],
+          "seeds": 3
+        },
+        "cg_not_converged_frames": 0
+      }
+    ]
+  },
+  "confirmation": {
+    "diagnostic_only": true,
+    "main_aggregation_allowed": false,
+    "purpose": "传统接收机参数校准或固定设置的独立核验，不包含神经结果",
+    "state_split": "heldout_edge",
+    "config": {
+      "schema_version": "eme-long-memory-config-v2",
+      "channel_profile": "eme_long_memory_v2",
+      "profile_name": "eme_long_memory_v2",
+      "profile_frozen_before_proposed": true,
+      "frozen_candidate_id": "LM-B1",
+      "traditional_only_calibration": true,
+      "traditional_only_calibration_summary": "logs/eme_long_memory_v2_traditional_calibration_2026-08-28_fresh/summary.json",
+      "traditional_only_calibration_frames_per_seed": 20,
+      "traditional_only_calibration_status": "阶段性冻结；正式论文统计需无并发重跑至少 60 帧",
+      "proposed_results_used_for_freeze": false,
+      "semantics": "independent EME-inspired long-memory channel class constrained by published lunar radar delay-power envelopes",
+      "source_basis": [
+        "10.6028/jres.069d.195",
+        "10.1109/wescon.1958.1150219"
+      ],
+      "level": "B",
+      "main_level": "B",
+      "aggregation_role": "diagnostic",
+      "max_delay_seconds": 0.0116,
+      "sample_rate_hz": 10000,
+      "symbol_rate_hz": 10000,
+      "samples_per_symbol": 1,
+      "frame_len": 1024,
+      "frame_duration_seconds": 0.1024,
+      "max_delay": 116,
+      "main_delays": [
+        116
+      ],
+      "main_snrs": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_main": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_pressure": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "pilot_layout": "prefix",
+      "pilot_total": 256,
+      "reward_pilot_total": 32,
+      "pilot_sweep_totals": [
+        64,
+        96,
+        128,
+        160,
+        256
+      ],
+      "strong_path_count": [
+        12,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.2,
+        0.35
+      ],
+      "coherence_time_seconds": 1200,
+      "acquisition_to_data_gap_seconds": 0,
+      "rho_frame": 0.999914670307452,
+      "rho": 0.999914670307452,
+      "include_anomalous_scatterer": false,
+      "eme_physical_fields_passthrough": "implemented",
+      "impairment_profile": "cfo_phase_tiny",
+      "residual_cfo_limit": 0.0012,
+      "acquisition_cfo_limit": 0.004,
+      "traditional_methods": [
+        "CFO+DD-Phase LMMSE-FIR",
+        "CFO+DD-Phase DFE-RLS",
+        "SC-FDE-MMSE"
+      ],
+      "optional_impairments": {
+        "cfo": true,
+        "phase_perturbation": true,
+        "nonlinearity": false,
+        "coding": false,
+        "higher_order_modulation": false
+      },
+      "model_validation_sequence_state": true,
+      "training_tail_mode": "online_soft",
+      "tail_update_alpha": 0.5,
+      "online_adaptation_groups": [
+        "phase"
+      ],
+      "online_adaptation_algorithm": "rls",
+      "online_rls_forgetting_factor": 0.995,
+      "online_rls_ridge": 10,
+      "online_rls_warmup_symbols": 116,
+      "online_rls_target_logit": 2,
+      "online_rls_max_total_delta_norm": 0.5,
+      "online_rls_condition_source": "pilot_cir_phase",
+      "online_condition_source": "pilot_cir_phase",
+      "online_adaptation_learning_rate": 0.0004,
+      "online_adaptation_steps": 1,
+      "online_adaptation_max_delta_norm": 1,
+      "online_adaptation_proximal_weight": 0.1,
+      "online_hard_example_weighting": false,
+      "online_hard_example_temperature": 0.5,
+      "online_adaptation_freeze_below_snr_db": 5,
+      "online_adaptation_min_reward_improvement": 0.0005,
+      "online_bandit_action_cost": 1e-06,
+      "online_reward_windows": 2,
+      "online_cross_frame_rollback_tolerance": 1e-05,
+      "online_phase_tracking_smoothing": 0.5,
+      "online_phase_tracking_min_confidence": 0.5,
+      "online_phase_tracking_cfo_limit": 0.0012,
+      "online_adaptation_candidates": [
+        {
+          "name": "lora_conservative",
+          "groups": [
+            "phase"
+          ],
+          "learning_rate_scale": 0.5,
+          "steps": 1,
+          "max_delta_scale": 0.5
+        }
+      ],
+      "offline_state_split": "offline_train",
+      "offline_loss": "bce_all",
+      "online_state_splits": {
+        "offline_train": {
+          "strong_path_count": [
+            12,
+            18
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.28
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0006
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0006
+          ]
+        },
+        "heldout_edge": {
+          "strong_path_count": [
+            19,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.29,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0006,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0006,
+            0.0008
+          ]
+        },
+        "drift": {
+          "strong_path_count": [
+            12,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0008
+          ]
+        }
+      },
+      "model": {
+        "frame_len": 1024,
+        "max_delay": 116,
+        "iterations": 4,
+        "d_model": 64,
+        "num_heads": 4,
+        "adapter_rank": 8,
+        "lora_rank": 8,
+        "conditioner_uses_cir_summary": true,
+        "pilot_conditioned": true,
+        "enable_phase_correction_branch": true,
+        "phase_correction_segments": 4,
+        "phase_correction_initial_scale": 1,
+        "analytic_logit_skip_scale": 0,
+        "physics_warm_start_iterations": 8,
+        "physics_warm_start_scale": 1,
+        "neural_residual_scale": 0.1
+      },
+      "experiment_note": "真实神经 head 的离线更新后泛化机制实验；沿用既有 peft_head_fast 动作。",
+      "diagnostic_only": true,
+      "main_aggregation_allowed": false,
+      "rl_action_names": [
+        "identity",
+        "peft_head_fast",
+        "rollback_identity"
+      ],
+      "rl_peft_max_episode_delta_norm": 0.05,
+      "online_ppo_learning_rate": 0.001,
+      "online_ppo_pilot_state_embedding": false,
+      "ppo_window_size": 8,
+      "pilot_transfer": {
+        "objective": "post_adapt",
+        "seed": 34000,
+        "history_frames": 1,
+        "outer_learning_rate": 0.0001,
+        "inner_learning_rate": 0.0005,
+        "inner_steps": 1,
+        "max_delta_norm": 0.05,
+        "base_weight": 1,
+        "post_weight": 1,
+        "inner_groups": [
+          "head"
+        ],
+        "inner_objective": "bce"
+      }
+    },
+    "seeds": [
+      46001,
+      46002,
+      46003,
+      46004,
+      46005
+    ],
+    "frames": 8,
+    "config_sha256": "7c2bd20dc9841e824796ece673f348f081e58689bb0029a936230d3a2d1b78b7",
+    "frozen_selection": {
+      "schema_version": "linear-baseline-frozen-selection-v1",
+      "diagnostic_only": true,
+      "main_aggregation_allowed": false,
+      "calibration_file_sha256": "f75de40fb645849c3185a79ccbbdaa9c136e48895d7aa155f5bbff93d91885b8",
+      "config_sha256": "7c2bd20dc9841e824796ece673f348f081e58689bb0029a936230d3a2d1b78b7",
+      "selection_rule": "每个 SNR 分别以训练范围独立 seed 的平均 Data BER 选择 FIR 和 DFE；其余算法固定，不使用神经结果",
+      "calibration_seeds": [
+        36000,
+        36001,
+        36002
+      ],
+      "confirmation_seeds": [
+        46001,
+        46002,
+        46003,
+        46004,
+        46005
+      ],
+      "confirmation_frames": 8,
+      "confirmation_split": "heldout_edge",
+      "by_snr": {
+        "0": [
+          [
+            "fir",
+            41,
+            224
+          ],
+          [
+            "dfe",
+            41,
+            5
+          ],
+          [
+            "circular_fde",
+            0,
+            0
+          ],
+          [
+            "padded_fde",
+            0,
+            0
+          ],
+          [
+            "block_complex",
+            0,
+            0
+          ],
+          [
+            "block_real",
+            0,
+            0
+          ]
+        ],
+        "5": [
+          [
+            "fir",
+            41,
+            224
+          ],
+          [
+            "dfe",
+            41,
+            5
+          ],
+          [
+            "circular_fde",
+            0,
+            0
+          ],
+          [
+            "padded_fde",
+            0,
+            0
+          ],
+          [
+            "block_complex",
+            0,
+            0
+          ],
+          [
+            "block_real",
+            0,
+            0
+          ]
+        ],
+        "10": [
+          [
+            "fir",
+            117,
+            224
+          ],
+          [
+            "dfe",
+            41,
+            5
+          ],
+          [
+            "circular_fde",
+            0,
+            0
+          ],
+          [
+            "padded_fde",
+            0,
+            0
+          ],
+          [
+            "block_complex",
+            0,
+            0
+          ],
+          [
+            "block_real",
+            0,
+            0
+          ]
+        ],
+        "15": [
+          [
+            "fir",
+            117,
+            224
+          ],
+          [
+            "dfe",
+            41,
+            5
+          ],
+          [
+            "circular_fde",
+            0,
+            0
+          ],
+          [
+            "padded_fde",
+            0,
+            0
+          ],
+          [
+            "block_complex",
+            0,
+            0
+          ],
+          [
+            "block_real",
+            0,
+            0
+          ]
+        ]
+      }
+    },
+    "linear_operator_backend": "fft",
+    "compensation": "acquisition CFO prior + current Adapt phase median",
+    "per_snr": [
+      {
+        "snr_db": 0,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.20800781138241292,
+          "ci95": [
+            0.19446677648878946,
+            0.22154884627603638
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "dfe",
+        "filter_length": 41,
+        "regularizer_or_feedback": 5,
+        "ber_data": {
+          "mean": 0.22753906287252904,
+          "ci95": [
+            0.21235040188467033,
+            0.24272772386038774
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "circular_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.20224609449505807,
+          "ci95": [
+            0.15732723944913182,
+            0.2471649495409843
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "padded_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.21155599001795053,
+          "ci95": [
+            0.16338546929490033,
+            0.2597265107410007
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "block_complex",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.19355468787252902,
+          "ci95": [
+            0.1572493447584006,
+            0.22986003098665744
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 0,
+        "kind": "block_real",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.22578125093132256,
+          "ci95": [
+            0.16155446899379272,
+            0.2900080328688524
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "fir",
+        "filter_length": 41,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.10764973927289248,
+          "ci95": [
+            0.09235817248312521,
+            0.12294130606265975
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "dfe",
+        "filter_length": 41,
+        "regularizer_or_feedback": 5,
+        "ber_data": {
+          "mean": 0.11328125,
+          "ci95": [
+            0.09811546393666302,
+            0.128447036063337
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "circular_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.05608723950572312,
+          "ci95": [
+            0.04647811270226255,
+            0.06569636630918368
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "padded_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.051171874674037096,
+          "ci95": [
+            0.040368266943371325,
+            0.06197548240470287
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "block_complex",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.050195312267169355,
+          "ci95": [
+            0.04029209991221483,
+            0.06009852462212388
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 5,
+        "kind": "block_real",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.039615885447710754,
+          "ci95": [
+            0.026703534097619157,
+            0.05252823679780235
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.05237630228511989,
+          "ci95": [
+            0.03806512485164233,
+            0.06668747971859745
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "dfe",
+        "filter_length": 41,
+        "regularizer_or_feedback": 5,
+        "ber_data": {
+          "mean": 0.05117187513969838,
+          "ci95": [
+            0.03678938681993013,
+            0.06555436345946664
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "circular_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.011848958325572312,
+          "ci95": [
+            0.009713065412974226,
+            0.013984851238170398
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "padded_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.008138020816841163,
+          "ci95": [
+            0.0042690997645106355,
+            0.012006941869171691
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "block_complex",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.007063802029006183,
+          "ci95": [
+            0.004640361760842055,
+            0.00948724229717031
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 10,
+        "kind": "block_real",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.003808593747089617,
+          "ci95": [
+            0.00032987992603259386,
+            0.007287307568146641
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "fir",
+        "filter_length": 117,
+        "regularizer_or_feedback": 224,
+        "ber_data": {
+          "mean": 0.021061197796370834,
+          "ci95": [
+            0.01032680424211876,
+            0.03179559135062291
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "dfe",
+        "filter_length": 41,
+        "regularizer_or_feedback": 5,
+        "ber_data": {
+          "mean": 0.02936197923263535,
+          "ci95": [
+            0.01935007449566943,
+            0.039373883969601266
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "circular_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.005175781258731149,
+          "ci95": [
+            0.0030066835545534006,
+            0.007344878962908898
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "padded_fde",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.0014648437820142135,
+          "ci95": [
+            0.0007223039303006034,
+            0.002207383633727824
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "block_complex",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.0010416666831588373,
+          "ci95": [
+            0.0004772495495897045,
+            0.0016060838167279703
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      },
+      {
+        "snr_db": 15,
+        "kind": "block_real",
+        "filter_length": 0,
+        "regularizer_or_feedback": 0,
+        "ber_data": {
+          "mean": 0.0006835937674622983,
+          "ci95": [
+            -0.0001785676560413429,
+            0.0015457551909659395
+          ],
+          "seeds": 5
+        },
+        "cg_not_converged_frames": 0
+      }
+    ]
+  },
+  "row_counts": {
+    "calibration": 720,
+    "confirmation": 960
+  },
+  "raw_files_sha256": {
+    "calibration": "f75de40fb645849c3185a79ccbbdaa9c136e48895d7aa155f5bbff93d91885b8",
+    "confirmation": "d5b5ee610216180eac4febc6bd4130cca6cf941f2f96c0ed95c5206a60254f7e"
+  },
+  "paired_comparisons": [
+    {
+      "snr_db": 0,
+      "reference": "circular_fde",
+      "candidate": "padded_fde",
+      "gain": {
+        "mean": -0.009309895522892474,
+        "ci95": [
+          -0.08385419986282165,
+          0.0652344088170367
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 0,
+      "reference": "padded_fde",
+      "candidate": "block_complex",
+      "gain": {
+        "mean": 0.018001302145421505,
+        "ci95": [
+          -0.04452485324534701,
+          0.08052745753619002
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 0,
+      "reference": "block_complex",
+      "candidate": "block_real",
+      "gain": {
+        "mean": -0.032226563058793546,
+        "ci95": [
+          -0.12419543295798816,
+          0.05974230684040107
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 5,
+      "reference": "circular_fde",
+      "candidate": "padded_fde",
+      "gain": {
+        "mean": 0.00491536483168602,
+        "ci95": [
+          0.0016491898382368867,
+          0.008181539825135153
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 5,
+      "reference": "padded_fde",
+      "candidate": "block_complex",
+      "gain": {
+        "mean": 0.0009765624068677426,
+        "ci95": [
+          -0.0003409281696672037,
+          0.0022940529834026887
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 5,
+      "reference": "block_complex",
+      "candidate": "block_real",
+      "gain": {
+        "mean": 0.010579426819458605,
+        "ci95": [
+          0.0035612137688414347,
+          0.017597639870075774
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 10,
+      "reference": "circular_fde",
+      "candidate": "padded_fde",
+      "gain": {
+        "mean": 0.0037109375087311493,
+        "ci95": [
+          0.0009055443763459708,
+          0.006516330641116327
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 10,
+      "reference": "padded_fde",
+      "candidate": "block_complex",
+      "gain": {
+        "mean": 0.0010742187878349796,
+        "ci95": [
+          -0.0004951012855106995,
+          0.002643538861180659
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 10,
+      "reference": "block_complex",
+      "candidate": "block_real",
+      "gain": {
+        "mean": 0.0032552082819165664,
+        "ci95": [
+          0.0011598556913490652,
+          0.0053505608724840675
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 15,
+      "reference": "circular_fde",
+      "candidate": "padded_fde",
+      "gain": {
+        "mean": 0.0037109374767169355,
+        "ci95": [
+          0.001254853984088031,
+          0.00616702096934584
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 15,
+      "reference": "padded_fde",
+      "candidate": "block_complex",
+      "gain": {
+        "mean": 0.00042317709885537625,
+        "ci95": [
+          -0.00010381893081794512,
+          0.0009501731285286976
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 15,
+      "reference": "block_complex",
+      "candidate": "block_real",
+      "gain": {
+        "mean": 0.00035807291569653896,
+        "ci95": [
+          -0.00038994702641704593,
+          0.0011060928578101239
+        ],
+        "seeds": 5
+      }
+    }
+  ],
+  "validation": {
+    "full_pytest_passed": 661,
+    "full_pytest_seconds": 250.26,
+    "last_targeted_tests_passed": 6,
+    "targeted_includes_new_selection_isolation_test": true
+  },
+  "limitations": [
+    "只覆盖预先列出的候选，并非所有传统算法的充分调优。",
+    "线性块参考尚未加入主方法组；无硬判决迭代、DD CIR 更新或神经网络。",
+    "校准/核验均不包含神经结果，不能与另一批 seed 的神经结果直接作配对性能结论。",
+    "5 个确认 seed、每条8帧不足以替代正式长期主矩阵。"
+  ]
+}

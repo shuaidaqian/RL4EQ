@@ -9,6 +9,9 @@
 > 后续[神经 head 四臂结果](docs/head_transfer_stage_20261101.md)也未通过：256 步后
 > 10/15 dB 在线动作没有改变 Data 判决，0/5 dB 增益区间跨零。下一步先核验
 > 神经调制对主要均衡误差的作用能力，并完成传统 baseline 的记忆与边界校准。
+> [传统线性校准与独立核验](docs/linear_baseline_calibration_stage_20261101.md)已完成
+> 首轮预设网格：同步和块边界会显著增强部分传统参考；主方法组暂未改变。
+> 当前第一性原理拆解、未验证假设和后续依赖见[路线复核](docs/first_principles_20261101.md)。
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。
