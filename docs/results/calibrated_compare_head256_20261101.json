@@ -1,0 +1,710 @@
+{
+  "schema_version": "calibrated-compare-diagnostic-v1",
+  "diagnostic_only": true,
+  "main_aggregation_allowed": false,
+  "frame_records": 800,
+  "paired_frames": 160,
+  "seeds": [
+    47001,
+    47002,
+    47003,
+    47004,
+    47005
+  ],
+  "frames_per_seed": 8,
+  "segment_frames": 2,
+  "traditional_calibration_sha256": "07c495cbe6a67226d443cd8996b6286ac297d3667060c366d768a13e5c2b7116",
+  "per_snr": [
+    {
+      "snr_db": 0.0,
+      "ber_data": {
+        "LMMSE-FIR": {
+          "mean": 0.22041015662252902,
+          "ci95": [
+            0.20108329293689936,
+            0.2397370203081587
+          ],
+          "seeds": 5
+        },
+        "DFE-RLS": {
+          "mean": 0.2390299469232559,
+          "ci95": [
+            0.2124922603306732,
+            0.2655676335158386
+          ],
+          "seeds": 5
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.23245442621409892,
+          "ci95": [
+            0.16620367216563753,
+            0.2987051802625603
+          ],
+          "seeds": 5
+        },
+        "Frozen Offline NN": {
+          "mean": 0.2283854227513075,
+          "ci95": [
+            0.18665333011854487,
+            0.27011751538407014
+          ],
+          "seeds": 5
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean": 0.2283854227513075,
+          "ci95": [
+            0.18665333011854487,
+            0.27011751538407014
+          ],
+          "seeds": 5
+        }
+      },
+      "online_vs_frozen_gain": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 5
+      },
+      "online_vs_traditional_gain": {
+        "LMMSE-FIR": {
+          "mean": -0.007975266128778458,
+          "ci95": [
+            -0.056763857205639395,
+            0.04081332494808247
+          ],
+          "seeds": 5
+        },
+        "DFE-RLS": {
+          "mean": 0.010644524171948434,
+          "ci95": [
+            -0.044292016945831986,
+            0.06558106528972886
+          ],
+          "seeds": 5
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.004069003462791443,
+          "ci95": [
+            -0.05425684114069243,
+            0.06239484806627532
+          ],
+          "seeds": 5
+        }
+      },
+      "late_minus_early_online_gain": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 5
+      },
+      "policy_action_frames": {
+        "identity": 40
+      },
+      "peft_attempt_frames": 0,
+      "peft_accepted_frames": 0,
+      "max_data_logit_abs_change": 0.0
+    },
+    {
+      "snr_db": 5.0,
+      "ber_data": {
+        "LMMSE-FIR": {
+          "mean": 0.12242838554084301,
+          "ci95": [
+            0.09293778978421713,
+            0.1519189812974689
+          ],
+          "seeds": 5
+        },
+        "DFE-RLS": {
+          "mean": 0.133723958209157,
+          "ci95": [
+            0.10300185300663192,
+            0.16444606341168208
+          ],
+          "seeds": 5
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.0564778643194586,
+          "ci95": [
+            0.04550973912858198,
+            0.06744598951033522
+          ],
+          "seeds": 5
+        },
+        "Frozen Offline NN": {
+          "mean": 0.05589192835614085,
+          "ci95": [
+            0.04580483789584435,
+            0.06597901881643736
+          ],
+          "seeds": 5
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean": 0.05589192835614085,
+          "ci95": [
+            0.04580483789584435,
+            0.06597901881643736
+          ],
+          "seeds": 5
+        }
+      },
+      "online_vs_frozen_gain": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 5
+      },
+      "online_vs_traditional_gain": {
+        "LMMSE-FIR": {
+          "mean": 0.06653645718470216,
+          "ci95": [
+            0.045172557604228045,
+            0.08790035676517628
+          ],
+          "seeds": 5
+        },
+        "DFE-RLS": {
+          "mean": 0.07783202985301614,
+          "ci95": [
+            0.05540991371750072,
+            0.10025414598853157
+          ],
+          "seeds": 5
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.0005859359633177518,
+          "ci95": [
+            -0.0010781195521897325,
+            0.002249991478825236
+          ],
+          "seeds": 5
+        }
+      },
+      "late_minus_early_online_gain": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 5
+      },
+      "policy_action_frames": {
+        "identity": 40
+      },
+      "peft_attempt_frames": 0,
+      "peft_accepted_frames": 0,
+      "max_data_logit_abs_change": 0.0
+    },
+    {
+      "snr_db": 10.0,
+      "ber_data": {
+        "LMMSE-FIR": {
+          "mean": 0.06051432280801237,
+          "ci95": [
+            0.03616626126090117,
+            0.08486238435512357
+          ],
+          "seeds": 5
+        },
+        "DFE-RLS": {
+          "mean": 0.06904296888969838,
+          "ci95": [
+            0.035748245725898346,
+            0.10233769205349841
+          ],
+          "seeds": 5
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.009895833267364651,
+          "ci95": [
+            0.0056968523943976696,
+            0.014094814140331632
+          ],
+          "seeds": 5
+        },
+        "Frozen Offline NN": {
+          "mean": 0.009375000238651409,
+          "ci95": [
+            0.005486073563491693,
+            0.013263926913811126
+          ],
+          "seeds": 5
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean": 0.009375000238651409,
+          "ci95": [
+            0.005486073563491693,
+            0.013263926913811126
+          ],
+          "seeds": 5
+        }
+      },
+      "online_vs_frozen_gain": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 5
+      },
+      "online_vs_traditional_gain": {
+        "LMMSE-FIR": {
+          "mean": 0.051139322569360955,
+          "ci95": [
+            0.030490424290436902,
+            0.07178822084828501
+          ],
+          "seeds": 5
+        },
+        "DFE-RLS": {
+          "mean": 0.059667968651046975,
+          "ci95": [
+            0.029999188167603625,
+            0.08933674913449033
+          ],
+          "seeds": 5
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.0005208330287132413,
+          "ci95": [
+            -0.0006866665314920479,
+            0.0017283325889185304
+          ],
+          "seeds": 5
+        }
+      },
+      "late_minus_early_online_gain": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 5
+      },
+      "policy_action_frames": {
+        "identity": 32,
+        "rollback_identity": 8
+      },
+      "peft_attempt_frames": 0,
+      "peft_accepted_frames": 0,
+      "max_data_logit_abs_change": 0.0
+    },
+    {
+      "snr_db": 15.0,
+      "ber_data": {
+        "LMMSE-FIR": {
+          "mean": 0.028548177029006184,
+          "ci95": [
+            0.008312244109541303,
+            0.048784109948471065
+          ],
+          "seeds": 5
+        },
+        "DFE-RLS": {
+          "mean": 0.04332682320382446,
+          "ci95": [
+            0.013660176327198893,
+            0.07299347008045003
+          ],
+          "seeds": 5
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.0028971354448003696,
+          "ci95": [
+            0.0006907010927560916,
+            0.005103569796844648
+          ],
+          "seeds": 5
+        },
+        "Frozen Offline NN": {
+          "mean": 0.002018229212262668,
+          "ci95": [
+            0.00047515374257120187,
+            0.0035613046819541337
+          ],
+          "seeds": 5
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean": 0.002018229212262668,
+          "ci95": [
+            0.00047515374257120187,
+            0.0035613046819541337
+          ],
+          "seeds": 5
+        }
+      },
+      "online_vs_frozen_gain": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 5
+      },
+      "online_vs_traditional_gain": {
+        "LMMSE-FIR": {
+          "mean": 0.026529947816743515,
+          "ci95": [
+            0.007699407832906367,
+            0.04536048780058066
+          ],
+          "seeds": 5
+        },
+        "DFE-RLS": {
+          "mean": 0.041308593991561796,
+          "ci95": [
+            0.013070593009634052,
+            0.06954659497348954
+          ],
+          "seeds": 5
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.0008789062325377017,
+          "ci95": [
+            0.00017013606413006637,
+            0.001587676400945337
+          ],
+          "seeds": 5
+        }
+      },
+      "late_minus_early_online_gain": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 5
+      },
+      "policy_action_frames": {
+        "peft_head_fast": 16,
+        "identity": 24
+      },
+      "peft_attempt_frames": 16,
+      "peft_accepted_frames": 9,
+      "max_data_logit_abs_change": 0.012503739446401596
+    }
+  ],
+  "information_audit": {
+    "shared_rx_sha256_passed": true,
+    "rl_declares_no_data_labels_or_waveform_online": true,
+    "traditional_declares_no_hidden_labels_nn_or_rl": true
+  },
+  "interpretation": "信息声明与哈希需结合隔离测试；短轨迹不证明长期 PPO 学习，零经验区间不等于总体零风险。",
+  "raw_file_sha256": "89066661142b6024ece6341f5b0e849ef8e95401d9b6ec5de11eef47ee1ae261",
+  "comparison_manifest": {
+    "schema_version": "continual-ppo-compare-v2",
+    "methods": [
+      "LMMSE-FIR",
+      "DFE-RLS",
+      "SC-FDE-MMSE",
+      "Frozen Offline NN",
+      "RL-Modulated Neural Block Equalizer"
+    ],
+    "primary_summary_method": "RL-Modulated Neural Block Equalizer",
+    "main_level": "B",
+    "level_c_separate": true,
+    "per_config": [
+      {
+        "level": "B",
+        "delay": 116,
+        "snr_db": 0.0,
+        "mean_ber_data": 0.2283854227513075,
+        "count": 40
+      },
+      {
+        "level": "B",
+        "delay": 116,
+        "snr_db": 5.0,
+        "mean_ber_data": 0.05589192835614085,
+        "count": 40
+      },
+      {
+        "level": "B",
+        "delay": 116,
+        "snr_db": 10.0,
+        "mean_ber_data": 0.009375000238651409,
+        "count": 40
+      },
+      {
+        "level": "B",
+        "delay": 116,
+        "snr_db": 15.0,
+        "mean_ber_data": 0.002018229212262668,
+        "count": 40
+      }
+    ],
+    "generalization": {
+      "count": 0,
+      "mean_ber_data": NaN
+    },
+    "per_method": {
+      "LMMSE-FIR": {
+        "per_config": [
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 0.0,
+            "mean_ber_data": 0.22041015662252902,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 5.0,
+            "mean_ber_data": 0.12242838554084301,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 10.0,
+            "mean_ber_data": 0.06051432280801237,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 15.0,
+            "mean_ber_data": 0.028548177029006184,
+            "count": 40
+          }
+        ],
+        "generalization": {
+          "count": 0,
+          "mean_ber_data": NaN
+        }
+      },
+      "DFE-RLS": {
+        "per_config": [
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 0.0,
+            "mean_ber_data": 0.2390299469232559,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 5.0,
+            "mean_ber_data": 0.133723958209157,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 10.0,
+            "mean_ber_data": 0.06904296888969838,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 15.0,
+            "mean_ber_data": 0.04332682320382446,
+            "count": 40
+          }
+        ],
+        "generalization": {
+          "count": 0,
+          "mean_ber_data": NaN
+        }
+      },
+      "SC-FDE-MMSE": {
+        "per_config": [
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 0.0,
+            "mean_ber_data": 0.23245442621409892,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 5.0,
+            "mean_ber_data": 0.0564778643194586,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 10.0,
+            "mean_ber_data": 0.009895833267364651,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 15.0,
+            "mean_ber_data": 0.0028971354448003696,
+            "count": 40
+          }
+        ],
+        "generalization": {
+          "count": 0,
+          "mean_ber_data": NaN
+        }
+      },
+      "Frozen Offline NN": {
+        "per_config": [
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 0.0,
+            "mean_ber_data": 0.2283854227513075,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 5.0,
+            "mean_ber_data": 0.05589192835614085,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 10.0,
+            "mean_ber_data": 0.009375000238651409,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 15.0,
+            "mean_ber_data": 0.002018229212262668,
+            "count": 40
+          }
+        ],
+        "generalization": {
+          "count": 0,
+          "mean_ber_data": NaN
+        }
+      },
+      "RL-Modulated Neural Block Equalizer": {
+        "per_config": [
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 0.0,
+            "mean_ber_data": 0.2283854227513075,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 5.0,
+            "mean_ber_data": 0.05589192835614085,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 10.0,
+            "mean_ber_data": 0.009375000238651409,
+            "count": 40
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 15.0,
+            "mean_ber_data": 0.002018229212262668,
+            "count": 40
+          }
+        ],
+        "generalization": {
+          "count": 0,
+          "mean_ber_data": NaN
+        }
+      }
+    },
+    "bootstrap": {
+      "mean": 0.07432389501573926,
+      "low": 0.056509604059392586,
+      "high": 0.10178873977289186,
+      "std": 0.012909768489110537,
+      "repetitions": 200,
+      "block_length": 8,
+      "resampling_order": [
+        "seed",
+        "contiguous_frame_block"
+      ]
+    },
+    "effective_channel": {
+      "profile_name": "eme_long_memory_v2",
+      "level": "B",
+      "max_delay": 116,
+      "sample_rate_hz": 10000.0,
+      "symbol_rate_hz": 10000.0,
+      "frame_len": 1024,
+      "max_delay_seconds": 0.0116,
+      "coherence_time_seconds": 1200.0,
+      "acquisition_to_data_gap_seconds": 0.0,
+      "rho_frame": 0.999914670307452,
+      "strong_path_count": [
+        19,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.29,
+        0.35
+      ],
+      "include_anomalous_scatterer": false,
+      "impairment_profile": "cfo_phase_tiny",
+      "pilot_layout": "prefix",
+      "pilot_total": 256,
+      "reward_pilot_total": 32,
+      "adapt_pilot_total": 224,
+      "state_split": "heldout_edge"
+    },
+    "impairment_profile": "cfo_phase_tiny",
+    "state_split": "heldout_edge",
+    "aggregation_role": "diagnostic",
+    "diagnostic_only": true,
+    "main_aggregation_allowed": false,
+    "online_condition_source": "pilot_cir_phase",
+    "online_scheduler": "fixed",
+    "profile_prior": {
+      "residual_cfo_limit": 0.0012,
+      "acquisition_cfo_limit": 0.004
+    },
+    "traditional_calibration": {
+      "schema_version": "traditional-calibration-protocol-v1",
+      "sha256": "07c495cbe6a67226d443cd8996b6286ac297d3667060c366d768a13e5c2b7116",
+      "path": "C:\\Users\\SDQ\\.codex\\worktrees\\online-peft-research\\RL4EQ\\configs\\traditional_calibration_20261101.json",
+      "applied_methods": [
+        "LMMSE-FIR",
+        "DFE-RLS",
+        "SC-FDE-MMSE"
+      ]
+    },
+    "forbidden": {
+      "data_label_upper_bound_method_present": false
+    }
+  },
+  "checkpoint": {
+    "path": "pretrained/head_transfer_post256_20261101/model_best.pt",
+    "sha256": "b8281a8132759865b1b9c303aed60067eaae72a6917f1a0ace6457c4f5b4b7e5",
+    "selection": "此前固定的256步训练终点，未用本轮测试选模型"
+  },
+  "validation": {
+    "full_pytest_passed": 669,
+    "full_pytest_seconds": 273.67,
+    "targeted_tests_passed": 13,
+    "targeted_seconds": 16.09,
+    "targeted_overlaps_full_suite": true,
+    "archived_trajectory_regression_snrs": [
+      0,
+      5,
+      10,
+      15
+    ]
+  }
+}

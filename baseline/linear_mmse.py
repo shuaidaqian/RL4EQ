@@ -10,6 +10,19 @@ import torch
 from env.linear_operator import LinearChannelOperator
 
 
+def zero_padded_wiener_fde(rx, cir, tail, noise_variance):
+    """去除已估计历史后零填充的频域 Wiener 近似，不声称为精确有限窗解。"""
+    memory = cir.numel() - 1
+    operator = LinearChannelOperator(rx.numel(), memory)
+    target = rx - operator.forward(torch.zeros_like(rx), cir, tail)
+    size = 1 << (rx.numel() + memory - 1).bit_length()
+    h = torch.fft.fft(cir, n=size)
+    estimate = torch.fft.ifft(
+        torch.fft.fft(target, n=size) * h.conj() / (h.abs().square() + noise_variance),
+    )
+    return estimate[:rx.numel()]
+
+
 def linear_block_lmmse(rx, cir, tail, noise_variance, *, known_symbols=None,
                       known_mask=None, real_bpsk=False, iterations=128, rtol=1e-6):
     """用 CG 求线性高斯估计，处理真实块边界与已知 Adapt Pilot。

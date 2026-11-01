@@ -26,6 +26,10 @@ from agent.modulation import ModulationConfig, ModulationState
 from agent.safe_contextual_bandit import SafeContextualBandit, SafeUpdateAction
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.legacy_equalizers import legacy_dfe, legacy_lmmse_fir
+from baseline.calibration import (
+    CALIBRATED_METHODS, FrozenTraditionalCalibration, load_frozen_traditional_calibration,
+    run_calibrated_traditional_equalizer,
+)
 from baseline.block_equalizers import bit_error_rate, perfect_csi_bpsk_refine_detect
 from baseline.synchronization_compensation import apply_phase_correction
 from baseline.traditional_equalizers import (
@@ -253,6 +257,7 @@ def main() -> None:
     parser.add_argument("--pretrained", default="pretrained/model_best.pt")
     parser.add_argument("--transfer-checkpoint", default=None, help="四臂机制实验的更新后泛化 checkpoint；pretrained 为普通监督分支。")
     parser.add_argument("--transfer-persistent", action="store_true", help="四臂机制实验中累计保留通过 Reward 验收的 PEFT 参数。")
+    parser.add_argument("--traditional-calibration", default=None, help="显式加载已冻结的传统 FIR/DFE/FDE 校准协议。")
     parser.add_argument("--policy", default="logs/online/policy.pt")
     parser.add_argument("--method-group", choices=["traditional", "proposed", "diagnostic", "main", "all"], default=None)
     parser.add_argument("--methods", nargs="*", default=None)
@@ -399,7 +404,7 @@ def main() -> None:
     if args.transfer_checkpoint is not None:
         from evaluation.pilot_transfer import run_transfer_comparison
 
-        if args.resume or args.method_group or args.methods:
+        if args.resume or args.method_group or args.methods or args.traditional_calibration:
             parser.error("四臂机制实验独立于正式方法组，暂不支持 resume。")
         if args.pilot_layout not in {None, "prefix"} or args.cir_update != "fixed":
             parser.error("四臂机制实验只支持 prefix 与固定 acquisition CIR。")
@@ -416,6 +421,12 @@ def main() -> None:
             state_split=args.state_split or "heldout_edge", persistent=args.transfer_persistent,
         )
         return
+    traditional_calibration = (
+        load_frozen_traditional_calibration(args.traditional_calibration)
+        if args.traditional_calibration else None
+    )
+    if traditional_calibration is not None and args.cir_update != "fixed":
+        parser.error("冻结的传统校准协议使用固定 acquisition CIR，不允许覆盖 cir-update。")
     scheduler = str(
         args.scheduler
         if args.scheduler is not None
@@ -509,6 +520,9 @@ def main() -> None:
     }
     if not env_configs:
         raise ValueError("对比实验至少需要一个 delay/SNR/seed 配置。")
+    if traditional_calibration is not None:
+        for environment in env_configs.values():
+            traditional_calibration.validate_environment(environment)
     effective_channel = effective_channel_metadata(next(iter(env_configs.values())))
     profile_prior = _profile_prior_from_config(config, impairment_profile)
     residual_cfo_limit = float(profile_prior.get("residual_cfo_limit", 0.001))
@@ -532,7 +546,12 @@ def main() -> None:
     target = Path(args.output_dir)
     target.mkdir(parents=True, exist_ok=True)
     jsonl = target / "frame_metrics.jsonl"
+    if traditional_calibration is not None and not args.resume and jsonl.exists() and jsonl.stat().st_size:
+        raise ValueError("校准协议结果已存在，请使用新 output-dir 或匹配协议的 --resume。")
     existing_rows = _load_existing_rows(jsonl) if args.resume else []
+    expected_calibration = traditional_calibration.sha256 if traditional_calibration else None
+    if any(row.get("traditional_calibration_sha256") != expected_calibration for row in existing_rows):
+        raise ValueError("--resume 的传统校准协议与已有结果不同，禁止混合旧/新 baseline。")
     existing_profiles = {str(row.get("profile_name", "<missing>")) for row in existing_rows}
     expected_profile = str(effective_channel["profile_name"])
     if existing_profiles and existing_profiles != {expected_profile}:
@@ -602,9 +621,11 @@ def main() -> None:
                         online_groups_override=args.online_groups,
                         online_condition_source_override=args.online_condition_source,
                         scheduler=scheduler,
+                        traditional_calibration=traditional_calibration,
                     )
                     for frame_index in range(1, args.frames + 1):
                         frame = env.next_frame()
+                        rx_sha256 = hashlib.sha256(frame.rx_symbols.detach().cpu().numpy().tobytes()).hexdigest()
                         frame_results = _run_methods_for_frame(
                             selected_methods,
                             frame,
@@ -649,6 +670,9 @@ def main() -> None:
                             payload["state_instance"] = env.state_metadata()
                             payload["input_hash"] = result.input_hash
                             payload.update(result.extra)
+                            payload["rx_sha256"] = rx_sha256
+                            payload["environment_seed"] = int(env_config.seed)
+                            payload["traditional_calibration_sha256"] = expected_calibration
                             key = _row_key(payload)
                             if key in existing_keys:
                                 continue
@@ -695,6 +719,12 @@ def main() -> None:
         "online_condition_source": config.get("online_condition_source", "pilot_cir_phase"),
         "online_scheduler": scheduler,
         "profile_prior": profile_prior,
+        "traditional_calibration": (
+            {"schema_version": traditional_calibration.schema_version,
+             "sha256": traditional_calibration.sha256, "path": traditional_calibration.path,
+             "applied_methods": [method for method in selected_methods if method in CALIBRATED_METHODS]}
+            if traditional_calibration else None
+        ),
         "forbidden": {"data_label_upper_bound_method_present": any("数据标签上界" in method for method in selected_methods)},
     }
     (target / "summary.json").write_text(json.dumps(summary_payload, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -739,6 +769,7 @@ class BaselineMethodState:
     cir_update_alpha: float = 0.2
     acquisition_cfo: float = 0.0
     pilot_physical_state: PilotPhysicalState | None = None
+    traditional_calibration: FrozenTraditionalCalibration | None = None
 
 
 @dataclass
@@ -893,6 +924,7 @@ def _build_method_states(
     online_groups_override: list[str] | None = None,
     online_condition_source_override: str | None = None,
     scheduler: str = "fixed",
+    traditional_calibration: FrozenTraditionalCalibration | None = None,
 ) -> dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState]:
     if scheduler not in {"fixed", "bandit"}:
         raise ValueError(f"未知在线调度器：{scheduler}")
@@ -1191,6 +1223,7 @@ def _build_method_states(
                 cir_update_alpha=float(cir_alpha),
                 acquisition_cfo=float(acquisition_cfo),
                 pilot_physical_state=PilotPhysicalState(cfo_cycles_per_symbol=float(acquisition_cfo)),
+                traditional_calibration=traditional_calibration,
             )
     return states
 
@@ -1265,15 +1298,16 @@ def _run_new_or_single_method(
                     else state.acquisition_cfo
                 ),
             ).to(state.cir.device) if _pilot_state_reliable(state.pilot_physical_state, 0.15) else state.cir
-        result = run_traditional_equalizer(
-            method,
-            frame.receiver_view(),
-            state.cir,
-            state.receiver_state.soft_tail,
-            snr_db,
-            phase_state=state.phase_state,
-            residual_cfo_limit=state.residual_cfo_limit,
-        )
+        if state.traditional_calibration is not None and method in CALIBRATED_METHODS:
+            result = run_calibrated_traditional_equalizer(
+                method, frame.receiver_view(), state.cir, state.receiver_state.soft_tail, snr_db,
+                acquisition_cfo=state.acquisition_cfo, calibration=state.traditional_calibration,
+            )
+        else:
+            result = run_traditional_equalizer(
+                method, frame.receiver_view(), state.cir, state.receiver_state.soft_tail, snr_db,
+                phase_state=state.phase_state, residual_cfo_limit=state.residual_cfo_limit,
+            )
         state.receiver_state.update_tail(result.soft_tail)
         return _result_from_logits(method, result.logits, frame, result.iterations, result.extra)
     if method == "RL-Modulated Neural Block Equalizer":

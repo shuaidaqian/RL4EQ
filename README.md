@@ -12,6 +12,9 @@
 > [传统线性校准与独立核验](docs/linear_baseline_calibration_stage_20261101.md)已完成
 > 首轮预设网格：同步和块边界会显著增强部分传统参考；主方法组暂未改变。
 > 当前第一性原理拆解、未验证假设和后续依赖见[路线复核](docs/first_principles_20261101.md)。
+> [统一校准比较](docs/calibrated_compare_stage_20261101.md)已完成：显式冻结协议接入
+> `compare.py`，800 条同轨迹记录中 RL BER 与 Frozen 一致；对较强 FDE 的神经
+> 优势仅在 15 dB 有配对区间支持，整体目标仍未达成。
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。

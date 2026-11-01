@@ -17,7 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from baseline.linear_mmse import linear_block_lmmse
+from baseline.linear_mmse import linear_block_lmmse, zero_padded_wiener_fde as padded_fde
 from baseline.synchronization_compensation import apply_phase_correction
 from baseline.traditional_equalizers import (
     _dfe_rls, _lmmse_fir, _sc_fde_mmse, _tail_from_estimate,
@@ -25,19 +25,7 @@ from baseline.traditional_equalizers import (
 )
 from env.comm_env import CommunicationEnvironment
 from env.experiment_config import build_comm_env_config
-from env.linear_operator import LinearChannelOperator
 from evaluation.pilot_transfer import paired_interval
-
-
-def padded_fde(rx, cir, tail, variance):
-    """零填充频域 Wiener 近似；不把它误称为精确有限观测 MMSE 解。"""
-    memory = cir.numel() - 1
-    operator = LinearChannelOperator(rx.numel(), memory)
-    target = rx - operator.forward(torch.zeros_like(rx), cir, tail)
-    size = 1 << (rx.numel() + memory - 1).bit_length()
-    h = torch.fft.fft(cir, n=size)
-    estimate = torch.fft.ifft(torch.fft.fft(target, n=size) * h.conj() / (h.abs().square() + variance))
-    return estimate[:rx.numel()]
 
 
 def run_calibration(config, seeds, frames, output, *, state_split="offline_train", selection=None):
