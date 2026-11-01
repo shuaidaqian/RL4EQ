@@ -68,6 +68,54 @@ def test_inner_update_ignores_reward_data_labels_and_waveforms():
         torch.testing.assert_close(results[0][name], results[1][name], rtol=0, atol=0)
 
 
+@pytest.mark.parametrize("group", ["head", "adapter_lora_head"])
+def test_neural_bce_inner_matches_formal_ppo_and_hides_unknown_information(group):
+    """神经参数 BCE 内循环须与已有 PPO 动作一致，也不能通过注意力读取隐藏波形。"""
+    model, context = _fixture()
+    actual, _ = _fixture()
+    fast, _ = differentiable_adapt(
+        model, [context], learning_rate=0.0005, steps=1, max_delta_norm=0.05,
+        groups={group}, objective="bce",
+    )
+    _apply_adapt_peft_update(actual, context.frame, context.condition, context.tail,
+                            groups={group}, lr=0.0005, steps=1, objective="bce", max_delta_norm=0.05)
+    for name, parameter in actual.named_parameters():
+        torch.testing.assert_close(fast[name], parameter, atol=1e-7, rtol=2e-5)
+    frame = context.frame
+    hidden = ~frame.adapt_mask
+    tx, rx, bits = frame.tx_symbols.clone(), frame.rx_symbols.clone(), frame.bits.clone()
+    tx[hidden], rx[hidden], bits[hidden] = -tx[hidden], 1000 + 1000j, ~bits[hidden]
+    poisoned = replace(context, frame=replace(frame, tx_symbols=tx, rx_symbols=rx, bits=bits))
+    changed, _ = differentiable_adapt(model, [poisoned], learning_rate=0.0005,
+                                     steps=1, max_delta_norm=0.05, groups={group}, objective="bce")
+    for name in fast:
+        torch.testing.assert_close(fast[name], changed[name], atol=0, rtol=0)
+
+
+def test_head_post_update_outer_gradient_matches_finite_difference():
+    model, context = _fixture()
+    for name, parameter in model.named_parameters():
+        parameter.requires_grad_(not name.startswith("online_phase_trend_adapter."))
+
+    def loss():
+        parameters, _ = differentiable_adapt(model, [context], learning_rate=0.0005,
+                                             steps=1, max_delta_norm=0.05, create_graph=True,
+                                             groups={"head"}, objective="bce")
+        logits = context_logits(model, context, parameters)
+        mask = context.frame.data_mask
+        return F.binary_cross_entropy_with_logits(logits[mask], context.frame.bits[mask].float())
+
+    gradient, = torch.autograd.grad(loss(), model.head.bias)
+    initial = model.head.bias.detach().clone()
+    values = []
+    for sign in (-1, 1):
+        with torch.no_grad():
+            model.head.bias.copy_(initial + sign * 0.002)
+        values.append(float(loss().detach()))
+    finite_difference = (values[1] - values[0]) / 0.004
+    assert float(gradient) == pytest.approx(finite_difference, abs=8e-5, rel=0.03)
+
+
 def test_adaptation_has_no_inplace_parameter_changes():
     model, context = _fixture()
     before = {name: value.clone() for name, value in model.state_dict().items()}

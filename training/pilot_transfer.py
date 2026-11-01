@@ -20,6 +20,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.func import functional_call
+from torch.nn.attention import SDPBackend, sdpa_kernel
 
 from agent.cir_estimator import CIRCondition, condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
@@ -84,10 +85,11 @@ def context_logits(model, context: TransferContext, parameters=None, *, visible=
 class _AdaptObjective(nn.Module):
     """通过 functional_call 对相位信号重构目标替换候选参数。"""
 
-    def __init__(self, model, score_start=0):
+    def __init__(self, model, score_start=0, objective="pilot_signal_reconstruction"):
         super().__init__()
         self.model = model
         self.score_start = int(score_start)
+        self.objective = objective
 
     def forward(self, context):
         view = _adapt_receiver_view(context.frame)
@@ -95,6 +97,10 @@ class _AdaptObjective(nn.Module):
         score_mask = view.adapt_mask & (positions >= self.score_start)
         if not bool(score_mask.any()):
             raise ValueError("信号重构评分窗没有有效 Adapt Pilot。")
+        if self.objective == "bce":
+            logits = context_logits(self.model, context, visible="adapt")
+            labels = (view.adapt_symbols.real > 0).float()
+            return F.binary_cross_entropy_with_logits(logits[score_mask].float(), labels[score_mask])
         return _pilot_signal_reconstruction_loss(
             self.model, context.condition, view.adapt_symbols, view.rx_symbols,
             score_mask,
@@ -104,7 +110,8 @@ class _AdaptObjective(nn.Module):
 
 
 def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_norm,
-                         create_graph=False, initial_parameters=None, score_start=0):
+                         create_graph=False, initial_parameters=None, score_start=0,
+                         groups=None, objective="pilot_signal_reconstruction"):
     """复现 PPO 的 AdamW、梯度裁剪和末步增量投影，不读取 Reward/Data。
 
     外层训练保留更新算子的计算图；在线/诊断关闭高阶图。未使用的状态映射
@@ -117,25 +124,28 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
         raise ValueError("内循环学习率必须为正有限数。")
     if not math.isfinite(max_delta_norm) or max_delta_norm <= 0:
         raise ValueError("更新半径必须为正有限数。")
-    if model.online_phase_trend_adapter is None:
-        raise ValueError("内循环需要 phase_trend Adapter。")
+    selected_groups = {"phase_trend"} if groups is None else set(groups)
+    if objective not in {"pilot_signal_reconstruction", "bce"}:
+        raise ValueError("内循环目标必须为 pilot_signal_reconstruction 或 bce。")
+    if objective == "pilot_signal_reconstruction" and selected_groups != {"phase_trend"}:
+        raise ValueError("相位信号重构只允许更新 phase_trend 参数组。")
     parameters = dict(model.named_parameters())
     if initial_parameters is not None:
         parameters.update(initial_parameters)
-    names = [name for name, _ in model.peft.named_group_parameters({"phase_trend"})]
+    names = [name for name, _ in model.peft.named_group_parameters(selected_groups)]
     if not names:
-        raise ValueError("没有可更新的 phase_trend 参数。")
+        raise ValueError("指定参数组没有可更新的 PEFT 参数。")
     fast = dict(parameters)
     for name in names:
         if not fast[name].requires_grad:
             fast[name] = fast[name].detach().clone().requires_grad_(True)
     before = {name: fast[name] for name in names}
     moments, variances = {}, {}
-    objective = _AdaptObjective(model, score_start)
+    objective_module = _AdaptObjective(model, score_start, objective)
     losses = []
     for step in range(1, int(steps) + 1):
         loss = torch.stack([
-            functional_call(objective, {"model." + name: value for name, value in fast.items()}, (context,))
+            functional_call(objective_module, {"model." + name: value for name, value in fast.items()}, (context,))
             for context in contexts
         ]).mean()
         gradients = torch.autograd.grad(
@@ -266,6 +276,12 @@ class PilotTransferTrainer:
         return make_context(frames[-1], cir, cfo, tail, snr), env.state_metadata(), snr, seed
 
     def train(self, steps, batch_size=1, accumulation_steps=1, use_amp=False):
+        # CUDA 的高效 attention backward 不支持本任务所需的二阶导数；两分支
+        # 统一使用 math 后端，避免内循环外层反传失败或训练数值路径不同。
+        with sdpa_kernel(SDPBackend.MATH):
+            return self._train(steps, batch_size, accumulation_steps, use_amp)
+
+    def _train(self, steps, batch_size=1, accumulation_steps=1, use_amp=False):
         """以样本逐个反传控制显存；精确内循环不使用半精度。"""
 
         if use_amp:
@@ -285,6 +301,8 @@ class PilotTransferTrainer:
                     self.model, [context], learning_rate=float(self.settings["inner_learning_rate"]),
                     steps=int(self.settings["inner_steps"]), max_delta_norm=float(self.settings["max_delta_norm"]),
                     create_graph=self.objective == "post_adapt",
+                    groups=self.settings.get("inner_groups", ["phase_trend"]),
+                    objective=self.settings.get("inner_objective", "pilot_signal_reconstruction"),
                 )
                 after_logits = context_logits(self.model, context, fast)
                 post_loss = F.binary_cross_entropy_with_logits(after_logits[frame.data_mask].float(), frame.bits[frame.data_mask].float())
@@ -292,6 +310,8 @@ class PilotTransferTrainer:
                     float(self.settings.get("base_weight", 1.0)) * base_loss
                     + float(self.settings.get("post_weight", 1.0)) * post_loss
                 )
+                if not bool(torch.isfinite(loss)):
+                    raise FloatingPointError("离线外层损失不是有限值，停止训练，避免导出损坏 checkpoint。")
                 (loss / (batch_size * accumulation_steps)).backward()
                 self.history.append({
                     "step": step + 1, "seed": seed, "snr_db": snr,
@@ -299,7 +319,7 @@ class PilotTransferTrainer:
                     "data_bce_before": float(before_data.detach().cpu()), "data_bce_after": float(post_loss.detach().cpu()),
                     "channel_state": channel_state, **update,
                 })
-            torch.nn.utils.clip_grad_norm_(self.optimizer.param_groups[0]["params"], 1.0)
+            torch.nn.utils.clip_grad_norm_(self.optimizer.param_groups[0]["params"], 1.0, error_if_nonfinite=True)
             self.optimizer.step()
             print(json.dumps({"objective": self.objective, **{k: self.history[-1][k] for k in (
                 "step", "snr_db", "loss", "data_bce_before", "data_bce_after",
@@ -307,6 +327,7 @@ class PilotTransferTrainer:
         return {
             "stage": "pilot_transfer", "objective": self.objective,
             "linear_operator_backend": os.environ.get("RL4EQ_LINEAR_OPERATOR_BACKEND", "direct"),
+            "attention_backend": "math",
             "source_checkpoint": self.source_checkpoint, "history": self.history,
             "elapsed_seconds": time.monotonic() - started,
             "inner_uses_data_labels": False, "inner_uses_data_waveform": False,

@@ -5,7 +5,10 @@
 > 训练/验证边界与分阶段验收见[实验计划](docs/pilot_transfer_plan_20261101.md)。
 > 该阶段只检验更新机制，不能替代正式 PPO、传统 baseline 或长期收益比较。
 > 首轮结果见[四臂机制实验](docs/pilot_transfer_stage_20261101.md)：64 步下两分支在线
-> BER 基本重合，新增外层目标尚未证明额外适配收益；下一步检验实际神经 PEFT 动作。
+> BER 基本重合，新增外层目标尚未证明额外适配收益。
+> 后续[神经 head 四臂结果](docs/head_transfer_stage_20261101.md)也未通过：256 步后
+> 10/15 dB 在线动作没有改变 Data 判决，0/5 dB 增益区间跨零。下一步先核验
+> 神经调制对主要均衡误差的作用能力，并完成传统 baseline 的记忆与边界校准。
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。

@@ -145,8 +145,9 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                         config, model, seed=seed, snr=snr, frames=frames,
                         state_split=state_split, device=device,
                     )
-                    initial = {name: value.detach().clone() for name, value in model.named_parameters()
-                               if name.startswith("online_phase_trend_adapter.")}
+                    initial = {name: value.detach().clone() for name, value in model.peft.named_group_parameters(
+                        settings.get("inner_groups", ["phase_trend"]),
+                    )}
                     active = dict(initial)
                     for index, frame in enumerate(episode_frames):
                         fingerprint = hashlib.sha256(frame.rx_symbols.detach().cpu().numpy().tobytes()).hexdigest()
@@ -161,6 +162,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                             model, [context], learning_rate=float(settings["inner_learning_rate"]),
                             steps=int(settings["inner_steps"]), max_delta_norm=float(settings["max_delta_norm"]),
                             initial_parameters=before,
+                            groups=settings.get("inner_groups", ["phase_trend"]),
+                            objective=settings.get("inner_objective", "pilot_signal_reconstruction"),
                         )
                         # 与主配置一致地约束相对离线参数起点的累计偏移。
                         delta = torch.sqrt(sum((candidate[name] - value).square().sum() for name, value in initial.items()) + 1e-24)
