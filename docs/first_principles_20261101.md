@@ -36,6 +36,8 @@ Data 波形，使 Adapt 更新与 Reward 验收都只依赖各自可见的 Pilot
    Pilot 下的估计方差；长度和正则必须一起在独立校准集上选择。
    DFE 的后续 36 项先验/遗忘因子网格仍在训练范围选中短 DFE，但所选设置的
    留出改善区间均跨零，不能把训练选优直接当作更强的泛化基线。
+   之后固定原参数的已知 Adapt 反馈核查，在 48 个新训练范围配对帧上也没有
+   改变 Data BER；没有继续用传统网格扩大替代神经候选机制验证。
 6. “超过当前传统实现就完成目标。”同步、记忆覆盖和块边界没有合理校准时，
    差距可能来自对照不足。当前已有测试只证明实现，不能代替公平校准。
 7. “其余接收位置置零就等于只观察 Pilot。”物理 warm-start 仍使用完整 H^H H，
@@ -109,4 +111,5 @@ PPO 更新数值对照。FFT 加快的是同一线性算子的计算，不改变
 [相位作用几何](phase_modulation_geometry_20261101.md)、
 [接收波形置零审计](receiver_visibility_stage_20261101.md)、
 [DFE 先验校准与核验](dfe_rls_calibration_stage_20261101.md)、
-[接收输入四组合组件实验](receiver_input_candidate_stage_20261101.md)。
+[接收输入四组合组件实验](receiver_input_candidate_stage_20261101.md)、
+[DFE 已知 Pilot 反馈核查](dfe_known_feedback_stage_20261101.md)。

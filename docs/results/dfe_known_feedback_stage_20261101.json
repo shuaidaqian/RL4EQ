@@ -1,0 +1,373 @@
+{
+  "schema_version": "dfe-known-feedback-v1",
+  "diagnostic_only": true,
+  "main_aggregation_allowed": false,
+  "config": {
+    "schema_version": "eme-long-memory-config-v2",
+    "channel_profile": "eme_long_memory_v2",
+    "profile_name": "eme_long_memory_v2",
+    "profile_frozen_before_proposed": true,
+    "frozen_candidate_id": "LM-B1",
+    "traditional_only_calibration": true,
+    "traditional_only_calibration_summary": "logs/eme_long_memory_v2_traditional_calibration_2026-08-28_fresh/summary.json",
+    "traditional_only_calibration_frames_per_seed": 20,
+    "traditional_only_calibration_status": "阶段性冻结；正式论文统计需无并发重跑至少 60 帧",
+    "proposed_results_used_for_freeze": false,
+    "semantics": "independent EME-inspired long-memory channel class constrained by published lunar radar delay-power envelopes",
+    "source_basis": [
+      "10.6028/jres.069d.195",
+      "10.1109/wescon.1958.1150219"
+    ],
+    "level": "B",
+    "main_level": "B",
+    "aggregation_role": "diagnostic",
+    "max_delay_seconds": 0.0116,
+    "sample_rate_hz": 10000,
+    "symbol_rate_hz": 10000,
+    "samples_per_symbol": 1,
+    "frame_len": 1024,
+    "frame_duration_seconds": 0.1024,
+    "max_delay": 116,
+    "main_delays": [
+      116
+    ],
+    "main_snrs": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "snrs_main": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "snrs_pressure": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "reward_pilot_total": 32,
+    "pilot_sweep_totals": [
+      64,
+      96,
+      128,
+      160,
+      256
+    ],
+    "strong_path_count": [
+      12,
+      24
+    ],
+    "diffuse_energy_ratio": [
+      0.2,
+      0.35
+    ],
+    "coherence_time_seconds": 1200,
+    "acquisition_to_data_gap_seconds": 0,
+    "rho_frame": 0.999914670307452,
+    "rho": 0.999914670307452,
+    "include_anomalous_scatterer": false,
+    "eme_physical_fields_passthrough": "implemented",
+    "impairment_profile": "cfo_phase_tiny",
+    "residual_cfo_limit": 0.0012,
+    "acquisition_cfo_limit": 0.004,
+    "traditional_methods": [
+      "CFO+DD-Phase LMMSE-FIR",
+      "CFO+DD-Phase DFE-RLS",
+      "SC-FDE-MMSE"
+    ],
+    "optional_impairments": {
+      "cfo": true,
+      "phase_perturbation": true,
+      "nonlinearity": false,
+      "coding": false,
+      "higher_order_modulation": false
+    },
+    "model_validation_sequence_state": true,
+    "training_tail_mode": "online_soft",
+    "tail_update_alpha": 0.5,
+    "online_adaptation_groups": [
+      "phase"
+    ],
+    "online_adaptation_algorithm": "rls",
+    "online_rls_forgetting_factor": 0.995,
+    "online_rls_ridge": 10,
+    "online_rls_warmup_symbols": 116,
+    "online_rls_target_logit": 2,
+    "online_rls_max_total_delta_norm": 0.5,
+    "online_rls_condition_source": "pilot_cir_phase",
+    "online_condition_source": "pilot_cir_phase",
+    "online_adaptation_learning_rate": 0.0004,
+    "online_adaptation_steps": 1,
+    "online_adaptation_max_delta_norm": 1,
+    "online_adaptation_proximal_weight": 0.1,
+    "online_hard_example_weighting": false,
+    "online_hard_example_temperature": 0.5,
+    "online_adaptation_freeze_below_snr_db": 5,
+    "online_adaptation_min_reward_improvement": 0.0005,
+    "online_bandit_action_cost": 1e-06,
+    "online_reward_windows": 2,
+    "online_cross_frame_rollback_tolerance": 1e-05,
+    "online_phase_tracking_smoothing": 0.5,
+    "online_phase_tracking_min_confidence": 0.5,
+    "online_phase_tracking_cfo_limit": 0.0012,
+    "online_adaptation_candidates": [
+      {
+        "name": "lora_conservative",
+        "groups": [
+          "phase"
+        ],
+        "learning_rate_scale": 0.5,
+        "steps": 1,
+        "max_delta_scale": 0.5
+      }
+    ],
+    "offline_state_split": "offline_train",
+    "offline_loss": "bce_all",
+    "online_state_splits": {
+      "offline_train": {
+        "strong_path_count": [
+          12,
+          18
+        ],
+        "diffuse_energy_ratio": [
+          0.2,
+          0.28
+        ],
+        "cfo_abs_range": [
+          0.0002,
+          0.0006
+        ],
+        "phase_noise_std_range": [
+          0.0002,
+          0.0006
+        ]
+      },
+      "heldout_edge": {
+        "strong_path_count": [
+          19,
+          24
+        ],
+        "diffuse_energy_ratio": [
+          0.29,
+          0.35
+        ],
+        "cfo_abs_range": [
+          0.0006,
+          0.0008
+        ],
+        "phase_noise_std_range": [
+          0.0006,
+          0.0008
+        ]
+      },
+      "drift": {
+        "strong_path_count": [
+          12,
+          24
+        ],
+        "diffuse_energy_ratio": [
+          0.2,
+          0.35
+        ],
+        "cfo_abs_range": [
+          0.0002,
+          0.0008
+        ],
+        "phase_noise_std_range": [
+          0.0002,
+          0.0008
+        ]
+      }
+    },
+    "model": {
+      "frame_len": 1024,
+      "max_delay": 116,
+      "iterations": 4,
+      "d_model": 64,
+      "num_heads": 4,
+      "adapter_rank": 8,
+      "lora_rank": 8,
+      "conditioner_uses_cir_summary": true,
+      "pilot_conditioned": true,
+      "enable_phase_correction_branch": true,
+      "phase_correction_segments": 4,
+      "phase_correction_initial_scale": 1,
+      "analytic_logit_skip_scale": 0,
+      "physics_warm_start_iterations": 8,
+      "physics_warm_start_scale": 1,
+      "neural_residual_scale": 0.1
+    },
+    "experiment_note": "现有神经 phase 参数组的离线更新后 Data 泛化机制实验；不改变网络结构或正式动作注册。",
+    "diagnostic_only": true,
+    "main_aggregation_allowed": false,
+    "rl_action_names": [
+      "identity",
+      "peft_head_fast",
+      "rollback_identity"
+    ],
+    "rl_peft_max_episode_delta_norm": 0.05,
+    "online_ppo_learning_rate": 0.001,
+    "online_ppo_pilot_state_embedding": false,
+    "ppo_window_size": 8,
+    "pilot_transfer": {
+      "objective": "post_adapt",
+      "seed": 37000,
+      "history_frames": 1,
+      "outer_learning_rate": 0.0001,
+      "inner_learning_rate": 0.0005,
+      "inner_steps": 1,
+      "max_delta_norm": 0.05,
+      "base_weight": 1,
+      "post_weight": 1,
+      "inner_groups": [
+        "phase"
+      ],
+      "inner_objective": "bce"
+    }
+  },
+  "seeds": [
+    43000,
+    43001,
+    43002
+  ],
+  "frames": 4,
+  "setting": {
+    "filter_length": 41,
+    "feedback_length": 5,
+    "forgetting_factor": 0.995,
+    "initial_inverse_covariance": 10.0
+  },
+  "state_split": "offline_train",
+  "uses_neural_network": false,
+  "uses_rl": false,
+  "reward_labels_used_for_receiver": false,
+  "data_labels_used_for_receiver": false,
+  "per_snr": [
+    {
+      "snr_db": 0,
+      "original": {
+        "mean": 0.21592882027228674,
+        "ci95": [
+          0.19345603976826303,
+          0.23840160077631045
+        ],
+        "seeds": 3
+      },
+      "known_feedback": {
+        "mean": 0.21592882027228674,
+        "ci95": [
+          0.19345603976826303,
+          0.23840160077631045
+        ],
+        "seeds": 3
+      },
+      "ber_improvement": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 5,
+      "original": {
+        "mean": 0.10449218687911828,
+        "ci95": [
+          0.06636593090019871,
+          0.14261844285803785
+        ],
+        "seeds": 3
+      },
+      "known_feedback": {
+        "mean": 0.10449218687911828,
+        "ci95": [
+          0.06636593090019871,
+          0.14261844285803785
+        ],
+        "seeds": 3
+      },
+      "ber_improvement": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 10,
+      "original": {
+        "mean": 0.03526475722901523,
+        "ci95": [
+          -0.019444488487533107,
+          0.08997400294556357
+        ],
+        "seeds": 3
+      },
+      "known_feedback": {
+        "mean": 0.03526475722901523,
+        "ci95": [
+          -0.019444488487533107,
+          0.08997400294556357
+        ],
+        "seeds": 3
+      },
+      "ber_improvement": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 15,
+      "original": {
+        "mean": 0.015299479166666666,
+        "ci95": [
+          -0.01772625491460906,
+          0.04832521324794239
+        ],
+        "seeds": 3
+      },
+      "known_feedback": {
+        "mean": 0.015299479166666666,
+        "ci95": [
+          -0.01772625491460906,
+          0.04832521324794239
+        ],
+        "seeds": 3
+      },
+      "ber_improvement": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 3
+      }
+    }
+  ],
+  "status": "all_48_paired_data_ber_values_unchanged",
+  "raw_result": {
+    "path": "logs\\dfe_known_feedback_3s4f_20261101.json",
+    "sha256": "3bed4d697763468c832352e0845b39d0dddaeef8e3deff208e50b37f3f1277d3",
+    "records": 96
+  },
+  "integrity": {
+    "contexts": 48,
+    "protocols_per_context": 2,
+    "waveforms_and_update_counts_matched": true,
+    "all_frame_data_ber_values_equal": true
+  }
+}

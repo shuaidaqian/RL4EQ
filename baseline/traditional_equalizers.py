@@ -482,6 +482,7 @@ def _dfe_rls(
     *,
     forgetting_factor: float = 0.995,
     initial_inverse_covariance: float = 10.0,
+    known_pilot_feedback: bool = False,
 ) -> tuple[torch.Tensor, int]:
     if not math.isfinite(forgetting_factor) or not 0 < forgetting_factor <= 1:
         raise ValueError("DFE-RLS 遗忘因子必须为 (0, 1] 内的有限数。")
@@ -512,7 +513,12 @@ def _dfe_rls(
     if not bool(torch.isfinite(weights).all()) or not bool(torch.isfinite(inverse_cov).all()):
         raise FloatingPointError("DFE-RLS 状态非有限，停止计算，避免导出伪硬判决。")
     output = torch.zeros_like(rx)
+    known_positions = set(torch.nonzero(adapt_mask, as_tuple=False).flatten().tolist()) if known_pilot_feedback else set()
     for index in range(rx.numel()):
+        # 可选协议在递推时使用已知 Adapt 符号；Reward 和 Data 仍由接收机判决。
+        if index in known_positions:
+            output[index] = d_full[index]
+            continue
         # 已处理位置已经是 BPSK 硬判决；反馈不读取未来位置，无需反复转换整帧。
         vector = torch.cat((x[index], _feedback_features(output, index, feedback_len)))
         estimate = torch.dot(vector, weights)
