@@ -6,6 +6,7 @@ from dataclasses import replace
 import pytest
 import torch
 from torch.nn import functional as F
+from torch.nn.attention import SDPBackend, sdpa_kernel
 
 from agent.cir_estimator import condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
@@ -92,25 +93,29 @@ def test_neural_bce_inner_matches_formal_ppo_and_hides_unknown_information(group
         torch.testing.assert_close(fast[name], changed[name], atol=0, rtol=0)
 
 
-def test_head_post_update_outer_gradient_matches_finite_difference():
+@pytest.mark.parametrize("group", ["head", "phase"])
+def test_neural_post_update_outer_gradient_matches_finite_difference(group):
     model, context = _fixture()
     for name, parameter in model.named_parameters():
         parameter.requires_grad_(not name.startswith("online_phase_trend_adapter."))
 
     def loss():
-        parameters, _ = differentiable_adapt(model, [context], learning_rate=0.0005,
-                                             steps=1, max_delta_norm=0.05, create_graph=True,
-                                             groups={"head"}, objective="bce")
-        logits = context_logits(model, context, parameters)
-        mask = context.frame.data_mask
-        return F.binary_cross_entropy_with_logits(logits[mask], context.frame.bits[mask].float())
+        # 与真实外层训练保持一致；CPU flash attention 也不支持这里的二阶导数。
+        with sdpa_kernel(SDPBackend.MATH):
+            parameters, _ = differentiable_adapt(model, [context], learning_rate=0.0005,
+                                                 steps=1, max_delta_norm=0.05, create_graph=True,
+                                                 groups={group}, objective="bce")
+            logits = context_logits(model, context, parameters)
+            mask = context.frame.data_mask
+            return F.binary_cross_entropy_with_logits(logits[mask], context.frame.bits[mask].float())
 
-    gradient, = torch.autograd.grad(loss(), model.head.bias)
-    initial = model.head.bias.detach().clone()
+    probe = model.head.bias if group == "head" else model.phase_correction_scale
+    gradient, = torch.autograd.grad(loss(), probe)
+    initial = probe.detach().clone()
     values = []
     for sign in (-1, 1):
         with torch.no_grad():
-            model.head.bias.copy_(initial + sign * 0.002)
+            probe.copy_(initial + sign * 0.002)
         values.append(float(loss().detach()))
     finite_difference = (values[1] - values[0]) / 0.004
     assert float(gradient) == pytest.approx(finite_difference, abs=8e-5, rel=0.03)
@@ -257,3 +262,36 @@ def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(
         assert summary["per_snr"][0]["post_vs_baseline_online_gain"]["mean"] == 0
         assert len(rows) == 4
     assert decisions[0] == decisions[1]
+
+
+@pytest.mark.parametrize("identity_update", [False, True])
+def test_offline_transfer_gradient_diagnostic_preserves_weights_and_identity_limit(monkeypatch, identity_update):
+    """真实高阶梯度须有限；恒等内循环应严格退化为普通 Data 重加权。"""
+    from scripts import diagnose_transfer_gradient as diagnostic
+
+    model, context = _fixture()
+    for name, parameter in model.named_parameters():
+        parameter.requires_grad_(not name.startswith("online_phase_trend_adapter."))
+    settings = {"inner_groups": ["phase"], "inner_objective": "bce",
+                "inner_learning_rate": 0.0005, "inner_steps": 1, "max_delta_norm": 0.05}
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    if identity_update:
+        monkeypatch.setattr(diagnostic, "differentiable_adapt",
+                            lambda model, *args, **kwargs: (dict(model.named_parameters()), {"delta_norm": 0}))
+    result = diagnostic.compare_gradients(model, context, settings)
+    for label in ("all_base", "selected_group"):
+        assert all(torch.isfinite(torch.tensor(value)) for value in result[label].values())
+        if identity_update:
+            assert result[label]["meta_residual_norm"] == 0
+            assert result[label]["meta_residual_relative_to_reweighted"] == 0
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], atol=0, rtol=0)
+    assert all(parameter.grad is None for parameter in model.parameters())
+
+
+def test_transfer_gradient_diagnostic_rejects_heldout_before_loading_model(tmp_path):
+    from scripts.diagnose_transfer_gradient import run_diagnostic
+
+    with pytest.raises(ValueError, match="offline_train"):
+        run_diagnostic({"offline_state_split": "heldout_edge"}, "missing.pt", [1], 1,
+                       "cpu", tmp_path / "result.json")

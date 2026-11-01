@@ -18,6 +18,11 @@
 > [现有相位组作用能力诊断](docs/existing_phase_capacity_stage_20261101.md)显示：
 > 相位组比 head 更能改变 Data 输出，但三臂均未证明稳定 BER 收益；下一步在
 > 现有结构内验证其更新后的离线泛化，不新增正式 RL 动作。
+> [现有神经相位组四臂训练](docs/phase_transfer_stage_20261101.md)现已完成：A/B 各
+> 256 步后，B 的四 SNR 在线改善区间均包含零，也未可靠超过 A Online。普通
+> 监督 A 在 0 dB 有探索性正向区间，不能据此宣布主目标完成。停止扩大同配置。
+> [相位作用几何](docs/phase_modulation_geometry_20261101.md)和离线梯度诊断区分了
+> 有限输出族、目标梯度差异与实际 BER 收益，下一步先确认可观测误差与调制位置。
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。
