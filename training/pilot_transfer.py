@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """真实信道上的离线 Pilot 更新后 Data 泛化训练。
 
-内循环严格复现窗口 PPO 的 Adapt-only AdamW 更新；外循环仅在离线阶段
+内循环默认复现窗口 PPO 的 Adapt-only AdamW 更新；实验入口可显式选择
+整帧接收波形，损失标签仍仅来自 Adapt。外循环仅在离线阶段
 使用 Data 标签。临时 phase_trend 参数不写入基础 checkpoint，保证 Frozen
 与在线方法仍能通过现有 strict-load 入口共享完全相同的基础模型。
 """
@@ -54,7 +55,7 @@ def frame_to_device(frame: Frame, device: torch.device | str) -> Frame:
 
 
 def context_logits(model, context: TransferContext, parameters=None, *, visible="data"):
-    """完整接收帧仅供推理或离线 Data 外层目标使用。"""
+    """显式选择接收输入；模型只获得 Adapt 已知符号，不获得 Data 标签。"""
 
     frame = context.frame
     view = _adapt_receiver_view(frame)
@@ -63,10 +64,10 @@ def context_logits(model, context: TransferContext, parameters=None, *, visible=
     elif visible == "pilot":
         mask = frame.adapt_mask | frame.reward_mask
         rx = torch.where(mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols))
-    elif visible == "data":
+    elif visible in {"data", "full_rx"}:
         rx = frame.rx_symbols
     else:
-        raise ValueError("visible 必须为 adapt、pilot 或 data。")
+        raise ValueError("visible 必须为 adapt、pilot、full_rx 或兼容名称 data。")
     args = (
         torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0).float(),
         context.condition, frame.model_region_ids.unsqueeze(0).long(), context.tail,
@@ -85,11 +86,16 @@ def context_logits(model, context: TransferContext, parameters=None, *, visible=
 class _AdaptObjective(nn.Module):
     """通过 functional_call 对相位信号重构目标替换候选参数。"""
 
-    def __init__(self, model, score_start=0, objective="pilot_signal_reconstruction"):
+    def __init__(self, model, score_start=0, objective="pilot_signal_reconstruction", receiver_input="adapt_only"):
         super().__init__()
         self.model = model
         self.score_start = int(score_start)
         self.objective = objective
+        if receiver_input not in {"adapt_only", "full_rx"}:
+            raise ValueError("接收输入必须为 adapt_only 或 full_rx。")
+        if objective != "bce" and receiver_input != "adapt_only":
+            raise ValueError("整帧接收输入实验目前只支持 Adapt BCE。")
+        self.receiver_input = receiver_input
 
     def forward(self, context):
         view = _adapt_receiver_view(context.frame)
@@ -98,7 +104,8 @@ class _AdaptObjective(nn.Module):
         if not bool(score_mask.any()):
             raise ValueError("信号重构评分窗没有有效 Adapt Pilot。")
         if self.objective == "bce":
-            logits = context_logits(self.model, context, visible="adapt")
+            logits = context_logits(self.model, context,
+                                    visible="full_rx" if self.receiver_input == "full_rx" else "adapt")
             labels = (view.adapt_symbols.real > 0).float()
             return F.binary_cross_entropy_with_logits(logits[score_mask].float(), labels[score_mask])
         return _pilot_signal_reconstruction_loss(
@@ -111,8 +118,8 @@ class _AdaptObjective(nn.Module):
 
 def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_norm,
                          create_graph=False, initial_parameters=None, score_start=0,
-                         groups=None, objective="pilot_signal_reconstruction"):
-    """复现 PPO 的 AdamW、梯度裁剪和末步增量投影，不读取 Reward/Data。
+                         groups=None, objective="pilot_signal_reconstruction", receiver_input="adapt_only"):
+    """复现 AdamW、梯度裁剪和投影，损失不读取 Reward/Data 标签。
 
     外层训练保留更新算子的计算图；在线/诊断关闭高阶图。未使用的状态映射
     参数保持原值，与无 state embedding 的正式动作语义一致。
@@ -127,6 +134,10 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
     selected_groups = {"phase_trend"} if groups is None else set(groups)
     if objective not in {"pilot_signal_reconstruction", "bce"}:
         raise ValueError("内循环目标必须为 pilot_signal_reconstruction 或 bce。")
+    if receiver_input not in {"adapt_only", "full_rx"}:
+        raise ValueError("接收输入必须为 adapt_only 或 full_rx。")
+    if objective != "bce" and receiver_input != "adapt_only":
+        raise ValueError("整帧接收输入实验目前只支持 Adapt BCE。")
     if objective == "pilot_signal_reconstruction" and selected_groups != {"phase_trend"}:
         raise ValueError("相位信号重构只允许更新 phase_trend 参数组。")
     parameters = dict(model.named_parameters())
@@ -141,7 +152,7 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
             fast[name] = fast[name].detach().clone().requires_grad_(True)
     before = {name: fast[name] for name in names}
     moments, variances = {}, {}
-    objective_module = _AdaptObjective(model, score_start, objective)
+    objective_module = _AdaptObjective(model, score_start, objective, receiver_input)
     losses = []
     for step in range(1, int(steps) + 1):
         loss = torch.stack([

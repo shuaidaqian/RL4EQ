@@ -70,31 +70,37 @@ def test_inner_update_ignores_reward_data_labels_and_waveforms():
 
 
 @pytest.mark.parametrize("group", ["head", "adapter_lora_head", "phase"])
-def test_neural_bce_inner_matches_formal_ppo_and_hides_unknown_information(group):
-    """神经参数 BCE 内循环须与已有 PPO 动作一致，也不能通过注意力读取隐藏波形。"""
+@pytest.mark.parametrize("receiver_input", ["adapt_only", "full_rx"])
+def test_neural_bce_inner_matches_formal_ppo_and_hides_unknown_information(group, receiver_input):
+    """两种输入协议的候选须一致，未知发送符号和标签始终不参与内循环。"""
     model, context = _fixture()
     actual, _ = _fixture()
     fast, _ = differentiable_adapt(
         model, [context], learning_rate=0.0005, steps=1, max_delta_norm=0.05,
-        groups={group}, objective="bce",
+        groups={group}, objective="bce", receiver_input=receiver_input,
     )
     _apply_adapt_peft_update(actual, context.frame, context.condition, context.tail,
-                            groups={group}, lr=0.0005, steps=1, objective="bce", max_delta_norm=0.05)
+                            groups={group}, lr=0.0005, steps=1, objective="bce", max_delta_norm=0.05,
+                            receiver_input=receiver_input)
     for name, parameter in actual.named_parameters():
         torch.testing.assert_close(fast[name], parameter, atol=1e-7, rtol=2e-5)
     frame = context.frame
     hidden = ~frame.adapt_mask
     tx, rx, bits = frame.tx_symbols.clone(), frame.rx_symbols.clone(), frame.bits.clone()
-    tx[hidden], rx[hidden], bits[hidden] = -tx[hidden], 1000 + 1000j, ~bits[hidden]
+    tx[hidden], bits[hidden] = -tx[hidden], ~bits[hidden]
+    if receiver_input == "adapt_only":
+        rx[hidden] = 1000 + 1000j
     poisoned = replace(context, frame=replace(frame, tx_symbols=tx, rx_symbols=rx, bits=bits))
     changed, _ = differentiable_adapt(model, [poisoned], learning_rate=0.0005,
-                                     steps=1, max_delta_norm=0.05, groups={group}, objective="bce")
+                                     steps=1, max_delta_norm=0.05, groups={group}, objective="bce",
+                                     receiver_input=receiver_input)
     for name in fast:
         torch.testing.assert_close(fast[name], changed[name], atol=0, rtol=0)
 
 
 @pytest.mark.parametrize("group", ["head", "phase"])
-def test_neural_post_update_outer_gradient_matches_finite_difference(group):
+@pytest.mark.parametrize("receiver_input", ["adapt_only", "full_rx"])
+def test_neural_post_update_outer_gradient_matches_finite_difference(group, receiver_input):
     model, context = _fixture()
     for name, parameter in model.named_parameters():
         parameter.requires_grad_(not name.startswith("online_phase_trend_adapter."))
@@ -104,7 +110,7 @@ def test_neural_post_update_outer_gradient_matches_finite_difference(group):
         with sdpa_kernel(SDPBackend.MATH):
             parameters, _ = differentiable_adapt(model, [context], learning_rate=0.0005,
                                                  steps=1, max_delta_norm=0.05, create_graph=True,
-                                                 groups={group}, objective="bce")
+                                                 groups={group}, objective="bce", receiver_input=receiver_input)
             logits = context_logits(model, context, parameters)
             mask = context.frame.data_mask
             return F.binary_cross_entropy_with_logits(logits[mask], context.frame.bits[mask].float())
@@ -354,3 +360,81 @@ def test_receiver_visibility_does_not_assign_direction_to_zero_gradient():
     assert _resolved_cosine(torch.zeros(3), torch.ones(3)) is None
     assert _resolved_cosine(torch.full((3,), 1e-12), torch.ones(3)) is None
     assert _resolved_cosine(torch.ones(3), torch.ones(3)) == pytest.approx(1)
+
+
+def test_receiver_input_candidates_and_guards_ignore_data_labels_and_preserve_weights():
+    """两种输入的候选及验收均不能用未知标签，候选不原地写回基础模型。"""
+    from scripts.diagnose_receiver_input_updates import pilot_candidates_and_decisions
+
+    model, context = _fixture()
+    settings = {"inner_learning_rate": 0.0005, "inner_steps": 1, "max_delta_norm": 0.05}
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    frame = context.frame
+    bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+    bits[frame.data_mask] = ~bits[frame.data_mask]
+    tx[frame.data_mask] = 300 + 400j
+    poisoned = replace(context, frame=replace(frame, bits=bits, tx_symbols=tx))
+    original = pilot_candidates_and_decisions(model, context, settings, ("head", "phase"))
+    changed = pilot_candidates_and_decisions(model, poisoned, settings, ("head", "phase"))
+    assert len(original[0]) == 8
+    assert original[0] == changed[0]
+    for key, fast in original[1].items():
+        for name, value in fast.items():
+            torch.testing.assert_close(value, changed[1][key][name], rtol=0, atol=0)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], rtol=0, atol=0)
+    assert all(parameter.grad is None for parameter in model.parameters())
+
+
+def test_full_receiver_input_reconstruction_is_rejected_without_mutation():
+    from training.pilot_transfer import _AdaptObjective
+
+    model, context = _fixture()
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    with pytest.raises(ValueError, match="只支持 Adapt BCE"):
+        _AdaptObjective(model, receiver_input="full_rx")
+    with pytest.raises(ValueError, match="只支持 Adapt BCE"):
+        differentiable_adapt(model, [context], learning_rate=0.0005, steps=1,
+                             max_delta_norm=0.05, receiver_input="full_rx")
+    with pytest.raises(ValueError, match="只支持 Adapt BCE"):
+        _apply_adapt_peft_update(model, context.frame, context.condition, context.tail,
+                                groups={"phase_trend"}, lr=0.0005, steps=1,
+                                objective="pilot_signal_reconstruction", max_delta_norm=0.05,
+                                receiver_input="full_rx")
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], rtol=0, atol=0)
+
+
+def test_receiver_input_prototype_end_to_end_pairs_protocols(tmp_path, monkeypatch):
+    from scripts import diagnose_receiver_input_updates as diagnostic
+
+    model, context = _fixture()
+    settings = {"inner_learning_rate": 0.0005, "inner_steps": 1, "max_delta_norm": 0.05,
+                "inner_objective": "bce"}
+    config = {"offline_state_split": "offline_train", "main_level": "B", "pilot_layout": "prefix",
+              "main_snrs": [0, 5, 10, 15], "pilot_transfer": settings}
+    checkpoint = tmp_path / "source.pt"
+    checkpoint.write_bytes(b"fixture")
+    monkeypatch.setattr(diagnostic, "_load_branch", lambda *args: (model, {}))
+    monkeypatch.setattr(diagnostic, "make_episode", lambda *args, frames, **kwargs: (
+        None, context.condition.complex_cir.reshape(-1), 0, context.tail, [context.frame] * frames))
+    monkeypatch.setattr(diagnostic, "make_context", lambda frame, *args: replace(context, frame=frame))
+    result = diagnostic.run_diagnostic(config, checkpoint, [42000, 42001], 2, "cpu", tmp_path / "result.json")
+    assert len(result["rows"]) == 128
+    assert len(result["per_snr"]) == 32
+    assert result["diagnostic_only"] and not result["main_aggregation_allowed"]
+    assert not result["base_weights_modified"]
+    for seed in result["seeds"]:
+        for snr in config["main_snrs"]:
+            for index in range(2):
+                rows = [row for row in result["rows"] if (row["seed"], row["snr_db"], row["frame"]) == (seed, snr, index)]
+                assert len(rows) == 8
+                assert len({(row["input_sha256"], row["ber_frozen"], row["bce_frozen"]) for row in rows}) == 1
+                for row in rows:
+                    assert not row["data_labels_used_for_control"]
+                    assert row["data_waveform_used_for_candidate"] == (row["receiver_input"] == "full_rx")
+                    assert row["data_waveform_used_for_guard"] == (row["reward_input"] == "full_rx")
+    for item in result["per_snr"]:
+        assert item["committed_gain"]["seeds"] == 2
+        if item["receiver_input"] == "adapt_only" and item["reward_input"] == "pilot_only":
+            assert item["gain_vs_strict_reference"]["mean"] == 0

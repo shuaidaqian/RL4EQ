@@ -96,10 +96,17 @@ PPO 更新数值对照。FFT 加快的是同一线性算子的计算，不改变
 新路径的首次机制筛查仍须与同 checkpoint Frozen 配对，并预先固定测试 seed、
 训练预算和失败退出条件。目标未达成之前，阶段性工程成果与科学成功分开报告。
 
+接收输入的后续四组合组件实验已完成 48 个新训练范围上下文：只改变波形范围
+没有获得可靠 BER 增量，15 dB 的整帧 Reward 在 12 帧中全部正确且 BCE 约
+4.14e-13。输入一致性、候选有效性和反馈可分辨性是三个需要分别满足的前提，
+修复其中一项不自动完成另外两项。按计划停止扩大同配置留出矩阵；正式输入
+边界和结构选择待回复，下一阶段再固定对应的匹配训练或缺失观测模型计划。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、
 [现有神经相位组四臂结果](phase_transfer_stage_20261101.md)、
 [相位作用几何](phase_modulation_geometry_20261101.md)、
 [接收波形置零审计](receiver_visibility_stage_20261101.md)、
-[DFE 先验校准与核验](dfe_rls_calibration_stage_20261101.md)。
+[DFE 先验校准与核验](dfe_rls_calibration_stage_20261101.md)、
+[接收输入四组合组件实验](receiver_input_candidate_stage_20261101.md)。

@@ -900,9 +900,14 @@ def _apply_adapt_peft_update(
     steps: int,
     objective: str = "bce",
     max_delta_norm: float | None = None,
+    receiver_input: str = "adapt_only",
 ) -> float:
-    """只用 Adapt Pilot 对 PEFT 参数做候选更新，返回参数变化范数。"""
+    """损失只用 Adapt 标签；默认输入仍为 Adapt-only，实验可显式选整帧波形。"""
 
+    if receiver_input not in {"adapt_only", "full_rx"}:
+        raise ValueError("接收输入必须为 adapt_only 或 full_rx。")
+    if objective != "bce" and receiver_input != "adapt_only":
+        raise ValueError("整帧接收输入实验目前只支持 Adapt BCE。")
     before = _snapshot_peft_groups(model, groups)
     model.train()
     model.set_trainable_groups(set(groups))
@@ -925,7 +930,8 @@ def _apply_adapt_peft_update(
     optimizer = torch.optim.AdamW(trainable, lr=float(lr))
     for _ in range(max(1, int(steps))):
         pilot_mask = frame.adapt_mask.to(device=frame.rx_symbols.device, dtype=torch.bool)
-        pilot_rx = torch.where(pilot_mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols))
+        pilot_rx = (frame.rx_symbols if receiver_input == "full_rx" else
+                    torch.where(pilot_mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols)))
         device = pilot_rx.device
         pilot_view = _adapt_receiver_view(frame)
         if objective == "pilot_signal_reconstruction":

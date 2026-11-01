@@ -28,6 +28,9 @@
 > 这仍是离线诊断，未证明在线收益，尚未修改实际控制器的信息边界。
 > [DFE 先验与遗忘因子校准](docs/dfe_rls_calibration_stage_20261101.md)已完成 36 项
 > 网格、冻结和独立核验；训练选优没有获得四 SNR 可靠留出收益，保留原传统参考。
+> [接收输入四组合组件实验](docs/receiver_input_candidate_stage_20261101.md)已完成
+> 48 个上下文、384 条配对记录；仅改变更新/验收的波形范围没有获得可靠 BER 增量。
+> 原默认控制器保持不变；中高 SNR 的 Reward 饱和仍须与候选作用能力分别处理。
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。
