@@ -45,6 +45,9 @@
 > 据此增加观测覆盖感知的小型分支，离线训练 1153 参数、在线只微调 17 参数 head。
 > [神经符号残差四臂结果](docs/symbol_transfer_stage_20261101.md)：5/10 dB 的 Frozen
 > 相对原模型有可靠配对改善，但在线额外收益未成立；下一步验证 Pilot 任务与帧尾覆盖的匹配。
+> [前缀短窗与更新幅度诊断](docs/prefix_task_stage_20261102.md)已完成：短窗验收
+> 可以改变接受率，安全半径内较大更新可以改变判决，但均没有可靠在线增益。
+> 下一步直接验证匹配边界任务的离线训练，不继续单独扩大步幅或 PPO 预算。
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。

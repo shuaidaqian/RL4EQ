@@ -120,6 +120,11 @@ PPO 更新数值对照。FFT 加快的是同一线性算子的计算，不改变
 其表示、在线仅微调输出 head；零初始化和冻结原权重用于检验新增分支的真实
 代价，不能用破坏 Frozen 制造适配收益。
 
+符号残差分支随后在同波形留出比较中改善了 5/10 dB 的 Frozen，但在线增量
+仍未成立。真实截短 Pilot 接收窗和两档更大安全步长又表明：验收可有响应、
+候选也可改变判决，仍不保证改善方向稳定。因此离线表示、匹配的更新任务和
+可分辨反馈必须共同验证，不能把其中任何一个工程变化当作目标完成。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、
@@ -131,4 +136,6 @@ PPO 更新数值对照。FFT 加快的是同一线性算子的计算，不改变
 [DFE 已知 Pilot 反馈核查](dfe_known_feedback_stage_20261101.md)、
 [匹配整帧输入四臂结果](full_rx_transfer_stage_20261101.md)、
 [冻结错误定位](error_geometry_stage_20261101.md)、
-[神经符号残差计划](symbol_transfer_plan_20261101.md)。
+[神经符号残差计划](symbol_transfer_plan_20261101.md)、
+[神经符号残差四臂结果](symbol_transfer_stage_20261101.md)、
+[前缀短窗与更新幅度诊断](prefix_task_stage_20261102.md)。

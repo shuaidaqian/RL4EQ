@@ -640,3 +640,40 @@ def test_symbol_head_outer_gradient_matches_nonzero_finite_difference():
     finite_difference = (values[1] - values[0]) / 0.002
     assert abs(float(gradient)) > 1e-4
     assert float(gradient) == pytest.approx(finite_difference, abs=2e-3, rel=0.03)
+
+
+def test_prefix_task_uses_true_short_operator_and_hides_unknown_labels():
+    from scripts.diagnose_prefix_task import candidates_and_guards, prefix_context
+    from env.linear_operator import LinearChannelOperator
+
+    _, model, context = _symbol_fixture()
+    # 非零已训练 head 保证短窗路径不是零模块的平凡特例。
+    with torch.no_grad():
+        model.symbol_residual.head.weight.fill_(0.02)
+    settings = {"inner_learning_rate": 0.0005, "inner_steps": 1, "max_delta_norm": 0.05}
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    original = candidates_and_guards(model, context, settings)
+    frame = context.frame
+    bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+    bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000 + 1000j
+    poisoned = replace(context, frame=replace(frame, bits=bits, tx_symbols=tx))
+    altered = candidates_and_guards(model, poisoned, settings)
+    assert len(original[0]) == 4 and original[0] == altered[0]
+    for task, parameters in original[1].items():
+        for name, value in parameters.items():
+            torch.testing.assert_close(value, altered[1][task][name], rtol=0, atol=0)
+    end = int(torch.nonzero(frame.adapt_mask).max()) + 1
+    short = prefix_context(context, end)
+    assert short.frame.rx_symbols.numel() == end
+    assert not bool(short.frame.data_mask.any())
+    assert context_logits(model, short).numel() == end
+    cir = torch.tensor([0.6, 0, 0, 0, 0.8], dtype=torch.complex64)
+    vector = torch.randn(end, dtype=torch.complex64)
+    op = LinearChannelOperator(end, 4)
+    actual = op.adjoint(op.forward(vector, cir, torch.zeros(4, dtype=torch.complex64)), cir)
+    full = LinearChannelOperator(128, 4)
+    padded = F.pad(vector, (0, 128 - end))
+    wrong = full.adjoint(full.forward(padded, cir, torch.zeros(4, dtype=torch.complex64)), cir)[:end]
+    assert not torch.allclose(actual, wrong)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], rtol=0, atol=0)
