@@ -36,6 +36,9 @@
 > 用户现已允许在线读取整帧接收波形并严格隔离未知发送符号和 Data 标签。
 > [匹配整帧输入训练计划](docs/full_rx_transfer_plan_20261101.md)使用现有神经 phase
 > 组比较普通监督与更新后目标；新配置显式声明输入协议，历史配置保留原语义。
+> [匹配整帧输入四臂结果](docs/full_rx_transfer_stage_20261101.md)已完成 A/B 各 256 步：
+> 0 dB 两分支均有在线正向区间，但 B Online 比 A 更差；5/10 dB 收益仍不确定，
+> 15 dB 没有接受更新。整体目标未达成，不扩大同配置矩阵。
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。

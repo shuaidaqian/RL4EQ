@@ -106,6 +106,12 @@ PPO 更新数值对照。FFT 加快的是同一线性算子的计算，不改变
 修复其中一项不自动完成另外两项。按计划停止扩大同配置留出矩阵；正式输入
 边界已获用户明确答复，下一阶段执行现有结构的匹配整帧输入训练；结构调整仍待回复。
 
+匹配整帧输入的 A/B 各 256 步训练现已完成。新的 5 个留出信道 seed 上，0 dB
+两分支相对各自 Frozen 均有正向区间，但 B Online 比普通监督 A Online 更差，
+差值区间也支持该方向；5/10 dB 收益仍不确定，15 dB 无更新接受。匹配输入是
+可审计的实现改进，新增外层目标仍没有显示额外价值。不能继续默认更多此类
+训练就会满足四 SNR 门槛；下一步定位误差来源与调制作用范围。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、
@@ -114,4 +120,5 @@ PPO 更新数值对照。FFT 加快的是同一线性算子的计算，不改变
 [接收波形置零审计](receiver_visibility_stage_20261101.md)、
 [DFE 先验校准与核验](dfe_rls_calibration_stage_20261101.md)、
 [接收输入四组合组件实验](receiver_input_candidate_stage_20261101.md)、
-[DFE 已知 Pilot 反馈核查](dfe_known_feedback_stage_20261101.md)。
+[DFE 已知 Pilot 反馈核查](dfe_known_feedback_stage_20261101.md)、
+[匹配整帧输入四臂结果](full_rx_transfer_stage_20261101.md)。
