@@ -14,7 +14,7 @@ import torch
 from scipy.stats import t
 
 from training.pilot_transfer import (
-    context_logits, differentiable_adapt, make_context, make_episode, next_pilot_tail,
+    context_logits, differentiable_adapt, make_context, make_episode, next_pilot_tail, receiver_inputs,
 )
 from training.rl_modulated_online import _build_equalizer
 from training.windowed_discrete_ppo import should_accept_reward_guard
@@ -103,9 +103,10 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                             persistent=False):
     """先完成当前帧 Pilot 验收，再首次计算 Data 指标。"""
 
-    if frames < 1 or not seeds or state_split != "heldout_edge":
+    if frames < 1 or not seeds or len(set(seeds)) != len(seeds) or state_split != "heldout_edge":
         raise ValueError("首阶段机制实验需要正帧数、独立 seed 与 heldout_edge。")
     settings = config["pilot_transfer"]
+    inner_input, reward_input = receiver_inputs(settings)
     target = Path(output_dir)
     target.mkdir(parents=True, exist_ok=True)
     output = target / "frame_metrics.jsonl"
@@ -116,7 +117,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 "linear_operator_backend": os.environ.get("RL4EQ_LINEAR_OPERATOR_BACKEND", "direct"),
                 "main_aggregation_allowed": False, "state_split": state_split,
                 "seeds": list(seeds), "snrs": list(snrs), "frames": frames,
-                "persistent": persistent, "config": config, "checkpoints": {}}
+                "persistent": persistent, "config": config, "checkpoints": {},
+                "inner_receiver_input": inner_input, "reward_receiver_input": reward_input}
     rows = []
     fingerprints = {}
     training_signature = None
@@ -127,8 +129,12 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
             if training_seeds.intersection(seeds):
                 raise ValueError("测试 seed 与离线训练 seed 重叠。")
             metrics = payload.get("metrics", {})
+            if metrics.get("stage") == "pilot_transfer" and receiver_inputs(metrics.get("settings", {})) != (inner_input, reward_input):
+                raise ValueError("四臂实验的训练与在线接收输入协议不匹配。")
             signature = {
                 "source_sha256": (metrics.get("source_checkpoint") or {}).get("sha256"),
+                "training_settings": {key: value for key, value in metrics.get("settings", {}).items()
+                                      if key != "objective"},
                 "samples": [(item.get("seed"), item.get("snr_db"), item.get("channel_state"))
                             for item in metrics.get("history", [])],
             }
@@ -164,6 +170,7 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                             initial_parameters=before,
                             groups=settings.get("inner_groups", ["phase_trend"]),
                             objective=settings.get("inner_objective", "pilot_signal_reconstruction"),
+                            receiver_input=inner_input,
                         )
                         # 与主配置一致地约束相对离线参数起点的累计偏移。
                         delta = torch.sqrt(sum((candidate[name] - value).square().sum() for name, value in initial.items()) + 1e-24)
@@ -173,8 +180,9 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                         step_norm = float(torch.sqrt(sum((candidate[name] - before[name]).square().sum() for name in initial)).detach().cpu())
                         candidate = {name: value.detach() for name, value in candidate.items()}
                         with torch.no_grad():
-                            pilot_before = context_logits(model, context, before, visible="pilot")
-                            pilot_candidate = context_logits(model, context, candidate, visible="pilot")
+                            visible = "full_rx" if reward_input == "full_rx" else "pilot"
+                            pilot_before = context_logits(model, context, before, visible=visible)
+                            pilot_candidate = context_logits(model, context, candidate, visible=visible)
                             reward_before, loss_before = _metrics(pilot_before, frame, frame.reward_mask)
                             reward_after, loss_after = _metrics(pilot_candidate, frame, frame.reward_mask)
                             accepted = should_accept_reward_guard(
@@ -199,7 +207,10 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                                "accepted": accepted, "reward_loss_improvement": loss_before - loss_after,
                                "reward_ber_improvement": reward_before - reward_after,
                                "input_sha256": fingerprint, "episode_final_channel_state": env.state_metadata(), **update,
-                               "data_labels_used_online": False, "data_waveform_used_online": False}
+                               "data_labels_used_online": False,
+                               "data_waveform_used_online": inner_input == "full_rx" or reward_input == "full_rx",
+                               "data_waveform_used_for_update": inner_input == "full_rx",
+                               "data_waveform_used_for_guard": reward_input == "full_rx"}
                         rows.append(row)
                         handle.write(json.dumps(row, ensure_ascii=False) + "\n")
                         handle.flush()

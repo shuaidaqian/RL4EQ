@@ -228,7 +228,8 @@ def test_four_arm_summary_uses_seed_means_and_reports_interaction():
     assert result["post_vs_baseline_online_gain"]["mean"] == pytest.approx(0.02)
 
 
-def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(tmp_path, monkeypatch):
+@pytest.mark.parametrize("full_rx", [False, True])
+def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(tmp_path, monkeypatch, full_rx):
     """完整评估先结束 Pilot 决策；改变 Data 标签只应改变事后统计。"""
     from types import SimpleNamespace
     import evaluation.pilot_transfer as evaluation
@@ -238,6 +239,9 @@ def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(
               "offline_state_split": "offline_train", "pilot_transfer": {
                   "inner_learning_rate": 0.0025, "inner_steps": 2, "max_delta_norm": 0.05,
               }}
+    if full_rx:
+        config["pilot_transfer"].update(inner_receiver_input="full_rx", reward_receiver_input="full_rx",
+                                       inner_objective="bce", inner_groups=["phase"])
     trainer = PilotTransferTrainer(config, "cpu")
     trainer.model.load_state_dict(model.state_dict())
     checkpoint_dir = tmp_path / "checkpoint"
@@ -255,8 +259,10 @@ def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(
     for poisoned in (False, True):
         if poisoned:
             bits = frame.bits.clone()
+            tx = frame.tx_symbols.clone()
             bits[frame.data_mask] = ~bits[frame.data_mask]
-            frame = replace(frame, bits=bits)
+            tx[frame.data_mask] = 1000 + 1000j
+            frame = replace(frame, bits=bits, tx_symbols=tx)
         directory = tmp_path / str(poisoned)
         summary = evaluation.run_transfer_comparison(
             config, baseline_checkpoint=checkpoint, post_checkpoint=checkpoint, seeds=[41001],
@@ -267,7 +273,63 @@ def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(
         decisions.append([(row["accepted"], row["reward_loss_improvement"], row["delta_norm"]) for row in rows])
         assert summary["per_snr"][0]["post_vs_baseline_online_gain"]["mean"] == 0
         assert len(rows) == 4
+        assert all(row["data_waveform_used_online"] == full_rx for row in rows)
+        assert all(not row["data_labels_used_online"] for row in rows)
     assert decisions[0] == decisions[1]
+
+
+@pytest.mark.parametrize("objective", ["baseline", "post_adapt"])
+def test_trainer_routes_full_receiver_input_and_records_actual_protocol(monkeypatch, objective):
+    import training.pilot_transfer as transfer
+
+    model, context = _fixture()
+    settings = {"inner_learning_rate": 0.0005, "inner_steps": 1, "max_delta_norm": 0.05,
+                "inner_objective": "bce", "inner_groups": ["phase"],
+                "inner_receiver_input": "full_rx", "reward_receiver_input": "full_rx"}
+    config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "pilot_transfer": settings}
+    trainer = PilotTransferTrainer(config, "cpu", objective=objective)
+    trainer.model.load_state_dict(model.state_dict())
+    monkeypatch.setattr(trainer, "_sample", lambda: (context, {}, 10, 44000))
+    calls = []
+    actual = transfer.differentiable_adapt
+
+    def spy(*args, **kwargs):
+        calls.append((kwargs["receiver_input"], kwargs["create_graph"]))
+        return actual(*args, **kwargs)
+
+    monkeypatch.setattr(transfer, "differentiable_adapt", spy)
+    result = trainer.train(1)
+    assert calls == [("full_rx", objective == "post_adapt")]
+    assert result["inner_uses_data_waveform"] and not result["inner_uses_data_labels"]
+    assert result["inner_receiver_input"] == result["reward_receiver_input"] == "full_rx"
+    assert len(result["history"]) == 1
+    assert all(torch.isfinite(value).all() for value in trainer.model.state_dict().values())
+
+
+@pytest.mark.parametrize("settings", [
+    {"inner_receiver_input": "unknown"}, {"reward_receiver_input": "unknown"},
+    {"inner_receiver_input": "full_rx", "inner_objective": "pilot_signal_reconstruction"},
+])
+def test_receiver_input_configuration_rejects_unsupported_combinations(settings):
+    from training.pilot_transfer import receiver_inputs
+
+    with pytest.raises(ValueError):
+        receiver_inputs(settings)
+
+
+def test_four_arm_evaluation_rejects_training_receiver_protocol_mismatch(tmp_path, monkeypatch):
+    import evaluation.pilot_transfer as evaluation
+
+    model, _ = _fixture()
+    config = {"pilot_transfer": {"inner_receiver_input": "full_rx", "reward_receiver_input": "full_rx",
+                                 "inner_objective": "bce"}}
+    monkeypatch.setattr(evaluation, "_load_branch", lambda *args: (
+        model, {"metrics": {"stage": "pilot_transfer", "settings": {"inner_objective": "bce"}}}))
+    with pytest.raises(ValueError, match="接收输入协议不匹配"):
+        evaluation.run_transfer_comparison(config, baseline_checkpoint=tmp_path / "old.pt",
+            post_checkpoint=tmp_path / "old.pt", seeds=[60001], snrs=[10], frames=1,
+            device="cpu", output_dir=tmp_path / "result")
 
 
 @pytest.mark.parametrize("identity_update", [False, True])

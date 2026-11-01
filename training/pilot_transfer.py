@@ -43,6 +43,17 @@ class TransferContext:
     tail: torch.Tensor
 
 
+def receiver_inputs(settings):
+    """区分接收波形范围与监督标签范围；历史配置保持原输入协议。"""
+    inner = settings.get("inner_receiver_input", "adapt_only")
+    reward = settings.get("reward_receiver_input", "pilot_only")
+    if inner not in {"adapt_only", "full_rx"} or reward not in {"pilot_only", "full_rx"}:
+        raise ValueError("不支持的内循环或 Reward 接收输入协议。")
+    if inner == "full_rx" and settings.get("inner_objective", "pilot_signal_reconstruction") != "bce":
+        raise ValueError("整帧接收输入目前只支持 Adapt BCE。")
+    return inner, reward
+
+
 def frame_to_device(frame: Frame, device: torch.device | str) -> Frame:
     """统一移动所有张量字段，不把隐藏标签传入模型。"""
 
@@ -229,6 +240,7 @@ class PilotTransferTrainer:
     def __init__(self, config, device, *, objective=None):
         self.config = config
         self.settings = dict(config["pilot_transfer"])
+        self.inner_receiver_input, self.reward_receiver_input = receiver_inputs(self.settings)
         self.objective = objective or self.settings.get("objective", "post_adapt")
         if self.objective not in {"baseline", "post_adapt"}:
             raise ValueError("训练目标必须为 baseline 或 post_adapt。")
@@ -314,6 +326,7 @@ class PilotTransferTrainer:
                     create_graph=self.objective == "post_adapt",
                     groups=self.settings.get("inner_groups", ["phase_trend"]),
                     objective=self.settings.get("inner_objective", "pilot_signal_reconstruction"),
+                    receiver_input=self.inner_receiver_input,
                 )
                 after_logits = context_logits(self.model, context, fast)
                 post_loss = F.binary_cross_entropy_with_logits(after_logits[frame.data_mask].float(), frame.bits[frame.data_mask].float())
@@ -341,7 +354,9 @@ class PilotTransferTrainer:
             "attention_backend": "math",
             "source_checkpoint": self.source_checkpoint, "history": self.history,
             "elapsed_seconds": time.monotonic() - started,
-            "inner_uses_data_labels": False, "inner_uses_data_waveform": False,
+            "inner_uses_data_labels": False, "inner_uses_data_waveform": self.inner_receiver_input == "full_rx",
+            "inner_receiver_input": self.inner_receiver_input,
+            "reward_receiver_input": self.reward_receiver_input,
             "outer_uses_offline_data_labels": True,
             "post_adapt_data_objective_enabled": self.objective == "post_adapt",
             "offline_base_loss": "bce_all",
