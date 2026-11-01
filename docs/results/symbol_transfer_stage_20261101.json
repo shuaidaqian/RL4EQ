@@ -1,0 +1,688 @@
+{
+  "schema_version": "symbol-transfer-stage-20261101",
+  "status": "offline_branch_effect_observed_online_mechanism_not_confirmed",
+  "diagnostic_only": true,
+  "main_aggregation_allowed": false,
+  "training": {
+    "baseline": {
+      "steps": 256,
+      "elapsed_seconds": 188.98400000005495,
+      "seed_range": [
+        46000,
+        46255
+      ],
+      "source_checkpoint": {
+        "path": "C:\\Users\\SDQ\\.codex\\worktrees\\online-peft-research\\RL4EQ\\pretrained\\full_rx_transfer_baseline256_20261101\\model_best.pt",
+        "sha256": "2f7bb615409bdd5ec90ce549b83f3c6cff38a26caf3c89062c552b7b76cbfeb4"
+      },
+      "outer_trainable_parameter_count": 1153,
+      "initialized_modules": [
+        "symbol_residual"
+      ],
+      "old_base_parameters_unchanged": true,
+      "metrics_sha256": "07ca96a2036fee1309d116e4842aac44b66190cd2001da477c83df4b20c463bb"
+    },
+    "post_adapt": {
+      "steps": 256,
+      "elapsed_seconds": 204.21899999992456,
+      "seed_range": [
+        46000,
+        46255
+      ],
+      "source_checkpoint": {
+        "path": "C:\\Users\\SDQ\\.codex\\worktrees\\online-peft-research\\RL4EQ\\pretrained\\full_rx_transfer_baseline256_20261101\\model_best.pt",
+        "sha256": "2f7bb615409bdd5ec90ce549b83f3c6cff38a26caf3c89062c552b7b76cbfeb4"
+      },
+      "outer_trainable_parameter_count": 1153,
+      "initialized_modules": [
+        "symbol_residual"
+      ],
+      "old_base_parameters_unchanged": true,
+      "metrics_sha256": "1d4ec331035311376f021fae689ecbb5f957be855b2197eb56ccd6eb78dca391"
+    }
+  },
+  "protocol": {
+    "schema_version": "pilot-transfer-four-arm-v1",
+    "diagnostic_only": true,
+    "linear_operator_backend": "fft",
+    "main_aggregation_allowed": false,
+    "state_split": "heldout_edge",
+    "seeds": [
+      61001,
+      61002,
+      61003,
+      61004,
+      61005
+    ],
+    "snrs": [
+      0.0,
+      5.0,
+      10.0,
+      15.0
+    ],
+    "frames": 8,
+    "persistent": false,
+    "config": {
+      "schema_version": "eme-long-memory-config-v2",
+      "channel_profile": "eme_long_memory_v2",
+      "profile_name": "eme_long_memory_v2",
+      "profile_frozen_before_proposed": true,
+      "frozen_candidate_id": "LM-B1",
+      "traditional_only_calibration": true,
+      "traditional_only_calibration_summary": "logs/eme_long_memory_v2_traditional_calibration_2026-08-28_fresh/summary.json",
+      "traditional_only_calibration_frames_per_seed": 20,
+      "traditional_only_calibration_status": "阶段性冻结；正式论文统计需无并发重跑至少 60 帧",
+      "proposed_results_used_for_freeze": false,
+      "semantics": "independent EME-inspired long-memory channel class constrained by published lunar radar delay-power envelopes",
+      "source_basis": [
+        "10.6028/jres.069d.195",
+        "10.1109/wescon.1958.1150219"
+      ],
+      "level": "B",
+      "main_level": "B",
+      "aggregation_role": "diagnostic",
+      "max_delay_seconds": 0.0116,
+      "sample_rate_hz": 10000,
+      "symbol_rate_hz": 10000,
+      "samples_per_symbol": 1,
+      "frame_len": 1024,
+      "frame_duration_seconds": 0.1024,
+      "max_delay": 116,
+      "main_delays": [
+        116
+      ],
+      "main_snrs": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_main": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_pressure": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "pilot_layout": "prefix",
+      "pilot_total": 256,
+      "reward_pilot_total": 32,
+      "pilot_sweep_totals": [
+        64,
+        96,
+        128,
+        160,
+        256
+      ],
+      "strong_path_count": [
+        12,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.2,
+        0.35
+      ],
+      "coherence_time_seconds": 1200,
+      "acquisition_to_data_gap_seconds": 0,
+      "rho_frame": 0.999914670307452,
+      "rho": 0.999914670307452,
+      "include_anomalous_scatterer": false,
+      "eme_physical_fields_passthrough": "implemented",
+      "impairment_profile": "cfo_phase_tiny",
+      "residual_cfo_limit": 0.0012,
+      "acquisition_cfo_limit": 0.004,
+      "traditional_methods": [
+        "CFO+DD-Phase LMMSE-FIR",
+        "CFO+DD-Phase DFE-RLS",
+        "SC-FDE-MMSE"
+      ],
+      "optional_impairments": {
+        "cfo": true,
+        "phase_perturbation": true,
+        "nonlinearity": false,
+        "coding": false,
+        "higher_order_modulation": false
+      },
+      "model_validation_sequence_state": true,
+      "training_tail_mode": "online_soft",
+      "tail_update_alpha": 0.5,
+      "online_adaptation_groups": [
+        "phase"
+      ],
+      "online_adaptation_algorithm": "rls",
+      "online_rls_forgetting_factor": 0.995,
+      "online_rls_ridge": 10,
+      "online_rls_warmup_symbols": 116,
+      "online_rls_target_logit": 2,
+      "online_rls_max_total_delta_norm": 0.5,
+      "online_rls_condition_source": "pilot_cir_phase",
+      "online_condition_source": "pilot_cir_phase",
+      "online_adaptation_learning_rate": 0.0004,
+      "online_adaptation_steps": 1,
+      "online_adaptation_max_delta_norm": 1,
+      "online_adaptation_proximal_weight": 0.1,
+      "online_hard_example_weighting": false,
+      "online_hard_example_temperature": 0.5,
+      "online_adaptation_freeze_below_snr_db": 5,
+      "online_adaptation_min_reward_improvement": 0.0005,
+      "online_bandit_action_cost": 1e-06,
+      "online_reward_windows": 2,
+      "online_cross_frame_rollback_tolerance": 1e-05,
+      "online_phase_tracking_smoothing": 0.5,
+      "online_phase_tracking_min_confidence": 0.5,
+      "online_phase_tracking_cfo_limit": 0.0012,
+      "online_adaptation_candidates": [
+        {
+          "name": "lora_conservative",
+          "groups": [
+            "phase"
+          ],
+          "learning_rate_scale": 0.5,
+          "steps": 1,
+          "max_delta_scale": 0.5
+        }
+      ],
+      "offline_state_split": "offline_train",
+      "offline_loss": "bce_all",
+      "online_state_splits": {
+        "offline_train": {
+          "strong_path_count": [
+            12,
+            18
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.28
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0006
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0006
+          ]
+        },
+        "heldout_edge": {
+          "strong_path_count": [
+            19,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.29,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0006,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0006,
+            0.0008
+          ]
+        },
+        "drift": {
+          "strong_path_count": [
+            12,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0008
+          ]
+        }
+      },
+      "model": {
+        "frame_len": 1024,
+        "max_delay": 116,
+        "iterations": 4,
+        "d_model": 64,
+        "num_heads": 4,
+        "adapter_rank": 8,
+        "lora_rank": 8,
+        "conditioner_uses_cir_summary": true,
+        "pilot_conditioned": true,
+        "enable_phase_correction_branch": true,
+        "phase_correction_segments": 4,
+        "phase_correction_initial_scale": 1,
+        "analytic_logit_skip_scale": 0,
+        "physics_warm_start_iterations": 8,
+        "physics_warm_start_scale": 1,
+        "neural_residual_scale": 0.1,
+        "enable_symbol_residual_branch": true
+      },
+      "experiment_note": "边界观测感知的神经符号残差：离线只训练新分支，在线只微调其17参数head；不注册正式RL动作。",
+      "diagnostic_only": true,
+      "main_aggregation_allowed": false,
+      "rl_action_names": [
+        "identity",
+        "peft_head_fast",
+        "rollback_identity"
+      ],
+      "rl_peft_max_episode_delta_norm": 0.05,
+      "online_ppo_learning_rate": 0.001,
+      "online_ppo_pilot_state_embedding": false,
+      "ppo_window_size": 8,
+      "pilot_transfer": {
+        "objective": "post_adapt",
+        "seed": 46000,
+        "history_frames": 1,
+        "outer_learning_rate": 0.001,
+        "inner_learning_rate": 0.0005,
+        "inner_steps": 1,
+        "max_delta_norm": 0.05,
+        "base_weight": 1,
+        "post_weight": 1,
+        "inner_groups": [
+          "symbol_residual_head"
+        ],
+        "inner_objective": "bce",
+        "inner_receiver_input": "full_rx",
+        "reward_receiver_input": "full_rx",
+        "outer_groups": [
+          "symbol_residual"
+        ],
+        "initialize_symbol_residual_from_base": true
+      }
+    },
+    "checkpoints": {
+      "baseline": {
+        "path": "C:\\Users\\SDQ\\.codex\\worktrees\\online-peft-research\\RL4EQ\\pretrained\\symbol_transfer_baseline256_20261101\\model_best.pt",
+        "sha256": "605281acef3e9efe61e8d8354f6feb61b3324737eabff0a5ba3f75f43a6b7ecc",
+        "training_objective": "baseline"
+      },
+      "post_adapt": {
+        "path": "C:\\Users\\SDQ\\.codex\\worktrees\\online-peft-research\\RL4EQ\\pretrained\\symbol_transfer_post256_20261101\\model_best.pt",
+        "sha256": "2acae7e022ccffb7e03c7ff2ef6eee11b82a1a56900f3ec2199ea1d485aa0d6c",
+        "training_objective": "post_adapt"
+      }
+    },
+    "inner_receiver_input": "full_rx",
+    "reward_receiver_input": "full_rx"
+  },
+  "per_snr": [
+    {
+      "snr_db": 0.0,
+      "baseline": {
+        "ber_frozen": 0.1813802132382989,
+        "ber_online": 0.1813476612791419,
+        "gain": {
+          "mean": 3.255195915699005e-05,
+          "ci95": [
+            -5.7826768509033624e-05,
+            0.00012293068682301374
+          ],
+          "seeds": 5
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "seeds": 5
+        },
+        "positive_seeds": 1,
+        "accepted": 26,
+        "frames": 40,
+        "harmful_acceptances": 0
+      },
+      "post_adapt": {
+        "ber_frozen": 0.18144531790167093,
+        "ber_online": 0.18141276556998492,
+        "gain": {
+          "mean": 3.25523316860199e-05,
+          "ci95": [
+            -0.00029952059939359726,
+            0.00036462526276563703
+          ],
+          "seeds": 5
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0005208328366279602,
+          "ci95": [
+            -0.0003646946511703011,
+            0.0014063603244262215
+          ],
+          "seeds": 5
+        },
+        "positive_seeds": 3,
+        "accepted": 26,
+        "frames": 40,
+        "harmful_acceptances": 3
+      },
+      "adaptation_gain_interaction": {
+        "mean": 3.7252902984619143e-10,
+        "ci95": [
+          -0.00037808127996626583,
+          0.00037808202502432556
+        ],
+        "seeds": 5
+      },
+      "post_vs_baseline_online_gain": {
+        "mean": -6.510429084300995e-05,
+        "ci95": [
+          -0.0013158014302202708,
+          0.001185592848534251
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 5.0,
+      "baseline": {
+        "ber_frozen": 0.034407552983611825,
+        "ber_online": 0.0343750009778887,
+        "gain": {
+          "mean": 3.255200572311878e-05,
+          "ci95": [
+            -0.0001888304732139457,
+            0.0002539344846601833
+          ],
+          "seeds": 5
+        },
+        "late_minus_early_gain": {
+          "mean": 0.00013020839542150499,
+          "ci95": [
+            -0.000231308066702192,
+            0.000491724857545202
+          ],
+          "seeds": 5
+        },
+        "positive_seeds": 1,
+        "accepted": 30,
+        "frames": 40,
+        "harmful_acceptances": 1
+      },
+      "post_adapt": {
+        "ber_frozen": 0.034049480222165585,
+        "ber_online": 0.034049480222165585,
+        "gain": {
+          "mean": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "seeds": 5
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "seeds": 5
+        },
+        "positive_seeds": 0,
+        "accepted": 28,
+        "frames": 40,
+        "harmful_acceptances": 0
+      },
+      "adaptation_gain_interaction": {
+        "mean": -3.255200572311878e-05,
+        "ci95": [
+          -0.0002539344846601833,
+          0.0001888304732139457
+        ],
+        "seeds": 5
+      },
+      "post_vs_baseline_online_gain": {
+        "mean": 0.0003255207557231188,
+        "ci95": [
+          0.0001234272710204291,
+          0.0005276142404258084
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 10.0,
+      "baseline": {
+        "ber_frozen": 0.002734375061118044,
+        "ber_online": 0.002734375061118044,
+        "gain": {
+          "mean": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "seeds": 5
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "seeds": 5
+        },
+        "positive_seeds": 0,
+        "accepted": 7,
+        "frames": 40,
+        "harmful_acceptances": 0
+      },
+      "post_adapt": {
+        "ber_frozen": 0.002734375055297278,
+        "ber_online": 0.002734375055297278,
+        "gain": {
+          "mean": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "seeds": 5
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "seeds": 5
+        },
+        "positive_seeds": 0,
+        "accepted": 6,
+        "frames": 40,
+        "harmful_acceptances": 0
+      },
+      "adaptation_gain_interaction": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 5
+      },
+      "post_vs_baseline_online_gain": {
+        "mean": 5.820766091346741e-12,
+        "ci95": [
+          -0.0002475132702974961,
+          0.00024751328193902826
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 15.0,
+      "baseline": {
+        "ber_frozen": 0.0007161458517657593,
+        "ber_online": 0.0007161458517657593,
+        "gain": {
+          "mean": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "seeds": 5
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "seeds": 5
+        },
+        "positive_seeds": 0,
+        "accepted": 0,
+        "frames": 40,
+        "harmful_acceptances": 0
+      },
+      "post_adapt": {
+        "ber_frozen": 0.0005859375174622983,
+        "ber_online": 0.0005859375174622983,
+        "gain": {
+          "mean": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "seeds": 5
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "seeds": 5
+        },
+        "positive_seeds": 0,
+        "accepted": 0,
+        "frames": 40,
+        "harmful_acceptances": 0
+      },
+      "adaptation_gain_interaction": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "seeds": 5
+      },
+      "post_vs_baseline_online_gain": {
+        "mean": 0.000130208334303461,
+        "ci95": [
+          -3.887542624956788e-05,
+          0.0002992920948564899
+        ],
+        "seeds": 5
+      }
+    }
+  ],
+  "source_frozen_reference": [
+    {
+      "snr_db": 0,
+      "source_ber": 0.18326823525130748,
+      "baseline_frozen_gain_vs_source": {
+        "mean": 0.0018880220130085945,
+        "ci95": [
+          -0.001913274891279232,
+          0.005689318917296421
+        ],
+        "seeds": 5
+      },
+      "post_adapt_frozen_gain_vs_source": {
+        "mean": 0.0018229173496365548,
+        "ci95": [
+          -0.0025918023421450938,
+          0.006237637041418203
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 5,
+      "source_ber": 0.04801432406529784,
+      "baseline_frozen_gain_vs_source": {
+        "mean": 0.01360677108168602,
+        "ci95": [
+          0.00930877354791841,
+          0.017904768615453627
+        ],
+        "seeds": 5
+      },
+      "post_adapt_frozen_gain_vs_source": {
+        "mean": 0.013964843843132258,
+        "ci95": [
+          0.0097175085195066,
+          0.018212179166757915
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 10,
+      "source_ber": 0.006315104381064885,
+      "baseline_frozen_gain_vs_source": {
+        "mean": 0.0035807293199468402,
+        "ci95": [
+          0.0019703070526341992,
+          0.005191151587259481
+        ],
+        "seeds": 5
+      },
+      "post_adapt_frozen_gain_vs_source": {
+        "mean": 0.0035807293257676064,
+        "ci95": [
+          0.0020350092801303885,
+          0.005126449371404824
+        ],
+        "seeds": 5
+      }
+    },
+    {
+      "snr_db": 15,
+      "source_ber": 0.0011067708634072914,
+      "baseline_frozen_gain_vs_source": {
+        "mean": 0.00039062501164153216,
+        "ci95": [
+          -2.8445517538046587e-05,
+          0.0008096955408211109
+        ],
+        "seeds": 5
+      },
+      "post_adapt_frozen_gain_vs_source": {
+        "mean": 0.0005208333459449932,
+        "ci95": [
+          8.270452558035236e-05,
+          0.0009589621663096341
+        ],
+        "seeds": 5
+      }
+    }
+  ],
+  "validation": {
+    "full_pytest_passed": 736,
+    "full_pytest_seconds": 259.94,
+    "targeted_passed": 44,
+    "targeted_seconds": 18.64,
+    "gpu_smoke_steps": 2
+  },
+  "integrity": {
+    "contexts": 160,
+    "candidate_rows": 320,
+    "source_rows": 320,
+    "waveforms_matched": true,
+    "online_data_labels_used": false
+  },
+  "source_files": {
+    "logs\\symbol_transfer_four_arm256_5s8f_20261101\\summary.json": "2cadc3c443c35bca4856d2d53411a02b696442e429e9b5b87f0b47427bf7e6fa",
+    "logs\\symbol_transfer_four_arm256_5s8f_20261101\\frame_metrics.jsonl": "0e971e4960571b350308af10ebe6c5f2ae0b24583d98137bb536c662053fdd28",
+    "logs\\symbol_transfer_source_reference_5s8f_20261101\\summary.json": "f3fb0e203c7dc4828440a33190771bcbaa237e272829a5198026fbe92c54b5e1",
+    "logs\\symbol_transfer_source_reference_5s8f_20261101\\frame_metrics.jsonl": "527778b11d29d7796a97a53d019cc9486df4fe03103f15c5d27e9a5d22b9d4bb"
+  }
+}
