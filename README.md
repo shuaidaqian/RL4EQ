@@ -15,6 +15,9 @@
 > [统一校准比较](docs/calibrated_compare_stage_20261101.md)已完成：显式冻结协议接入
 > `compare.py`，800 条同轨迹记录中 RL BER 与 Frozen 一致；对较强 FDE 的神经
 > 优势仅在 15 dB 有配对区间支持，整体目标仍未达成。
+> [现有相位组作用能力诊断](docs/existing_phase_capacity_stage_20261101.md)显示：
+> 相位组比 head 更能改变 Data 输出，但三臂均未证明稳定 BER 收益；下一步在
+> 现有结构内验证其更新后的离线泛化，不新增正式 RL 动作。
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。

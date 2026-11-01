@@ -68,7 +68,7 @@ def test_inner_update_ignores_reward_data_labels_and_waveforms():
         torch.testing.assert_close(results[0][name], results[1][name], rtol=0, atol=0)
 
 
-@pytest.mark.parametrize("group", ["head", "adapter_lora_head"])
+@pytest.mark.parametrize("group", ["head", "adapter_lora_head", "phase"])
 def test_neural_bce_inner_matches_formal_ppo_and_hides_unknown_information(group):
     """神经参数 BCE 内循环须与已有 PPO 动作一致，也不能通过注意力读取隐藏波形。"""
     model, context = _fixture()
