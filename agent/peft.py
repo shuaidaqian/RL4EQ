@@ -26,6 +26,9 @@ class PEFTRegistry:
         "attention_lora": {"attention_lora"},
         "ffn_lora": {"ffn_lora"},
         "head": {"head"},
+        "symbol_residual_features": {"symbol_residual_features"},
+        "symbol_residual_head": {"symbol_residual_head"},
+        "symbol_residual": {"symbol_residual_features", "symbol_residual_head"},
         "physics_blend": {"physics_blend"},
         "physics_residual": {"physics_residual"},
         "phase_trend": {"phase_trend"},
@@ -53,7 +56,7 @@ class PEFTRegistry:
         self._groups: dict[str, list[str]] = {
             name: []
             for name in self.GROUP_ALIASES
-            if name not in {"adapter_lora", "adapter_lora_head", "conditioner_peft"}
+            if name not in {"adapter_lora", "adapter_lora_head", "conditioner_peft", "symbol_residual"}
         }
 
     def register(self, group: str, module: nn.Module) -> None:

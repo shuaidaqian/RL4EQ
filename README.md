@@ -39,6 +39,10 @@
 > [匹配整帧输入四臂结果](docs/full_rx_transfer_stage_20261101.md)已完成 A/B 各 256 步：
 > 0 dB 两分支均有在线正向区间，但 B Online 比 A 更差；5/10 dB 收益仍不确定，
 > 15 dB 没有接受更新。整体目标未达成，不扩大同配置矩阵。
+> 用户已指示按建议继续，包括必要的神经调制结构调整。
+> [冻结错误定位](docs/error_geometry_stage_20261101.md)发现 15 dB Data 错误集中于
+> 帧尾，原神经残差未改变这些判决；[神经符号残差计划](docs/symbol_transfer_plan_20261101.md)
+> 据此增加观测覆盖感知的小型分支，离线训练 1153 参数、在线只微调 17 参数 head。
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。

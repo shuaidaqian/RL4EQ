@@ -32,6 +32,7 @@ class UnfoldedConfig:
     physics_warm_start_scale: float = 1.0
     neural_residual_scale: float = 1.0
     pilot_conditioned: bool = False
+    enable_symbol_residual_branch: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -49,6 +50,25 @@ class BottleneckAdapter(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.up(torch.relu(self.down(x)))
+
+
+class SymbolResidualDenoiser(nn.Module):
+    """从符号估计、匹配残差及观测覆盖学习有界修正，在线只调整输出 head。"""
+
+    def __init__(self):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv1d(7, 16, kernel_size=3, padding=1), nn.GELU(),
+            nn.Conv1d(16, 16, kernel_size=3, padding=4, dilation=4), nn.GELU())
+        self.head = nn.Conv1d(16, 1, kernel_size=1)
+        nn.init.zeros_(self.head.weight)
+        nn.init.zeros_(self.head.bias)
+        mark_peft_group(self.features, "symbol_residual_features")
+        mark_peft_group(self.head, "symbol_residual_head")
+
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        hidden = self.features(features.transpose(1, 2))
+        return 0.5 * torch.tanh(self.head(hidden).squeeze(1))
 
 
 class LoRAResidual(nn.Module):
@@ -448,6 +468,7 @@ class UnfoldedEqualizer(nn.Module):
             nn.init.zeros_(self.head.bias)
         self.alpha = nn.Parameter(torch.full((self.config.iterations,), 0.2))
         self.damping = nn.Parameter(torch.full((self.config.iterations,), 0.2))
+        self.symbol_residual = SymbolResidualDenoiser() if self.config.enable_symbol_residual_branch else None
         # 该模块只在在线运行时动态挂载，不进入离线 checkpoint。
         self.online_residual_adapter: ResidualLogitAdapter | None = None
         self.online_physics_blend_adapter: OnlinePhysicsBlendAdapter | None = None
@@ -747,7 +768,25 @@ class UnfoldedEqualizer(nn.Module):
             residual_energy = next_energy
         logits = 2.0 * estimate.real / noise
         scale = float(self.config.physics_warm_start_scale)
-        return (float(scale) * logits).clamp(-40.0, 40.0)
+        base = (float(scale) * logits).clamp(-40.0, 40.0)
+        if self.symbol_residual is None:
+            return base
+        # 已知 CIR 下每个发送符号留在当前接收窗内的能量；帧尾观测较少。
+        column_limit = torch.arange(rx_complex.shape[1] - 1, -1, -1, device=rx_complex.device)
+        column_limit = column_limit.clamp(max=cir.shape[1] - 1)
+        energy = cir.abs().square().cumsum(dim=1)[:, column_limit].clamp_min(1e-6)
+        coverage = energy / cir.abs().square().sum(dim=1, keepdim=True).clamp_min(1e-6)
+        soft = torch.complex(torch.tanh(logits / 2.0), torch.zeros_like(logits))
+        innovation = rx_complex - operator.forward(soft, cir, tail)
+        gradient = operator.adjoint(innovation, cir) / energy
+        features = torch.stack((
+            estimate.real, estimate.imag, soft.real, gradient.real, gradient.imag,
+            torch.log(noise).expand_as(estimate.real) / 5.0, coverage,
+        ), dim=-1)
+        correction = self.symbol_residual(torch.tanh(features))
+        # 在符号域约束幅度，再按噪声尺度转换；零 head 精确保留旧输出。
+        # 残差不再经过物理分支的硬截断，以保留错误饱和点的 head 梯度。
+        return base + scale * 2.0 * correction / noise
 
     def _analytic_logit_skip(self, proposal: torch.Tensor, condition: CIRCondition) -> torch.Tensor:
         """给神经 head 叠加 BPSK 解析 LLR warm-start，默认关闭。"""

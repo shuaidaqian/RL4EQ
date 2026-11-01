@@ -500,3 +500,143 @@ def test_receiver_input_prototype_end_to_end_pairs_protocols(tmp_path, monkeypat
         assert item["committed_gain"]["seeds"] == 2
         if item["receiver_input"] == "adapt_only" and item["reward_input"] == "pilot_only":
             assert item["gain_vs_strict_reference"]["mean"] == 0
+
+
+def test_error_geometry_decomposes_branches_without_hidden_information():
+    from scripts.diagnose_error_geometry import receiver_outputs, region_masks, score_outputs
+
+    model, context = _fixture()
+    model.config = replace(model.config, physics_warm_start_iterations=2, neural_residual_scale=0.1)
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    heads = []
+    hook = model.head.register_forward_hook(lambda module, args, output: heads.append(output.detach()))
+    logits, physics = receiver_outputs(model, context)
+    hook.remove()
+    torch.testing.assert_close(logits, physics + 0.1 * heads[-1].squeeze(), atol=1e-6, rtol=1e-6)
+    frame = context.frame
+    bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+    bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000 + 1000j
+    poisoned = replace(context, frame=replace(frame, bits=bits, tx_symbols=tx,
+                        true_cir=torch.full((5,), 1000 + 1000j), tail_symbols=torch.full((4,), 1000 + 1000j)))
+    changed = receiver_outputs(model, poisoned)
+    for first, second in zip((logits, physics), changed):
+        torch.testing.assert_close(first, second, rtol=0, atol=0)
+    masks = region_masks(frame, 4)
+    assert torch.equal(sum(mask.int() for key, mask in masks.items() if key.startswith("data_")), frame.data_mask.int())
+    assert torch.equal(sum(mask.int() for mask in masks.values()), torch.ones_like(frame.bits, dtype=torch.int))
+    scored = score_outputs(frame, logits, physics, 4)
+    assert sum(r["bits"] for r in scored) == frame.bits.numel()
+    for row in scored:
+        assert row["physics_errors"] - row["neural_fixed_errors"] + row["neural_introduced_errors"] == row["errors"]
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], rtol=0, atol=0)
+
+
+def _symbol_fixture():
+    base, context = _fixture()
+    base.config = replace(base.config, physics_warm_start_iterations=2, neural_residual_scale=0.1)
+    model = UnfoldedEqualizer(replace(base.config, enable_symbol_residual_branch=True)).eval()
+    model.attach_online_phase_trend_adapter()
+    state = model.state_dict()
+    state.update(base.state_dict())
+    model.load_state_dict(state, strict=True)
+    return base, model, context
+
+
+def test_symbol_residual_initialization_preserves_output_and_is_bounded():
+    from agent.unfolded_equalizer import SymbolResidualDenoiser
+
+    base, model, context = _symbol_fixture()
+    torch.testing.assert_close(context_logits(base, context), context_logits(model, context), atol=0, rtol=0)
+    selected = model.peft.named_group_parameters({"symbol_residual_head"})
+    assert sum(value.numel() for _, value in selected) == 17
+    denoiser = SymbolResidualDenoiser()
+    with torch.no_grad():
+        denoiser.head.bias.fill_(100)
+    correction = denoiser(torch.randn(2, 128, 7))
+    assert correction.shape == (2, 128)
+    assert bool((correction.abs() <= 0.5).all())
+
+
+def test_symbol_head_matches_actual_adamw_and_ignores_unknown_information():
+    _, model, context = _symbol_fixture()
+    _, actual, _ = _symbol_fixture()
+    actual.load_state_dict(model.state_dict())
+    fast, _ = differentiable_adapt(model, [context], learning_rate=0.0005, steps=1, max_delta_norm=0.05,
+                                   groups={"symbol_residual_head"}, objective="bce", receiver_input="full_rx")
+    _apply_adapt_peft_update(actual, context.frame, context.condition, context.tail, groups={"symbol_residual_head"},
+                            lr=0.0005, steps=1, objective="bce", max_delta_norm=0.05, receiver_input="full_rx")
+    for name, value in actual.named_parameters():
+        torch.testing.assert_close(fast[name], value, atol=1e-7, rtol=2e-5)
+    frame = context.frame
+    tx, bits = frame.tx_symbols.clone(), frame.bits.clone()
+    tx[~frame.adapt_mask], bits[~frame.adapt_mask] = 1000 + 1000j, ~bits[~frame.adapt_mask]
+    poisoned = replace(context, frame=replace(frame, tx_symbols=tx, bits=bits))
+    altered, _ = differentiable_adapt(model, [poisoned], learning_rate=0.0005, steps=1, max_delta_norm=0.05,
+                                      groups={"symbol_residual_head"}, objective="bce", receiver_input="full_rx")
+    for name in fast:
+        torch.testing.assert_close(fast[name], altered[name], atol=0, rtol=0)
+
+
+def test_symbol_transfer_migration_and_outer_freeze(tmp_path, monkeypatch):
+    base, model, context = _symbol_fixture()
+    checkpoint = tmp_path / "base.pt"
+    torch.save({"state_dict": {name: value for name, value in base.state_dict().items()
+                               if not name.startswith("online_phase_trend_adapter.")},
+                "model_config": base.config.to_dict()}, checkpoint)
+    settings = {"inner_learning_rate": 0.0005, "inner_steps": 1, "max_delta_norm": 0.05,
+                "inner_objective": "bce", "inner_groups": ["symbol_residual_head"],
+                "inner_receiver_input": "full_rx", "reward_receiver_input": "full_rx",
+                "outer_groups": ["symbol_residual"], "outer_learning_rate": 0.001}
+    config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "pilot_transfer": settings}
+    trainer = PilotTransferTrainer(config, "cpu", objective="post_adapt")
+    with pytest.raises(ValueError, match="参数结构不一致"):
+        trainer.load_resume(checkpoint)
+    trainer.settings["initialize_symbol_residual_from_base"] = True
+    trainer.load_resume(checkpoint)
+    # 同为推理模式时比较；可微分支会改变 attention 的后端选择与舍入路径。
+    with torch.no_grad():
+        torch.testing.assert_close(context_logits(base, context), context_logits(trainer.model, context), atol=0, rtol=0)
+    before = {name: value.clone() for name, value in trainer.model.state_dict().items()}
+    monkeypatch.setattr(trainer, "_sample", lambda: (context, {}, 10, 46000))
+    trainer.train(1)
+    for name, value in trainer.model.state_dict().items():
+        assert bool(torch.isfinite(value).all())
+        if not name.startswith("symbol_residual."):
+            torch.testing.assert_close(value, before[name], atol=0, rtol=0)
+    assert any(not torch.equal(value, before[name]) for name, value in trainer.model.state_dict().items()
+               if name.startswith("symbol_residual.head."))
+    trainer.save(tmp_path / "saved", {})
+    payload = torch.load(tmp_path / "saved" / "model_best.pt", weights_only=False)
+    standalone = UnfoldedEqualizer(UnfoldedConfig.from_dict(payload["model_config"]))
+    standalone.load_state_dict(payload["state_dict"], strict=True)
+
+
+def test_symbol_head_outer_gradient_matches_nonzero_finite_difference():
+    _, model, context = _symbol_fixture()
+    frame = context.frame
+    offset = 1.2 * torch.linspace(-1, 1, frame.rx_symbols.numel())
+    context = replace(context, frame=replace(frame, rx_symbols=frame.rx_symbols + offset))
+    for _, parameter in model.peft.named_group_parameters({"symbol_residual"}):
+        parameter.requires_grad_(True)
+
+    def loss():
+        with sdpa_kernel(SDPBackend.MATH):
+            fast, _ = differentiable_adapt(model, [context], learning_rate=0.0005, steps=1,
+                max_delta_norm=0.05, create_graph=True, groups={"symbol_residual_head"},
+                objective="bce", receiver_input="full_rx")
+            logits = context_logits(model, context, fast)
+            return F.binary_cross_entropy_with_logits(logits[frame.data_mask], frame.bits[frame.data_mask].float())
+
+    probe = model.symbol_residual.head.bias
+    gradient, = torch.autograd.grad(loss(), probe)
+    initial = probe.detach().clone()
+    values = []
+    for sign in (-1, 1):
+        with torch.no_grad():
+            probe.copy_(initial + sign * 0.001)
+        values.append(float(loss().detach()))
+    finite_difference = (values[1] - values[0]) / 0.002
+    assert abs(float(gradient)) > 1e-4
+    assert float(gradient) == pytest.approx(finite_difference, abs=2e-3, rel=0.03)

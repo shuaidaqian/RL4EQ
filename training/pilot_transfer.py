@@ -254,14 +254,20 @@ class PilotTransferTrainer:
         self.model.attach_online_phase_trend_adapter()
         self.model.eval()
         base_parameters = []
+        outer_groups = self.settings.get("outer_groups")
+        outer_names = None if outer_groups is None else {name for name, _ in self.model.peft.named_group_parameters(outer_groups)}
+        if outer_names is not None and not outer_names:
+            raise ValueError("离线 outer_groups 没有可训练参数。")
         for name, parameter in self.model.named_parameters():
             temporary = name.startswith("online_phase_trend_adapter.")
-            parameter.requires_grad_(not temporary)
-            if not temporary:
+            trainable = not temporary and (outer_names is None or name in outer_names)
+            parameter.requires_grad_(trainable)
+            if trainable:
                 base_parameters.append(parameter)
         self.optimizer = torch.optim.AdamW(base_parameters, lr=float(self.settings.get("outer_learning_rate", 1e-5)))
         self.history = []
         self.source_checkpoint = None
+        self.initialized_modules = []
         self.sample_index = 0
 
     def load_resume(self, path):
@@ -277,7 +283,19 @@ class PilotTransferTrainer:
         base_state = self.model.state_dict()
         expected = {key for key in base_state if not key.startswith("online_phase_trend_adapter.")}
         if set(state) != expected:
-            raise ValueError("基础 checkpoint 参数结构不一致，禁止非严格加载。")
+            new_keys = {key for key in expected if key.startswith("symbol_residual.")}
+            source_config = UnfoldedConfig.from_dict(payload.get("model_config", {})).to_dict()
+            target_config = self.model.config.to_dict()
+            permitted = (self.settings.get("initialize_symbol_residual_from_base", False)
+                         and bool(new_keys) and set(state) == expected - new_keys
+                         and not source_config["enable_symbol_residual_branch"]
+                         and target_config["enable_symbol_residual_branch"])
+            source_config["enable_symbol_residual_branch"] = target_config["enable_symbol_residual_branch"]
+            if not permitted or source_config != target_config:
+                raise ValueError("基础 checkpoint 参数结构不一致，禁止非严格加载。")
+            if any(bool(parameter.detach().ne(0).any()) for parameter in self.model.symbol_residual.head.parameters()):
+                raise ValueError("新增符号残差 head 必须零初始化，才能从基础 checkpoint 迁移。")
+            self.initialized_modules = ["symbol_residual"]
         base_state.update(state)
         self.model.load_state_dict(base_state, strict=True)
         self.source_checkpoint = {"path": str(source.resolve()), "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}
@@ -353,6 +371,8 @@ class PilotTransferTrainer:
             "linear_operator_backend": os.environ.get("RL4EQ_LINEAR_OPERATOR_BACKEND", "direct"),
             "attention_backend": "math",
             "source_checkpoint": self.source_checkpoint, "history": self.history,
+            "initialized_modules": self.initialized_modules,
+            "outer_trainable_parameter_count": sum(parameter.numel() for parameter in self.optimizer.param_groups[0]["params"]),
             "elapsed_seconds": time.monotonic() - started,
             "inner_uses_data_labels": False, "inner_uses_data_waveform": self.inner_receiver_input == "full_rx",
             "inner_receiver_input": self.inner_receiver_input,
