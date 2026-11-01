@@ -23,6 +23,9 @@
 > 监督 A 在 0 dB 有探索性正向区间，不能据此宣布主目标完成。停止扩大同配置。
 > [相位作用几何](docs/phase_modulation_geometry_20261101.md)和离线梯度诊断区分了
 > 有限输出族、目标梯度差异与实际 BER 收益，下一步先确认可观测误差与调制位置。
+> [接收波形置零审计](docs/receiver_visibility_stage_20261101.md)发现：适配/验收与
+> 整帧推理的输入模型存在差异，10/15 dB 的置零 Reward 错误在整帧输入下消失。
+> 这仍是离线诊断，未证明在线收益，尚未修改实际控制器的信息边界。
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。

@@ -295,3 +295,62 @@ def test_transfer_gradient_diagnostic_rejects_heldout_before_loading_model(tmp_p
     with pytest.raises(ValueError, match="offline_train"):
         run_diagnostic({"offline_state_split": "heldout_edge"}, "missing.pt", [1], 1,
                        "cpu", tmp_path / "result.json")
+
+
+@pytest.mark.parametrize("poison", ["labels", "waveform"])
+def test_receiver_visibility_distinguishes_received_waveform_from_unknown_labels(poison):
+    """整帧 Pilot 梯度可依赖接收波形，但不能依赖 Data 标签或未知发送符号。"""
+    from scripts import diagnose_receiver_visibility as diagnostic
+
+    model, context = _fixture()
+    named = list(model.peft.named_group_parameters({"head", "phase"}))
+    for _, parameter in named:
+        parameter.requires_grad_(True)
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    original = diagnostic.pilot_gradients(model, context, named)
+    frame = context.frame
+    bits, tx, rx = frame.bits.clone(), frame.tx_symbols.clone(), frame.rx_symbols.clone()
+    if poison == "labels":
+        bits[frame.data_mask] = ~bits[frame.data_mask]
+        tx[frame.data_mask] = 300 + 400j
+    else:
+        rx[frame.data_mask] = 1000 + 1000j
+    changed = diagnostic.pilot_gradients(model, replace(context, frame=replace(
+        frame, bits=bits, tx_symbols=tx, rx_symbols=rx)), named)
+    for view in ("adapt_only", "reward_pilot_rx"):
+        assert original[view][0] == changed[view][0]
+        for name, _ in named:
+            torch.testing.assert_close(original[view][1][name], changed[view][1][name], atol=0, rtol=0)
+    for view in ("adapt_full_rx", "reward_full_rx"):
+        if poison == "labels":
+            assert original[view][0] == changed[view][0]
+            for name, _ in named:
+                torch.testing.assert_close(original[view][1][name], changed[view][1][name], atol=0, rtol=0)
+        else:
+            assert any(not torch.equal(original[view][1][name], changed[view][1][name]) for name, _ in named)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], atol=0, rtol=0)
+    assert all(parameter.grad is None for parameter in model.parameters())
+
+
+def test_receiver_visibility_summary_is_finite_and_rejects_heldout(tmp_path):
+    from scripts import diagnose_receiver_visibility as diagnostic
+
+    model, context = _fixture()
+    for _, parameter in model.peft.named_group_parameters({"head", "phase"}):
+        parameter.requires_grad_(True)
+    result = diagnostic.compare_visibility(model, context)
+    assert set(result["groups"]) == {"head", "phase"}
+    for values in result["groups"].values():
+        assert all(value is None or torch.isfinite(torch.tensor(value)) for value in values.values())
+    with pytest.raises(ValueError, match="offline_train"):
+        diagnostic.run_diagnostic({"offline_state_split": "heldout_edge"}, "missing.pt", [1], 1,
+                                  "cpu", tmp_path / "result.json")
+
+
+def test_receiver_visibility_does_not_assign_direction_to_zero_gradient():
+    from scripts.diagnose_receiver_visibility import _resolved_cosine
+
+    assert _resolved_cosine(torch.zeros(3), torch.ones(3)) is None
+    assert _resolved_cosine(torch.full((3,), 1e-12), torch.ones(3)) is None
+    assert _resolved_cosine(torch.ones(3), torch.ones(3)) == pytest.approx(1)
