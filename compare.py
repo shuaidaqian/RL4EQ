@@ -251,6 +251,8 @@ def main() -> None:
     parser.add_argument("--version", action="store_true")
     parser.add_argument("--config", default="configs/continual_ppo.json")
     parser.add_argument("--pretrained", default="pretrained/model_best.pt")
+    parser.add_argument("--transfer-checkpoint", default=None, help="四臂机制实验的更新后泛化 checkpoint；pretrained 为普通监督分支。")
+    parser.add_argument("--transfer-persistent", action="store_true", help="四臂机制实验中累计保留通过 Reward 验收的 PEFT 参数。")
     parser.add_argument("--policy", default="logs/online/policy.pt")
     parser.add_argument("--method-group", choices=["traditional", "proposed", "diagnostic", "main", "all"], default=None)
     parser.add_argument("--methods", nargs="*", default=None)
@@ -394,6 +396,26 @@ def main() -> None:
         return
     selected_methods = method_group(args.method_group) if args.method_group else _select_methods(args.methods)
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    if args.transfer_checkpoint is not None:
+        from evaluation.pilot_transfer import run_transfer_comparison
+
+        if args.resume or args.method_group or args.methods:
+            parser.error("四臂机制实验独立于正式方法组，暂不支持 resume。")
+        if args.pilot_layout not in {None, "prefix"} or args.cir_update != "fixed":
+            parser.error("四臂机制实验只支持 prefix 与固定 acquisition CIR。")
+        if args.delays is not None and args.delays != config["main_delays"]:
+            parser.error("四臂机制实验的 delays 必须与冻结配置一致。")
+        for argument, field in ((args.pilot_total, "pilot_total"), (args.reward_pilot_total, "reward_pilot_total"),
+                                (args.acquisition_to_data_gap_seconds, "acquisition_to_data_gap_seconds")):
+            if argument is not None and argument != config[field]:
+                parser.error(f"四臂机制实验不允许覆盖 {field}，请另建明确的诊断配置。")
+        run_transfer_comparison(
+            config, baseline_checkpoint=args.pretrained, post_checkpoint=args.transfer_checkpoint,
+            seeds=list(range(args.seed_start, args.seed_start + args.num_seeds)), snrs=args.snrs,
+            frames=args.frames, device=args.device, output_dir=args.output_dir,
+            state_split=args.state_split or "heldout_edge", persistent=args.transfer_persistent,
+        )
+        return
     scheduler = str(
         args.scheduler
         if args.scheduler is not None

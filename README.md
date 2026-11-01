@@ -1,5 +1,10 @@
 # RL4EQ：Level B 极端长回波下的 RL-Modulated Neural Block Equalizer
 
+> 2026-11-01：新增真实 Level B 的 Pilot 更新后 Data 泛化训练与四臂配对机制实验。
+> 用户已授权重新训练适配友好的 checkpoint；原 checkpoint 保留为对照。
+> 训练/验证边界与分阶段验收见[实验计划](docs/pilot_transfer_plan_20261101.md)。
+> 该阶段只检验更新机制，不能替代正式 PPO、传统 baseline 或长期收益比较。
+
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。
 > 当前主结果以 `AGENTS.md` 的离散安全动作 PPO 路线为准。`Frozen Offline NN` 是同轨迹

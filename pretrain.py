@@ -19,13 +19,21 @@ def main() -> None:
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--resume", default=None)
     parser.add_argument("--save-dir", default="pretrained")
+    parser.add_argument("--transfer-objective", choices=["baseline", "post_adapt"], default=None)
+    parser.add_argument("--device", choices=["cpu", "cuda"], default=None)
     args = parser.parse_args()
     if args.version:
         print("RL4EQ continual-ppo schema-v1")
         return
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     config = load_config(args.config)
-    if args.stage == "meta":
+    if args.stage == "pilot_transfer":
+        from training.pilot_transfer import PilotTransferTrainer
+
+        trainer = PilotTransferTrainer(config, device, objective=args.transfer_objective)
+        trainer.load_resume(args.resume)
+        metrics = trainer.train(args.steps, args.batch_size, args.accumulation_steps, args.amp)
+    elif args.stage == "meta":
         if config.get("channel_profile") in {"eme_measurement_v1", "eme_long_memory_v2"}:
             raise ValueError(
                 "EME 物理信道尚未接入 meta 阶段，禁止静默训练单位信道："
