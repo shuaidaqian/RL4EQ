@@ -84,6 +84,22 @@ def test_prefix_pilot_does_not_update_unobserved_tail_positions():
     torch.testing.assert_close(next_pilot_tail(model, context, alpha=0.5), context.tail, rtol=0, atol=0)
 
 
+def test_boundary_free_reconstruction_does_not_depend_on_unknown_tail():
+    """完整已知前缀保留作卷积输入；仅损失评分窗跳过信道记忆长度。"""
+    model, context = _fixture()
+    cir = torch.tensor([0.8, 0.0, 0.0, 0.0, 0.6], dtype=torch.complex64)
+    condition = replace(context.condition, complex_cir=cir.reshape(1, -1))
+    context = replace(context, condition=condition)
+    poisoned = replace(context, tail=torch.full_like(context.tail, 1000 + 1000j))
+    updates = [differentiable_adapt(
+        model, [item], learning_rate=0.0025, steps=5, max_delta_norm=0.05,
+        score_start=model.config.max_delay,
+    ) for item in (context, poisoned)]
+    assert updates[0][1]["adapt_losses"] == updates[1][1]["adapt_losses"]
+    for name in updates[0][0]:
+        torch.testing.assert_close(updates[0][0][name], updates[1][0][name], rtol=0, atol=0)
+
+
 def test_post_update_data_gradient_reaches_base_through_update_operator():
     """对基础相位尺度的外层导数与完整更新后的有限差分相符。"""
     model, context = _fixture()

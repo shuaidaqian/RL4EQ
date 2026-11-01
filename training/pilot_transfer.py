@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -83,20 +84,27 @@ def context_logits(model, context: TransferContext, parameters=None, *, visible=
 class _AdaptObjective(nn.Module):
     """通过 functional_call 对相位信号重构目标替换候选参数。"""
 
-    def __init__(self, model):
+    def __init__(self, model, score_start=0):
         super().__init__()
         self.model = model
+        self.score_start = int(score_start)
 
     def forward(self, context):
         view = _adapt_receiver_view(context.frame)
+        positions = torch.arange(view.adapt_mask.numel(), device=view.adapt_mask.device)
+        score_mask = view.adapt_mask & (positions >= self.score_start)
+        if not bool(score_mask.any()):
+            raise ValueError("信号重构评分窗没有有效 Adapt Pilot。")
         return _pilot_signal_reconstruction_loss(
             self.model, context.condition, view.adapt_symbols, view.rx_symbols,
-            view.adapt_mask, context.tail.detach(),
+            score_mask,
+            (torch.zeros_like(context.tail) if self.score_start >= self.model.config.max_delay
+             else context.tail.detach()),
         )
 
 
 def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_norm,
-                         create_graph=False, initial_parameters=None):
+                         create_graph=False, initial_parameters=None, score_start=0):
     """复现 PPO 的 AdamW、梯度裁剪和末步增量投影，不读取 Reward/Data。
 
     外层训练保留更新算子的计算图；在线/诊断关闭高阶图。未使用的状态映射
@@ -123,7 +131,7 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
             fast[name] = fast[name].detach().clone().requires_grad_(True)
     before = {name: fast[name] for name in names}
     moments, variances = {}, {}
-    objective = _AdaptObjective(model)
+    objective = _AdaptObjective(model, score_start)
     losses = []
     for step in range(1, int(steps) + 1):
         loss = torch.stack([
@@ -298,6 +306,7 @@ class PilotTransferTrainer:
             )}, "elapsed_seconds": round(time.monotonic() - started, 2)}, ensure_ascii=False), flush=True)
         return {
             "stage": "pilot_transfer", "objective": self.objective,
+            "linear_operator_backend": os.environ.get("RL4EQ_LINEAR_OPERATOR_BACKEND", "direct"),
             "source_checkpoint": self.source_checkpoint, "history": self.history,
             "elapsed_seconds": time.monotonic() - started,
             "inner_uses_data_labels": False, "inner_uses_data_waveform": False,

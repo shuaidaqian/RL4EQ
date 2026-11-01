@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections import defaultdict
 from pathlib import Path
 
@@ -112,6 +113,7 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
         raise ValueError("机制实验输出已存在，请指定新的 output-dir，避免覆盖或混合实验。")
     branches = {"baseline": Path(baseline_checkpoint), "post_adapt": Path(post_checkpoint)}
     manifest = {"schema_version": "pilot-transfer-four-arm-v1", "diagnostic_only": True,
+                "linear_operator_backend": os.environ.get("RL4EQ_LINEAR_OPERATOR_BACKEND", "direct"),
                 "main_aggregation_allowed": False, "state_split": state_split,
                 "seeds": list(seeds), "snrs": list(snrs), "frames": frames,
                 "persistent": persistent, "config": config, "checkpoints": {}}

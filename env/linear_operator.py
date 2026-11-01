@@ -3,15 +3,20 @@
 
 from __future__ import annotations
 
+import os
+
 import torch
 
 
 class LinearChannelOperator:
     """把带 soft-tail 的有限长 CIR 表示为当前帧线性算子。"""
 
-    def __init__(self, frame_len: int, max_delay: int):
+    def __init__(self, frame_len: int, max_delay: int, backend: str | None = None):
         self.frame_len = int(frame_len)
         self.max_delay = int(max_delay)
+        self.backend = backend or os.environ.get("RL4EQ_LINEAR_OPERATOR_BACKEND", "direct")
+        if self.backend not in {"direct", "fft"}:
+            raise ValueError("线性算子 backend 必须为 direct 或 fft。")
         if self.frame_len <= 0:
             raise ValueError("frame_len 必须为正。")
         if self.max_delay < 0:
@@ -24,6 +29,17 @@ class LinearChannelOperator:
         tail_b = tail if tail.ndim == 2 else tail.unsqueeze(0)
         self._validate(x_b, cir_b, tail_b)
         padded = torch.cat([tail_b.to(x_b.device), x_b], dim=1)
+        if self.backend == "fft":
+            # 长度至少 N+L：线性卷积的循环混叠只落在被丢弃的前 L 个位置，
+            # 因此截取 [L, L+N) 与逐 tap 的带历史尾部线性卷积等价。
+            size = self._fft_size()
+            convolved = torch.fft.ifft(
+                torch.fft.fft(padded, n=size) * torch.fft.fft(cir_b, n=size), n=size,
+            )
+            output = convolved[:, self.max_delay:self.max_delay + self.frame_len]
+            if not padded.is_complex() and not cir_b.is_complex():
+                output = output.real
+            return output if batched else output.squeeze(0)
         y = torch.zeros_like(x_b)
         indices = torch.arange(self.frame_len, device=x_b.device)
         origin = self.max_delay
@@ -39,6 +55,14 @@ class LinearChannelOperator:
             raise ValueError("y 的帧长不匹配。")
         if cir_b.shape[1] != self.max_delay + 1:
             raise ValueError("cir 长度必须等于 max_delay + 1。")
+        if self.backend == "fft":
+            size = self._fft_size()
+            correlated = torch.fft.ifft(
+                torch.fft.fft(y_b, n=size) * torch.fft.fft(cir_b, n=size).conj(), n=size,
+            )[:, :self.frame_len]
+            if not y_b.is_complex() and not cir_b.is_complex():
+                correlated = correlated.real
+            return correlated if batched else correlated.squeeze(0)
         x_grad = torch.zeros_like(y_b)
         for delay in range(self.max_delay + 1):
             if delay == 0:
@@ -48,6 +72,9 @@ class LinearChannelOperator:
                 shifted[:, :-delay] = y_b[:, delay:]
             x_grad = x_grad + torch.conj(cir_b[:, delay]).unsqueeze(1) * shifted
         return x_grad if batched else x_grad.squeeze(0)
+
+    def _fft_size(self) -> int:
+        return 1 << (self.frame_len + self.max_delay - 1).bit_length()
 
     def _validate(self, x: torch.Tensor, cir: torch.Tensor, tail: torch.Tensor) -> None:
         if x.shape[1] != self.frame_len:
