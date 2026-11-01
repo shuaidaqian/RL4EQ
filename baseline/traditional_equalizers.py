@@ -9,6 +9,7 @@ Reward Pilot 标签或 Data 标签，也不包含神经网络或 RL 策略。
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 import torch
 
@@ -478,13 +479,20 @@ def _dfe_rls(
     adapt_tx: torch.Tensor,
     filter_len: int,
     feedback_len: int = 5,
+    *,
+    forgetting_factor: float = 0.995,
+    initial_inverse_covariance: float = 10.0,
 ) -> tuple[torch.Tensor, int]:
+    if not math.isfinite(forgetting_factor) or not 0 < forgetting_factor <= 1:
+        raise ValueError("DFE-RLS 遗忘因子必须为 (0, 1] 内的有限数。")
+    if not math.isfinite(initial_inverse_covariance) or initial_inverse_covariance <= 0:
+        raise ValueError("DFE-RLS 初始逆协方差尺度必须为正有限数。")
     x = _lag_matrix(rx, filter_len)
     d_full = _adapt_targets(adapt_mask, adapt_tx, rx.numel())
     feature_len = filter_len + feedback_len
     weights = torch.zeros(feature_len, dtype=torch.complex64, device=rx.device)
     weights[filter_len // 2] = 1.0 + 0.0j
-    inverse_cov = torch.eye(feature_len, dtype=torch.complex64, device=rx.device) * 10.0
+    inverse_cov = torch.eye(feature_len, dtype=torch.complex64, device=rx.device) * initial_inverse_covariance
     decisions = torch.zeros(rx.numel(), dtype=torch.complex64, device=rx.device)
     updates = 0
     for index in torch.nonzero(adapt_mask, as_tuple=False).flatten().tolist():
@@ -493,28 +501,31 @@ def _dfe_rls(
         prediction = torch.dot(vector, weights)
         error = d_full[index] - prediction
         col = vector.unsqueeze(1)
-        gain_den = 0.995 + (col.conj().T @ inverse_cov @ col).squeeze().real
+        gain_den = forgetting_factor + (col.conj().T @ inverse_cov @ col).squeeze().real
         gain = (inverse_cov @ col / gain_den.clamp_min(1e-6)).squeeze(1)
         weights = weights + torch.conj(gain) * error
-        inverse_cov = (inverse_cov - gain.unsqueeze(1) @ col.conj().T @ inverse_cov) / 0.995
+        # 先算行向量乘协方差，再作外积；避免把秩一项当成稠密矩阵相乘。
+        inverse_cov = (inverse_cov - gain.unsqueeze(1) @ (col.conj().T @ inverse_cov)) / forgetting_factor
         decisions[index] = d_full[index]
         updates += 1
 
+    if not bool(torch.isfinite(weights).all()) or not bool(torch.isfinite(inverse_cov).all()):
+        raise FloatingPointError("DFE-RLS 状态非有限，停止计算，避免导出伪硬判决。")
     output = torch.zeros_like(rx)
     for index in range(rx.numel()):
-        hard = torch.where(output.real >= 0, torch.ones_like(output.real), -torch.ones_like(output.real)).to(torch.complex64)
-        vector = torch.cat((x[index], _feedback_features(hard, index, feedback_len)))
+        # 已处理位置已经是 BPSK 硬判决；反馈不读取未来位置，无需反复转换整帧。
+        vector = torch.cat((x[index], _feedback_features(output, index, feedback_len)))
         estimate = torch.dot(vector, weights)
         output[index] = 1.0 + 0.0j if estimate.real >= 0 else -1.0 + 0.0j
     return output, updates
 
 
 def _feedback_features(decisions: torch.Tensor, index: int, feedback_len: int) -> torch.Tensor:
-    values = []
-    for delay in range(1, feedback_len + 1):
-        pos = index - delay
-        values.append(decisions[pos] if pos >= 0 else torch.zeros((), dtype=torch.complex64, device=decisions.device))
-    return torch.stack(values)
+    values = torch.zeros(feedback_len, dtype=decisions.dtype, device=decisions.device)
+    available = min(index, feedback_len)
+    if available:
+        values[:available] = decisions[index - available:index].flip(0)
+    return values
 
 
 def _sc_fde_mmse(rx: torch.Tensor, cir: torch.Tensor, noise_variance: torch.Tensor) -> tuple[torch.Tensor, int]:

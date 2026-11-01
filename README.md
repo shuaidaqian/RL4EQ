@@ -26,6 +26,8 @@
 > [接收波形置零审计](docs/receiver_visibility_stage_20261101.md)发现：适配/验收与
 > 整帧推理的输入模型存在差异，10/15 dB 的置零 Reward 错误在整帧输入下消失。
 > 这仍是离线诊断，未证明在线收益，尚未修改实际控制器的信息边界。
+> [DFE 先验与遗忘因子校准](docs/dfe_rls_calibration_stage_20261101.md)已完成 36 项
+> 网格、冻结和独立核验；训练选优没有获得四 SNR 可靠留出收益，保留原传统参考。
 
 > 当前主配置复核（2026-09-04）：`eme_long_memory_v2` Level B 使用 `0 s`
 > acquisition 空档、`coherence_time_seconds=1200` 和 `physics_warm_start_iterations=8`。

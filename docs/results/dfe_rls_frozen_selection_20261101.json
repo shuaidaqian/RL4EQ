@@ -1,0 +1,47 @@
+{
+  "schema_version": "dfe-rls-frozen-selection-v1",
+  "config_sha256": "7c2bd20dc9841e824796ece673f348f081e58689bb0029a936230d3a2d1b78b7",
+  "calibration_seeds": [
+    40000,
+    40001,
+    40002
+  ],
+  "calibration_frames": 4,
+  "confirmation_seeds": [
+    59001,
+    59002,
+    59003,
+    59004,
+    59005
+  ],
+  "confirmation_frames": 8,
+  "confirmation_split": "heldout_edge",
+  "by_snr": {
+    "0": {
+      "filter_length": 41,
+      "feedback_length": 5,
+      "forgetting_factor": 1.0,
+      "initial_inverse_covariance": 0.1
+    },
+    "5": {
+      "filter_length": 41,
+      "feedback_length": 5,
+      "forgetting_factor": 1.0,
+      "initial_inverse_covariance": 0.1
+    },
+    "10": {
+      "filter_length": 41,
+      "feedback_length": 5,
+      "forgetting_factor": 1.0,
+      "initial_inverse_covariance": 1.0
+    },
+    "15": {
+      "filter_length": 41,
+      "feedback_length": 5,
+      "forgetting_factor": 0.995,
+      "initial_inverse_covariance": 0.1
+    }
+  },
+  "calibration_file_sha256": "e26da7a9b6fa2284260ad37572ee7acf1dd6c9fcf710a426f4685e36510fdf82",
+  "selection_rule": "每 SNR 最小校准 seed 平均 Data BER；并列优先较短记忆、较小遗忘、较强先验；不使用神经结果"
+}
