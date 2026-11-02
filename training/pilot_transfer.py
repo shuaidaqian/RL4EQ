@@ -363,6 +363,9 @@ class PilotTransferTrainer:
         self.source_checkpoint = None
         self.initialized_modules = []
         self.sample_index = 0
+        self.sample_cache_hits = 0
+        self.sample_cache_misses = 0
+        self.last_sample_cache_key = None
 
     def load_resume(self, path):
         """明确失败优于静默从随机初始化开始训练。"""
@@ -400,6 +403,7 @@ class PilotTransferTrainer:
         return True
 
     def _sample(self):
+        self.last_sample_cache_key = None
         snrs = self.config["main_snrs"]
         snr = float(snrs[self.sample_index % len(snrs)])
         seed = int(self.settings.get("seed", 31000)) + self.sample_index
@@ -409,6 +413,8 @@ class PilotTransferTrainer:
             raise ValueError("离线历史帧选项必须非空且非负。")
         history_frames = int(choices[(self.sample_index - 1) % len(choices)] if choices is not None
                              else self.settings.get("history_frames", 1))
+        if self.settings.get("offline_sample_cache_dir"):
+            return self._cached_sample(seed=seed, snr=snr, history_frames=history_frames)
         env, cir, cfo, tail, frames = make_episode(
             self.config, self.model, seed=seed, snr=snr,
             frames=history_frames + self.post_target_frame_offsets[-1] + 1,
@@ -428,6 +434,42 @@ class PilotTransferTrainer:
                            for offset in self.post_target_frame_offsets[1:])
             context = replace(context, offline_post_contexts=future)
         return context, env.state_metadata(), snr, seed
+
+    def _cached_sample(self, *, seed, snr, history_frames):
+        """只缓存离线监督样本，A/B 复用相同长轨迹，不缓存模型输出或决策。"""
+        protocol = {"schema_version": "offline-transfer-sample-v1", "config": self.config,
+                    "seed": seed, "snr_db": snr, "history_frames": history_frames,
+                    "offsets": self.post_target_frame_offsets}
+        digest = hashlib.sha256(json.dumps(protocol, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+        self.last_sample_cache_key = digest
+        root = Path(self.settings["offline_sample_cache_dir"])
+        path = root / (digest + ".pt")
+        indices = [history_frames + offset for offset in self.post_target_frame_offsets]
+        if path.exists():
+            payload = torch.load(path, map_location="cpu", weights_only=False)
+            if (payload.get("protocol") != protocol or not payload.get("offline_supervision_only")
+                    or [frame.frame_index for frame in payload.get("frames", [])] != indices):
+                raise ValueError("离线样本缓存协议或帧龄不匹配，禁止静默复用。")
+            self.sample_cache_hits += 1
+        else:
+            env, cir, cfo, tail, frames = make_episode(self.config, self.model, seed=seed, snr=snr,
+                frames=indices[-1] + 1, state_split="offline_train", device=self.device)
+            if any(bool(frame.adapt_mask[-tail.numel():].any()) for frame in frames):
+                raise ValueError("离线长轨迹缓存目前只支持前缀不覆盖帧尾。")
+            payload = {"protocol": protocol, "offline_supervision_only": True,
+                       "cir": cir.detach().cpu(), "cfo": float(cfo), "tail": tail.detach().cpu(),
+                       "channel_state": env.state_metadata(),
+                       "frames": [frame_to_device(frames[index], "cpu") for index in indices]}
+            root.mkdir(parents=True, exist_ok=True)
+            # 多个离线准备进程可重复生成同一确定性样本；使用独立临时文件原子发布。
+            temporary = path.with_suffix(f".{os.getpid()}.tmp")
+            torch.save(payload, temporary)
+            temporary.replace(path)
+            self.sample_cache_misses += 1
+        contexts = [make_context(frame_to_device(frame, self.device), payload["cir"].to(self.device),
+                    payload["cfo"], payload["tail"].to(self.device), snr) for frame in payload["frames"]]
+        context = replace(contexts[0], offline_post_contexts=tuple(contexts[1:]))
+        return context, payload["channel_state"], snr, seed
 
     def train(self, steps, batch_size=1, accumulation_steps=1, use_amp=False):
         # CUDA 的高效 attention backward 不支持本任务所需的二阶导数；两分支
@@ -486,6 +528,8 @@ class PilotTransferTrainer:
                     "step": step + 1, "seed": seed, "snr_db": snr,
                     "frame_index": frame.frame_index,
                     "post_target_frame_indices": [target.frame.frame_index for target in targets],
+                    "offline_sample_cache_key": self.last_sample_cache_key,
+                    "offline_sample_input_sha256": hashlib.sha256(frame.rx_symbols.detach().cpu().numpy().tobytes()).hexdigest(),
                     "loss": float(loss.detach().cpu()), "base_bce": float(base_loss.detach().cpu()),
                     "data_bce_before": float(before_data.detach().cpu()), "data_bce_after": float(post_loss.detach().cpu()),
                     "channel_state": channel_state, **update,
@@ -512,6 +556,8 @@ class PilotTransferTrainer:
             "outer_uses_offline_data_labels": True,
             "post_adapt_data_objective_enabled": self.objective == "post_adapt",
             "post_target_frame_offsets": self.post_target_frame_offsets,
+            "offline_sample_cache_hits": self.sample_cache_hits,
+            "offline_sample_cache_misses": self.sample_cache_misses,
             "offline_base_loss": "bce_all",
             "reward_pilot_used_for_post_adapt_loss": False,
             "checkpoint_selection": "fixed_training_budget_no_test_selection",

@@ -229,7 +229,8 @@ def test_four_arm_summary_uses_seed_means_and_reports_interaction():
 
 
 @pytest.mark.parametrize("full_rx,prefix,persistent", [(False, False, False), (True, False, False), (True, True, False), (True, True, True)])
-def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(tmp_path, monkeypatch, full_rx, prefix, persistent):
+@pytest.mark.parametrize("burn_in", [0, 7])
+def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(tmp_path, monkeypatch, full_rx, prefix, persistent, burn_in):
     """完整评估先结束 Pilot 决策；改变 Data 标签只应改变事后统计。"""
     from types import SimpleNamespace
     import evaluation.pilot_transfer as evaluation
@@ -238,6 +239,7 @@ def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(
     config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
               "offline_state_split": "offline_train", "pilot_transfer": {
                   "inner_learning_rate": 0.0025, "inner_steps": 2, "max_delta_norm": 0.05,
+                  "evaluation_history_frames": burn_in,
               }}
     if full_rx:
         config["pilot_transfer"].update(inner_receiver_input="full_rx", reward_receiver_input="full_rx",
@@ -252,8 +254,9 @@ def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(
     frame = context.frame
 
     def episode(*args, frames, **kwargs):
+        assert frames == burn_in + 2
         return (SimpleNamespace(state_metadata=lambda: {}), context.condition.complex_cir.reshape(-1),
-                0, context.tail, [frame] * frames)
+                0, context.tail, [replace(frame, frame_index=index) for index in range(frames)])
 
     monkeypatch.setattr(evaluation, "make_episode", episode)
     monkeypatch.setattr(evaluation, "make_context", lambda current, *args: replace(context, frame=current))
@@ -276,6 +279,8 @@ def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(
         decisions.append([(row["accepted"], row["reward_loss_improvement"], row["delta_norm"]) for row in rows])
         assert summary["per_snr"][0]["post_vs_baseline_online_gain"]["mean"] == 0
         assert len(rows) == 4
+        assert summary["manifest"]["evaluation_history_frames"] == burn_in
+        assert all(row["channel_frame_index"] == burn_in + row["frame"] for row in rows)
         assert all(row["data_waveform_used_online"] == (full_rx and not prefix) for row in rows)
         assert all(not row["data_labels_used_online"] for row in rows)
         assert all(row["episode_delta_norm_online"] <= 0.050001 for row in rows)
@@ -1178,3 +1183,41 @@ def test_channel_state_window_one_matches_original_medium_candidate_and_guard():
         window_candidates(model, [context], windows=(1, 8))
     with pytest.raises(ValueError, match="连续已接收帧"):
         window_candidates(model, [context, replace(context, frame=replace(context.frame, frame_index=2))], windows=(1, 2))
+
+
+def test_long_age_offline_cache_pairs_branches_and_rejects_wrong_protocol(tmp_path, monkeypatch):
+    import training.pilot_transfer as transfer
+    from types import SimpleNamespace
+
+    _, model, context = _channel_state_fixture()
+    settings = {**_channel_state_settings(), "post_target_frame_offsets": [0, 8],
+                "history_frame_choices": [7], "offline_sample_cache_dir": str(tmp_path / "samples")}
+    config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "main_snrs": [10], "pilot_transfer": settings}
+    generated = []
+
+    def episode(*args, frames, **kwargs):
+        generated.append(frames)
+        return SimpleNamespace(state_metadata=lambda: {"paired": True}), context.condition.complex_cir.flatten(), 0., context.tail, [
+            replace(context.frame, frame_index=index) for index in range(frames)]
+
+    monkeypatch.setattr(transfer, "make_episode", episode)
+    monkeypatch.setattr(transfer, "make_context", lambda frame, *args: replace(context, frame=frame))
+    trainers = [PilotTransferTrainer(config, "cpu", objective=objective) for objective in ["baseline", "post_adapt"]]
+    samples = [trainer._sample() for trainer in trainers]
+    assert generated == [16]
+    assert trainers[0].sample_cache_misses == trainers[1].sample_cache_hits == 1
+    assert trainers[0].last_sample_cache_key == trainers[1].last_sample_cache_key
+    assert samples[0][1:] == samples[1][1:]
+    for left, right in zip((samples[0][0],) + samples[0][0].offline_post_contexts,
+                           (samples[1][0],) + samples[1][0].offline_post_contexts):
+        assert left.frame.frame_index == right.frame.frame_index
+        for name in ["rx_symbols", "bits", "tx_symbols", "adapt_mask", "reward_mask", "data_mask"]:
+            torch.testing.assert_close(getattr(left.frame, name), getattr(right.frame, name), rtol=0, atol=0)
+    cache = next((tmp_path / "samples").glob("*.pt"))
+    payload = torch.load(cache, weights_only=False)
+    payload["protocol"]["seed"] += 1
+    torch.save(payload, cache)
+    trainers[1].sample_index = 0
+    with pytest.raises(ValueError, match="缓存协议"):
+        trainers[1]._sample()

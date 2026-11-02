@@ -3,6 +3,8 @@
 > 当前进度（2026-11-02）：主目标尚未完成。[长期状态窗口结果](docs/channel_state_window_stage_20261102.md)
 > 未建立稳定改善，不能以接受率或晚期大点估计替代独立 seed 证据。用户已确认数百秒
 > 会话开始 acquisition 一次，之后仅前缀 Pilot；下一步匹配实际年龄分布的离线 A/B。
+> [长年龄匹配训练计划](docs/channel_state_long_age_training_plan_20261102.md)已冻结：
+> A/B 各 64 步，离线样本缓存配对；约 105 秒处启动的机制验证与正式连续会话分开。
 
 > 2026-11-02：[匹配前缀短窗训练与梯度解释](docs/prefix_transfer_stage_20261102.md)已完成。
 > A/B 各 256 步、5 个独立 seed × 8 帧 × 四 SNR 的在线改善区间均包含零；

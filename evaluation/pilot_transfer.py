@@ -107,6 +107,9 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
     if frames < 1 or not seeds or len(set(seeds)) != len(seeds) or state_split != "heldout_edge":
         raise ValueError("首阶段机制实验需要正帧数、独立 seed 与 heldout_edge。")
     settings = config["pilot_transfer"]
+    history_frames = settings.get("evaluation_history_frames", 0)
+    if type(history_frames) is not int or history_frames < 0:
+        raise ValueError("机制评估历史帧数必须为非负整数。")
     inner_input, reward_input = receiver_inputs(settings)
     inner_task, reward_task = receiver_tasks(settings)
     reward_objective = settings.get("reward_objective", "bce")
@@ -126,6 +129,7 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 "linear_operator_backend": os.environ.get("RL4EQ_LINEAR_OPERATOR_BACKEND", "direct"),
                 "main_aggregation_allowed": False, "state_split": state_split,
                 "seeds": list(seeds), "snrs": list(snrs), "frames": frames,
+                "evaluation_history_frames": history_frames,
                 "persistent": persistent, "config": config, "checkpoints": {},
                 "inner_receiver_input": inner_input, "reward_receiver_input": reward_input,
                 "inner_task": inner_task, "reward_task": reward_task, "reward_objective": reward_objective}
@@ -150,7 +154,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 "training_settings": {key: value for key, value in metrics.get("settings", {}).items()
                                       if key != "objective"},
                 "samples": [(item.get("seed"), item.get("snr_db"), item.get("frame_index"),
-                             item.get("post_target_frame_indices"), item.get("channel_state"))
+                             item.get("post_target_frame_indices"), item.get("channel_state"),
+                             item.get("offline_sample_cache_key"), item.get("offline_sample_input_sha256"))
                             for item in metrics.get("history", [])],
             }
             if branch == "baseline":
@@ -163,9 +168,14 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
             for snr in snrs:
                 for seed in seeds:
                     env, cir, cfo, tail, episode_frames = make_episode(
-                        config, model, seed=seed, snr=snr, frames=frames,
+                        config, model, seed=seed, snr=snr, frames=history_frames + frames,
                         state_split=state_split, device=device,
                     )
+                    if history_frames and any(bool(frame.adapt_mask[-tail.numel():].any())
+                                              for frame in episode_frames[:history_frames]):
+                        raise ValueError("带历史的机制评估目前要求前缀不覆盖帧尾。")
+                    # 历史只推进物理轨迹，不执行神经更新；不是从首帧持续适配的主结果。
+                    episode_frames = episode_frames[history_frames:]
                     initial = {name: value.detach().clone() for name, value in model.peft.named_group_parameters(
                         settings.get("inner_groups", ["phase_trend"]),
                     )}
@@ -225,6 +235,7 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                             ber_candidate, bce_candidate = _metrics(candidate_logits, frame, frame.data_mask)
                             ber_online, bce_online = _metrics(online_logits, frame, frame.data_mask)
                         row = {"branch": branch, "snr_db": snr, "seed": seed, "frame": index,
+                               "channel_frame_index": frame.frame_index,
                                "ber_frozen": ber_frozen, "ber_online": ber_online,
                                "ber_before_update": ber_before, "ber_candidate": ber_candidate,
                                "bce_frozen": bce_frozen, "bce_online": bce_online, "bce_candidate": bce_candidate,

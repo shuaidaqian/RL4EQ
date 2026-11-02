@@ -43,9 +43,10 @@ def main():
     payload = torch.load(args.pretrained, map_location="cpu", weights_only=False)
     source_config = UnfoldedConfig.from_dict(payload["model_config"]).to_dict()
     target_config = UnfoldedConfig.from_dict(manifest["config"]["model"]).to_dict()
-    if {name for name in source_config if source_config[name] != target_config[name]} != {"enable_channel_state_branch"}:
-        raise ValueError("本参考只允许源模型缺少新增神经信道状态分支。")
-    if source_config["enable_channel_state_branch"] or not target_config["enable_channel_state_branch"]:
+    differences = {name for name in source_config if source_config[name] != target_config[name]}
+    if differences not in (set(), {"enable_channel_state_branch"}):
+        raise ValueError("本参考只允许相同模型配置，或源模型缺少新增神经信道状态分支。")
+    if differences and (source_config["enable_channel_state_branch"] or not target_config["enable_channel_state_branch"]):
         raise ValueError("源模型和实验模型的状态支路关系错误。")
     config = {**manifest["config"], "model": source_config}
     model, payload = _load_branch(args.pretrained, config, args.device)
@@ -60,7 +61,12 @@ def main():
         for snr in manifest["snrs"]:
             for seed in manifest["seeds"]:
                 _, cir, cfo, tail, frames = make_episode(config, model, seed=seed, snr=snr,
-                    frames=manifest["frames"], state_split="heldout_edge", device=args.device)
+                    frames=manifest.get("evaluation_history_frames", 0) + manifest["frames"],
+                    state_split="heldout_edge", device=args.device)
+                history_frames = manifest.get("evaluation_history_frames", 0)
+                if history_frames and any(bool(frame.adapt_mask[-tail.numel():].any()) for frame in frames[:history_frames]):
+                    raise ValueError("带历史的源评分目前要求前缀不覆盖帧尾。")
+                frames = frames[history_frames:]
                 for index, frame in enumerate(frames):
                     fingerprint = hashlib.sha256(frame.rx_symbols.cpu().numpy().tobytes()).hexdigest()
                     assert fingerprint == paired[(snr, seed, index)]["input_sha256"]
