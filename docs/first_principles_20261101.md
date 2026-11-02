@@ -201,6 +201,13 @@ Data 梯度可达能量只有 4.38%–18.01%。下一步检验能存储复数状
 见[长年龄匹配结果](channel_state_long_age_training_stage_20261102.md)与
 [状态方向几何](channel_state_geometry_stage_20261102.md)。
 
+复数状态记忆已实现 234 个在线参数与 34 个离线尺度参数，记忆为零时源 Frozen
+输出精确保留。首轮原训练样本容量检查中，较大 signal 更新多数退化，MAP 在
+15 dB 有正描述均值而 5 dB 未解决；可达空间扩大不能替代可辨认性。当前先按
+预定两目标、两动作在新训练轨迹检查，不直接增加留出 seed 或 PPO 预算。
+见[记忆计划](channel_memory_plan_20261102.md)与
+[首轮容量筛查](channel_memory_capacity_stage_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、

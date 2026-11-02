@@ -31,6 +31,8 @@ class PEFTRegistry:
         "symbol_residual": {"symbol_residual_features", "symbol_residual_head"},
         "channel_state_features": {"channel_state_features"},
         "channel_state_head": {"channel_state_head"},
+        "channel_state_memory": {"channel_state_memory"},
+        "channel_state_memory_scale": {"channel_state_memory_scale"},
         "channel_state": {"channel_state_features", "channel_state_head"},
         "physics_blend": {"physics_blend"},
         "physics_residual": {"physics_residual"},

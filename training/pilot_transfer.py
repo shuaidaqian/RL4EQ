@@ -236,8 +236,11 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
         raise ValueError("整帧接收输入只支持 Adapt BCE 或神经信道状态信号目标。")
     if objective == "pilot_signal_reconstruction" and selected_groups != {"phase_trend"}:
         raise ValueError("相位信号重构只允许更新 phase_trend 参数组。")
-    if objective in {"channel_state_signal", "channel_state_map"} and (selected_groups != {"channel_state_head"} or model.channel_state is None):
-        raise ValueError("信道状态信号重构只允许更新已启用的神经 channel_state_head。")
+    if objective in {"channel_state_signal", "channel_state_map"}:
+        allowed = ({"channel_state_head"}, {"channel_state_memory"})
+        if (selected_groups not in allowed or model.channel_state is None or
+                (selected_groups == {"channel_state_memory"} and model.channel_state.memory is None)):
+            raise ValueError("信道状态信号重构只允许更新已启用的神经 channel_state_head 或 channel_state_memory。")
     parameters = dict(model.named_parameters())
     if initial_parameters is not None:
         parameters.update(initial_parameters)
@@ -383,18 +386,24 @@ class PilotTransferTrainer:
             source_config = UnfoldedConfig.from_dict(payload.get("model_config", {})).to_dict()
             target_config = self.model.config.to_dict()
             candidates = [(module, flag) for module, flag in (
-                ("symbol_residual", "enable_symbol_residual_branch"), ("channel_state", "enable_channel_state_branch"))
+                ("symbol_residual", "enable_symbol_residual_branch"), ("channel_state", "enable_channel_state_branch"),
+                ("channel_state_memory", "enable_channel_state_memory"))
                 if not source_config[flag] and target_config[flag]]
             if len(candidates) != 1:
                 raise ValueError("基础 checkpoint 参数结构不一致，禁止非严格加载。")
             module, flag = candidates[0]
-            new_keys = {key for key in expected if key.startswith(module + ".")}
+            if module == "channel_state_memory":
+                new_keys = {key for key in expected if key.startswith(("channel_state.memory.", "channel_state.memory_scale."))}
+                zero_module = self.model.channel_state.memory
+            else:
+                new_keys = {key for key in expected if key.startswith(module + ".")}
+                zero_module = getattr(self.model, module).head
             permitted = (self.settings.get("initialize_" + module + "_from_base", False)
                          and bool(new_keys) and set(state) == expected - new_keys)
             source_config[flag] = target_config[flag]
             if not permitted or source_config != target_config:
                 raise ValueError("基础 checkpoint 参数结构不一致，禁止非严格加载。")
-            if any(bool(parameter.detach().ne(0).any()) for parameter in getattr(self.model, module).head.parameters()):
+            if any(bool(parameter.detach().ne(0).any()) for parameter in zero_module.parameters()):
                 raise ValueError("新增神经残差 head 必须零初始化，才能从基础 checkpoint 迁移。")
             self.initialized_modules = [module]
         base_state.update(state)

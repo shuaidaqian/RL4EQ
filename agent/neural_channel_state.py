@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import math
 import torch
 from torch import nn
 
@@ -21,9 +22,9 @@ def known_pilot_equations(rx, symbols, known_mask, score_mask, memory):
 
 
 class NeuralChannelStateAdapter(nn.Module):
-    """离线学习逐 tap 的状态调制表示，在线只更新 17 参数 head。"""
+    """离线学习状态调制，在线选择 gate head 或有界复数记忆 head。"""
 
-    def __init__(self, *, acquisition_rows, rho_frame, max_direction_norm=.5):
+    def __init__(self, *, acquisition_rows, rho_frame, max_direction_norm=.5, memory_taps=0, memory_output_scale=.25):
         super().__init__()
         if acquisition_rows < 1 or not 0 < rho_frame <= 1 or max_direction_norm <= 0:
             raise ValueError("信道状态先验需要合法 acquisition 行数、相关系数和方向上限。")
@@ -36,6 +37,17 @@ class NeuralChannelStateAdapter(nn.Module):
         nn.init.zeros_(self.head.bias)
         mark_peft_group(self.features, "channel_state_features")
         mark_peft_group(self.head, "channel_state_head")
+        if type(memory_taps) is not int or memory_taps < 0 or not math.isfinite(memory_output_scale) or memory_output_scale <= 0:
+            raise ValueError("复数状态记忆需要非负整数 tap 数和正输出尺度。")
+        self.memory_output_scale = float(memory_output_scale)
+        self.memory = nn.Embedding(memory_taps, 2) if memory_taps else None
+        self.memory_scale = nn.Linear(16, 2) if memory_taps else None
+        if self.memory is not None:
+            nn.init.zeros_(self.memory.weight)
+            nn.init.zeros_(self.memory_scale.weight)
+            nn.init.zeros_(self.memory_scale.bias)
+            mark_peft_group(self.memory, "channel_state_memory")
+            mark_peft_group(self.memory_scale, "channel_state_memory_scale")
 
     def prior_variance(self, prior, noise, frame_index):
         """方向构造与 MAP 目标共享同一个对角 acquisition/过程先验。"""
@@ -70,5 +82,14 @@ class NeuralChannelStateAdapter(nn.Module):
                     torch.linspace(0, 1, prior.numel(), device=rx.device), strength), dim=-1)
                 directions.append(direction)
                 features.append(torch.tanh(feature))
-        gates = 2. * torch.tanh(self.head(self.features(torch.stack(features))).squeeze(-1))
-        return cir + gates.to(cir.dtype) * torch.stack(directions)
+        hidden = self.features(torch.stack(features))
+        gates = 2. * torch.tanh(self.head(hidden).squeeze(-1))
+        updated = cir + gates.to(cir.dtype) * torch.stack(directions)
+        if self.memory is not None:
+            if self.memory.num_embeddings != cir.shape[-1]:
+                raise ValueError("复数状态记忆的 tap 数与 CIR 不一致。")
+            # 记忆为零时精确保留原输出；离线只学尺度，在线仅更新受限记忆 head。
+            scale = torch.exp(torch.tanh(self.memory_scale(hidden)))
+            residual = self.memory_output_scale * torch.tanh(self.memory.weight).unsqueeze(0) * scale
+            updated = updated + torch.complex(residual[..., 0], residual[..., 1]).to(cir.dtype)
+        return updated

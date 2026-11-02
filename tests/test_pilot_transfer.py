@@ -1258,3 +1258,158 @@ def test_channel_state_geometry_data_derivatives_do_not_generate_candidates_or_m
     for name, value in model.state_dict().items():
         torch.testing.assert_close(value, before[name], atol=0, rtol=0)
     assert all(value.grad is None for value in model.parameters())
+
+
+def _channel_memory_fixture():
+    _, source, context = _channel_state_fixture()
+    with torch.no_grad():
+        source.channel_state.head.bias.fill_(.2)
+    model = UnfoldedEqualizer(replace(source.config, enable_channel_state_memory=True)).eval()
+    model.attach_online_phase_trend_adapter()
+    state = model.state_dict()
+    state.update(source.state_dict())
+    model.load_state_dict(state, strict=True)
+    return source, model, context
+
+
+def test_channel_memory_zero_head_preserves_frozen_after_scale_changes_and_has_full_cir_rank():
+    from scripts.diagnose_channel_state_capacity import _StateOutput
+    from scripts.diagnose_channel_state_geometry import real_vector
+    from torch.func import functional_call
+
+    source, model, context = _channel_memory_fixture()
+    assert sum(p.numel() for _, p in model.peft.named_group_parameters({"channel_state_memory"})) == 10
+    assert sum(p.numel() for _, p in model.peft.named_group_parameters({"channel_state_memory_scale"})) == 34
+    with torch.no_grad():
+        model.channel_state.memory_scale.weight.fill_(3)
+        model.channel_state.memory_scale.bias.fill_(-2)
+        torch.testing.assert_close(context_logits(source, context), context_logits(model, context), atol=0, rtol=0)
+    wrapper = _StateOutput(model)
+    name, parameter = model.peft.named_group_parameters({"channel_state_memory"})[0]
+    theta = parameter.detach().flatten()
+    jac = torch.autograd.functional.jacobian(lambda value: real_vector(functional_call(wrapper,
+        {"model." + name: value.view_as(parameter)}, (context,))), theta, vectorize=True)
+    assert jac.shape == (10, 10) and int(torch.linalg.matrix_rank(jac)) == 10
+    assert bool(torch.isfinite(jac).all())
+
+
+@pytest.mark.parametrize("objective", ["channel_state_signal", "channel_state_map"])
+def test_channel_memory_updates_match_adamw_ignore_hidden_labels_and_keep_base(objective):
+    from training.pilot_transfer import ChannelStateSignalObjective
+
+    _, model, context = _channel_memory_fixture()
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    options = dict(learning_rate=.02, steps=3, max_delta_norm=.8,
+                   groups={"channel_state_memory"}, objective=objective, receiver_input="full_rx")
+    fast, info = differentiable_adapt(model, [context], **options)
+    frame = context.frame
+    bits, tx, rx = frame.bits.clone(), frame.tx_symbols.clone(), frame.rx_symbols.clone()
+    hidden = ~frame.adapt_mask
+    bits[hidden], tx[hidden], rx[hidden] = ~bits[hidden], 1000j, -1000j
+    altered, changed = differentiable_adapt(model, [replace(context, frame=replace(frame, bits=bits, tx_symbols=tx, rx_symbols=rx))], **options)
+    assert info == changed
+    for name in fast:
+        torch.testing.assert_close(fast[name], altered[name], atol=0, rtol=0)
+    _, actual, _ = _channel_memory_fixture()
+    actual.load_state_dict(model.state_dict())
+    actual.set_trainable_groups({"channel_state_memory"})
+    name, parameter = actual.peft.named_group_parameters({"channel_state_memory"})[0]
+    start = parameter.detach().clone()
+    optimizer = torch.optim.AdamW([parameter], lr=.02)
+    for _ in range(3):
+        optimizer.zero_grad(set_to_none=True)
+        ChannelStateSignalObjective(actual, include_prior=objective == "channel_state_map")(context).backward()
+        optimizer.step()
+    with torch.no_grad():
+        delta = parameter - start
+        parameter.copy_(start + delta * (.8 / delta.norm().clamp_min(1e-12)).clamp(max=1.))
+    torch.testing.assert_close(fast[name], parameter, atol=2e-7, rtol=3e-5)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], atol=0, rtol=0)
+
+
+def test_channel_memory_explicit_migration_and_offline_scale_training_keep_frozen(tmp_path, monkeypatch):
+    source, model, context = _channel_memory_fixture()
+    checkpoint = tmp_path / "source.pt"
+    torch.save({"model_config": source.config.to_dict(), "state_dict": {name: value for name, value in source.state_dict().items()
+        if not name.startswith("online_phase_trend_adapter.")}}, checkpoint)
+    settings = {**_channel_state_settings(), "inner_groups": ["channel_state_memory"],
+                "outer_groups": ["channel_state_memory_scale"], "inner_learning_rate": .02,
+                "inner_steps": 3, "max_delta_norm": .8}
+    config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "pilot_transfer": settings}
+    trainer = PilotTransferTrainer(config, "cpu", objective="post_adapt")
+    with pytest.raises(ValueError, match="参数结构不一致"):
+        trainer.load_resume(checkpoint)
+    trainer.settings["initialize_channel_state_memory_from_base"] = True
+    trainer.load_resume(checkpoint)
+    before = {name: value.clone() for name, value in trainer.model.state_dict().items()}
+    monkeypatch.setattr(trainer, "_sample", lambda: (context, {}, 10, 98000))
+    metrics = trainer.train(1)
+    assert metrics["outer_trainable_parameter_count"] == 34
+    assert metrics["initialized_modules"] == ["channel_state_memory"]
+    with torch.no_grad():
+        torch.testing.assert_close(context_logits(source, context), context_logits(trainer.model, context), atol=0, rtol=0)
+    assert any(not torch.equal(value, before[name]) for name, value in trainer.model.state_dict().items()
+               if name.startswith("channel_state.memory_scale."))
+    for name, value in trainer.model.state_dict().items():
+        if not name.startswith("channel_state.memory_scale."):
+            torch.testing.assert_close(value, before[name], atol=0, rtol=0)
+    trainer.save(tmp_path / "saved", metrics)
+    payload = torch.load(tmp_path / "saved/model_best.pt", weights_only=False)
+    standalone = UnfoldedEqualizer(UnfoldedConfig.from_dict(payload["model_config"]))
+    standalone.load_state_dict(payload["state_dict"], strict=True)
+
+
+def test_channel_memory_capacity_guards_ignore_data_labels_and_never_commit_candidates():
+    from scripts.diagnose_channel_state_capacity import candidates_and_guards
+    from scripts.diagnose_channel_memory_capacity import ACTIONS
+
+    _, model, context = _channel_memory_fixture()
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    options = dict(objectives=("channel_state_signal", "channel_state_map"), actions=ACTIONS,
+                   groups=("channel_state_memory",))
+    original = candidates_and_guards(model, context, **options)
+    frame = context.frame
+    bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+    bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000j
+    changed = candidates_and_guards(model, replace(context, frame=replace(frame, bits=bits, tx_symbols=tx)), **options)
+    assert original[2] == changed[2]
+    assert len(original[2]) == 4
+    for name in original[1]:
+        torch.testing.assert_close(original[1][name], changed[1][name], atol=0, rtol=0)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], atol=0, rtol=0)
+
+
+@pytest.mark.parametrize("objective", ["channel_state_signal", "channel_state_map"])
+@pytest.mark.parametrize("future_target", [False, True])
+def test_channel_memory_offline_scale_gradient_matches_finite_difference(objective, future_target):
+    _, model, context = _channel_memory_fixture()
+    # 避免无噪声 toy 已接近零 BCE，使导数核验退化为数值零。
+    context = replace(context, frame=replace(context.frame,
+        rx_symbols=context.frame.rx_symbols + 1.2 * torch.linspace(-1, 1, context.frame.rx_symbols.numel())))
+    model.set_trainable_groups({"channel_state_memory_scale"})
+    target = (replace(context, frame=replace(context.frame, frame_index=8,
+              rx_symbols=context.frame.rx_symbols * (.9 + .1j))) if future_target else context)
+
+    def loss():
+        with sdpa_kernel(SDPBackend.MATH):
+            fast, _ = differentiable_adapt(model, [context], learning_rate=.02, steps=3,
+                max_delta_norm=.8, create_graph=True, groups={"channel_state_memory"},
+                objective=objective, receiver_input="full_rx")
+            logits = context_logits(model, target, fast)
+            mask = target.frame.data_mask
+            return F.binary_cross_entropy_with_logits(logits[mask], target.frame.bits[mask].float())
+
+    probe = model.channel_state.memory_scale.bias
+    gradient, = torch.autograd.grad(loss(), probe)
+    start = probe.detach().clone()
+    values = []
+    for sign in [-1, 1]:
+        with torch.no_grad():
+            probe.copy_(start)
+            probe[0].add_(sign * .002)
+        values.append(float(loss().detach()))
+    assert abs(float(gradient[0])) > 1e-7
+    assert float(gradient[0]) == pytest.approx((values[1] - values[0]) / .004, abs=2e-4, rel=.05)

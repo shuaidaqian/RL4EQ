@@ -36,6 +36,8 @@ class UnfoldedConfig:
     enable_symbol_residual_branch: bool = False
     enable_channel_state_branch: bool = False
     channel_state_rho_frame: float = 0.999914670307452
+    enable_channel_state_memory: bool = False
+    channel_state_memory_output_scale: float = 0.25
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -427,6 +429,8 @@ class UnfoldedEqualizer(nn.Module):
     def __init__(self, config: UnfoldedConfig | None = None):
         super().__init__()
         self.config = config or UnfoldedConfig()
+        if self.config.enable_channel_state_memory and not self.config.enable_channel_state_branch:
+            raise ValueError("复数状态记忆必须依附已启用的神经信道状态分支。")
         self.feature_proj = nn.Linear(4, self.config.d_model)
         self.region_embedding = nn.Embedding(2, self.config.d_model)
         self.pilot_encoder = None
@@ -474,7 +478,10 @@ class UnfoldedEqualizer(nn.Module):
         self.symbol_residual = SymbolResidualDenoiser() if self.config.enable_symbol_residual_branch else None
         self.channel_state = (NeuralChannelStateAdapter(
             acquisition_rows=self.config.frame_len - self.config.max_delay,
-            rho_frame=self.config.channel_state_rho_frame) if self.config.enable_channel_state_branch else None)
+            rho_frame=self.config.channel_state_rho_frame,
+            memory_taps=self.config.max_delay + 1 if self.config.enable_channel_state_memory else 0,
+            memory_output_scale=self.config.channel_state_memory_output_scale,
+        ) if self.config.enable_channel_state_branch else None)
         # 该模块只在在线运行时动态挂载，不进入离线 checkpoint。
         self.online_residual_adapter: ResidualLogitAdapter | None = None
         self.online_physics_blend_adapter: OnlinePhysicsBlendAdapter | None = None

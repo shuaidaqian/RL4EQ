@@ -4,7 +4,8 @@
 > 的 B Online 在 0/10/15 dB 相对自身 Frozen 有正向区间，5 dB 仍不确定；
 > 10/15 dB 也超过同波形旧源 Frozen。尚未建立四 SNR、正式 RL、传统主比较或长期优势。
 > [作用方向几何](docs/channel_state_geometry_stage_20261102.md)发现当前 17 参数 head
-> 响应高度集中，下一步先检验更合适的神经状态残差表示，未更新输出保持原 Frozen。
+> 响应高度集中。[复数状态记忆筛查](docs/channel_memory_capacity_stage_20261102.md)
+> 已保持源 Frozen 输出精确不变，但扩大表示没有自动解决 Pilot 更新；正在做固定协议的新训练轨迹复核。
 > 用户已确认数百秒会话开始 acquisition 一次，之后仅每帧前缀 Pilot。
 
 > 2026-11-02：[匹配前缀短窗训练与梯度解释](docs/prefix_transfer_stage_20261102.md)已完成。

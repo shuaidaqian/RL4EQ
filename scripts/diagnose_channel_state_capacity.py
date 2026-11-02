@@ -27,6 +27,7 @@ from training.windowed_discrete_ppo import _adapt_receiver_view, should_accept_r
 
 
 ACTIONS = (("small", .005, 1, .05), ("medium", .02, 3, .2), ("large", .05, 3, .5))
+MEMORY_ACTIONS = (("small", .005, 1, .2), ("medium", .02, 3, .8))
 
 
 class _StateOutput(nn.Module):
@@ -57,7 +58,8 @@ def state_output(model, context, parameters=None):
                  "source_cir_delta_norm": float((cir - context.condition.complex_cir).norm())}
 
 
-def candidates_and_guards(model, context, objectives=("channel_state_signal",), actions=ACTIONS):
+def candidates_and_guards(model, context, objectives=("channel_state_signal",), actions=ACTIONS,
+                          groups=("channel_state_head",)):
     """不访问 Data 标签；幅度档位固定，不根据事后指标排序。"""
     with torch.no_grad():
         cir0, base_info = state_output(model, context)
@@ -68,7 +70,7 @@ def candidates_and_guards(model, context, objectives=("channel_state_signal",), 
     for objective in objectives:
         for name, lr, steps, radius in actions:
             fast, info = differentiable_adapt(model, [context], learning_rate=lr, steps=steps,
-                max_delta_norm=radius, groups={"channel_state_head"}, objective=objective, receiver_input="full_rx")
+                max_delta_norm=radius, groups=set(groups), objective=objective, receiver_input="full_rx")
             fast = {key: value.detach() for key, value in fast.items()}
             with torch.no_grad():
                 cir1, after_info = state_output(model, context, fast)
@@ -114,6 +116,7 @@ def main():
     parser.add_argument("--objectives", nargs="+", choices=["channel_state_signal", "channel_state_map"], default=["channel_state_signal"])
     parser.add_argument("--ages", nargs="+", type=int, default=[0, 7, 31, 63, 127])
     parser.add_argument("--actions", nargs="+", choices=[action[0] for action in ACTIONS], default=[action[0] for action in ACTIONS])
+    parser.add_argument("--group", choices=["channel_state_head", "channel_state_memory"], default="channel_state_head")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
@@ -130,7 +133,12 @@ def main():
     if {r["seed"] for r in payload["metrics"]["history"]}.intersection(seeds):
         raise ValueError("诊断 seed 与训练重叠。")
     ages = args.ages
-    actions = tuple(action for action in ACTIONS if action[0] in args.actions)
+    available = MEMORY_ACTIONS if args.group == "channel_state_memory" else ACTIONS
+    if not set(args.actions).issubset({action[0] for action in available}):
+        raise ValueError("记忆 head 只允许预设 small/medium 动作，请显式指定。")
+    if args.group == "channel_state_memory" and model.channel_state.memory is None:
+        raise ValueError("需要启用复数状态记忆。")
+    actions = tuple(action for action in available if action[0] in args.actions)
     rows = []
     started = time.monotonic()
     for snr in config["main_snrs"]:
@@ -142,7 +150,7 @@ def main():
             for index in ages:
                 frame = frames[index]
                 context = make_context(frame, cir, cfo, tail, snr)
-                frozen, candidates, decisions = candidates_and_guards(model, context, args.objectives, actions)
+                frozen, candidates, decisions = candidates_and_guards(model, context, args.objectives, actions, (args.group,))
                 with torch.no_grad():
                     ber0, bce0 = _metrics(frozen, frame, frame.data_mask)
                     for decision in decisions:
@@ -168,6 +176,7 @@ def main():
         "state_split": "offline_train", "data_labels_used_for_control": False,
         "checkpoint": args.pretrained, "checkpoint_sha256": hashlib.sha256(Path(args.pretrained).read_bytes()).hexdigest(),
         "config": config, "seeds": seeds, "ages": ages, "actions": actions, "objectives": args.objectives,
+        "adaptation_group": args.group,
         "elapsed_seconds": time.monotonic() - started, "per_snr": summary,
         "per_snr_age": summarize_by_age(rows, seeds), "rows": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
 
