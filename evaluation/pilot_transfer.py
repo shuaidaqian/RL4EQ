@@ -149,7 +149,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 "source_sha256": (metrics.get("source_checkpoint") or {}).get("sha256"),
                 "training_settings": {key: value for key, value in metrics.get("settings", {}).items()
                                       if key != "objective"},
-                "samples": [(item.get("seed"), item.get("snr_db"), item.get("frame_index"), item.get("channel_state"))
+                "samples": [(item.get("seed"), item.get("snr_db"), item.get("frame_index"),
+                             item.get("post_target_frame_indices"), item.get("channel_state"))
                             for item in metrics.get("history", [])],
             }
             if branch == "baseline":

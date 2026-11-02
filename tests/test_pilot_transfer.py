@@ -875,11 +875,14 @@ def test_neural_channel_state_reward_signal_loss_hides_data_information():
 
 
 @pytest.mark.parametrize("objective", ["channel_state_signal", "channel_state_map"])
-def test_neural_channel_state_post_update_outer_gradient_matches_finite_difference(objective):
+@pytest.mark.parametrize("future_target", [False, True])
+def test_neural_channel_state_post_update_outer_gradient_matches_finite_difference(objective, future_target):
     _, model, context = _channel_state_fixture()
     frame = context.frame
     context = replace(context, frame=replace(frame,
         rx_symbols=frame.rx_symbols + 1.2 * torch.linspace(-1, 1, frame.rx_symbols.numel())))
+    target = (replace(context, frame=replace(context.frame, frame_index=8,
+              rx_symbols=context.frame.rx_symbols * (.9 + .1j))) if future_target else context)
     model.set_trainable_groups({"channel_state"})
 
     def loss():
@@ -887,7 +890,7 @@ def test_neural_channel_state_post_update_outer_gradient_matches_finite_differen
             fast, _ = differentiable_adapt(model, [context], learning_rate=.005, steps=1,
                 max_delta_norm=.05, create_graph=True, groups={"channel_state_head"},
                 objective=objective, receiver_input="full_rx")
-            logits = context_logits(model, context, fast)
+            logits = context_logits(model, target, fast)
             return F.binary_cross_entropy_with_logits(logits[frame.data_mask], frame.bits[frame.data_mask].float())
 
     probe = model.channel_state.head.bias
@@ -1011,3 +1014,98 @@ def test_channel_state_map_preserves_posterior_stationary_point():
     assert float(signal_gradient.norm()) > 1e-4
     with pytest.raises(ValueError, match="先验惩罚"):
         ChannelStateSignalObjective(model, role="reward", include_prior=True)
+
+
+def test_retention_pilot_rules_ignore_data_labels_and_preserve_state():
+    """保留或撤销只由 Pilot 决定；候选生成和事后比较均不改写离线权重。"""
+    from scripts.diagnose_channel_state_retention import pilot_comparison
+
+    _, model, context = _channel_state_fixture()
+    with torch.no_grad():
+        model.channel_state.head.bias.fill_(.1)
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    fast, update = differentiable_adapt(model, [context], learning_rate=.02, steps=3,
+        max_delta_norm=.2, groups={"channel_state_head"}, objective="channel_state_signal", receiver_input="full_rx")
+    fast = {name: value.detach() for name, value in fast.items()}
+    original = pilot_comparison(model, context, fast, update["delta_norm"])
+    frame = context.frame
+    bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+    bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000j
+    changed = pilot_comparison(model, replace(context, frame=replace(frame, bits=bits, tx_symbols=tx)), fast, update["delta_norm"])
+    assert original[1] == changed[1]
+    assert not (original[1]["revalidate_keep"] and original[1]["rollback"])
+    for name in original[0]:
+        torch.testing.assert_close(original[0][name], changed[0][name], atol=0, rtol=0)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], atol=0, rtol=0)
+    assert all(parameter.grad is None for parameter in model.parameters())
+
+
+def test_retention_rejects_heldout_and_output_reuse_before_loading(tmp_path):
+    from scripts.diagnose_channel_state_retention import run
+
+    config = {"offline_state_split": "heldout_edge", "main_level": "B", "pilot_layout": "prefix"}
+    with pytest.raises(ValueError, match="训练分布"):
+        run(config, "missing.pt", [79000], "cpu", tmp_path / "new.json")
+    config["offline_state_split"] = "offline_train"
+    output = tmp_path / "old.json"
+    output.write_text("保留原始结果", encoding="utf-8")
+    with pytest.raises(ValueError, match="新的输出文件"):
+        run(config, "missing.pt", [79000], "cpu", output)
+    assert output.read_text(encoding="utf-8") == "保留原始结果"
+
+
+@pytest.mark.parametrize("offsets", [[], [1], [0, -1], [0, 1, 1], [0, 2, 1], [0, 1.5], [0, True]])
+def test_future_outer_targets_reject_invalid_offsets(offsets):
+    model, _ = _fixture()
+    config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "pilot_transfer": {"post_target_frame_offsets": offsets}}
+    with pytest.raises(ValueError, match="外层帧偏移"):
+        PilotTransferTrainer(config, "cpu")
+
+
+@pytest.mark.parametrize("objective", ["baseline", "post_adapt"])
+def test_future_outer_targets_share_exposure_and_keep_inner_causal(monkeypatch, objective):
+    import training.pilot_transfer as transfer
+    from types import SimpleNamespace
+
+    _, model, context = _channel_state_fixture()
+    settings = {**_channel_state_settings(), "post_target_frame_offsets": [0, 8], "history_frame_choices": [7]}
+    config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "main_snrs": [10], "pilot_transfer": settings}
+    trainer = PilotTransferTrainer(config, "cpu", objective=objective)
+    trainer.model.load_state_dict(model.state_dict())
+
+    def episode(*args, frames, **kwargs):
+        assert frames == 16
+        return SimpleNamespace(state_metadata=lambda: {}), None, None, context.tail, [
+            replace(context.frame, frame_index=index) for index in range(frames)]
+
+    monkeypatch.setattr(transfer, "make_episode", episode)
+    monkeypatch.setattr(transfer, "make_context", lambda frame, *args: replace(context, frame=frame))
+    sample = trainer._sample()[0]
+    assert sample.frame.frame_index == 7
+    assert [c.frame.frame_index for c in sample.offline_post_contexts] == [15]
+    hidden = replace(sample.offline_post_contexts[0], frame=replace(sample.offline_post_contexts[0].frame,
+                     bits=~sample.frame.bits, tx_symbols=-sample.frame.tx_symbols,
+                     rx_symbols=torch.full_like(sample.frame.rx_symbols, 1000j)))
+    options = dict(learning_rate=.005, steps=1, max_delta_norm=.05,
+                   groups={"channel_state_head"}, objective="channel_state_signal", receiver_input="full_rx")
+    fast, info = differentiable_adapt(model, [sample], **options)
+    changed, changed_info = differentiable_adapt(model, [replace(sample, offline_post_contexts=(hidden,))], **options)
+    assert info == changed_info
+    for name in fast:
+        torch.testing.assert_close(fast[name], changed[name], rtol=0, atol=0)
+    visited = []
+    original_logits = transfer.context_logits
+
+    def observe(model, current, *args, **kwargs):
+        visited.append(current.frame.frame_index)
+        return original_logits(model, current, *args, **kwargs)
+
+    monkeypatch.setattr(trainer, "_sample", lambda: (sample, {}, 10, 80000))
+    monkeypatch.setattr(transfer, "context_logits", observe)
+    metrics = trainer.train(1)
+    assert visited == [7, 15, 7, 15]
+    assert metrics["post_target_frame_offsets"] == [0, 8]
+    assert metrics["history"][0]["post_target_frame_indices"] == [7, 15]

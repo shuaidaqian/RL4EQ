@@ -41,6 +41,8 @@ class TransferContext:
     frame: Frame
     condition: CIRCondition
     tail: torch.Tensor
+    # 仅供离线外层评分；模型与 Adapt 目标不会读取这些未来上下文。
+    offline_post_contexts: tuple["TransferContext", ...] = ()
 
 
 def receiver_inputs(settings):
@@ -325,6 +327,12 @@ class PilotTransferTrainer:
     def __init__(self, config, device, *, objective=None):
         self.config = config
         self.settings = dict(config["pilot_transfer"])
+        offsets = self.settings.get("post_target_frame_offsets", [0])
+        if (not isinstance(offsets, list) or not offsets or offsets[0] != 0
+                or any(type(value) is not int or value < 0 for value in offsets)
+                or offsets != sorted(set(offsets))):
+            raise ValueError("离线外层帧偏移必须为从零开始的递增非负整数列表。")
+        self.post_target_frame_offsets = offsets
         self.inner_receiver_input, self.reward_receiver_input = receiver_inputs(self.settings)
         self.inner_task, self.reward_task = receiver_tasks(self.settings)
         self.objective = objective or self.settings.get("objective", "post_adapt")
@@ -402,14 +410,24 @@ class PilotTransferTrainer:
         history_frames = int(choices[(self.sample_index - 1) % len(choices)] if choices is not None
                              else self.settings.get("history_frames", 1))
         env, cir, cfo, tail, frames = make_episode(
-            self.config, self.model, seed=seed, snr=snr, frames=history_frames + 1,
+            self.config, self.model, seed=seed, snr=snr,
+            frames=history_frames + self.post_target_frame_offsets[-1] + 1,
             state_split="offline_train", device=self.device,
         )
-        for frame in frames[:-1]:
+        for frame in frames[:history_frames]:
             if bool(frame.adapt_mask[-tail.numel():].any()):
                 context = make_context(frame, cir, cfo, tail, snr)
                 tail = next_pilot_tail(self.model, context, alpha=float(self.config.get("tail_update_alpha", 0.5)))
-        return make_context(frames[-1], cir, cfo, tail, snr), env.state_metadata(), snr, seed
+        context = make_context(frames[history_frames], cir, cfo, tail, snr)
+        if len(self.post_target_frame_offsets) > 1:
+            # 未来条件只允许由各自 acquisition/Adapt 生成，不沿用隐藏发送符号。
+            # 当前 prefix 不覆盖帧尾；未来窗口若覆盖帧尾，需要逐帧合法递推，不能静默复用。
+            if any(bool(frame.adapt_mask[-tail.numel():].any()) for frame in frames[history_frames:]):
+                raise ValueError("跨帧离线目标目前要求前缀不覆盖帧尾。")
+            future = tuple(make_context(frames[history_frames + offset], cir, cfo, tail, snr)
+                           for offset in self.post_target_frame_offsets[1:])
+            context = replace(context, offline_post_contexts=future)
+        return context, env.state_metadata(), snr, seed
 
     def train(self, steps, batch_size=1, accumulation_steps=1, use_amp=False):
         # CUDA 的高效 attention backward 不支持本任务所需的二阶导数；两分支
@@ -429,10 +447,17 @@ class PilotTransferTrainer:
             self.optimizer.zero_grad(set_to_none=True)
             for _ in range(int(batch_size) * int(accumulation_steps)):
                 context, channel_state, snr, seed = self._sample()
-                before_logits = context_logits(self.model, context)
                 frame = context.frame
-                base_loss = F.binary_cross_entropy_with_logits(before_logits.float(), frame.bits.float())
-                before_data = F.binary_cross_entropy_with_logits(before_logits[frame.data_mask].float(), frame.bits[frame.data_mask].float())
+                targets = (context,) + context.offline_post_contexts
+                # A/B 使用完全相同的当前/未来离线标签暴露，区别只在是否优化更新后目标。
+                base_terms, before_terms = [], []
+                for target_context in targets:
+                    before_logits = context_logits(self.model, target_context)
+                    target_frame = target_context.frame
+                    base_terms.append(F.binary_cross_entropy_with_logits(before_logits.float(), target_frame.bits.float()))
+                    before_terms.append(F.binary_cross_entropy_with_logits(before_logits[target_frame.data_mask].float(),
+                                        target_frame.bits[target_frame.data_mask].float()))
+                base_loss, before_data = torch.stack(base_terms).mean(), torch.stack(before_terms).mean()
                 inner_context, score_start = task_context(context, self.inner_task, role="adapt")
                 fast, update = differentiable_adapt(
                     self.model, [inner_context], learning_rate=float(self.settings["inner_learning_rate"]),
@@ -443,8 +468,13 @@ class PilotTransferTrainer:
                     receiver_input=self.inner_receiver_input,
                     score_start=score_start,
                 )
-                after_logits = context_logits(self.model, context, fast)
-                post_loss = F.binary_cross_entropy_with_logits(after_logits[frame.data_mask].float(), frame.bits[frame.data_mask].float())
+                post_terms = []
+                for target_context in targets:
+                    after_logits = context_logits(self.model, target_context, fast)
+                    target_frame = target_context.frame
+                    post_terms.append(F.binary_cross_entropy_with_logits(after_logits[target_frame.data_mask].float(),
+                                      target_frame.bits[target_frame.data_mask].float()))
+                post_loss = torch.stack(post_terms).mean()
                 loss = base_loss if self.objective == "baseline" else (
                     float(self.settings.get("base_weight", 1.0)) * base_loss
                     + float(self.settings.get("post_weight", 1.0)) * post_loss
@@ -455,6 +485,7 @@ class PilotTransferTrainer:
                 self.history.append({
                     "step": step + 1, "seed": seed, "snr_db": snr,
                     "frame_index": frame.frame_index,
+                    "post_target_frame_indices": [target.frame.frame_index for target in targets],
                     "loss": float(loss.detach().cpu()), "base_bce": float(base_loss.detach().cpu()),
                     "data_bce_before": float(before_data.detach().cpu()), "data_bce_after": float(post_loss.detach().cpu()),
                     "channel_state": channel_state, **update,
@@ -480,6 +511,7 @@ class PilotTransferTrainer:
             "inner_task": self.inner_task, "reward_task": self.reward_task,
             "outer_uses_offline_data_labels": True,
             "post_adapt_data_objective_enabled": self.objective == "post_adapt",
+            "post_target_frame_offsets": self.post_target_frame_offsets,
             "offline_base_loss": "bce_all",
             "reward_pilot_used_for_post_adapt_loss": False,
             "checkpoint_selection": "fixed_training_budget_no_test_selection",

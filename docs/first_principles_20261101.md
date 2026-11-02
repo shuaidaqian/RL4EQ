@@ -166,6 +166,13 @@ MAP 目标与后验驻点的一致性测试通过，但新训练轨迹的 BER �
 反馈排序，不扩大同一留出矩阵或直接进入数百秒验收。见
 [神经状态持续结果](channel_state_tracking_stage_20261102.md)。
 
+首帧固定动作的 60 个训练范围评分上下文未支持稳定有效期或统一 Pilot 过滤。
+5 dB 的信号反馈仍有方向失配，10/15 dB 没有改变判决，不能据此确认高 SNR
+失效原因。已实现可选的当前/未来离线外层目标，并验证未来上下文不进入当前
+Adapt 更新；后续按固定 A/B 标签暴露和预算检验，不将实现完整等同于收益。
+见[首帧有效期结果](channel_state_retention_stage_20261102.md)与
+[跨帧目标计划](channel_state_future_plan_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、
