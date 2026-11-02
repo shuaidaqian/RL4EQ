@@ -1,5 +1,6 @@
 import json
 
+import pytest
 import torch
 
 
@@ -85,6 +86,94 @@ def test_discrete_safe_action_catalog_is_bounded_and_has_identity():
     assert moderate.peft_steps == 5
     assert moderate.peft_max_delta_norm == 0.05
     assert moderate.peft_objective == "pilot_signal_reconstruction"
+
+
+def test_channel_memory_rl_catalog_is_explicit_discrete_bounded_and_backwards_compatible():
+    from agent.discrete_safe_policy import safe_modulation_actions
+
+    legacy = safe_modulation_actions(2, action_names=None, peft_max_episode_delta_norm=.05)
+    assert not any(action.name.startswith("peft_memory_") for action in legacy)
+    names = ["identity", "peft_memory_signal_small", "peft_memory_signal_medium",
+             "peft_memory_map_small", "peft_memory_map_medium", "rollback_identity"]
+    actions = safe_modulation_actions(2, action_names=names, peft_max_episode_delta_norm=.05,
+                                     include_channel_state_memory=True)
+    assert [action.name for action in actions] == names
+    assert [action.peft_objective for action in actions[1:5]] == [
+        "channel_state_signal", "channel_state_signal", "channel_state_map", "channel_state_map"]
+    assert [action.peft_lr for action in actions[1:5]] == [.005, .02, .005, .02]
+    assert [action.peft_steps for action in actions[1:5]] == [1, 3, 1, 3]
+    assert [action.peft_max_delta_norm for action in actions[1:5]] == [.2, .8, .2, .8]
+    assert all(action.peft_groups == {"channel_state_memory"} for action in actions[1:5])
+    assert all(action.peft_max_episode_delta_norm == .05 for action in actions[1:5])
+    with pytest.raises(ValueError, match="未知名称"):
+        safe_modulation_actions(2, action_names=["identity", "peft_memory_map_medium"],
+                                include_channel_state_memory=False)
+
+
+def test_channel_memory_update_uses_only_adapt_and_keeps_other_parameters_fixed():
+    from training.windowed_discrete_ppo import _apply_adapt_peft_update
+    from training.pilot_transfer import differentiable_adapt
+
+    from dataclasses import replace
+    from tests.test_pilot_transfer import _channel_memory_fixture
+
+    _, model, context = _channel_memory_fixture()
+    frame = context.frame
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    expected, expected_info = differentiable_adapt(model, [context], learning_rate=.005, steps=1,
+        max_delta_norm=.2, groups={"channel_state_memory"}, objective="channel_state_map", receiver_input="full_rx")
+    actual = _apply_adapt_peft_update(model, frame, context.condition, context.tail.unsqueeze(0),
+        groups={"channel_state_memory"}, lr=.005, steps=1, objective="channel_state_map",
+        max_delta_norm=.2, receiver_input="full_rx")
+    assert actual == pytest.approx(expected_info["delta_norm"], abs=2e-6)
+    for name, parameter in model.named_parameters():
+        if name in expected:
+            torch.testing.assert_close(parameter, expected[name], atol=2e-6, rtol=3e-5)
+    bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+    bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000j
+    poisoned = replace(context, frame=replace(frame, bits=bits, tx_symbols=tx))
+    _, fresh, _ = _channel_memory_fixture()
+    _, poisoned_model, _ = _channel_memory_fixture()
+    clean_norm = _apply_adapt_peft_update(fresh, frame, context.condition, context.tail.unsqueeze(0),
+        groups={"channel_state_memory"}, lr=.005, steps=1, objective="channel_state_map",
+        max_delta_norm=.2, receiver_input="full_rx")
+    poison_norm = _apply_adapt_peft_update(poisoned_model, poisoned.frame, context.condition, context.tail.unsqueeze(0),
+        groups={"channel_state_memory"}, lr=.005, steps=1, objective="channel_state_map",
+        max_delta_norm=.2, receiver_input="full_rx")
+    assert clean_norm == pytest.approx(poison_norm, abs=2e-6)
+    for name, parameter in model.named_parameters():
+        if not name.startswith("channel_state.memory."):
+            torch.testing.assert_close(parameter, before[name], atol=0, rtol=0)
+
+
+def test_windowed_channel_memory_action_updates_head_checks_reward_and_reports_physical_age():
+    from types import SimpleNamespace
+    from dataclasses import replace
+    from tests.test_pilot_transfer import _channel_memory_fixture
+    from agent.discrete_safe_policy import DiscreteSafePolicy, safe_modulation_actions
+    from env.comm_env import ReceiverState
+    from training.windowed_discrete_ppo import WindowRewardAccumulator, WindowedDiscreteOnlineState, run_windowed_discrete_frame
+
+    _, model, context = _channel_memory_fixture()
+    frame = replace(context.frame, frame_index=1023,
+        rx_symbols=context.frame.rx_symbols + 1.2 * torch.linspace(-1, 1, context.frame.rx_symbols.numel()))
+    actions = safe_modulation_actions(len(model.blocks), action_names=["identity", "peft_memory_map_small", "rollback_identity"],
+                                      include_channel_state_memory=True)
+    action = actions[1]
+    policy = DiscreteSafePolicy(observation_dim=4, action_count=len(actions), hidden_size=8)
+    state = WindowedDiscreteOnlineState(cir=context.condition.complex_cir.flatten(),
+        receiver_state=ReceiverState(context.tail.clone()), model=model, policy=policy,
+        optimizer=torch.optim.AdamW(policy.parameters()), encoder=SimpleNamespace(), actions=actions,
+        hidden=policy.initial_hidden(), window_size=8, previous_window_reward=0., last_action_delta_norm=0.,
+        rollout=[], current_action=action, frames_in_window=1, current_accumulator=WindowRewardAccumulator(0.))
+    row = run_windowed_discrete_frame(state, frame, context.condition, 0., 1, 8)
+    assert row["policy_action_name"] == action.name
+    assert row["peft_objective"] == "channel_state_map"
+    assert row["channel_frame_index"] == 1023 and row["frame"] == 1
+    assert row["peft_delta_norm"] > 0 and row["peft_delta_norm"] <= .200001
+    assert row["data_labels_used_online"] is False
+    assert state.current_accumulator.loss_improvements
+    assert all(not parameter.requires_grad for parameter in model.parameters())
 
 
 def test_discrete_safe_action_catalog_can_focus_on_pilot_peft_actions():
@@ -1031,7 +1120,8 @@ def test_prefix_pilots_do_not_update_unobserved_rl_tail():
     assert all(torch.equal(tail, initial_tail.unsqueeze(0)) for tail in model.tails[-2:])
 
 
-def test_identity_rl_matches_frozen_over_prefix_pilot_frames(tmp_path):
+@pytest.mark.parametrize("acquisition_cfo", [0.0, .0007])
+def test_identity_rl_matches_frozen_over_prefix_pilot_frames(tmp_path, acquisition_cfo):
     import compare
     from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
     from env.comm_env import CommEnvConfig, CommunicationEnvironment
@@ -1041,6 +1131,7 @@ def test_identity_rl_matches_frozen_over_prefix_pilot_frames(tmp_path):
         UnfoldedConfig(
             frame_len=128, max_delay=4, iterations=1, d_model=8, num_heads=2,
             pilot_conditioned=True, enable_phase_correction_branch=True,
+            enable_channel_state_branch=True, enable_channel_state_memory=True,
         )
     )
     (tmp_path / "model_config.json").write_text(
@@ -1054,9 +1145,11 @@ def test_identity_rl_matches_frozen_over_prefix_pilot_frames(tmp_path):
     methods = ("Frozen Offline NN", "RL-Modulated Neural Block Equalizer")
     states = compare._build_method_states(
         methods, start.initial_soft_tail, env.channel.last_cir_used(),
-        {"model": model.config.to_dict(), "rl_action_names": ["identity"], "tail_update_alpha": 0.5},
+        {"model": model.config.to_dict(), "rl_action_names": ["identity"], "tail_update_alpha": 0.5,
+         "rl_reward_receiver_input": "full_rx"},
         delay=4, snr_db=10.0, seed=53,
         pretrained_path=tmp_path / "model_best.pt", device="cpu", cir_update_mode="fixed",
+        acquisition_cfo=acquisition_cfo,
     )
 
     for frame_index in range(1, 4):

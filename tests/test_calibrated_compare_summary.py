@@ -37,6 +37,41 @@ def test_summary_uses_independent_seed_units_and_separates_late_gain():
         assert item["late_minus_early_online_gain"]["mean"] == pytest.approx(0)
 
 
+def test_summary_accepts_explicit_full_rx_but_rejects_mixed_or_unlabelled_visibility():
+    rows = _rows()
+    proposed = [row for row in rows if row["method"] == PROPOSED]
+    for row in proposed:
+        row.update(reward_receiver_input="full_rx", data_waveform_used_online=True)
+    result = summarize_rows(rows)
+    assert result["information_audit"]["data_waveform_used_online"] is True
+    proposed[0].update(reward_receiver_input="pilot_only", data_waveform_used_online=False)
+    with pytest.raises(ValueError, match="不同 Reward"):
+        summarize_rows(rows)
+    proposed[0]["data_waveform_used_online"] = True
+    with pytest.raises(ValueError, match="隔离声明"):
+        summarize_rows(rows)
+
+
+def test_summary_separates_policy_updates_retained_memory_and_rejected_windows():
+    rows = _rows()
+    for row in rows:
+        if row["method"] == PROPOSED:
+            row.update(policy_loss=.1 if row["frame"] == 3 else None,
+                       policy_window_closed=row["frame"] in {2, 3},
+                       reward=.02 if row["frame"] == 2 else -.01,
+                       window_reward_rollback=row["frame"] == 3,
+                       trajectory_peft_delta_norm_after_reward=.4 if row["frame"] == 2 else 0.)
+    for item in summarize_rows(rows)["per_snr"]:
+        assert item["ppo_update_frames"] == 2
+        assert item["closed_windows"] == 4
+        assert item["positive_reward_windows"] == 2
+        assert item["window_rollbacks"] == 2
+        assert item["max_retained_trajectory_peft_delta_norm"] == pytest.approx(.4)
+    # 历史结果缺失累计参数日志时，不能把未记录误报为零偏移。
+    assert all(item["max_retained_trajectory_peft_delta_norm"] is None
+               for item in summarize_rows(_rows())["per_snr"])
+
+
 @pytest.mark.parametrize("failure", ["duplicate", "missing_method", "different_rx", "hidden_labels", "mixed_protocol"])
 def test_summary_rejects_invalid_pairing_or_online_information(failure):
     rows = _rows()

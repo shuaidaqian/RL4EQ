@@ -1,5 +1,11 @@
 # RL4EQ：Level B 极端长回波下的 RL-Modulated Neural Block Equalizer
 
+> 当前进度（2026-11-02）：[正式离散复记忆接入](docs/channel_memory_rl_bridge_stage_20261102.md)
+> 已完成 CFO 条件同步、整帧 Reward 接收输入及跨 PPO 窗口的 Data 标签隔离验证；
+> 全量 807 项回归通过。四 SNR × 8 帧同步检查仅抽到 identity，未证明在线收益。
+> 正按[固定计划](docs/channel_memory_rl_protocol_plan_20261102.md)进行修复后的 128 帧持续机制验证，
+> 最终四 SNR、独立 seed、传统主比较及数百秒后期优势尚未达成。
+
 > 当前进度（2026-11-02）：[长年龄匹配结果](docs/channel_state_long_age_training_stage_20261102.md)
 > 的 B Online 在 0/10/15 dB 相对自身 Frozen 有正向区间，5 dB 仍不确定；
 > 10/15 dB 也超过同波形旧源 Frozen。尚未建立四 SNR、正式 RL、传统主比较或长期优势。

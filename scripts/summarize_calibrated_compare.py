@@ -31,6 +31,7 @@ def summarize_rows(rows):
         raise ValueError("此诊断需要三类校准传统方法、Frozen 和正式 RL 方法。")
     groups = defaultdict(dict)
     protocols = set()
+    receiver_protocols = set()
     for row in rows:
         key = (row["snr_db"], row["seed"], row["frame"])
         if row["method"] in groups[key]:
@@ -39,11 +40,13 @@ def summarize_rows(rows):
         protocols.add(row.get("traditional_calibration_sha256"))
         if row["environment_seed"] != 50_000 + row["seed"]:
             raise ValueError("统一入口实际环境 seed 与记录索引不匹配。")
-        if row["method"] == PROPOSED and (
-            row.get("data_labels_used_online") is not False
-            or row.get("data_waveform_used_online") is not False
-        ):
-            raise ValueError("RL 在线信息隔离声明缺失或失败。")
+        if row["method"] == PROPOSED:
+            receiver_protocol = row.get("reward_receiver_input", "pilot_only")
+            if (row.get("data_labels_used_online") is not False
+                    or receiver_protocol not in {"pilot_only", "full_rx"}
+                    or row.get("data_waveform_used_online") is not (receiver_protocol == "full_rx")):
+                raise ValueError("RL 在线信息隔离声明缺失或失败。")
+            receiver_protocols.add(receiver_protocol)
         if row["method"] in CALIBRATED_METHODS and (
             row.get("traditional_calibration_applied") is not True
             or row.get("uses_reward_or_data_labels") is not False
@@ -52,6 +55,8 @@ def summarize_rows(rows):
             raise ValueError("传统方法缺少校准或信息边界审计。")
     if len(protocols) != 1 or None in protocols:
         raise ValueError("配对记录混合了不同传统校准协议。")
+    if len(receiver_protocols) != 1:
+        raise ValueError("配对记录混合了不同 Reward 接收协议。")
     for group in groups.values():
         if set(group) != set(METHODS):
             raise ValueError("同一帧缺少比较方法。")
@@ -98,6 +103,14 @@ def summarize_rows(rows):
             "peft_attempt_frames": sum(row["policy_action_name"].startswith("peft_") for row in selected),
             "peft_accepted_frames": sum(row["policy_action_name"].startswith("peft_")
                                         and row["peft_frame_accepted"] for row in selected),
+            "ppo_update_frames": sum(row.get("policy_loss") is not None for row in selected),
+            "closed_windows": sum(bool(row.get("policy_window_closed", False)) for row in selected),
+            "positive_reward_windows": sum(bool(row.get("policy_window_closed", False))
+                                           and row["reward"] > 0 for row in selected),
+            "window_rollbacks": sum(bool(row.get("window_reward_rollback", False)) for row in selected),
+            "max_retained_trajectory_peft_delta_norm": (
+                max(row["trajectory_peft_delta_norm_after_reward"] for row in selected)
+                if all("trajectory_peft_delta_norm_after_reward" in row for row in selected) else None),
             "max_data_logit_abs_change": max(row["data_logits_abs_delta_mean_eval_only"] for row in selected),
         })
     return {"schema_version": "calibrated-compare-diagnostic-v1", "diagnostic_only": True,
@@ -105,7 +118,9 @@ def summarize_rows(rows):
             "seeds": seeds, "frames_per_seed": len(frames), "segment_frames": segment,
             "traditional_calibration_sha256": next(iter(protocols)), "per_snr": summaries,
             "information_audit": {"shared_rx_sha256_passed": True,
-                                  "rl_declares_no_data_labels_or_waveform_online": True,
+                                  "rl_declares_no_data_labels_online": True,
+                                  "reward_receiver_input": next(iter(receiver_protocols)),
+                                  "data_waveform_used_online": next(iter(receiver_protocols)) == "full_rx",
                                   "traditional_declares_no_hidden_labels_nn_or_rl": True},
             "interpretation": "信息声明与哈希需结合隔离测试；短轨迹不证明长期 PPO 学习，零经验区间不等于总体零风险。"}
 

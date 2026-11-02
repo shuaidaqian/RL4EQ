@@ -48,6 +48,7 @@ def safe_modulation_actions(
     device: torch.device | str = "cpu",
     action_names: list[str] | tuple[str, ...] | None = None,
     peft_max_episode_delta_norm: float | None = None,
+    include_channel_state_memory: bool = False,
 ) -> list[DiscreteSafeAction]:
     """返回固定顺序的离散安全动作表。"""
 
@@ -79,6 +80,13 @@ def safe_modulation_actions(
         ("peft_phase_signal_moderate", identity, {"phase_trend"}, 2.5e-3, 5, None, None),
         ("rollback_identity", identity, None, 0.0, 0, None, None),
     ]
+    if include_channel_state_memory:
+        raw_actions[14:14] = [
+            ("peft_memory_signal_small", identity, {"channel_state_memory"}, 5e-3, 1, None, None),
+            ("peft_memory_signal_medium", identity, {"channel_state_memory"}, 2e-2, 3, None, None),
+            ("peft_memory_map_small", identity, {"channel_state_memory"}, 5e-3, 1, None, None),
+            ("peft_memory_map_medium", identity, {"channel_state_memory"}, 2e-2, 3, None, None),
+        ]
     if action_names is not None:
         requested = {str(name) for name in action_names}
         available = {row[0] for row in raw_actions}
@@ -106,10 +114,19 @@ def safe_modulation_actions(
                 peft_objective=(
                     "pilot_signal_reconstruction"
                     if name in {"peft_phase_signal_conservative", "peft_phase_signal_moderate"}
+                    else "channel_state_map" if name.startswith("peft_memory_map_")
+                    else "channel_state_signal" if name.startswith("peft_memory_signal_")
                     else "bce"
                 ),
-                peft_max_delta_norm=0.05 if peft_groups else None,
-                peft_max_episode_delta_norm=(episode_delta_cap if peft_groups else None),
+                peft_max_delta_norm=(
+                    0.2 if name.endswith("_small") and name.startswith("peft_memory_")
+                    else 0.8 if name.endswith("_medium") and name.startswith("peft_memory_")
+                    else 0.05 if peft_groups else None
+                ),
+                peft_max_episode_delta_norm=(
+                    (0.8 if name.startswith("peft_memory_") and episode_delta_cap is None else episode_delta_cap)
+                    if peft_groups else None
+                ),
             )
         )
     return actions
@@ -150,6 +167,11 @@ def initialize_safe_discrete_policy_prior(policy: "DiscreteSafePolicy", actions:
             elif action.name == "peft_phase_signal_moderate":
                 # 完整动作表中保持低先验；若单独筛选该候选，后面的安全探索规则会提高其概率。
                 policy.logits.bias[action.index] = -1.5
+            elif action.name.startswith("peft_memory_"):
+                policy.logits.bias[action.index] = (
+                    0.5 if action.name.endswith("signal_small") else
+                    0.25 if action.name.endswith("map_small") else -1.0
+                )
             elif action.name == "peft_adapter_lora_light":
                 policy.logits.bias[action.index] = -1.0
             elif action.name == "peft_adapter_lora_head_light":

@@ -29,6 +29,7 @@ from agent.rl_modulator import ModulationObservationEncoder
 from agent.unfolded_equalizer import UnfoldedEqualizer
 from baseline.block_equalizers import bit_error_rate
 from baseline.traditional_equalizers import (
+    estimate_acquisition_cir_with_cfo,
     estimate_phase_residual_features,
     estimate_phase_residual_vector,
 )
@@ -122,6 +123,17 @@ class WindowedDiscreteOnlineState:
     frames_in_window: int = 0
     tail_refinement_passes: int = 0
     tail_update_alpha: float = 1.0
+    reward_receiver_input: str = "pilot_only"
+
+
+def validate_discrete_receiver_contract(model, actions, pilot_layout, reward_receiver_input):
+    """在两个正式入口使用相同的动作与接收输入检查。"""
+    if reward_receiver_input not in {"pilot_only", "full_rx"}:
+        raise ValueError("Reward 接收输入必须为 pilot_only 或 full_rx。")
+    if any(action.peft_groups and "channel_state_memory" in action.peft_groups for action in actions):
+        branch = getattr(model, "channel_state", None)
+        if branch is None or branch.memory is None or pilot_layout != "prefix":
+            raise ValueError("复数记忆RL动作要求启用状态记忆分支与prefix Pilot。")
 
 
 def run_windowed_discrete_online(
@@ -189,8 +201,12 @@ def run_windowed_discrete_online(
                     device=device,
                     action_names=config.get("rl_action_names"),
                     peft_max_episode_delta_norm=config.get("rl_peft_max_episode_delta_norm"),
+                    include_channel_state_memory=bool(config.get("rl_enable_channel_state_memory_actions", False)),
                 )
-                encoder = ModulationObservationEncoder(include_pilot_state=True)
+                reward_receiver_input = str(config.get("rl_reward_receiver_input", "pilot_only"))
+                validate_discrete_receiver_contract(model, actions, pilot_layout, reward_receiver_input)
+                encoder = ModulationObservationEncoder(
+                    include_pilot_state=bool(config.get("online_ppo_pilot_state_embedding", True)))
                 policy = DiscreteSafePolicy(len(encoder.FIELDS), len(actions)).to(device)
                 initialize_safe_discrete_policy_prior(policy, actions)
                 policy_loaded = _load_discrete_policy_if_available(
@@ -200,19 +216,25 @@ def run_windowed_discrete_online(
                     policy_required,
                     expected_action_names=[action.name for action in actions],
                 )
-                optimizer = torch.optim.AdamW(policy.parameters(), lr=3e-5)
+                learning_rate = float(config.get("online_ppo_learning_rate", 3e-5))
+                if not math.isfinite(learning_rate) or learning_rate <= 0:
+                    raise ValueError("离散 PPO 在线学习率必须是正的有限数。")
+                optimizer = torch.optim.AdamW(policy.parameters(), lr=learning_rate)
                 last_policy = policy
                 last_actions = actions
                 last_observation_fields = encoder.FIELDS
                 env_config = env_configs[(int(delay), float(snr_db), int(seed))]
                 env = CommunicationEnvironment(env_config)
                 start = env.reset_episode()
+                acquisition_cfo = 0.0
+                if str(config.get("impairment_profile", "clean")) == "clean":
+                    acquisition_cir = estimate_acquisition_cir_for_profile(start.acquisition, int(delay), "clean")
+                else:
+                    acquisition_cir, acquisition_cfo = estimate_acquisition_cir_with_cfo(
+                        start.acquisition, int(delay),
+                        cfo_limit=float(config.get("acquisition_cfo_limit", 0.004)))
                 state = WindowedDiscreteOnlineState(
-                    cir=estimate_acquisition_cir_for_profile(
-                        start.acquisition,
-                        int(delay),
-                        str(config.get("impairment_profile", "clean")),
-                    ).to(device),
+                    cir=acquisition_cir.to(device),
                     receiver_state=ReceiverState(start.initial_soft_tail.to(device)),
                     model=model,
                     policy=policy,
@@ -231,6 +253,7 @@ def run_windowed_discrete_online(
                     cir_update_alpha=float(cir_update_alpha),
                     tail_refinement_passes=int(config.get("tail_refinement_passes", 0)),
                     tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
+                    reward_receiver_input=reward_receiver_input,
                 )
                 for frame_index in range(1, int(frames) + 1):
                     frame = _frame_to_device(env.next_frame(), device)
@@ -239,11 +262,13 @@ def run_windowed_discrete_online(
                         state.cir,
                         state.receiver_state.soft_tail,
                         blocks=4,
+                        cfo_hint=float(acquisition_cfo),
                     )
                     row = run_windowed_discrete_frame(
                         state,
                         frame,
-                        condition_from_cir(state.cir, float(snr_db), phase_features=phase_features),
+                        condition_from_cir(state.cir, float(snr_db), cfo_residual=float(acquisition_cfo),
+                                           phase_features=phase_features),
                         float(snr_db),
                         frame_index,
                         update_interval,
@@ -256,6 +281,8 @@ def run_windowed_discrete_online(
                             "pilot_layout": str(env_config.layout),
                             "profile_name": str(env_config.profile_name),
                             "seed": int(seed),
+                            "environment_seed": 70_000 + int(seed),
+                            "acquisition_cfo": float(acquisition_cfo),
                             "pretrained_loaded": pretrained_path is not None,
                             "policy_loaded": bool(policy_loaded),
                         }
@@ -373,7 +400,7 @@ def run_windowed_discrete_frame(
         state.frames_in_window = 0
     # 先完成动作选择，再构造 Reward Pilot 视图；该留出 Pilot 只用于验收与回滚。
     reward_eval_mask = (frame.adapt_mask | frame.reward_mask).bool()
-    reward_eval_rx_symbols = torch.where(
+    reward_eval_rx_symbols = frame.rx_symbols if state.reward_receiver_input == "full_rx" else torch.where(
         reward_eval_mask,
         frame.rx_symbols,
         torch.zeros_like(frame.rx_symbols),
@@ -477,6 +504,18 @@ def run_windowed_discrete_frame(
     reward_after_loss = _masked_bce(after, reward_labels, frame.reward_mask)
     reward_before_ber = bit_error_rate(base[frame.reward_mask], reward_labels[frame.reward_mask])
     reward_after_ber = bit_error_rate(after[frame.reward_mask], reward_labels[frame.reward_mask])
+    if sampled_action.peft_objective in {"channel_state_signal", "channel_state_map"}:
+        from training.pilot_transfer import ChannelStateSignalObjective, TransferContext
+
+        reward_context = TransferContext(frame, condition, tail.squeeze(0))
+        reward_objective = ChannelStateSignalObjective(state.model, role="reward")
+        candidate_snapshot = _snapshot_peft_groups(state.model, set(sampled_action.peft_groups))
+        _restore_snapshot(state.model, frame_peft_snapshot)
+        with torch.no_grad():
+            reward_before_loss = reward_objective(reward_context)
+        _restore_snapshot(state.model, candidate_snapshot)
+        with torch.no_grad():
+            reward_after_loss = reward_objective(reward_context)
     peft_frame_accepted = True
     if sampled_action.peft_groups and peft_delta_norm > 0.0:
         peft_frame_accepted = should_accept_reward_guard(
@@ -488,7 +527,7 @@ def run_windowed_discrete_frame(
             peft_delta_norm=float(peft_delta_norm),
         )
         if not peft_frame_accepted:
-            # 先用当前帧 Reward Pilot 验收 PEFT，再让 Data 波形进入最终评估。
+            # 当前帧 Reward Pilot 验收失败时恢复参数；整帧输入仍不提供 Data 标签。
             # 失败时本帧立即恢复参数。
             _restore_snapshot(state.model, frame_peft_snapshot)
             after = base
@@ -603,8 +642,8 @@ def run_windowed_discrete_frame(
         state.receiver_state.update_tail(
             torch.where(tail_visible_mask, next_tail, previous_tail)
         )
-    # 所有策略、PEFT 更新、Pilot reward 和窗口回滚完成后，才允许完整波形
-    # 进入前向；以下两次输出只用于事后 Data 指标，不反馈给在线控制。
+    # 以下两次输出只用于事后 Data 指标，不反馈给在线控制。
+    # 显式 full_rx 协议已允许 Reward 前向读取完整接收波形，标签仍只取 Reward。
     full_rx_iq = torch.stack(
         (frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1
     ).unsqueeze(0).float()
@@ -741,7 +780,13 @@ def run_windowed_discrete_frame(
         "window_peft_delta_norm_before_reward": float(window_peft_delta_norm),
         "peft_objective": str(sampled_action.peft_objective),
         "data_labels_used_online": False,
-        "data_waveform_used_online": False,
+        "data_waveform_used_online": state.reward_receiver_input == "full_rx",
+        "reward_receiver_input": state.reward_receiver_input,
+        "reward_loss_objective": ("channel_state_signal" if sampled_action.peft_objective in
+                                  {"channel_state_signal", "channel_state_map"} else "bce"),
+        "trajectory_peft_delta_norm_after_reward": (
+            _snapshot_delta_norm(state.model, state.trajectory_peft_snapshot)
+            if state.trajectory_peft_snapshot else 0.0),
         "policy_observation_source": "adapt_pilot_only",
         "reward_pilot_waveform_used_for_policy_observation": False,
         "pilot_state_embedding_used": bool(
@@ -753,7 +798,9 @@ def run_windowed_discrete_frame(
             else state.current_pilot_state_embedding.detach().cpu().tolist()
         ),
         "policy_observation_fields": list(getattr(state.encoder, "FIELDS", ())),
-        "online_waveform_visibility": "adapt_pilot_for_update_reward_pilot_for_guard",
+        "online_waveform_visibility": ("adapt_pilot_for_update_full_rx_for_reward_guard"
+                                      if state.reward_receiver_input == "full_rx" else
+                                      "adapt_pilot_for_update_reward_pilot_for_guard"),
         "adapt_params": int(state.policy.parameter_count() if policy_loss is not None else 0),
         "adapt_steps": int(1 if policy_loss is not None else 0),
         "parameter_delta_norm": float(applied_action.delta_norm + peft_delta_norm),
@@ -929,7 +976,7 @@ def _apply_adapt_peft_update(
 
     if receiver_input not in {"adapt_only", "full_rx"}:
         raise ValueError("接收输入必须为 adapt_only 或 full_rx。")
-    if objective != "bce" and receiver_input != "adapt_only":
+    if objective not in {"bce", "channel_state_signal", "channel_state_map"} and receiver_input != "adapt_only":
         raise ValueError("整帧接收输入实验目前只支持 Adapt BCE。")
     before = _snapshot_peft_groups(model, groups)
     model.train()
@@ -957,7 +1004,16 @@ def _apply_adapt_peft_update(
                     torch.where(pilot_mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols)))
         device = pilot_rx.device
         pilot_view = _adapt_receiver_view(frame)
-        if objective == "pilot_signal_reconstruction":
+        if objective in {"channel_state_signal", "channel_state_map"}:
+            if groups != {"channel_state_memory"} or getattr(model, "channel_state", None) is None or model.channel_state.memory is None:
+                raise ValueError("神经信道记忆目标只允许更新已启用的 channel_state_memory 参数组。")
+            from training.pilot_transfer import ChannelStateSignalObjective, TransferContext
+
+            role = "adapt"
+            objective_module = ChannelStateSignalObjective(model, role=role,
+                include_prior=objective == "channel_state_map")
+            loss = objective_module(TransferContext(frame, condition, tail.squeeze(0)))
+        elif objective == "pilot_signal_reconstruction":
             if groups != {"phase_trend"}:
                 raise ValueError(
                     "Pilot 信号重构目标只允许更新 phase_trend 参数组。"

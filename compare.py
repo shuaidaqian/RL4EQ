@@ -60,6 +60,7 @@ from training.continual_ppo import (
 )
 from training.meta_training import _estimate_cir_from_known_frame
 from training.windowed_discrete_ppo import (
+    validate_discrete_receiver_contract,
     WindowedDiscreteOnlineState,
     _adapt_receiver_view,
     _load_discrete_policy_if_available,
@@ -622,6 +623,7 @@ def main() -> None:
                         online_condition_source_override=args.online_condition_source,
                         scheduler=scheduler,
                         traditional_calibration=traditional_calibration,
+                        pilot_layout=pilot_layout,
                     )
                     for frame_index in range(1, args.frames + 1):
                         frame = env.next_frame()
@@ -925,6 +927,7 @@ def _build_method_states(
     online_condition_source_override: str | None = None,
     scheduler: str = "fixed",
     traditional_calibration: FrozenTraditionalCalibration | None = None,
+    pilot_layout: str | None = None,
 ) -> dict[str, BaselineMethodState | PPOMethodState | NeuralMethodState | RLModulatedMethodState]:
     if scheduler not in {"fixed", "bandit"}:
         raise ValueError(f"未知在线调度器：{scheduler}")
@@ -1099,7 +1102,11 @@ def _build_method_states(
                 device=device,
                 action_names=config.get("rl_action_names"),
                 peft_max_episode_delta_norm=config.get("rl_peft_max_episode_delta_norm"),
+                include_channel_state_memory=bool(config.get("rl_enable_channel_state_memory_actions", False)),
             )
+            reward_receiver_input = str(config.get("rl_reward_receiver_input", "pilot_only"))
+            validate_discrete_receiver_contract(
+                model, actions, pilot_layout or config.get("pilot_layout", "prefix"), reward_receiver_input)
             from agent.rl_modulator import ModulationObservationEncoder
 
             encoder = ModulationObservationEncoder(
@@ -1148,6 +1155,7 @@ def _build_method_states(
                     cir_update_alpha=float(cir_alpha),
                     tail_refinement_passes=int(config.get("tail_refinement_passes", 0)),
                     tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
+                    reward_receiver_input=reward_receiver_input,
                     rollout=[],
                 ),
                 pretrained_loaded=pretrained_path is not None,
@@ -1330,7 +1338,8 @@ def _run_new_or_single_method(
             blocks=4,
             cfo_hint=state.acquisition_cfo,
         )
-        condition = condition_from_cir(state.online_state.cir, snr_db, phase_features=phase_features)
+        condition = condition_from_cir(state.online_state.cir, snr_db,
+                                       cfo_residual=float(state.acquisition_cfo), phase_features=phase_features)
         row = run_windowed_discrete_frame(state.online_state, frame_device, condition, snr_db, frame_index, update_interval)
         return RealMethodResult(
             method=method,
