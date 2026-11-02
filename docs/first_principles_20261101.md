@@ -173,6 +173,13 @@ Adapt 更新；后续按固定 A/B 标签暴露和预算检验，不将实现完
 见[首帧有效期结果](channel_state_retention_stage_20261102.md)与
 [跨帧目标计划](channel_state_future_plan_20261102.md)。
 
+跨帧外层 A/B 各 256 步后，新的 5 seed×8 帧四臂在线区间仍全部含零；
+0 dB 相对原始源的离线改善不能替代在线成功。每会话只接受一次动作后多数
+停在累计半径边界，尚不能归因为单一原因。停止扩大相同留出矩阵，先在训练
+分布检查用户要求的数百秒年龄下是否出现不同可修正状态误差，保留年龄外推
+与正式验收的区别。见[跨帧结果](channel_state_future_stage_20261102.md)与
+[长期年龄计划](channel_state_long_age_plan_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、
