@@ -1,5 +1,9 @@
 # RL4EQ：Level B 极端长回波下的 RL-Modulated Neural Block Equalizer
 
+> 2026-11-02：[匹配前缀短窗训练与梯度解释](docs/prefix_transfer_stage_20261102.md)已完成。
+> A/B 各 256 步、5 个独立 seed × 8 帧 × 四 SNR 的在线改善区间均包含零；
+> 更高接受率没有证明在线泛化。短包适配与持续跟踪的会话时长仍需明确，主目标未完成。
+
 > 2026-11-01：新增真实 Level B 的 Pilot 更新后 Data 泛化训练与四臂配对机制实验。
 > 用户已授权重新训练适配友好的 checkpoint；原 checkpoint 保留为对照。
 > 训练/验证边界与分阶段验收见[实验计划](docs/pilot_transfer_plan_20261101.md)。

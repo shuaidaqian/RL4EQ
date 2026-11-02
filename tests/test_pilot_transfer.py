@@ -713,3 +713,32 @@ def test_prefix_task_uses_true_short_operator_and_hides_unknown_labels():
     assert not torch.allclose(actual, wrong)
     for name, value in model.state_dict().items():
         torch.testing.assert_close(value, before[name], rtol=0, atol=0)
+
+
+def test_prefix_alignment_is_read_only_and_data_labels_do_not_change_candidate():
+    from scripts.diagnose_prefix_alignment import gradient_alignment
+
+    _, model, context = _symbol_fixture()
+    with torch.no_grad():
+        model.symbol_residual.head.weight.fill_(0.02)
+    settings = {"inner_learning_rate": 0.005, "inner_steps": 1, "max_delta_norm": 0.05,
+                "inner_groups": ["symbol_residual_head"], "inner_objective": "bce",
+                "inner_receiver_input": "full_rx", "reward_receiver_input": "full_rx",
+                "inner_task": "prefix_boundary", "reward_task": "prefix_boundary"}
+    before = {n: v.clone() for n, v in model.state_dict().items()}
+    flags = {n: p.requires_grad for n, p in model.named_parameters()}
+    original = gradient_alignment(model, context, settings)
+    bits = context.frame.bits.clone()
+    bits[context.frame.data_mask] = ~bits[context.frame.data_mask]
+    altered = gradient_alignment(model, replace(context, frame=replace(context.frame, bits=bits)), settings)
+    assert original["adapt_losses"] == altered["adapt_losses"]
+    assert original["delta_norm"] == altered["delta_norm"]
+    assert original["adapt"] == altered["adapt"]
+    assert original["reward"] == altered["reward"]
+    assert original["data"] != altered["data"]
+    assert original["parameter_count"] == 17
+    for role in ("adapt", "reward", "data", "data_tail", "data_interior"):
+        assert all(torch.isfinite(torch.tensor(v)) for v in original[role].values())
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], rtol=0, atol=0)
+    assert {n: p.requires_grad for n, p in model.named_parameters()} == flags
