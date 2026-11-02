@@ -751,3 +751,47 @@ def test_prefix_alignment_is_read_only_and_data_labels_do_not_change_candidate(w
     for name, value in model.state_dict().items():
         torch.testing.assert_close(value, before[name], rtol=0, atol=0)
     assert {n: p.requires_grad for n, p in model.named_parameters()} == flags
+
+
+def test_pilot_state_equations_ignore_hidden_waveforms_labels_and_unknown_tail():
+    from scripts.diagnose_pilot_state_transfer import pilot_equations, posterior_candidate
+
+    _, model, context = _symbol_fixture()
+    frame = context.frame
+    hidden = ~frame.adapt_mask
+    bits, tx, rx = frame.bits.clone(), frame.tx_symbols.clone(), frame.rx_symbols.clone()
+    bits[hidden], tx[hidden], rx[hidden] = ~bits[hidden], 1000 + 1000j, -1000 + 1000j
+    poisoned = replace(context, tail=torch.full_like(context.tail, 1000j),
+        frame=replace(frame, bits=bits, tx_symbols=tx, rx_symbols=rx))
+    first, second = pilot_equations(model, context), pilot_equations(model, poisoned)
+    for actual, expected in zip(first, second):
+        torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+    assert first[0].shape == (int(frame.adapt_mask.sum()) - context.tail.numel(), context.tail.numel() + 1)
+    prior = context.condition.complex_cir.reshape(-1)
+    design = 10 * torch.eye(prior.numel(), dtype=torch.complex64)
+    exact, _ = posterior_candidate([(design, design @ prior)], context, acquisition_samples=124, rho_frame=.999)
+    torch.testing.assert_close(exact, prior, rtol=0, atol=0)
+    target = prior * 1.1
+    estimate, _ = posterior_candidate([(design, design @ target)], context, acquisition_samples=124, rho_frame=.999)
+    assert float((estimate - target).norm()) < float((prior - target).norm())
+
+
+def test_pilot_state_candidate_guard_hides_data_labels_and_preserves_model():
+    from scripts.diagnose_pilot_state_transfer import pilot_equations, state_candidates_and_guards
+
+    _, model, context = _symbol_fixture()
+    config = {"frame_len": 128, "max_delay": 4, "rho_frame": .999}
+    before = {n: v.clone() for n, v in model.state_dict().items()}
+    equations = [pilot_equations(model, context)] * 8
+    original = state_candidates_and_guards(model, context, equations, [1, 8], config)
+    frame = context.frame
+    bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+    bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000 + 1000j
+    poisoned = replace(context, frame=replace(frame, bits=bits, tx_symbols=tx))
+    altered = state_candidates_and_guards(model, poisoned, equations, [1, 8], config)
+    assert original[2] == altered[2]
+    torch.testing.assert_close(original[0], altered[0], rtol=0, atol=0)
+    for window in [1, 8]:
+        torch.testing.assert_close(original[1][window], altered[1][window], rtol=0, atol=0)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], rtol=0, atol=0)
