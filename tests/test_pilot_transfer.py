@@ -1126,3 +1126,55 @@ def test_capacity_age_summary_does_not_mix_ages_or_accept_duplicate_seeds():
     assert all(r["ber_committed_gain"]["seeds"] == 3 for r in summary)
     with pytest.raises(ValueError, match="恰好一个"):
         summarize_by_age(rows + rows[:1], [1, 2, 3])
+
+
+def test_channel_state_windows_hide_all_data_labels_and_preserve_weights():
+    from scripts.diagnose_channel_state_windows import window_candidates
+
+    _, model, context = _channel_state_fixture()
+    with torch.no_grad():
+        model.channel_state.head.bias.fill_(.1)
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    contexts = [replace(context, frame=replace(context.frame, frame_index=index)) for index in [7, 8]]
+    original = window_candidates(model, contexts, windows=(1, 2))
+    changed_contexts = []
+    for current in contexts:
+        frame = current.frame
+        bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+        bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000j
+        changed_contexts.append(replace(current, frame=replace(frame, bits=bits, tx_symbols=tx)))
+    changed = window_candidates(model, changed_contexts, windows=(1, 2))
+    assert original[2] == changed[2]
+    assert len(original[2]) == 4
+    torch.testing.assert_close(original[0], changed[0], atol=0, rtol=0)
+    for window in [1, 2]:
+        torch.testing.assert_close(original[1][window], changed[1][window], atol=0, rtol=0)
+    # Reward 标签可改变验收评分，但绝不能改变 Adapt 产生的候选。
+    reward_poison = []
+    for current in contexts:
+        frame = current.frame
+        bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+        bits[frame.reward_mask], tx[frame.reward_mask] = ~bits[frame.reward_mask], -tx[frame.reward_mask]
+        reward_poison.append(replace(current, frame=replace(frame, bits=bits, tx_symbols=tx)))
+    altered = window_candidates(model, reward_poison, windows=(1, 2))
+    for window in [1, 2]:
+        torch.testing.assert_close(original[1][window], altered[1][window], atol=0, rtol=0)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], atol=0, rtol=0)
+
+
+def test_channel_state_window_one_matches_original_medium_candidate_and_guard():
+    from scripts.diagnose_channel_state_windows import window_candidates
+    from scripts.diagnose_channel_state_capacity import candidates_and_guards, ACTIONS
+
+    _, model, context = _channel_state_fixture()
+    original = candidates_and_guards(model, context, actions=(ACTIONS[1],))
+    current = window_candidates(model, [context], windows=(1,))
+    assert original[2][0]["accepted"] == current[2][0]["accepted"]
+    for field in ["reward_loss_before", "reward_loss_after", "reward_ber_before", "reward_ber_after", "delta_norm"]:
+        assert original[2][0][field] == current[2][0][field]
+    torch.testing.assert_close(original[1]["medium:channel_state_signal"], current[1][1], atol=0, rtol=0)
+    with pytest.raises(ValueError, match="历史必须足够"):
+        window_candidates(model, [context], windows=(1, 8))
+    with pytest.raises(ValueError, match="连续已接收帧"):
+        window_candidates(model, [context, replace(context, frame=replace(context.frame, frame_index=2))], windows=(1, 2))
