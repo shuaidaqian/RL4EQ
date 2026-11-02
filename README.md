@@ -1,5 +1,11 @@
 # RL4EQ：Level B 极端长回波下的 RL-Modulated Neural Block Equalizer
 
+> 当前进度（2026-11-02）：[修复后正式 RL 的三 seed × 128 帧结果](docs/channel_memory_rl_protocol_stage_20261102.md)
+> 已完成四 SNR、7680 条五方法记录：实际执行 48 次 PPO 更新，记忆可保留并回滚，
+> 但四 SNR 的 Online/Frozen 平均改善区间均跨零，10 dB 短会话后期差值区间为负。
+> 相对校准 FDE 的四 SNR 差值有正区间，完整传统、在线增量与后期成功门槛仍未通过。
+> 正按[固定计划](docs/channel_memory_rl_continuous_plan_20261102.md)探测约 210 秒从首帧持续跟踪。
+
 > 当前进度（2026-11-02）：[正式离散复记忆接入](docs/channel_memory_rl_bridge_stage_20261102.md)
 > 已完成 CFO 条件同步、整帧 Reward 接收输入及跨 PPO 窗口的 Data 标签隔离验证；
 > 全量 807 项回归通过。四 SNR × 8 帧同步检查仅抽到 identity，未证明在线收益。
