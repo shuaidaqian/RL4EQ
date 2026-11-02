@@ -171,6 +171,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                             raise ValueError("两个训练分支的测试接收波形不一致。")
                         context = make_context(frame, cir, cfo, tail, snr)
                         before = active if persistent else initial
+                        before_norm = float(torch.sqrt(sum((before[name] - value).square().sum()
+                                                          for name, value in initial.items())).detach().cpu())
                         inner_context, score_start = task_context(context, inner_task, role="adapt")
                         reward_context, _ = task_context(context, reward_task, role="reward")
                         candidate, update = differentiable_adapt(
@@ -225,6 +227,10 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                                "data_waveform_used_for_update": update_uses_data_waveform,
                                "data_waveform_used_for_guard": guard_uses_data_waveform,
                                "inner_task": inner_task, "reward_task": reward_task}
+                        row.update(episode_delta_norm_before=before_norm,
+                                   episode_delta_norm_candidate=float(delta.detach().clamp(max=float(settings["max_delta_norm"])).cpu()),
+                                   episode_delta_norm_online=float(torch.sqrt(sum(
+                                       (active[name] - value).square().sum() for name, value in initial.items())).cpu()))
                         rows.append(row)
                         handle.write(json.dumps(row, ensure_ascii=False) + "\n")
                         handle.flush()
