@@ -208,6 +208,13 @@ Data 梯度可达能量只有 4.38%–18.01%。下一步检验能存储复数状
 见[记忆计划](channel_memory_plan_20261102.md)与
 [首轮容量筛查](channel_memory_capacity_stage_20261102.md)。
 
+新训练轨迹的36上下文、144候选仍未建立任何平均或逐年龄正区间。只读离线
+检查确认零记忆的普通监督尺度梯度为零，而当前/+8更新后目标有非零导数且
+存在跨帧冲突。下一步固定64步检验离线学习34参数尺度，不改变Frozen，不把
+存在梯度当作已证明收益；未通过则不追加相同矩阵或直接进入PPO。
+见[新轨迹与导数结果](channel_memory_fresh_stage_20261102.md)和
+[尺度训练计划](channel_memory_scale_training_plan_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、

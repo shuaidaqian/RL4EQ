@@ -1382,6 +1382,24 @@ def test_channel_memory_capacity_guards_ignore_data_labels_and_never_commit_cand
         torch.testing.assert_close(value, before[name], atol=0, rtol=0)
 
 
+def test_channel_memory_offline_gradient_diagnostic_cannot_mutate_online_state():
+    from scripts.diagnose_channel_memory_capacity import offline_scale_gradients
+
+    _, model, context = _channel_memory_fixture()
+    model.set_trainable_groups({"channel_state_memory_scale"})
+    context = replace(context, frame=replace(context.frame,
+        rx_symbols=context.frame.rx_symbols + 1.2 * torch.linspace(-1, 1, context.frame.rx_symbols.numel())))
+    future = replace(context, frame=replace(context.frame, frame_index=8))
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    rows = offline_scale_gradients(model, [context, future])
+    assert len(rows) == 2
+    assert all(row["base_gradient_norm"] == 0 and row["post_gradient_norm"] > 1e-7 for row in rows)
+    assert all(not row["data_gradients_used_for_control"] and len(row["post_gradient"]) == 34 for row in rows)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], atol=0, rtol=0)
+    assert all(parameter.grad is None for parameter in model.parameters())
+
+
 @pytest.mark.parametrize("objective", ["channel_state_signal", "channel_state_map"])
 @pytest.mark.parametrize("future_target", [False, True])
 def test_channel_memory_offline_scale_gradient_matches_finite_difference(objective, future_target):

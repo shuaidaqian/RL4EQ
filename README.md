@@ -5,7 +5,8 @@
 > 10/15 dB 也超过同波形旧源 Frozen。尚未建立四 SNR、正式 RL、传统主比较或长期优势。
 > [作用方向几何](docs/channel_state_geometry_stage_20261102.md)发现当前 17 参数 head
 > 响应高度集中。[复数状态记忆筛查](docs/channel_memory_capacity_stage_20261102.md)
-> 已保持源 Frozen 输出精确不变，但扩大表示没有自动解决 Pilot 更新；正在做固定协议的新训练轨迹复核。
+> 已保持源 Frozen 输出精确不变；[新训练轨迹复核](docs/channel_memory_fresh_stage_20261102.md)
+> 的收益区间仍全部含零。正在按固定预算检验离线尺度学习，未进入正式 RL。
 > 用户已确认数百秒会话开始 acquisition 一次，之后仅每帧前缀 Pilot。
 
 > 2026-11-02：[匹配前缀短窗训练与梯度解释](docs/prefix_transfer_stage_20261102.md)已完成。
