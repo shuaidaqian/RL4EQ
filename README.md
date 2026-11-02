@@ -1,5 +1,9 @@
 # RL4EQ：Level B 极端长回波下的 RL-Modulated Neural Block Equalizer
 
+> 当前进度（2026-11-02）：主目标尚未完成。[长期状态窗口结果](docs/channel_state_window_stage_20261102.md)
+> 未建立稳定改善，不能以接受率或晚期大点估计替代独立 seed 证据。用户已确认数百秒
+> 会话开始 acquisition 一次，之后仅前缀 Pilot；下一步匹配实际年龄分布的离线 A/B。
+
 > 2026-11-02：[匹配前缀短窗训练与梯度解释](docs/prefix_transfer_stage_20261102.md)已完成。
 > A/B 各 256 步、5 个独立 seed × 8 帧 × 四 SNR 的在线改善区间均包含零；
 > 更高接受率没有证明在线泛化。用户已明确持续跟踪场景，正在按

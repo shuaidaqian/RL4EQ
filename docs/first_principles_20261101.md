@@ -186,6 +186,11 @@ Adapt 更新；后续按固定 A/B 标签暴露和预算检验，不将实现完
 训练轨迹分开检验 Adapt 窗口与 Reward 窗口聚合；年龄外推仍单独保留。
 见[长期年龄结果](channel_state_long_age_stage_20261102.md)。
 
+新的长期窗口 2×2 诊断也未建立收益或聚合差值的正区间，更多接受伴随更多
+有害接受，不能把聚合作为充分修复。用户已确认最终长会话仅开始 acquisition
+一次，因此下一步匹配实际年龄做离线 A/B；当前模型后期外推的限制不能省略。
+见[长期窗口结果](channel_state_window_stage_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、
