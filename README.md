@@ -11,7 +11,9 @@
 > [神经状态分支四臂结果](docs/channel_state_transfer_stage_20261102.md)在 0 dB 有
 > 离线改善线索，在线增量仍未通过；较大实际 CIR 步幅也未建立稳定收益。
 > [MAP/likelihood 配对筛查](docs/channel_state_map_stage_20261102.md)未支持统一改用 MAP；
-> likelihood medium 在训练轨迹的 0 dB 有正向线索，正按固定计划做 128 帧独立检查。
+> [神经状态 128 帧独立检查](docs/channel_state_tracking_stage_20261102.md)现已完成：
+> 0 dB 两分支在线改善有正向区间，但 5/15 dB 未确认、10 dB 的 B 分支有负向区间；
+> 四 SNR 的后期优势均未确认。下一步在训练轨迹诊断状态有效期与 Pilot 反馈排序。
 
 > 2026-11-01：新增真实 Level B 的 Pilot 更新后 Data 泛化训练与四臂配对机制实验。
 > 用户已授权重新训练适配友好的 checkpoint；原 checkpoint 保留为对照。

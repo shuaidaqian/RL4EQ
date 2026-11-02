@@ -159,6 +159,13 @@ MAP 目标与后验驻点的一致性测试通过，但新训练轨迹的 BER �
 在 0 dB 有探索性正区间，下一步冻结一次 128 帧独立连续验证，不自动推广到
 其余 SNR 或正式 RL。见[MAP 配对结果](channel_state_map_stage_20261102.md)。
 
+随后 medium 的 128 帧独立持续验证完成：0 dB 的 A/B 在线增益均有正区间，
+5/15 dB 未确认，10 dB 的 B 分支有负区间；四 SNR 的后期优势均未确认。
+10 dB B 没有当帧有害接受，累计 Online 却更差，表明当帧 guard 不能充作
+跨帧有效性证明。下一步在训练分布固定首帧动作，分离状态有效期与当前 Pilot
+反馈排序，不扩大同一留出矩阵或直接进入数百秒验收。见
+[神经状态持续结果](channel_state_tracking_stage_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、

@@ -114,7 +114,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
         raise ValueError("不支持的 Reward 验收目标。")
     update_uses_data_waveform = (inner_input == "full_rx" and inner_task == "full_frame"
                                  and settings.get("inner_objective") == "bce")
-    guard_uses_data_waveform = reward_input == "full_rx" and reward_task == "full_frame" and reward_objective == "bce"
+    # 即使信号 loss 只使用 Pilot，优先验收的 Reward BER 仍由该接收输入计算。
+    guard_uses_data_waveform = reward_input == "full_rx" and reward_task == "full_frame"
     target = Path(output_dir)
     target.mkdir(parents=True, exist_ok=True)
     output = target / "frame_metrics.jsonl"

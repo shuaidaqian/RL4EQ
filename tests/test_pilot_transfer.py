@@ -933,13 +933,15 @@ def test_neural_channel_state_migration_training_and_strict_checkpoint(tmp_path,
     standalone.load_state_dict(payload["state_dict"], strict=True)
 
 
-def test_neural_channel_state_four_arm_guard_is_label_free(tmp_path, monkeypatch):
+@pytest.mark.parametrize("reward_input", ["full_rx", "pilot_only"])
+def test_neural_channel_state_four_arm_guard_is_label_free(tmp_path, monkeypatch, reward_input):
     import json
     from types import SimpleNamespace
     import evaluation.pilot_transfer as evaluation
 
     _, model, context = _channel_state_fixture()
     settings = _channel_state_settings()
+    settings["reward_receiver_input"] = reward_input
     config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
               "offline_state_split": "offline_train", "pilot_transfer": settings}
     trainer = PilotTransferTrainer(config, "cpu")
@@ -963,9 +965,13 @@ def test_neural_channel_state_four_arm_guard_is_label_free(tmp_path, monkeypatch
         evaluation.run_transfer_comparison(config, baseline_checkpoint=checkpoint, post_checkpoint=checkpoint,
             seeds=[86001], snrs=[5], frames=2, device="cpu", output_dir=directory, persistent=True)
         rows = [json.loads(line) for line in (directory / "frame_metrics.jsonl").read_text().splitlines()]
-        assert all(not r["data_waveform_used_online"] and not r["data_labels_used_online"] for r in rows)
+        assert all(not r["data_labels_used_online"] and not r["data_waveform_used_for_update"] for r in rows)
+        assert all(r["data_waveform_used_for_guard"] == (reward_input == "full_rx") for r in rows)
+        assert all(r["data_waveform_used_online"] == (reward_input == "full_rx") for r in rows)
         assert all(r["reward_objective"] == "channel_state_signal" for r in rows)
-        decisions.append([(r["accepted"], r["reward_loss_before"], r["reward_loss_after"], r["delta_norm"]) for r in rows])
+        decisions.append([(r["accepted"], r["reward_loss_before"], r["reward_loss_after"],
+                           r["reward_ber_before"], r["reward_ber_after"], r["delta_norm"],
+                           r["episode_delta_norm_online"]) for r in rows])
     assert decisions[0] == decisions[1]
 
 
