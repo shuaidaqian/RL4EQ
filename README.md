@@ -4,7 +4,8 @@
 > A/B 各 256 步、5 个独立 seed × 8 帧 × 四 SNR 的在线改善区间均包含零；
 > 更高接受率没有证明在线泛化。用户已明确持续跟踪场景，正在按
 > [128 帧结果](docs/persistent_prefix_stage_20261102.md)也未建立平均或后期优势，
-> 下一步在训练分布检验 Pilot 聚合的方向稳定性；主目标未完成。
+> [1/4/8 帧 Pilot 聚合](docs/prefix_window_alignment_stage_20261102.md)亦未确认稳定迁移，
+> 下一步重新核对可观测信道状态与神经调制表示；主目标未完成。
 
 > 2026-11-01：新增真实 Level B 的 Pilot 更新后 Data 泛化训练与四臂配对机制实验。
 > 用户已授权重新训练适配友好的 checkpoint；原 checkpoint 保留为对照。

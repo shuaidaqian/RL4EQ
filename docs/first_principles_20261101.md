@@ -137,6 +137,11 @@ PPO 更新数值对照。FFT 加快的是同一线性算子的计算，不改变
 也不能由此直接推导应增大半径。下一步应在训练分布分离多帧平均的降噪收益
 与系统方向失配，详见[128 帧结果](persistent_prefix_stage_20261102.md)。
 
+随后新的训练轨迹上 1/4/8 帧聚合也未获得稳定的实际 BCE/BER 改善，窗口相对
+单帧的配对区间全部跨零。当前证据不足以支持继续扩大同一输出 head 的预算；
+下一步应重审 Pilot 可辨认的信道状态与参数作用族，而非把更多历史默认视为
+新信息。见[多帧聚合结果](prefix_window_alignment_stage_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、
