@@ -22,13 +22,16 @@ from training.pilot_transfer import channel_state_reward_loss, context_logits, d
 from training.windowed_discrete_ppo import should_accept_reward_guard
 
 
-def window_candidates(model, contexts, windows=(1, 8)):
+def window_candidates(model, contexts, windows=(1, 8), *, groups=("channel_state_head",),
+                      objective="channel_state_signal", max_delta_norm=.2, require_consecutive=True):
     """所有候选与验收完成后才返回给 Data 评分；不修改模型参数。"""
     if (not windows or min(windows) < 1 or len(set(windows)) != len(windows)
             or len(contexts) < max(windows)):
         raise ValueError("窗口必须为正且唯一，历史必须足够。")
     indices = [c.frame.frame_index for c in contexts]
-    if indices != list(range(indices[0], indices[0] + len(contexts))):
+    if indices != sorted(set(indices)):
+        raise ValueError("历史必须由严格递增且不重复的已接收帧组成。")
+    if require_consecutive and indices != list(range(indices[0], indices[0] + len(contexts))):
         raise ValueError("窗口必须由连续已接收帧组成。")
 
     def score(parameters):
@@ -45,7 +48,7 @@ def window_candidates(model, contexts, windows=(1, 8)):
     candidates, decisions = {}, []
     for adapt_window in windows:
         fast, update = differentiable_adapt(model, contexts[-adapt_window:], learning_rate=.02, steps=3,
-            max_delta_norm=.2, groups={"channel_state_head"}, objective="channel_state_signal", receiver_input="full_rx")
+            max_delta_norm=max_delta_norm, groups=set(groups), objective=objective, receiver_input="full_rx")
         fast = {name: value.detach() for name, value in fast.items()}
         logits, after = score(fast)
         candidates[adapt_window] = logits[-1]
@@ -91,43 +94,58 @@ def main():
     parser.add_argument("--pretrained", required=True)
     parser.add_argument("--seed-start", type=int, default=92000)
     parser.add_argument("--num-seeds", type=int, default=3)
+    parser.add_argument("--group", choices=["channel_state_head", "channel_state_memory"], default="channel_state_head")
+    parser.add_argument("--objectives", nargs="+", choices=["channel_state_signal", "channel_state_map"], default=["channel_state_signal"])
+    parser.add_argument("--ages", nargs="+", type=int, default=[127, 1023, 2047, 4095])
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     if (args.output.exists() or args.num_seeds < 1 or config.get("offline_state_split") != "offline_train"
-            or config.get("main_level") != "B" or config.get("pilot_layout") != "prefix"):
+            or config.get("main_level") != "B" or config.get("pilot_layout") != "prefix"
+            or args.ages != sorted(set(args.ages)) or min(args.ages) < 7
+            or len(args.objectives) != len(set(args.objectives))):
         raise ValueError("要求新的输出、正 seed 预算、训练分布、Level B 和前缀 Pilot。")
     model, payload = _load_branch(args.pretrained, config, args.device)
     seeds = list(range(args.seed_start, args.seed_start + args.num_seeds))
     if {r["seed"] for r in payload["metrics"]["history"]}.intersection(seeds):
         raise ValueError("诊断 seed 与训练重叠。")
-    ages, rows = [127, 1023, 2047, 4095], []
+    ages, rows = args.ages, []
+    radius = .8 if args.group == "channel_state_memory" else .2
+    if args.group == "channel_state_memory" and model.channel_state.memory is None:
+        raise ValueError("需要启用复数状态记忆。")
     started = time.monotonic()
     for snr in config["main_snrs"]:
         for seed in seeds:
             _, cir, cfo, tail, frames = make_episode(config, model, seed=seed, snr=snr,
-                frames=4096, state_split="offline_train", device=args.device)
+                frames=max(ages) + 1, state_split="offline_train", device=args.device)
             if any(bool(frame.adapt_mask[-tail.numel():].any()) for frame in frames):
                 raise ValueError("窗口诊断要求 prefix 不覆盖帧尾，保持合法 tail 不变。")
             for age in ages:
                 contexts = [make_context(frame, cir, cfo, tail, snr) for frame in frames[age - 7:age + 1]]
-                frozen, candidates, decisions = window_candidates(model, contexts)
                 frame = frames[age]
-                with torch.no_grad():
-                    ber0, bce0 = _metrics(frozen, frame, frame.data_mask)
-                    for decision in decisions:
-                        ber1, bce1 = _metrics(candidates[decision["adapt_window"]], frame, frame.data_mask)
-                        rows.append({"snr_db": snr, "seed": seed, "frame": age, **decision,
-                            "ber_frozen": ber0, "bce_frozen": bce0, "ber_candidate": ber1, "bce_candidate": bce1,
-                            "ber_committed": ber1 if decision["accepted"] else ber0,
-                            "input_sha256": hashlib.sha256(frame.rx_symbols.cpu().numpy().tobytes()).hexdigest(),
-                            "data_labels_used_for_control": False})
+                for objective in args.objectives:
+                    frozen, candidates, decisions = window_candidates(model, contexts,
+                        groups=(args.group,), objective=objective, max_delta_norm=radius)
+                    with torch.no_grad():
+                        ber0, bce0 = _metrics(frozen, frame, frame.data_mask)
+                        for decision in decisions:
+                            ber1, bce1 = _metrics(candidates[decision["adapt_window"]], frame, frame.data_mask)
+                            rows.append({"snr_db": snr, "seed": seed, "frame": age, "objective": objective, **decision,
+                                "ber_frozen": ber0, "bce_frozen": bce0, "ber_candidate": ber1, "bce_candidate": bce1,
+                                "ber_committed": ber1 if decision["accepted"] else ber0,
+                                "input_sha256": hashlib.sha256(frame.rx_symbols.cpu().numpy().tobytes()).hexdigest(),
+                                "data_labels_used_for_control": False})
             print(json.dumps({"snr_db": snr, "seed": seed, "complete": True}), flush=True)
-    per_age, contrasts = summarize(rows, seeds)
+    per_age, contrasts = [], []
+    for objective in args.objectives:
+        current, differences = summarize([row for row in rows if row["objective"] == objective], seeds)
+        per_age.extend({"objective": objective, **item} for item in current)
+        contrasts.extend({"objective": objective, **item} for item in differences)
     result = {"diagnostic_only": True, "main_aggregation_allowed": False, "state_split": "offline_train",
         "checkpoint": args.pretrained, "checkpoint_sha256": hashlib.sha256(Path(args.pretrained).read_bytes()).hexdigest(),
         "config": config, "seeds": seeds, "ages": ages, "windows": [1, 8], "data_labels_used_for_control": False,
+        "adaptation_group": args.group, "objectives": args.objectives, "max_delta_norm": radius,
         "elapsed_seconds": time.monotonic() - started, "per_snr_age": per_age, "contrasts": contrasts, "rows": rows}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

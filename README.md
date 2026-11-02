@@ -6,7 +6,9 @@
 > [作用方向几何](docs/channel_state_geometry_stage_20261102.md)发现当前 17 参数 head
 > 响应高度集中。[复数状态记忆筛查](docs/channel_memory_capacity_stage_20261102.md)
 > 已保持源 Frozen 输出精确不变；[新训练轨迹复核](docs/channel_memory_fresh_stage_20261102.md)
-> 的收益区间仍全部含零。正在按固定预算检验离线尺度学习，未进入正式 RL。
+> 的收益区间仍全部含零。随后[固定64步尺度实验](docs/channel_memory_scale_training_stage_20261102.md)
+> 在10/15 dB确认相对共同Frozen的在线收益，但尺度学习对固定尺度控制的额外价值未确认；
+> 下一步检验历史Pilot是否补足复状态约束，未进入正式RL。
 > 用户已确认数百秒会话开始 acquisition 一次，之后仅每帧前缀 Pilot。
 
 > 2026-11-02：[匹配前缀短窗训练与梯度解释](docs/prefix_transfer_stage_20261102.md)已完成。

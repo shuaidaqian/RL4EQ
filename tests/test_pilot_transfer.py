@@ -1400,6 +1400,55 @@ def test_channel_memory_offline_gradient_diagnostic_cannot_mutate_online_state()
     assert all(parameter.grad is None for parameter in model.parameters())
 
 
+def test_channel_memory_history_uses_last_frame_and_ignores_both_frames_hidden_labels():
+    from scripts.diagnose_channel_state_windows import window_candidates
+
+    _, model, context = _channel_memory_fixture()
+    future = replace(context, frame=replace(context.frame, frame_index=8,
+                     rx_symbols=context.frame.rx_symbols * (.9 + .1j)))
+    contexts = [context, future]
+    options = dict(windows=(1, 2), groups=("channel_state_memory",), objective="channel_state_map",
+                   max_delta_norm=.8, require_consecutive=False)
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    original = window_candidates(model, contexts, **options)
+    altered = []
+    for current in contexts:
+        frame = current.frame
+        bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+        bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000j
+        altered.append(replace(current, frame=replace(frame, bits=bits, tx_symbols=tx)))
+    changed = window_candidates(model, altered, **options)
+    assert original[2] == changed[2] and len(original[2]) == 4
+    with torch.no_grad():
+        torch.testing.assert_close(original[0], context_logits(model, future), atol=0, rtol=0)
+    for window in [1, 2]:
+        torch.testing.assert_close(original[1][window], changed[1][window], atol=0, rtol=0)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], atol=0, rtol=0)
+    with pytest.raises(ValueError, match="严格递增"):
+        window_candidates(model, contexts[::-1], **options)
+
+
+def test_level_b_pilot_history_fills_algebraic_rank_without_using_data():
+    from scripts.diagnose_channel_memory_history import pilot_spectrum
+
+    generator = FrameGenerator(FrameConfig(frame_len=1024, total_pilot=256, reward_pilot_total=32,
+                                           max_delay=116, layout="prefix"), seed=7)
+    condition = condition_from_cir(torch.zeros(117, dtype=torch.complex64), 10)
+    contexts = [TransferContext(generator.generate(index), condition, torch.zeros(116, dtype=torch.complex64))
+                for index in [0, 8]]
+    single, pooled = pilot_spectrum(contexts[:1]), pilot_spectrum(contexts)
+    assert single["rows"] == single["complex_rank"] == 108 and single["complex_nullity"] == 9
+    assert pooled["rows"] == 216 and pooled["complex_rank"] == 117 and pooled["complex_nullity"] == 0
+    changed = []
+    for context in contexts:
+        frame = context.frame
+        bits, tx, rx = frame.bits.clone(), frame.tx_symbols.clone(), frame.rx_symbols.clone()
+        bits[frame.data_mask], tx[frame.data_mask], rx[:] = ~bits[frame.data_mask], 1000j, -1000j
+        changed.append(replace(context, frame=replace(frame, bits=bits, tx_symbols=tx, rx_symbols=rx)))
+    assert pilot_spectrum(changed) == pooled
+
+
 @pytest.mark.parametrize("objective", ["channel_state_signal", "channel_state_map"])
 @pytest.mark.parametrize("future_target", [False, True])
 def test_channel_memory_offline_scale_gradient_matches_finite_difference(objective, future_target):

@@ -215,6 +215,14 @@ Data 梯度可达能量只有 4.38%–18.01%。下一步检验能存储复数状
 见[新轨迹与导数结果](channel_memory_fresh_stage_20261102.md)和
 [尺度训练计划](channel_memory_scale_training_plan_20261102.md)。
 
+固定64步尺度实验的独立5 seed机制随后确认两分支10/15 dB在线正区间，且
+共同Frozen BER逐上下文完全相同；0/5 dB仍不确定，尺度学习对固定尺度控制
+的额外价值与后期优势均未确认。训练样本中两帧Pilot补足复秩，但历史组合
+没有统一收益，5 dB的较大均值由单样本主导。下一步仅在新训练轨迹检查
+连续1/8帧信息与反馈，不把满秩或均值增加当最终成功。
+见[尺度结果](channel_memory_scale_training_stage_20261102.md)与
+[历史Pilot筛查](channel_memory_history_stage_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、
