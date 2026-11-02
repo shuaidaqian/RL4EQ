@@ -721,7 +721,8 @@ def test_prefix_task_uses_true_short_operator_and_hides_unknown_labels():
         torch.testing.assert_close(value, before[name], rtol=0, atol=0)
 
 
-def test_prefix_alignment_is_read_only_and_data_labels_do_not_change_candidate():
+@pytest.mark.parametrize("window", [1, 4])
+def test_prefix_alignment_is_read_only_and_data_labels_do_not_change_candidate(window):
     from scripts.diagnose_prefix_alignment import gradient_alignment
 
     _, model, context = _symbol_fixture()
@@ -733,16 +734,18 @@ def test_prefix_alignment_is_read_only_and_data_labels_do_not_change_candidate()
                 "inner_task": "prefix_boundary", "reward_task": "prefix_boundary"}
     before = {n: v.clone() for n, v in model.state_dict().items()}
     flags = {n: p.requires_grad for n, p in model.named_parameters()}
-    original = gradient_alignment(model, context, settings)
+    original = gradient_alignment(model, context, settings, history=[context] * window)
     bits = context.frame.bits.clone()
     bits[context.frame.data_mask] = ~bits[context.frame.data_mask]
-    altered = gradient_alignment(model, replace(context, frame=replace(context.frame, bits=bits)), settings)
+    poisoned = replace(context, frame=replace(context.frame, bits=bits))
+    altered = gradient_alignment(model, poisoned, settings, history=[poisoned] * window)
     assert original["adapt_losses"] == altered["adapt_losses"]
     assert original["delta_norm"] == altered["delta_norm"]
     assert original["adapt"] == altered["adapt"]
     assert original["reward"] == altered["reward"]
     assert original["data"] != altered["data"]
     assert original["parameter_count"] == 17
+    assert original["history_frames"] == window
     for role in ("adapt", "reward", "data", "data_tail", "data_interior"):
         assert all(torch.isfinite(torch.tensor(v)) for v in original[role].values())
     for name, value in model.state_dict().items():
