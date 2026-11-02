@@ -1109,3 +1109,20 @@ def test_future_outer_targets_share_exposure_and_keep_inner_causal(monkeypatch, 
     assert visited == [7, 15, 7, 15]
     assert metrics["post_target_frame_offsets"] == [0, 8]
     assert metrics["history"][0]["post_target_frame_indices"] == [7, 15]
+
+
+def test_capacity_age_summary_does_not_mix_ages_or_accept_duplicate_seeds():
+    from scripts.diagnose_channel_state_capacity import summarize_by_age
+
+    rows = []
+    for seed in [1, 2, 3]:
+        for age, gain in [(0, .01), (4095, -.02)]:
+            rows.append({"snr_db": 10, "frame": age, "action": "medium:channel_state_signal",
+                "seed": seed, "accepted": True, "ber_frozen": .1, "ber_candidate": .1 - gain,
+                "ber_committed": .1 - gain, "bce_frozen": .2, "bce_candidate": .2 - gain, "cir_step_norm": .02})
+    summary = summarize_by_age(rows, [1, 2, 3])
+    assert [r["frame"] for r in summary] == [0, 4095]
+    assert [r["ber_committed_gain"]["mean"] for r in summary] == pytest.approx([.01, -.02])
+    assert all(r["ber_committed_gain"]["seeds"] == 3 for r in summary)
+    with pytest.raises(ValueError, match="恰好一个"):
+        summarize_by_age(rows + rows[:1], [1, 2, 3])

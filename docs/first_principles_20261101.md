@@ -180,6 +180,12 @@ Adapt 更新；后续按固定 A/B 标签暴露和预算检验，不将实现完
 与正式验收的区别。见[跨帧结果](channel_state_future_stage_20261102.md)与
 [长期年龄计划](channel_state_long_age_plan_20261102.md)。
 
+数百秒年龄诊断随后发现晚期中高 SNR 有实际可修正误差，但各格区间仍含零；
+5 dB 最晚年龄的两个较好候选因 32 bit Reward 增加一个错误而被拒，信号 loss
+却下降。不能事后据 Data 改验收，也不能简单宣布信号 loss 充分。下一步在新
+训练轨迹分开检验 Adapt 窗口与 Reward 窗口聚合；年龄外推仍单独保留。
+见[长期年龄结果](channel_state_long_age_stage_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、

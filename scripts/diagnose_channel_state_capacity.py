@@ -85,6 +85,25 @@ def candidates_and_guards(model, context, objectives=("channel_state_signal",), 
     return logits0, candidates, decisions
 
 
+def summarize_by_age(rows, seeds):
+    """年龄外推必须逐年龄报告，不能用跨年龄均值替代持续会话结论。"""
+    summary = []
+    keys = sorted({(r["snr_db"], r["frame"], r["action"]) for r in rows})
+    for snr, age, action in keys:
+        subset = [r for r in rows if (r["snr_db"], r["frame"], r["action"]) == (snr, age, action)]
+        if sorted(r["seed"] for r in subset) != sorted(seeds):
+            raise ValueError("逐年龄统计要求每个 seed 恰好一个配对候选。")
+        item = {"snr_db": snr, "frame": age, "action": action,
+                "accepted": sum(r["accepted"] for r in subset), "contexts": len(subset),
+                "ber_frozen": float(np.mean([r["ber_frozen"] for r in subset])),
+                "cir_step_norm_mean": float(np.mean([r["cir_step_norm"] for r in subset]))}
+        for key in ("ber_candidate", "ber_committed", "bce_candidate"):
+            before = "bce_frozen" if key.startswith("bce") else "ber_frozen"
+            item[key + "_gain"] = paired_interval([r[before] - r[key] for r in subset])
+        summary.append(item)
+    return summary
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
@@ -149,7 +168,8 @@ def main():
         "state_split": "offline_train", "data_labels_used_for_control": False,
         "checkpoint": args.pretrained, "checkpoint_sha256": hashlib.sha256(Path(args.pretrained).read_bytes()).hexdigest(),
         "config": config, "seeds": seeds, "ages": ages, "actions": actions, "objectives": args.objectives,
-        "elapsed_seconds": time.monotonic() - started, "per_snr": summary, "rows": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
+        "elapsed_seconds": time.monotonic() - started, "per_snr": summary,
+        "per_snr_age": summarize_by_age(rows, seeds), "rows": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

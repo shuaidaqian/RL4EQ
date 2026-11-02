@@ -20,6 +20,8 @@
 > [跨帧目标结果](docs/channel_state_future_stage_20261102.md)全部在线区间含零；
 > 0 dB 的源模型比较只确认离线改善。后续按[固定年龄诊断计划](docs/channel_state_long_age_plan_20261102.md)
 > 检查数百秒会话是否产生不同的可修正状态误差，不修改主信道相干时间。
+> [长期年龄诊断](docs/channel_state_long_age_stage_20261102.md)确认晚期中高 SNR 的
+> 候选能够改变并改善部分判决，但所有区间仍含零；单帧 Reward 对部分有益候选拒绝。
 
 > 2026-11-01：新增真实 Level B 的 Pilot 更新后 Data 泛化训练与四臂配对机制实验。
 > 用户已授权重新训练适配友好的 checkpoint；原 checkpoint 保留为对照。
