@@ -1433,6 +1433,8 @@ def _run_new_or_single_method(
             modulation=state.modulation,
             adapt_symbols=frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64),
             adapt_mask=frame_device.adapt_mask.unsqueeze(0).bool(),
+            **({"frame_index": int(frame_device.frame_index)}
+               if bool(getattr(state.model.config, "enable_channel_state_branch", False)) else {}),
         )
         logits = logits.squeeze(0)
         tail_len = state.receiver_state.soft_tail.numel()
@@ -1471,6 +1473,8 @@ def _run_new_or_single_method(
                 modulation=state.modulation,
                 adapt_symbols=frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64),
                 adapt_mask=frame_device.adapt_mask.unsqueeze(0).bool(),
+                **({"frame_index": int(frame_device.frame_index)}
+                   if bool(getattr(state.model.config, "enable_channel_state_branch", False)) else {}),
             )
         return _result_from_logits(
             method,

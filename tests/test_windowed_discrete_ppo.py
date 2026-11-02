@@ -718,6 +718,7 @@ def test_windowed_discrete_runner_reports_policy_without_data_reward(tmp_path):
         pilot_total=64,
         pilot_layout="two_block",
         window_size=2,
+        state_split="offline_train",
     )
 
     assert result["schema_version"] == "windowed-discrete-ppo-v1"
@@ -1110,6 +1111,27 @@ def test_tail_refinement_reuses_current_frame_soft_tail_without_labels():
     )
     assert torch.allclose(model.tails[1], expected_tail)
     assert torch.equal(logits, torch.full((1, 8), 4.0))
+
+
+def test_tail_refinement_passes_physical_age_to_channel_state_branch():
+    from types import SimpleNamespace
+    from training.windowed_discrete_ppo import refine_logits_with_tail
+
+    class AgeModel:
+        config = SimpleNamespace(pilot_conditioned=True, enable_channel_state_branch=True)
+
+        def __init__(self):
+            self.ages = []
+
+        def __call__(self, rx_iq, condition, region_ids, tail, *, frame_index, **kwargs):
+            self.ages.append(frame_index)
+            logits = torch.full(rx_iq.shape[:2], 2.)
+            return logits, torch.sigmoid(logits)
+
+    model = AgeModel()
+    refine_logits_with_tail(model, torch.zeros(1, 8, 2), object(), torch.zeros(1, 8, dtype=torch.long),
+        torch.zeros(1, 3, dtype=torch.complex64), modulation=None, passes=2, frame_index=1023)
+    assert model.ages == [1023, 1023, 1023]
 
 
 def test_compare_rl_modulated_uses_windowed_discrete_policy(tmp_path):

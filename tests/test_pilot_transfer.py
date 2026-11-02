@@ -1449,6 +1449,38 @@ def test_level_b_pilot_history_fills_algebraic_rank_without_using_data():
     assert pilot_spectrum(changed) == pooled
 
 
+def test_formal_frozen_and_ppo_paths_preserve_physical_age_instead_of_local_counter():
+    import compare
+    from types import SimpleNamespace
+    from env.comm_env import ReceiverState
+    from agent.discrete_safe_policy import DiscreteSafePolicy, safe_modulation_actions
+    from training.windowed_discrete_ppo import WindowedDiscreteOnlineState, WindowRewardAccumulator, run_windowed_discrete_frame
+
+    _, model, context = _channel_memory_fixture()
+    frame = replace(context.frame, frame_index=1023)
+    actions = safe_modulation_actions(len(model.blocks), action_names=["identity"])
+    cir = context.condition.complex_cir.flatten()
+    ages = []
+    hook = model.channel_state.register_forward_pre_hook(lambda module, args: ages.append(args[-1]))
+    try:
+        frozen = compare.NeuralMethodState(cir=cir, receiver_state=ReceiverState(context.tail.clone()),
+            model=model, modulation=actions[0].modulation, pretrained_loaded=True, condition_source="pilot_cir_phase")
+        compare._run_new_or_single_method("Frozen Offline NN", frame, 10., frozen, 4, 1, 8)
+        assert ages == [1023, 1023]
+        ages.clear()
+        policy = DiscreteSafePolicy(observation_dim=4, action_count=1, hidden_size=8)
+        state = WindowedDiscreteOnlineState(cir=cir, receiver_state=ReceiverState(context.tail.clone()),
+            model=model, policy=policy, optimizer=torch.optim.AdamW(policy.parameters()), encoder=SimpleNamespace(),
+            actions=actions, hidden=policy.initial_hidden(), window_size=4, previous_window_reward=0.,
+            last_action_delta_norm=0., rollout=[], current_action=actions[0], frames_in_window=1,
+            current_accumulator=WindowRewardAccumulator(0.))
+        row = run_windowed_discrete_frame(state, frame, context.condition, 10., 1, 8)
+        assert ages and set(ages) == {1023}
+        assert row["channel_frame_index"] == 1023 and row["frame"] == 1
+    finally:
+        hook.remove()
+
+
 @pytest.mark.parametrize("objective", ["channel_state_signal", "channel_state_map"])
 @pytest.mark.parametrize("future_target", [False, True])
 def test_channel_memory_offline_scale_gradient_matches_finite_difference(objective, future_target):

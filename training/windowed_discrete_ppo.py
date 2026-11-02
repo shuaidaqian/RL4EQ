@@ -141,6 +141,7 @@ def run_windowed_discrete_online(
     cir_update_mode: str = "fixed",
     cir_update_alpha: float = 0.2,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    state_split: str | None = None,
 ) -> dict:
     if cir_update_mode not in {"fixed", "decision_directed"}:
         raise ValueError(f"未知 CIR 更新模式：{cir_update_mode}")
@@ -156,6 +157,7 @@ def run_windowed_discrete_online(
             max_delay=int(delay),
             total_pilot=int(pilot_total),
             pilot_layout=str(pilot_layout),
+            state_split=state_split,
         )
         for delay in selected_delays
         for snr_db in selected_snrs
@@ -289,6 +291,11 @@ def run_windowed_discrete_frame(
     frame_index: int,
     update_interval: int,
 ) -> dict:
+    physical_age = getattr(frame, "frame_index", None)
+    if physical_age is None and bool(getattr(getattr(state.model, "config", None), "enable_channel_state_branch", False)):
+        raise ValueError("神经信道状态分支需要显式物理帧龄，不能用局部计数代替。")
+    # 无状态支路的旧诊断桩没有物理帧号，保留其局部计数兼容。
+    physical_age = int(physical_age if physical_age is not None else max(0, int(frame_index) - 1))
     adapt_view = _adapt_receiver_view(frame)
     adapt_only_mask = adapt_view.adapt_mask.to(dtype=torch.bool)
     adapt_only_rx_iq = torch.stack(
@@ -312,6 +319,7 @@ def run_windowed_discrete_frame(
             passes=int(state.tail_refinement_passes),
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            frame_index=physical_age,
         ).squeeze(0)
         pilot_state_embedding = None
         if bool(getattr(state.encoder, "include_pilot_state", False)):
@@ -385,6 +393,7 @@ def run_windowed_discrete_frame(
         passes=int(state.tail_refinement_passes),
         adapt_symbols=adapt_symbols,
         adapt_mask=adapt_mask,
+        frame_index=physical_age,
     )
     base = base_logits.squeeze(0)
     sampled_action = state.current_action
@@ -461,6 +470,7 @@ def run_windowed_discrete_frame(
         passes=int(state.tail_refinement_passes),
         adapt_symbols=adapt_symbols,
         adapt_mask=adapt_mask,
+        frame_index=physical_age,
     )
     after = logits_after.squeeze(0)
     reward_before_loss = _masked_bce(base, reward_labels, frame.reward_mask)
@@ -506,6 +516,7 @@ def run_windowed_discrete_frame(
             passes=int(state.tail_refinement_passes),
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            frame_index=physical_age,
         ).squeeze(0)
         state.cir = decision_directed_cir_update(
             frame,
@@ -581,6 +592,7 @@ def run_windowed_discrete_frame(
             passes=int(state.tail_refinement_passes),
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            frame_index=physical_age,
         ).squeeze(0)
         detected_tail = torch.complex(
             torch.tanh(adapt_tail_logits[-tail_len:] / 2.0),
@@ -615,6 +627,7 @@ def run_windowed_discrete_frame(
             passes=int(state.tail_refinement_passes),
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            frame_index=physical_age,
         )
     if sampled_action.peft_groups:
         _restore_snapshot(state.model, current_peft_snapshot)
@@ -630,6 +643,7 @@ def run_windowed_discrete_frame(
             passes=int(state.tail_refinement_passes),
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            frame_index=physical_age,
         )
     full_before = full_before_logits.squeeze(0)
     full_after = full_after_logits.squeeze(0)
@@ -654,6 +668,7 @@ def run_windowed_discrete_frame(
         "method": "RL-Modulated Neural Block Equalizer",
         "snr_db": float(snr_db),
         "frame": int(frame_index),
+        "channel_frame_index": physical_age,
         "ber_data": float(data_after_ber),
         # 这是本帧动作前的同一接收状态对照，不是独立 Frozen 方法结果。
         "pre_update_ber_data": float(data_before_ber),
@@ -768,6 +783,7 @@ def refine_logits_with_tail(
     passes: int,
     adapt_symbols: torch.Tensor | None = None,
     adapt_mask: torch.Tensor | None = None,
+    frame_index: int = 0,
 ) -> torch.Tensor:
     """用当前帧无标签输出做有限次跨帧 soft-tail fixed-point refinement。"""
 
@@ -780,6 +796,7 @@ def refine_logits_with_tail(
         modulation=modulation,
         adapt_symbols=adapt_symbols,
         adapt_mask=adapt_mask,
+        frame_index=frame_index,
     )
     tail_length = int(soft_tail.shape[-1])
     for _ in range(max(0, int(passes))):
@@ -797,6 +814,7 @@ def refine_logits_with_tail(
             modulation=modulation,
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            frame_index=frame_index,
         )
     return logits
 
@@ -811,10 +829,13 @@ def _forward_model(
     modulation,
     adapt_symbols: torch.Tensor | None,
     adapt_mask: torch.Tensor | None,
+    frame_index: int = 0,
 ):
     """兼容旧诊断桩，并向新模型传递 Adapt Pilot 条件。"""
 
     model_config = getattr(model, "config", None)
+    age_kwargs = ({"frame_index": int(frame_index)}
+                  if bool(getattr(model_config, "enable_channel_state_branch", False)) else {})
     if bool(getattr(model_config, "pilot_conditioned", False)):
         return model(
             rx_iq,
@@ -824,6 +845,7 @@ def _forward_model(
             modulation=modulation,
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            **age_kwargs,
         )
     return model(
         rx_iq,
@@ -831,6 +853,7 @@ def _forward_model(
         region_ids,
         soft_tail,
         modulation=modulation,
+        **age_kwargs,
     )
 
 
@@ -957,6 +980,8 @@ def _apply_adapt_peft_update(
                 tail,
                 adapt_symbols=pilot_view.adapt_symbols.to(device).unsqueeze(0).to(torch.complex64),
                 adapt_mask=frame.adapt_mask.to(device).unsqueeze(0).bool(),
+                **({"frame_index": int(frame.frame_index)}
+                   if bool(getattr(getattr(model, "config", None), "enable_channel_state_branch", False)) else {}),
             )
             adapt_labels = (pilot_view.adapt_symbols.real > 0.0).to(frame.bits.dtype)
             loss = _masked_bce(logits.squeeze(0), adapt_labels, frame.adapt_mask)

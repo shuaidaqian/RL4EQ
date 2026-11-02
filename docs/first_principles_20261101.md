@@ -223,6 +223,14 @@ Data 梯度可达能量只有 4.38%–18.01%。下一步检验能存储复数状
 见[尺度结果](channel_memory_scale_training_stage_20261102.md)与
 [历史Pilot筛查](channel_memory_history_stage_20261102.md)。
 
+新轨迹连续1/8帧历史、信号/MAP与Reward 1/8帧组合共32个seed均值区间和64个
+逐年龄区间均跨零；增加Pilot信息也不是统一收益解法。正式PPO入口原先还未接收
+state_split参数且忽略神经状态分支物理帧龄，现已修复并由GPU CLI smoke及
+Frozen/PPO真实age=1023测试核验。下一步按固定计划把复记忆安全离散动作接入，
+但这只是方法工程完成，需新seed窗口RL和最终四SNR/后期/传统baseline统计。
+见[连续历史结果](channel_memory_contiguous_stage_20261102.md)与
+[正式RL接入计划](channel_memory_rl_bridge_plan_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、

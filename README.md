@@ -8,7 +8,8 @@
 > 已保持源 Frozen 输出精确不变；[新训练轨迹复核](docs/channel_memory_fresh_stage_20261102.md)
 > 的收益区间仍全部含零。随后[固定64步尺度实验](docs/channel_memory_scale_training_stage_20261102.md)
 > 在10/15 dB确认相对共同Frozen的在线收益，但尺度学习对固定尺度控制的额外价值未确认；
-> 下一步检验历史Pilot是否补足复状态约束，未进入正式RL。
+> [连续历史检查](docs/channel_memory_contiguous_stage_20261102.md)仍未确认统一收益。
+> 正在修通正式离散窗口RL的动作与输入契约，接入不能替代最终统计验收。
 > 用户已确认数百秒会话开始 acquisition 一次，之后仅每帧前缀 Pilot。
 
 > 2026-11-02：[匹配前缀短窗训练与梯度解释](docs/prefix_transfer_stage_20261102.md)已完成。
