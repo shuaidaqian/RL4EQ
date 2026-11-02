@@ -795,3 +795,173 @@ def test_pilot_state_candidate_guard_hides_data_labels_and_preserves_model():
         torch.testing.assert_close(original[1][window], altered[1][window], rtol=0, atol=0)
     for name, value in model.state_dict().items():
         torch.testing.assert_close(value, before[name], rtol=0, atol=0)
+
+
+def _channel_state_fixture():
+    _, base, context = _symbol_fixture()
+    model = UnfoldedEqualizer(replace(base.config, enable_channel_state_branch=True)).eval()
+    model.attach_online_phase_trend_adapter()
+    state = model.state_dict()
+    state.update(base.state_dict())
+    model.load_state_dict(state, strict=True)
+    return base, model, context
+
+
+def _channel_state_settings():
+    return {"inner_learning_rate": .005, "inner_steps": 1, "max_delta_norm": .05,
+        "inner_objective": "channel_state_signal", "reward_objective": "channel_state_signal",
+        "inner_groups": ["channel_state_head"], "outer_groups": ["channel_state"],
+        "inner_receiver_input": "full_rx", "reward_receiver_input": "full_rx", "outer_learning_rate": .001}
+
+
+def test_neural_channel_state_zero_initialization_counts_and_direction_bound():
+    base, model, context = _channel_state_fixture()
+    with torch.no_grad():
+        torch.testing.assert_close(context_logits(base, context), context_logits(model, context), rtol=0, atol=0)
+    assert sum(p.numel() for _, p in model.peft.named_group_parameters({"channel_state"})) == 449
+    assert sum(p.numel() for _, p in model.peft.named_group_parameters({"channel_state_head"})) == 17
+    with torch.no_grad():
+        model.channel_state.head.bias.fill_(100)
+        frame = context.frame
+        corrected = model._apply_phase_correction(torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), dim=-1).unsqueeze(0), context.condition)
+        updated = model._channel_state_condition(corrected, context.condition,
+            frame.tx_symbols.unsqueeze(0), frame.adapt_mask.unsqueeze(0), frame.frame_index)
+        assert float((updated.complex_cir - context.condition.complex_cir).norm()) <= 1.000001
+
+
+def test_neural_channel_state_adamw_matches_and_hides_reward_data_and_tail():
+    from training.pilot_transfer import ChannelStateSignalObjective
+
+    _, model, context = _channel_state_fixture()
+    _, actual, _ = _channel_state_fixture()
+    settings = _channel_state_settings()
+    for net in (model, actual):
+        net.set_trainable_groups({"channel_state_head"})
+    fast, info = differentiable_adapt(model, [context], learning_rate=.005, steps=1, max_delta_norm=.05,
+        groups=settings["inner_groups"], objective="channel_state_signal", receiver_input="full_rx")
+    selected = [p for _, p in actual.peft.named_group_parameters({"channel_state_head"})]
+    optimizer = torch.optim.AdamW(selected, lr=.005)
+    loss = ChannelStateSignalObjective(actual)(context)
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(selected, 1.)
+    optimizer.step()
+    assert info["delta_norm"] > 0
+    for name, parameter in actual.named_parameters():
+        torch.testing.assert_close(fast[name], parameter, atol=1e-7, rtol=2e-5)
+    frame = context.frame
+    bits, tx, rx = frame.bits.clone(), frame.tx_symbols.clone(), frame.rx_symbols.clone()
+    hidden = ~frame.adapt_mask
+    bits[hidden], tx[hidden], rx[hidden] = ~bits[hidden], 1000j, -1000j
+    poisoned = replace(context, tail=torch.full_like(context.tail, 1000j),
+        frame=replace(frame, bits=bits, tx_symbols=tx, rx_symbols=rx))
+    altered, _ = differentiable_adapt(model, [poisoned], learning_rate=.005, steps=1, max_delta_norm=.05,
+        groups=settings["inner_groups"], objective="channel_state_signal", receiver_input="full_rx")
+    for name in fast:
+        torch.testing.assert_close(fast[name], altered[name], atol=0, rtol=0)
+
+
+def test_neural_channel_state_reward_signal_loss_hides_data_information():
+    from training.pilot_transfer import channel_state_reward_loss
+
+    _, model, context = _channel_state_fixture()
+    with torch.no_grad():
+        model.channel_state.head.bias.fill_(.1)
+    frame = context.frame
+    bits, tx, rx = frame.bits.clone(), frame.tx_symbols.clone(), frame.rx_symbols.clone()
+    bits[frame.data_mask], tx[frame.data_mask], rx[frame.data_mask] = ~bits[frame.data_mask], 1000j, -1000j
+    poisoned = replace(context, frame=replace(frame, bits=bits, tx_symbols=tx, rx_symbols=rx))
+    torch.testing.assert_close(channel_state_reward_loss(model, context), channel_state_reward_loss(model, poisoned), rtol=0, atol=0)
+
+
+def test_neural_channel_state_post_update_outer_gradient_matches_finite_difference():
+    _, model, context = _channel_state_fixture()
+    frame = context.frame
+    context = replace(context, frame=replace(frame,
+        rx_symbols=frame.rx_symbols + 1.2 * torch.linspace(-1, 1, frame.rx_symbols.numel())))
+    model.set_trainable_groups({"channel_state"})
+
+    def loss():
+        with sdpa_kernel(SDPBackend.MATH):
+            fast, _ = differentiable_adapt(model, [context], learning_rate=.005, steps=1,
+                max_delta_norm=.05, create_graph=True, groups={"channel_state_head"},
+                objective="channel_state_signal", receiver_input="full_rx")
+            logits = context_logits(model, context, fast)
+            return F.binary_cross_entropy_with_logits(logits[frame.data_mask], frame.bits[frame.data_mask].float())
+
+    probe = model.channel_state.head.bias
+    gradient, = torch.autograd.grad(loss(), probe)
+    initial = probe.detach().clone()
+    values = []
+    for sign in (-1, 1):
+        with torch.no_grad():
+            probe.copy_(initial + sign * .001)
+        values.append(float(loss().detach()))
+    assert abs(float(gradient)) > 1e-5
+    assert float(gradient) == pytest.approx((values[1] - values[0]) / .002, abs=2e-3, rel=.05)
+
+
+def test_neural_channel_state_migration_training_and_strict_checkpoint(tmp_path, monkeypatch):
+    base, model, context = _channel_state_fixture()
+    checkpoint = tmp_path / "base.pt"
+    torch.save({"state_dict": {n: p for n, p in base.state_dict().items()
+        if not n.startswith("online_phase_trend_adapter.")}, "model_config": base.config.to_dict()}, checkpoint)
+    settings = _channel_state_settings()
+    config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "pilot_transfer": settings}
+    trainer = PilotTransferTrainer(config, "cpu", objective="post_adapt")
+    with pytest.raises(ValueError, match="参数结构不一致"):
+        trainer.load_resume(checkpoint)
+    trainer.settings["initialize_channel_state_from_base"] = True
+    trainer.load_resume(checkpoint)
+    with torch.no_grad():
+        torch.testing.assert_close(context_logits(base, context), context_logits(trainer.model, context), rtol=0, atol=0)
+    before = {n: p.clone() for n, p in trainer.model.state_dict().items()}
+    monkeypatch.setattr(trainer, "_sample", lambda: (context, {}, 10, 76000))
+    metrics = trainer.train(1)
+    assert metrics["outer_trainable_parameter_count"] == 449
+    assert not metrics["inner_uses_data_waveform"]
+    for name, parameter in trainer.model.state_dict().items():
+        assert torch.isfinite(parameter).all()
+        if not name.startswith("channel_state."):
+            torch.testing.assert_close(parameter, before[name], rtol=0, atol=0)
+    assert any(not torch.equal(p, before[n]) for n, p in trainer.model.state_dict().items() if n.startswith("channel_state.head."))
+    trainer.save(tmp_path / "saved", metrics)
+    payload = torch.load(tmp_path / "saved/model_best.pt", weights_only=False)
+    standalone = UnfoldedEqualizer(UnfoldedConfig.from_dict(payload["model_config"]))
+    standalone.load_state_dict(payload["state_dict"], strict=True)
+
+
+def test_neural_channel_state_four_arm_guard_is_label_free(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+    import evaluation.pilot_transfer as evaluation
+
+    _, model, context = _channel_state_fixture()
+    settings = _channel_state_settings()
+    config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "pilot_transfer": settings}
+    trainer = PilotTransferTrainer(config, "cpu")
+    trainer.model.load_state_dict(model.state_dict())
+    trainer.save(tmp_path / "checkpoint", {"stage": "pilot_transfer", "settings": settings, "history": []})
+    checkpoint = tmp_path / "checkpoint/model_best.pt"
+    frame = context.frame
+
+    def episode(*args, frames, **kwargs):
+        return SimpleNamespace(state_metadata=lambda: {}), context.condition.complex_cir.reshape(-1), 0, context.tail, [frame] * frames
+
+    monkeypatch.setattr(evaluation, "make_episode", episode)
+    monkeypatch.setattr(evaluation, "make_context", lambda current, *args: replace(context, frame=current))
+    decisions = []
+    for poison in [False, True]:
+        if poison:
+            bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+            bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000j
+            frame = replace(frame, bits=bits, tx_symbols=tx)
+        directory = tmp_path / str(poison)
+        evaluation.run_transfer_comparison(config, baseline_checkpoint=checkpoint, post_checkpoint=checkpoint,
+            seeds=[86001], snrs=[5], frames=2, device="cpu", output_dir=directory, persistent=True)
+        rows = [json.loads(line) for line in (directory / "frame_metrics.jsonl").read_text().splitlines()]
+        assert all(not r["data_waveform_used_online"] and not r["data_labels_used_online"] for r in rows)
+        assert all(r["reward_objective"] == "channel_state_signal" for r in rows)
+        decisions.append([(r["accepted"], r["reward_loss_before"], r["reward_loss_after"], r["delta_norm"]) for r in rows])
+    assert decisions[0] == decisions[1]

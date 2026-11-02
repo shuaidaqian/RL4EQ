@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 
 import torch
 from torch import nn
@@ -11,6 +11,7 @@ from torch import nn
 from agent.cir_estimator import CIRCondition
 from agent.modulation import ModulationState
 from agent.peft import PEFTRegistry, mark_peft_group
+from agent.neural_channel_state import NeuralChannelStateAdapter, known_pilot_equations
 from env.linear_operator import LinearChannelOperator
 
 
@@ -33,6 +34,8 @@ class UnfoldedConfig:
     neural_residual_scale: float = 1.0
     pilot_conditioned: bool = False
     enable_symbol_residual_branch: bool = False
+    enable_channel_state_branch: bool = False
+    channel_state_rho_frame: float = 0.999914670307452
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -469,6 +472,9 @@ class UnfoldedEqualizer(nn.Module):
         self.alpha = nn.Parameter(torch.full((self.config.iterations,), 0.2))
         self.damping = nn.Parameter(torch.full((self.config.iterations,), 0.2))
         self.symbol_residual = SymbolResidualDenoiser() if self.config.enable_symbol_residual_branch else None
+        self.channel_state = (NeuralChannelStateAdapter(
+            acquisition_rows=self.config.frame_len - self.config.max_delay,
+            rho_frame=self.config.channel_state_rho_frame) if self.config.enable_channel_state_branch else None)
         # 该模块只在在线运行时动态挂载，不进入离线 checkpoint。
         self.online_residual_adapter: ResidualLogitAdapter | None = None
         self.online_physics_blend_adapter: OnlinePhysicsBlendAdapter | None = None
@@ -496,6 +502,7 @@ class UnfoldedEqualizer(nn.Module):
         adapt_symbols: torch.Tensor | None = None,
         adapt_mask: torch.Tensor | None = None,
         online_state_embedding: torch.Tensor | None = None,
+        frame_index: int = 0,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.online_input_affine_adapter is not None:
             rx_iq = self.online_input_affine_adapter(rx_iq)
@@ -512,6 +519,8 @@ class UnfoldedEqualizer(nn.Module):
                 latent_residual=condition.latent_residual,
             )
         rx_iq = self._apply_phase_correction(rx_iq, condition)
+        if self.channel_state is not None:
+            condition = self._channel_state_condition(rx_iq, condition, adapt_symbols, adapt_mask, frame_index)
         if self.online_phase_trend_adapter is not None:
             rx_iq = self.online_phase_trend_adapter(
                 rx_iq,
@@ -714,6 +723,36 @@ class UnfoldedEqualizer(nn.Module):
         """返回最近一次前向传播的最终隐藏特征，供在线递推更新使用。"""
 
         return self._last_online_features
+
+    def _channel_state_condition(self, corrected_iq, condition, adapt_symbols, adapt_mask, frame_index):
+        """状态支路只接收 Adapt 已知符号；未知区域即使传入也先清零。"""
+        if self.channel_state is None or adapt_symbols is None or adapt_mask is None:
+            raise ValueError("信道状态分支需要启用且提供 Adapt 符号与位置。")
+        mask = adapt_mask.to(device=corrected_iq.device, dtype=torch.bool)
+        if mask.ndim == 1:
+            mask = mask.unsqueeze(0)
+        symbols = adapt_symbols.to(device=corrected_iq.device, dtype=torch.complex64)
+        if symbols.ndim == 1:
+            symbols = symbols.unsqueeze(0)
+        symbols = torch.where(mask, symbols, torch.zeros_like(symbols))
+        rx = torch.complex(corrected_iq[..., 0], corrected_iq[..., 1])
+        cir = self.channel_state(rx, condition.complex_cir, condition.noise_variance, symbols, mask, frame_index)
+        return replace(condition, complex_cir=cir)
+
+    def channel_state_signal_loss(self, rx_iq, condition, adapt_symbols, adapt_mask,
+                                  known_symbols, known_mask, score_mask, frame_index=0):
+        """前向信号目标：Adapt 构造状态，已知评分符号只参与预测与残差。"""
+        corrected = self._apply_phase_correction(rx_iq, condition)
+        updated = self._channel_state_condition(corrected, condition, adapt_symbols, adapt_mask, frame_index)
+        rx = torch.complex(corrected[..., 0], corrected[..., 1])
+        losses = []
+        for index in range(rx.shape[0]):
+            design, target = known_pilot_equations(rx[index], known_symbols[index], known_mask[index],
+                                                  score_mask[index], updated.complex_cir.shape[1] - 1)
+            prediction = design @ updated.complex_cir[index]
+            losses.append((prediction - target).abs().square().mean()
+                          / condition.noise_variance[index].reshape(()).clamp_min(1e-6))
+        return torch.stack(losses).mean()
 
     def _physics_warm_start_logits(
         self,

@@ -15,7 +15,7 @@ from scipy.stats import t
 
 from training.pilot_transfer import (
     context_logits, differentiable_adapt, make_context, make_episode, next_pilot_tail, receiver_inputs,
-    receiver_tasks, task_context,
+    receiver_tasks, task_context, channel_state_reward_loss,
 )
 from training.rl_modulated_online import _build_equalizer
 from training.windowed_discrete_ppo import should_accept_reward_guard
@@ -109,8 +109,12 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
     settings = config["pilot_transfer"]
     inner_input, reward_input = receiver_inputs(settings)
     inner_task, reward_task = receiver_tasks(settings)
-    update_uses_data_waveform = inner_input == "full_rx" and inner_task == "full_frame"
-    guard_uses_data_waveform = reward_input == "full_rx" and reward_task == "full_frame"
+    reward_objective = settings.get("reward_objective", "bce")
+    if reward_objective not in {"bce", "channel_state_signal"}:
+        raise ValueError("不支持的 Reward 验收目标。")
+    update_uses_data_waveform = (inner_input == "full_rx" and inner_task == "full_frame"
+                                 and settings.get("inner_objective") == "bce")
+    guard_uses_data_waveform = reward_input == "full_rx" and reward_task == "full_frame" and reward_objective == "bce"
     target = Path(output_dir)
     target.mkdir(parents=True, exist_ok=True)
     output = target / "frame_metrics.jsonl"
@@ -123,7 +127,7 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 "seeds": list(seeds), "snrs": list(snrs), "frames": frames,
                 "persistent": persistent, "config": config, "checkpoints": {},
                 "inner_receiver_input": inner_input, "reward_receiver_input": reward_input,
-                "inner_task": inner_task, "reward_task": reward_task}
+                "inner_task": inner_task, "reward_task": reward_task, "reward_objective": reward_objective}
     rows = []
     fingerprints = {}
     training_signature = None
@@ -138,11 +142,13 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 raise ValueError("四臂实验的训练与在线接收输入协议不匹配。")
             if metrics.get("stage") == "pilot_transfer" and receiver_tasks(metrics.get("settings", {})) != (inner_task, reward_task):
                 raise ValueError("四臂实验的训练与在线接收任务不匹配。")
+            if metrics.get("stage") == "pilot_transfer" and metrics.get("settings", {}).get("reward_objective", "bce") != reward_objective:
+                raise ValueError("四臂实验的训练与在线 Reward 目标不匹配。")
             signature = {
                 "source_sha256": (metrics.get("source_checkpoint") or {}).get("sha256"),
                 "training_settings": {key: value for key, value in metrics.get("settings", {}).items()
                                       if key != "objective"},
-                "samples": [(item.get("seed"), item.get("snr_db"), item.get("channel_state"))
+                "samples": [(item.get("seed"), item.get("snr_db"), item.get("frame_index"), item.get("channel_state"))
                             for item in metrics.get("history", [])],
             }
             if branch == "baseline":
@@ -198,6 +204,9 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                             reward_frame = reward_context.frame
                             reward_before, loss_before = _metrics(pilot_before, reward_frame, reward_frame.reward_mask)
                             reward_after, loss_after = _metrics(pilot_candidate, reward_frame, reward_frame.reward_mask)
+                            if reward_objective == "channel_state_signal":
+                                loss_before = float(channel_state_reward_loss(model, reward_context, before).cpu())
+                                loss_after = float(channel_state_reward_loss(model, reward_context, candidate).cpu())
                             accepted = should_accept_reward_guard(
                                 reward_loss_before=loss_before, reward_loss_after=loss_after,
                                 reward_ber_before=reward_before, reward_ber_after=reward_after,
@@ -226,7 +235,7 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                                "data_waveform_used_online": update_uses_data_waveform or guard_uses_data_waveform,
                                "data_waveform_used_for_update": update_uses_data_waveform,
                                "data_waveform_used_for_guard": guard_uses_data_waveform,
-                               "inner_task": inner_task, "reward_task": reward_task}
+                               "inner_task": inner_task, "reward_task": reward_task, "reward_objective": reward_objective}
                         row.update(episode_delta_norm_before=before_norm,
                                    episode_delta_norm_candidate=float(delta.detach().clamp(max=float(settings["max_delta_norm"])).cpu()),
                                    episode_delta_norm_online=float(torch.sqrt(sum(

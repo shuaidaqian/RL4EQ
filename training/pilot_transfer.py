@@ -49,8 +49,8 @@ def receiver_inputs(settings):
     reward = settings.get("reward_receiver_input", "pilot_only")
     if inner not in {"adapt_only", "full_rx"} or reward not in {"pilot_only", "full_rx"}:
         raise ValueError("不支持的内循环或 Reward 接收输入协议。")
-    if inner == "full_rx" and settings.get("inner_objective", "pilot_signal_reconstruction") != "bce":
-        raise ValueError("整帧接收输入目前只支持 Adapt BCE。")
+    if inner == "full_rx" and settings.get("inner_objective", "pilot_signal_reconstruction") not in {"bce", "channel_state_signal"}:
+        raise ValueError("整帧接收输入只支持 Adapt BCE 或神经信道状态信号目标。")
     return inner, reward
 
 
@@ -127,11 +127,47 @@ def context_logits(model, context: TransferContext, parameters=None, *, visible=
         "adapt_symbols": view.adapt_symbols.unsqueeze(0),
         "adapt_mask": frame.adapt_mask.unsqueeze(0),
     }
+    if model.config.enable_channel_state_branch:
+        kwargs["frame_index"] = frame.frame_index
     if parameters is None:
         logits, _ = model(*args, **kwargs)
     else:
         logits, _ = functional_call(model, parameters, args, kwargs)
     return logits.squeeze(0)
+
+
+class ChannelStateSignalObjective(nn.Module):
+    """Adapt 构造神经状态，Reward 仅可作为动作后的独立信号验收目标。"""
+
+    def __init__(self, model, role="adapt", score_start=0):
+        super().__init__()
+        if role not in {"adapt", "reward"}:
+            raise ValueError("信道信号损失角色必须为 Adapt 或 Reward。")
+        self.model, self.role, self.score_start = model, role, int(score_start)
+
+    def forward(self, context):
+        frame = context.frame
+        adapt = _adapt_receiver_view(frame)
+        known_mask = frame.adapt_mask.clone()
+        symbols = adapt.adapt_symbols
+        score_mask = known_mask.clone()
+        if self.role == "reward":
+            known_mask = known_mask | frame.reward_mask
+            symbols = symbols + frame.receiver_view().reward_symbols
+            score_mask = frame.reward_mask
+        score_mask = score_mask & (torch.arange(score_mask.numel(), device=score_mask.device) >= self.score_start)
+        rx = torch.where(known_mask, frame.rx_symbols, torch.zeros_like(frame.rx_symbols))
+        iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0).float()
+        return self.model.channel_state_signal_loss(iq, context.condition,
+            adapt.adapt_symbols.unsqueeze(0), frame.adapt_mask.unsqueeze(0),
+            symbols.unsqueeze(0), known_mask.unsqueeze(0), score_mask.unsqueeze(0), frame.frame_index)
+
+
+def channel_state_reward_loss(model, context, parameters=None):
+    objective = ChannelStateSignalObjective(model, role="reward")
+    if parameters is None:
+        return objective(context)
+    return functional_call(objective, {"model." + n: p for n, p in parameters.items()}, (context,))
 
 
 class _AdaptObjective(nn.Module):
@@ -144,11 +180,13 @@ class _AdaptObjective(nn.Module):
         self.objective = objective
         if receiver_input not in {"adapt_only", "full_rx"}:
             raise ValueError("接收输入必须为 adapt_only 或 full_rx。")
-        if objective != "bce" and receiver_input != "adapt_only":
-            raise ValueError("整帧接收输入实验目前只支持 Adapt BCE。")
+        if objective not in {"bce", "channel_state_signal"} and receiver_input != "adapt_only":
+            raise ValueError("整帧接收输入只支持 Adapt BCE 或神经信道状态信号目标。")
         self.receiver_input = receiver_input
 
     def forward(self, context):
+        if self.objective == "channel_state_signal":
+            return ChannelStateSignalObjective(self.model, score_start=self.score_start)(context)
         view = _adapt_receiver_view(context.frame)
         positions = torch.arange(view.adapt_mask.numel(), device=view.adapt_mask.device)
         score_mask = view.adapt_mask & (positions >= self.score_start)
@@ -183,14 +221,16 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
     if not math.isfinite(max_delta_norm) or max_delta_norm <= 0:
         raise ValueError("更新半径必须为正有限数。")
     selected_groups = {"phase_trend"} if groups is None else set(groups)
-    if objective not in {"pilot_signal_reconstruction", "bce"}:
+    if objective not in {"pilot_signal_reconstruction", "bce", "channel_state_signal"}:
         raise ValueError("内循环目标必须为 pilot_signal_reconstruction 或 bce。")
     if receiver_input not in {"adapt_only", "full_rx"}:
         raise ValueError("接收输入必须为 adapt_only 或 full_rx。")
-    if objective != "bce" and receiver_input != "adapt_only":
-        raise ValueError("整帧接收输入实验目前只支持 Adapt BCE。")
+    if objective not in {"bce", "channel_state_signal"} and receiver_input != "adapt_only":
+        raise ValueError("整帧接收输入只支持 Adapt BCE 或神经信道状态信号目标。")
     if objective == "pilot_signal_reconstruction" and selected_groups != {"phase_trend"}:
         raise ValueError("相位信号重构只允许更新 phase_trend 参数组。")
+    if objective == "channel_state_signal" and (selected_groups != {"channel_state_head"} or model.channel_state is None):
+        raise ValueError("信道状态信号重构只允许更新已启用的神经 channel_state_head。")
     parameters = dict(model.named_parameters())
     if initial_parameters is not None:
         parameters.update(initial_parameters)
@@ -324,19 +364,23 @@ class PilotTransferTrainer:
         base_state = self.model.state_dict()
         expected = {key for key in base_state if not key.startswith("online_phase_trend_adapter.")}
         if set(state) != expected:
-            new_keys = {key for key in expected if key.startswith("symbol_residual.")}
             source_config = UnfoldedConfig.from_dict(payload.get("model_config", {})).to_dict()
             target_config = self.model.config.to_dict()
-            permitted = (self.settings.get("initialize_symbol_residual_from_base", False)
-                         and bool(new_keys) and set(state) == expected - new_keys
-                         and not source_config["enable_symbol_residual_branch"]
-                         and target_config["enable_symbol_residual_branch"])
-            source_config["enable_symbol_residual_branch"] = target_config["enable_symbol_residual_branch"]
+            candidates = [(module, flag) for module, flag in (
+                ("symbol_residual", "enable_symbol_residual_branch"), ("channel_state", "enable_channel_state_branch"))
+                if not source_config[flag] and target_config[flag]]
+            if len(candidates) != 1:
+                raise ValueError("基础 checkpoint 参数结构不一致，禁止非严格加载。")
+            module, flag = candidates[0]
+            new_keys = {key for key in expected if key.startswith(module + ".")}
+            permitted = (self.settings.get("initialize_" + module + "_from_base", False)
+                         and bool(new_keys) and set(state) == expected - new_keys)
+            source_config[flag] = target_config[flag]
             if not permitted or source_config != target_config:
                 raise ValueError("基础 checkpoint 参数结构不一致，禁止非严格加载。")
-            if any(bool(parameter.detach().ne(0).any()) for parameter in self.model.symbol_residual.head.parameters()):
-                raise ValueError("新增符号残差 head 必须零初始化，才能从基础 checkpoint 迁移。")
-            self.initialized_modules = ["symbol_residual"]
+            if any(bool(parameter.detach().ne(0).any()) for parameter in getattr(self.model, module).head.parameters()):
+                raise ValueError("新增神经残差 head 必须零初始化，才能从基础 checkpoint 迁移。")
+            self.initialized_modules = [module]
         base_state.update(state)
         self.model.load_state_dict(base_state, strict=True)
         self.source_checkpoint = {"path": str(source.resolve()), "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}
@@ -347,14 +391,19 @@ class PilotTransferTrainer:
         snr = float(snrs[self.sample_index % len(snrs)])
         seed = int(self.settings.get("seed", 31000)) + self.sample_index
         self.sample_index += 1
-        history_frames = int(self.settings.get("history_frames", 1))
+        choices = self.settings.get("history_frame_choices")
+        if choices is not None and (not choices or any(int(value) < 0 for value in choices)):
+            raise ValueError("离线历史帧选项必须非空且非负。")
+        history_frames = int(choices[(self.sample_index - 1) % len(choices)] if choices is not None
+                             else self.settings.get("history_frames", 1))
         env, cir, cfo, tail, frames = make_episode(
             self.config, self.model, seed=seed, snr=snr, frames=history_frames + 1,
             state_split="offline_train", device=self.device,
         )
         for frame in frames[:-1]:
-            context = make_context(frame, cir, cfo, tail, snr)
-            tail = next_pilot_tail(self.model, context, alpha=float(self.config.get("tail_update_alpha", 0.5)))
+            if bool(frame.adapt_mask[-tail.numel():].any()):
+                context = make_context(frame, cir, cfo, tail, snr)
+                tail = next_pilot_tail(self.model, context, alpha=float(self.config.get("tail_update_alpha", 0.5)))
         return make_context(frames[-1], cir, cfo, tail, snr), env.state_metadata(), snr, seed
 
     def train(self, steps, batch_size=1, accumulation_steps=1, use_amp=False):
@@ -400,6 +449,7 @@ class PilotTransferTrainer:
                 (loss / (batch_size * accumulation_steps)).backward()
                 self.history.append({
                     "step": step + 1, "seed": seed, "snr_db": snr,
+                    "frame_index": frame.frame_index,
                     "loss": float(loss.detach().cpu()), "base_bce": float(base_loss.detach().cpu()),
                     "data_bce_before": float(before_data.detach().cpu()), "data_bce_after": float(post_loss.detach().cpu()),
                     "channel_state": channel_state, **update,
@@ -418,7 +468,8 @@ class PilotTransferTrainer:
             "outer_trainable_parameter_count": sum(parameter.numel() for parameter in self.optimizer.param_groups[0]["params"]),
             "elapsed_seconds": time.monotonic() - started,
             "inner_uses_data_labels": False,
-            "inner_uses_data_waveform": self.inner_receiver_input == "full_rx" and self.inner_task == "full_frame",
+            "inner_uses_data_waveform": self.inner_receiver_input == "full_rx" and self.inner_task == "full_frame"
+                                         and self.settings.get("inner_objective") == "bce",
             "inner_receiver_input": self.inner_receiver_input,
             "reward_receiver_input": self.reward_receiver_input,
             "inner_task": self.inner_task, "reward_task": self.reward_task,

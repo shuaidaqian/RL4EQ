@@ -29,6 +29,9 @@ class PEFTRegistry:
         "symbol_residual_features": {"symbol_residual_features"},
         "symbol_residual_head": {"symbol_residual_head"},
         "symbol_residual": {"symbol_residual_features", "symbol_residual_head"},
+        "channel_state_features": {"channel_state_features"},
+        "channel_state_head": {"channel_state_head"},
+        "channel_state": {"channel_state_features", "channel_state_head"},
         "physics_blend": {"physics_blend"},
         "physics_residual": {"physics_residual"},
         "phase_trend": {"phase_trend"},
@@ -56,7 +59,7 @@ class PEFTRegistry:
         self._groups: dict[str, list[str]] = {
             name: []
             for name in self.GROUP_ALIASES
-            if name not in {"adapter_lora", "adapter_lora_head", "conditioner_peft", "symbol_residual"}
+            if name not in {"adapter_lora", "adapter_lora_head", "conditioner_peft", "symbol_residual", "channel_state"}
         }
 
     def register(self, group: str, module: nn.Module) -> None:
