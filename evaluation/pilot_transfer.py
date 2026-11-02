@@ -15,6 +15,7 @@ from scipy.stats import t
 
 from training.pilot_transfer import (
     context_logits, differentiable_adapt, make_context, make_episode, next_pilot_tail, receiver_inputs,
+    receiver_tasks, task_context,
 )
 from training.rl_modulated_online import _build_equalizer
 from training.windowed_discrete_ppo import should_accept_reward_guard
@@ -107,6 +108,9 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
         raise ValueError("首阶段机制实验需要正帧数、独立 seed 与 heldout_edge。")
     settings = config["pilot_transfer"]
     inner_input, reward_input = receiver_inputs(settings)
+    inner_task, reward_task = receiver_tasks(settings)
+    update_uses_data_waveform = inner_input == "full_rx" and inner_task == "full_frame"
+    guard_uses_data_waveform = reward_input == "full_rx" and reward_task == "full_frame"
     target = Path(output_dir)
     target.mkdir(parents=True, exist_ok=True)
     output = target / "frame_metrics.jsonl"
@@ -118,7 +122,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 "main_aggregation_allowed": False, "state_split": state_split,
                 "seeds": list(seeds), "snrs": list(snrs), "frames": frames,
                 "persistent": persistent, "config": config, "checkpoints": {},
-                "inner_receiver_input": inner_input, "reward_receiver_input": reward_input}
+                "inner_receiver_input": inner_input, "reward_receiver_input": reward_input,
+                "inner_task": inner_task, "reward_task": reward_task}
     rows = []
     fingerprints = {}
     training_signature = None
@@ -131,6 +136,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
             metrics = payload.get("metrics", {})
             if metrics.get("stage") == "pilot_transfer" and receiver_inputs(metrics.get("settings", {})) != (inner_input, reward_input):
                 raise ValueError("四臂实验的训练与在线接收输入协议不匹配。")
+            if metrics.get("stage") == "pilot_transfer" and receiver_tasks(metrics.get("settings", {})) != (inner_task, reward_task):
+                raise ValueError("四臂实验的训练与在线接收任务不匹配。")
             signature = {
                 "source_sha256": (metrics.get("source_checkpoint") or {}).get("sha256"),
                 "training_settings": {key: value for key, value in metrics.get("settings", {}).items()
@@ -164,13 +171,16 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                             raise ValueError("两个训练分支的测试接收波形不一致。")
                         context = make_context(frame, cir, cfo, tail, snr)
                         before = active if persistent else initial
+                        inner_context, score_start = task_context(context, inner_task, role="adapt")
+                        reward_context, _ = task_context(context, reward_task, role="reward")
                         candidate, update = differentiable_adapt(
-                            model, [context], learning_rate=float(settings["inner_learning_rate"]),
+                            model, [inner_context], learning_rate=float(settings["inner_learning_rate"]),
                             steps=int(settings["inner_steps"]), max_delta_norm=float(settings["max_delta_norm"]),
                             initial_parameters=before,
                             groups=settings.get("inner_groups", ["phase_trend"]),
                             objective=settings.get("inner_objective", "pilot_signal_reconstruction"),
                             receiver_input=inner_input,
+                            score_start=score_start,
                         )
                         # 与主配置一致地约束相对离线参数起点的累计偏移。
                         delta = torch.sqrt(sum((candidate[name] - value).square().sum() for name, value in initial.items()) + 1e-24)
@@ -181,10 +191,11 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                         candidate = {name: value.detach() for name, value in candidate.items()}
                         with torch.no_grad():
                             visible = "full_rx" if reward_input == "full_rx" else "pilot"
-                            pilot_before = context_logits(model, context, before, visible=visible)
-                            pilot_candidate = context_logits(model, context, candidate, visible=visible)
-                            reward_before, loss_before = _metrics(pilot_before, frame, frame.reward_mask)
-                            reward_after, loss_after = _metrics(pilot_candidate, frame, frame.reward_mask)
+                            pilot_before = context_logits(model, reward_context, before, visible=visible)
+                            pilot_candidate = context_logits(model, reward_context, candidate, visible=visible)
+                            reward_frame = reward_context.frame
+                            reward_before, loss_before = _metrics(pilot_before, reward_frame, reward_frame.reward_mask)
+                            reward_after, loss_after = _metrics(pilot_candidate, reward_frame, reward_frame.reward_mask)
                             accepted = should_accept_reward_guard(
                                 reward_loss_before=loss_before, reward_loss_after=loss_after,
                                 reward_ber_before=reward_before, reward_ber_after=reward_after,
@@ -206,11 +217,14 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                                "bce_frozen": bce_frozen, "bce_online": bce_online, "bce_candidate": bce_candidate,
                                "accepted": accepted, "reward_loss_improvement": loss_before - loss_after,
                                "reward_ber_improvement": reward_before - reward_after,
+                               "reward_loss_before": loss_before, "reward_loss_after": loss_after,
+                               "reward_ber_before": reward_before, "reward_ber_after": reward_after,
                                "input_sha256": fingerprint, "episode_final_channel_state": env.state_metadata(), **update,
                                "data_labels_used_online": False,
-                               "data_waveform_used_online": inner_input == "full_rx" or reward_input == "full_rx",
-                               "data_waveform_used_for_update": inner_input == "full_rx",
-                               "data_waveform_used_for_guard": reward_input == "full_rx"}
+                               "data_waveform_used_online": update_uses_data_waveform or guard_uses_data_waveform,
+                               "data_waveform_used_for_update": update_uses_data_waveform,
+                               "data_waveform_used_for_guard": guard_uses_data_waveform,
+                               "inner_task": inner_task, "reward_task": reward_task}
                         rows.append(row)
                         handle.write(json.dumps(row, ensure_ascii=False) + "\n")
                         handle.flush()

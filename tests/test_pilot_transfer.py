@@ -12,7 +12,7 @@ from agent.cir_estimator import condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from env.frame_structure import FrameConfig, FrameGenerator
 from training.pilot_transfer import (
-    PilotTransferTrainer, TransferContext, context_logits, differentiable_adapt, next_pilot_tail,
+    PilotTransferTrainer, TransferContext, context_logits, differentiable_adapt, next_pilot_tail, task_context,
 )
 from training.windowed_discrete_ppo import _apply_adapt_peft_update
 
@@ -228,8 +228,8 @@ def test_four_arm_summary_uses_seed_means_and_reports_interaction():
     assert result["post_vs_baseline_online_gain"]["mean"] == pytest.approx(0.02)
 
 
-@pytest.mark.parametrize("full_rx", [False, True])
-def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(tmp_path, monkeypatch, full_rx):
+@pytest.mark.parametrize("full_rx,prefix", [(False, False), (True, False), (True, True)])
+def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(tmp_path, monkeypatch, full_rx, prefix):
     """完整评估先结束 Pilot 决策；改变 Data 标签只应改变事后统计。"""
     from types import SimpleNamespace
     import evaluation.pilot_transfer as evaluation
@@ -242,6 +242,8 @@ def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(
     if full_rx:
         config["pilot_transfer"].update(inner_receiver_input="full_rx", reward_receiver_input="full_rx",
                                        inner_objective="bce", inner_groups=["phase"])
+    if prefix:
+        config["pilot_transfer"].update(inner_task="prefix_boundary", reward_task="prefix_boundary")
     trainer = PilotTransferTrainer(config, "cpu")
     trainer.model.load_state_dict(model.state_dict())
     checkpoint_dir = tmp_path / "checkpoint"
@@ -273,13 +275,14 @@ def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(
         decisions.append([(row["accepted"], row["reward_loss_improvement"], row["delta_norm"]) for row in rows])
         assert summary["per_snr"][0]["post_vs_baseline_online_gain"]["mean"] == 0
         assert len(rows) == 4
-        assert all(row["data_waveform_used_online"] == full_rx for row in rows)
+        assert all(row["data_waveform_used_online"] == (full_rx and not prefix) for row in rows)
         assert all(not row["data_labels_used_online"] for row in rows)
     assert decisions[0] == decisions[1]
 
 
+@pytest.mark.parametrize("prefix", [False, True])
 @pytest.mark.parametrize("objective", ["baseline", "post_adapt"])
-def test_trainer_routes_full_receiver_input_and_records_actual_protocol(monkeypatch, objective):
+def test_trainer_routes_full_receiver_input_and_records_actual_protocol(monkeypatch, objective, prefix):
     import training.pilot_transfer as transfer
 
     model, context = _fixture()
@@ -288,6 +291,8 @@ def test_trainer_routes_full_receiver_input_and_records_actual_protocol(monkeypa
                 "inner_receiver_input": "full_rx", "reward_receiver_input": "full_rx"}
     config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
               "offline_state_split": "offline_train", "pilot_transfer": settings}
+    if prefix:
+        settings.update(inner_task="prefix_boundary", reward_task="prefix_boundary")
     trainer = PilotTransferTrainer(config, "cpu", objective=objective)
     trainer.model.load_state_dict(model.state_dict())
     monkeypatch.setattr(trainer, "_sample", lambda: (context, {}, 10, 44000))
@@ -296,12 +301,16 @@ def test_trainer_routes_full_receiver_input_and_records_actual_protocol(monkeypa
 
     def spy(*args, **kwargs):
         calls.append((kwargs["receiver_input"], kwargs["create_graph"]))
+        expected, start = task_context(context, "prefix_boundary" if prefix else "full_frame", role="adapt")
+        assert args[1][0].frame.rx_symbols.numel() == expected.frame.rx_symbols.numel()
+        assert kwargs["score_start"] == start
         return actual(*args, **kwargs)
 
     monkeypatch.setattr(transfer, "differentiable_adapt", spy)
     result = trainer.train(1)
     assert calls == [("full_rx", objective == "post_adapt")]
-    assert result["inner_uses_data_waveform"] and not result["inner_uses_data_labels"]
+    assert result["inner_uses_data_waveform"] == (not prefix)
+    assert not result["inner_uses_data_labels"]
     assert result["inner_receiver_input"] == result["reward_receiver_input"] == "full_rx"
     assert len(result["history"]) == 1
     assert all(torch.isfinite(value).all() for value in trainer.model.state_dict().values())
@@ -316,6 +325,31 @@ def test_receiver_input_configuration_rejects_unsupported_combinations(settings)
 
     with pytest.raises(ValueError):
         receiver_inputs(settings)
+
+
+@pytest.mark.parametrize("settings", [
+    {"inner_task": "unknown"}, {"reward_task": "unknown"},
+    {"inner_task": "prefix_boundary"}, {"reward_task": "prefix_boundary"},
+])
+def test_receiver_task_rejects_invalid_or_masked_short_window(settings):
+    from training.pilot_transfer import receiver_tasks
+
+    with pytest.raises(ValueError):
+        receiver_tasks(settings)
+
+
+def test_four_arm_rejects_training_task_mismatch(tmp_path, monkeypatch):
+    import evaluation.pilot_transfer as evaluation
+
+    model, _ = _fixture()
+    settings = {"inner_receiver_input": "full_rx", "reward_receiver_input": "full_rx", "inner_objective": "bce"}
+    config = {"pilot_transfer": {**settings, "inner_task": "prefix_boundary", "reward_task": "prefix_boundary"}}
+    monkeypatch.setattr(evaluation, "_load_branch", lambda *args: (
+        model, {"metrics": {"stage": "pilot_transfer", "settings": settings}}))
+    with pytest.raises(ValueError, match="接收任务不匹配"):
+        evaluation.run_transfer_comparison(config, baseline_checkpoint=tmp_path / "old.pt",
+            post_checkpoint=tmp_path / "old.pt", seeds=[82001], snrs=[10], frames=1,
+            device="cpu", output_dir=tmp_path / "result")
 
 
 def test_four_arm_evaluation_rejects_training_receiver_protocol_mismatch(tmp_path, monkeypatch):
@@ -613,7 +647,8 @@ def test_symbol_transfer_migration_and_outer_freeze(tmp_path, monkeypatch):
     standalone.load_state_dict(payload["state_dict"], strict=True)
 
 
-def test_symbol_head_outer_gradient_matches_nonzero_finite_difference():
+@pytest.mark.parametrize("task", ["full_frame", "prefix_boundary"])
+def test_symbol_head_outer_gradient_matches_nonzero_finite_difference(task):
     _, model, context = _symbol_fixture()
     frame = context.frame
     offset = 1.2 * torch.linspace(-1, 1, frame.rx_symbols.numel())
@@ -623,9 +658,10 @@ def test_symbol_head_outer_gradient_matches_nonzero_finite_difference():
 
     def loss():
         with sdpa_kernel(SDPBackend.MATH):
-            fast, _ = differentiable_adapt(model, [context], learning_rate=0.0005, steps=1,
+            inner, start = task_context(context, task, role="adapt")
+            fast, _ = differentiable_adapt(model, [inner], learning_rate=0.0005, steps=1,
                 max_delta_norm=0.05, create_graph=True, groups={"symbol_residual_head"},
-                objective="bce", receiver_input="full_rx")
+                objective="bce", receiver_input="full_rx", score_start=start)
             logits = context_logits(model, context, fast)
             return F.binary_cross_entropy_with_logits(logits[frame.data_mask], frame.bits[frame.data_mask].float())
 

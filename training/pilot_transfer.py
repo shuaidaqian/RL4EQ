@@ -14,7 +14,7 @@ import json
 import math
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import torch
@@ -52,6 +52,46 @@ def receiver_inputs(settings):
     if inner == "full_rx" and settings.get("inner_objective", "pilot_signal_reconstruction") != "bce":
         raise ValueError("整帧接收输入目前只支持 Adapt BCE。")
     return inner, reward
+
+
+def receiver_tasks(settings):
+    """任务描述真实观测窗；接收输入描述该窗内是否还要遮罩波形。"""
+    inner = settings.get("inner_task", "full_frame")
+    reward = settings.get("reward_task", "full_frame")
+    if inner not in {"full_frame", "prefix_boundary"} or reward not in {"full_frame", "prefix_boundary"}:
+        raise ValueError("不支持的内循环或 Reward 接收任务。")
+    inputs = receiver_inputs(settings)
+    if (inner == "prefix_boundary" and inputs[0] != "full_rx") or (reward == "prefix_boundary" and inputs[1] != "full_rx"):
+        raise ValueError("真实短窗任务必须使用窗内 full_rx 输入，不能附加零填充遮罩。")
+    return inner, reward
+
+
+def prefix_context(context, end):
+    """同步缩短逐符号字段；物理算子由实际输入长度构造。"""
+    frame = context.frame
+    if end <= context.tail.numel() or end > frame.rx_symbols.numel():
+        raise ValueError("短窗必须长于信道记忆且不能超出已接收帧。")
+    fields = ("bits", "tx_symbols", "rx_symbols", "adapt_mask", "reward_mask", "data_mask", "model_region_ids")
+    short = replace(frame, **{name: getattr(frame, name)[:end] for name in fields},
+                    tail_symbols=None, true_cir=None, adapt_block_lengths=[int(frame.adapt_mask[:end].sum())])
+    return replace(context, frame=short)
+
+
+def task_context(context, task, *, role):
+    """截窗只依据已知 Pilot 位置，评分起点排除前记忆区。"""
+    if task == "full_frame":
+        return context, 0
+    if task != "prefix_boundary" or role not in {"adapt", "reward"}:
+        raise ValueError("不支持的接收任务或 Pilot 角色。")
+    frame = context.frame
+    mask = frame.adapt_mask if role == "adapt" else frame.reward_mask
+    positions = torch.nonzero(mask, as_tuple=False).flatten()
+    if not positions.numel():
+        raise ValueError("短窗任务缺少目标 Pilot。")
+    end = int(positions.max()) + 1
+    if bool(frame.data_mask[:end].any()) or (role == "adapt" and bool(frame.reward_mask[:end].any())):
+        raise ValueError("短窗任务要求 Adapt/Reward 按前缀顺序放置。")
+    return prefix_context(context, end), context.tail.numel() if role == "adapt" else 0
 
 
 def frame_to_device(frame: Frame, device: torch.device | str) -> Frame:
@@ -241,6 +281,7 @@ class PilotTransferTrainer:
         self.config = config
         self.settings = dict(config["pilot_transfer"])
         self.inner_receiver_input, self.reward_receiver_input = receiver_inputs(self.settings)
+        self.inner_task, self.reward_task = receiver_tasks(self.settings)
         self.objective = objective or self.settings.get("objective", "post_adapt")
         if self.objective not in {"baseline", "post_adapt"}:
             raise ValueError("训练目标必须为 baseline 或 post_adapt。")
@@ -338,13 +379,15 @@ class PilotTransferTrainer:
                 frame = context.frame
                 base_loss = F.binary_cross_entropy_with_logits(before_logits.float(), frame.bits.float())
                 before_data = F.binary_cross_entropy_with_logits(before_logits[frame.data_mask].float(), frame.bits[frame.data_mask].float())
+                inner_context, score_start = task_context(context, self.inner_task, role="adapt")
                 fast, update = differentiable_adapt(
-                    self.model, [context], learning_rate=float(self.settings["inner_learning_rate"]),
+                    self.model, [inner_context], learning_rate=float(self.settings["inner_learning_rate"]),
                     steps=int(self.settings["inner_steps"]), max_delta_norm=float(self.settings["max_delta_norm"]),
                     create_graph=self.objective == "post_adapt",
                     groups=self.settings.get("inner_groups", ["phase_trend"]),
                     objective=self.settings.get("inner_objective", "pilot_signal_reconstruction"),
                     receiver_input=self.inner_receiver_input,
+                    score_start=score_start,
                 )
                 after_logits = context_logits(self.model, context, fast)
                 post_loss = F.binary_cross_entropy_with_logits(after_logits[frame.data_mask].float(), frame.bits[frame.data_mask].float())
@@ -374,9 +417,11 @@ class PilotTransferTrainer:
             "initialized_modules": self.initialized_modules,
             "outer_trainable_parameter_count": sum(parameter.numel() for parameter in self.optimizer.param_groups[0]["params"]),
             "elapsed_seconds": time.monotonic() - started,
-            "inner_uses_data_labels": False, "inner_uses_data_waveform": self.inner_receiver_input == "full_rx",
+            "inner_uses_data_labels": False,
+            "inner_uses_data_waveform": self.inner_receiver_input == "full_rx" and self.inner_task == "full_frame",
             "inner_receiver_input": self.inner_receiver_input,
             "reward_receiver_input": self.reward_receiver_input,
+            "inner_task": self.inner_task, "reward_task": self.reward_task,
             "outer_uses_offline_data_labels": True,
             "post_adapt_data_objective_enabled": self.objective == "post_adapt",
             "offline_base_loss": "bce_all",

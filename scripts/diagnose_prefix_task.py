@@ -7,7 +7,6 @@ import argparse
 import hashlib
 import json
 import sys
-from dataclasses import replace
 from pathlib import Path
 
 import torch
@@ -18,19 +17,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from evaluation.pilot_transfer import _load_branch, _metrics
 from scripts.diagnose_receiver_input_updates import _reward_metrics, summarize
-from training.pilot_transfer import context_logits, differentiable_adapt, make_context, make_episode, next_pilot_tail
+from training.pilot_transfer import context_logits, differentiable_adapt, make_context, make_episode, next_pilot_tail, prefix_context
 from training.windowed_discrete_ppo import should_accept_reward_guard
-
-
-def prefix_context(context, end):
-    """同步缩短所有逐符号字段；算子从实际输入长度构造，不能零填充伪装缺失观测。"""
-    frame = context.frame
-    if end <= context.tail.numel() or end > frame.rx_symbols.numel():
-        raise ValueError("短窗必须长于信道记忆且不能超出已接收帧。")
-    fields = ("bits", "tx_symbols", "rx_symbols", "adapt_mask", "reward_mask", "data_mask", "model_region_ids")
-    short = replace(frame, **{name: getattr(frame, name)[:end] for name in fields},
-                    tail_symbols=None, true_cir=None, adapt_block_lengths=[int(frame.adapt_mask[:end].sum())])
-    return replace(context, frame=short)
 
 
 def candidates_and_guards(model, context, settings):
