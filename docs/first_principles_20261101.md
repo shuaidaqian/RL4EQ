@@ -191,6 +191,16 @@ Adapt 更新；后续按固定 A/B 标签暴露和预算检验，不将实现完
 一次，因此下一步匹配实际年龄做离线 A/B；当前模型后期外推的限制不能省略。
 见[长期窗口结果](channel_state_window_stage_20261102.md)。
 
+长年龄匹配 A/B 各 64 步后，约 105 秒处启动的独立 8 帧机制在 B 的
+0/10/15 dB 建立自身 Frozen 正区间；10/15 dB 也超过同波形旧源 Frozen。
+5 dB 仍不确定，新增外层目标对 A Online 的绝对额外价值未确认，数百秒连续
+优势与正式 RL/传统比较尚未完成。不是把任意单项工程成功充作总目标。
+随后只读训练几何显示 17 参数映射满秩但第一方向占 97.47%–99.30% 能量，
+Data 梯度可达能量只有 4.38%–18.01%。下一步检验能存储复数状态残差的
+神经 Adapter，同时保留原 Frozen 精确输出，单独验证更大表示的 Pilot 可辨认性。
+见[长年龄匹配结果](channel_state_long_age_training_stage_20261102.md)与
+[状态方向几何](channel_state_geometry_stage_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、

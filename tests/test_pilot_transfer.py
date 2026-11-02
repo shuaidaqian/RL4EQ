@@ -1221,3 +1221,40 @@ def test_long_age_offline_cache_pairs_branches_and_rejects_wrong_protocol(tmp_pa
     trainers[1].sample_index = 0
     with pytest.raises(ValueError, match="缓存协议"):
         trainers[1]._sample()
+
+
+def test_channel_state_geometry_jacobian_matches_finite_difference():
+    from scripts.diagnose_channel_state_geometry import state_jacobian, real_vector
+
+    _, model, context = _channel_state_fixture()
+    with torch.no_grad():
+        model.channel_state.head.bias.fill_(.1)
+    _, jacobian, theta, state = state_jacobian(model, context)
+    direction = torch.linspace(-1, 1, theta.numel())
+    direction = direction / direction.norm()
+    finite = real_vector(state(theta + .001 * direction) - state(theta - .001 * direction)) / .002
+    assert jacobian.shape == (10, 17)
+    assert float(finite.norm()) > 1e-5
+    torch.testing.assert_close(jacobian @ direction, finite, atol=3e-5, rtol=.01)
+
+
+def test_channel_state_geometry_data_derivatives_do_not_generate_candidates_or_mutate_weights():
+    from scripts.diagnose_channel_state_geometry import analyze_geometry
+
+    _, model, context = _channel_state_fixture()
+    with torch.no_grad():
+        model.channel_state.head.bias.fill_(.1)
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    original = analyze_geometry(model, context)
+    frame = context.frame
+    bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+    bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000j
+    changed = analyze_geometry(model, replace(context, frame=replace(frame, bits=bits, tx_symbols=tx)))
+    for field in ["singular_values", "rank_relative_1e5", "first_singular_energy_fraction",
+                  "adapt_gradient_norm", "actual_cir_step_norm", "actual_head_delta_norm"]:
+        assert original[field] == changed[field]
+    assert not original["data_gradient_used_for_action"]
+    assert 0 <= original["offline_data_reachable_energy_fraction"] <= 1 + 1e-8
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], atol=0, rtol=0)
+    assert all(value.grad is None for value in model.parameters())
