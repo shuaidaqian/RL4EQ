@@ -740,7 +740,7 @@ class UnfoldedEqualizer(nn.Module):
         return replace(condition, complex_cir=cir)
 
     def channel_state_signal_loss(self, rx_iq, condition, adapt_symbols, adapt_mask,
-                                  known_symbols, known_mask, score_mask, frame_index=0):
+                                  known_symbols, known_mask, score_mask, frame_index=0, include_prior=False):
         """前向信号目标：Adapt 构造状态，已知评分符号只参与预测与残差。"""
         corrected = self._apply_phase_correction(rx_iq, condition)
         updated = self._channel_state_condition(corrected, condition, adapt_symbols, adapt_mask, frame_index)
@@ -750,8 +750,13 @@ class UnfoldedEqualizer(nn.Module):
             design, target = known_pilot_equations(rx[index], known_symbols[index], known_mask[index],
                                                   score_mask[index], updated.complex_cir.shape[1] - 1)
             prediction = design @ updated.complex_cir[index]
-            losses.append((prediction - target).abs().square().mean()
-                          / condition.noise_variance[index].reshape(()).clamp_min(1e-6))
+            noise = condition.noise_variance[index].reshape(()).clamp_min(1e-6)
+            loss = (prediction - target).abs().square().mean() / noise
+            if include_prior:
+                prior = condition.complex_cir[index]
+                variance = self.channel_state.prior_variance(prior, noise, frame_index).clamp_min(1e-10)
+                loss = loss + ((updated.complex_cir[index] - prior).abs().square() / variance).sum() / design.shape[0]
+            losses.append(loss)
         return torch.stack(losses).mean()
 
     def _physics_warm_start_logits(

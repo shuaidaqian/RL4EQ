@@ -829,7 +829,8 @@ def test_neural_channel_state_zero_initialization_counts_and_direction_bound():
         assert float((updated.complex_cir - context.condition.complex_cir).norm()) <= 1.000001
 
 
-def test_neural_channel_state_adamw_matches_and_hides_reward_data_and_tail():
+@pytest.mark.parametrize("objective", ["channel_state_signal", "channel_state_map"])
+def test_neural_channel_state_adamw_matches_and_hides_reward_data_and_tail(objective):
     from training.pilot_transfer import ChannelStateSignalObjective
 
     _, model, context = _channel_state_fixture()
@@ -838,10 +839,10 @@ def test_neural_channel_state_adamw_matches_and_hides_reward_data_and_tail():
     for net in (model, actual):
         net.set_trainable_groups({"channel_state_head"})
     fast, info = differentiable_adapt(model, [context], learning_rate=.005, steps=1, max_delta_norm=.05,
-        groups=settings["inner_groups"], objective="channel_state_signal", receiver_input="full_rx")
+        groups=settings["inner_groups"], objective=objective, receiver_input="full_rx")
     selected = [p for _, p in actual.peft.named_group_parameters({"channel_state_head"})]
     optimizer = torch.optim.AdamW(selected, lr=.005)
-    loss = ChannelStateSignalObjective(actual)(context)
+    loss = ChannelStateSignalObjective(actual, include_prior=objective == "channel_state_map")(context)
     loss.backward()
     torch.nn.utils.clip_grad_norm_(selected, 1.)
     optimizer.step()
@@ -855,7 +856,7 @@ def test_neural_channel_state_adamw_matches_and_hides_reward_data_and_tail():
     poisoned = replace(context, tail=torch.full_like(context.tail, 1000j),
         frame=replace(frame, bits=bits, tx_symbols=tx, rx_symbols=rx))
     altered, _ = differentiable_adapt(model, [poisoned], learning_rate=.005, steps=1, max_delta_norm=.05,
-        groups=settings["inner_groups"], objective="channel_state_signal", receiver_input="full_rx")
+        groups=settings["inner_groups"], objective=objective, receiver_input="full_rx")
     for name in fast:
         torch.testing.assert_close(fast[name], altered[name], atol=0, rtol=0)
 
@@ -873,7 +874,8 @@ def test_neural_channel_state_reward_signal_loss_hides_data_information():
     torch.testing.assert_close(channel_state_reward_loss(model, context), channel_state_reward_loss(model, poisoned), rtol=0, atol=0)
 
 
-def test_neural_channel_state_post_update_outer_gradient_matches_finite_difference():
+@pytest.mark.parametrize("objective", ["channel_state_signal", "channel_state_map"])
+def test_neural_channel_state_post_update_outer_gradient_matches_finite_difference(objective):
     _, model, context = _channel_state_fixture()
     frame = context.frame
     context = replace(context, frame=replace(frame,
@@ -884,7 +886,7 @@ def test_neural_channel_state_post_update_outer_gradient_matches_finite_differen
         with sdpa_kernel(SDPBackend.MATH):
             fast, _ = differentiable_adapt(model, [context], learning_rate=.005, steps=1,
                 max_delta_norm=.05, create_graph=True, groups={"channel_state_head"},
-                objective="channel_state_signal", receiver_input="full_rx")
+                objective=objective, receiver_input="full_rx")
             logits = context_logits(model, context, fast)
             return F.binary_cross_entropy_with_logits(logits[frame.data_mask], frame.bits[frame.data_mask].float())
 
@@ -974,14 +976,32 @@ def test_channel_state_capacity_audit_hides_data_labels_and_preserves_weights():
     with torch.no_grad():
         model.channel_state.head.bias.fill_(.1)
     before = {n: v.clone() for n, v in model.state_dict().items()}
-    original = candidates_and_guards(model, context)
+    original = candidates_and_guards(model, context, ("channel_state_signal", "channel_state_map"))
     frame = context.frame
     bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
     bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000j
-    altered = candidates_and_guards(model, replace(context, frame=replace(frame, bits=bits, tx_symbols=tx)))
+    altered = candidates_and_guards(model, replace(context, frame=replace(frame, bits=bits, tx_symbols=tx)), ("channel_state_signal", "channel_state_map"))
     assert original[2] == altered[2]
-    assert len(original[2]) == 3
+    assert len(original[2]) == 6
     for name in original[1]:
         torch.testing.assert_close(original[1][name], altered[1][name], rtol=0, atol=0)
     for name, value in model.state_dict().items():
         torch.testing.assert_close(value, before[name], rtol=0, atol=0)
+
+
+def test_channel_state_map_preserves_posterior_stationary_point():
+    from training.pilot_transfer import ChannelStateSignalObjective
+
+    _, model, context = _channel_state_fixture()
+    model.set_trainable_groups({"channel_state_head"})
+    with torch.no_grad():
+        model.channel_state.head.bias.copy_(torch.atanh(torch.tensor([.5])))
+    parameters = [p for _, p in model.peft.named_group_parameters({"channel_state_head"})]
+    map_loss = ChannelStateSignalObjective(model, include_prior=True)(context)
+    likelihood = ChannelStateSignalObjective(model)(context)
+    map_gradient = torch.cat([g.flatten() for g in torch.autograd.grad(map_loss, parameters)])
+    signal_gradient = torch.cat([g.flatten() for g in torch.autograd.grad(likelihood, parameters)])
+    assert float(map_gradient.norm()) < 1e-5
+    assert float(signal_gradient.norm()) > 1e-4
+    with pytest.raises(ValueError, match="先验惩罚"):
+        ChannelStateSignalObjective(model, role="reward", include_prior=True)

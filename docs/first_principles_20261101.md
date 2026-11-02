@@ -154,6 +154,11 @@ PPO 更新数值对照。FFT 加快的是同一线性算子的计算，不改变
 默认拟合 Pilot 波形就保留了 acquisition 先验。见
 [神经状态四臂结果](channel_state_transfer_stage_20261102.md)。
 
+MAP 目标与后验驻点的一致性测试通过，但新训练轨迹的 BER 未统一改善，0 dB
+还弱于 likelihood；“先验一致”不等于“判决风险最优”。likelihood medium
+在 0 dB 有探索性正区间，下一步冻结一次 128 帧独立连续验证，不自动推广到
+其余 SNR 或正式 RL。见[MAP 配对结果](channel_state_map_stage_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、

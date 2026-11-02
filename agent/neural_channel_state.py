@@ -37,6 +37,12 @@ class NeuralChannelStateAdapter(nn.Module):
         mark_peft_group(self.features, "channel_state_features")
         mark_peft_group(self.head, "channel_state_head")
 
+    def prior_variance(self, prior, noise, frame_index):
+        """方向构造与 MAP 目标共享同一个对角 acquisition/过程先验。"""
+        acquisition_variance = noise / self.acquisition_rows
+        drift = 1.0 - self.rho_frame ** (2 * (int(frame_index) + 1))
+        return acquisition_variance + drift * (prior.abs().square() + acquisition_variance)
+
     def forward(self, rx, cir, noise, adapt_symbols, adapt_mask, frame_index):
         if int(frame_index) < 0:
             raise ValueError("神经状态分支只支持 acquisition 之后的数据帧。")
@@ -48,9 +54,7 @@ class NeuralChannelStateAdapter(nn.Module):
                 variance_noise = noise[index].reshape(()).detach().clamp_min(1e-6)
                 design, target = known_pilot_equations(rx[index].detach(), adapt_symbols[index],
                     adapt_mask[index], adapt_mask[index], prior.numel() - 1)
-                acquisition_variance = variance_noise / self.acquisition_rows
-                drift = 1.0 - self.rho_frame ** (2 * (int(frame_index) + 1))
-                variance = acquisition_variance + drift * (prior.abs().square() + acquisition_variance)
+                variance = self.prior_variance(prior, variance_noise, frame_index)
                 precision = variance_noise / variance.clamp_min(1e-10)
                 gram = design.conj().T @ design
                 direction = torch.linalg.solve(gram + torch.diag(precision.to(gram.dtype)),

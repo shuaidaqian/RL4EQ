@@ -49,7 +49,7 @@ def receiver_inputs(settings):
     reward = settings.get("reward_receiver_input", "pilot_only")
     if inner not in {"adapt_only", "full_rx"} or reward not in {"pilot_only", "full_rx"}:
         raise ValueError("不支持的内循环或 Reward 接收输入协议。")
-    if inner == "full_rx" and settings.get("inner_objective", "pilot_signal_reconstruction") not in {"bce", "channel_state_signal"}:
+    if inner == "full_rx" and settings.get("inner_objective", "pilot_signal_reconstruction") not in {"bce", "channel_state_signal", "channel_state_map"}:
         raise ValueError("整帧接收输入只支持 Adapt BCE 或神经信道状态信号目标。")
     return inner, reward
 
@@ -139,11 +139,14 @@ def context_logits(model, context: TransferContext, parameters=None, *, visible=
 class ChannelStateSignalObjective(nn.Module):
     """Adapt 构造神经状态，Reward 仅可作为动作后的独立信号验收目标。"""
 
-    def __init__(self, model, role="adapt", score_start=0):
+    def __init__(self, model, role="adapt", score_start=0, include_prior=False):
         super().__init__()
         if role not in {"adapt", "reward"}:
             raise ValueError("信道信号损失角色必须为 Adapt 或 Reward。")
         self.model, self.role, self.score_start = model, role, int(score_start)
+        if include_prior and role != "adapt":
+            raise ValueError("先验惩罚只属于 Adapt 更新目标，不作为 Reward 标签拟合。")
+        self.include_prior = bool(include_prior)
 
     def forward(self, context):
         frame = context.frame
@@ -160,7 +163,8 @@ class ChannelStateSignalObjective(nn.Module):
         iq = torch.stack((rx.real, rx.imag), dim=-1).unsqueeze(0).float()
         return self.model.channel_state_signal_loss(iq, context.condition,
             adapt.adapt_symbols.unsqueeze(0), frame.adapt_mask.unsqueeze(0),
-            symbols.unsqueeze(0), known_mask.unsqueeze(0), score_mask.unsqueeze(0), frame.frame_index)
+            symbols.unsqueeze(0), known_mask.unsqueeze(0), score_mask.unsqueeze(0), frame.frame_index,
+            include_prior=self.include_prior)
 
 
 def channel_state_reward_loss(model, context, parameters=None):
@@ -180,13 +184,14 @@ class _AdaptObjective(nn.Module):
         self.objective = objective
         if receiver_input not in {"adapt_only", "full_rx"}:
             raise ValueError("接收输入必须为 adapt_only 或 full_rx。")
-        if objective not in {"bce", "channel_state_signal"} and receiver_input != "adapt_only":
+        if objective not in {"bce", "channel_state_signal", "channel_state_map"} and receiver_input != "adapt_only":
             raise ValueError("整帧接收输入只支持 Adapt BCE 或神经信道状态信号目标。")
         self.receiver_input = receiver_input
 
     def forward(self, context):
-        if self.objective == "channel_state_signal":
-            return ChannelStateSignalObjective(self.model, score_start=self.score_start)(context)
+        if self.objective in {"channel_state_signal", "channel_state_map"}:
+            return ChannelStateSignalObjective(self.model, score_start=self.score_start,
+                include_prior=self.objective == "channel_state_map")(context)
         view = _adapt_receiver_view(context.frame)
         positions = torch.arange(view.adapt_mask.numel(), device=view.adapt_mask.device)
         score_mask = view.adapt_mask & (positions >= self.score_start)
@@ -221,15 +226,15 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
     if not math.isfinite(max_delta_norm) or max_delta_norm <= 0:
         raise ValueError("更新半径必须为正有限数。")
     selected_groups = {"phase_trend"} if groups is None else set(groups)
-    if objective not in {"pilot_signal_reconstruction", "bce", "channel_state_signal"}:
+    if objective not in {"pilot_signal_reconstruction", "bce", "channel_state_signal", "channel_state_map"}:
         raise ValueError("内循环目标必须为 pilot_signal_reconstruction 或 bce。")
     if receiver_input not in {"adapt_only", "full_rx"}:
         raise ValueError("接收输入必须为 adapt_only 或 full_rx。")
-    if objective not in {"bce", "channel_state_signal"} and receiver_input != "adapt_only":
+    if objective not in {"bce", "channel_state_signal", "channel_state_map"} and receiver_input != "adapt_only":
         raise ValueError("整帧接收输入只支持 Adapt BCE 或神经信道状态信号目标。")
     if objective == "pilot_signal_reconstruction" and selected_groups != {"phase_trend"}:
         raise ValueError("相位信号重构只允许更新 phase_trend 参数组。")
-    if objective == "channel_state_signal" and (selected_groups != {"channel_state_head"} or model.channel_state is None):
+    if objective in {"channel_state_signal", "channel_state_map"} and (selected_groups != {"channel_state_head"} or model.channel_state is None):
         raise ValueError("信道状态信号重构只允许更新已启用的神经 channel_state_head。")
     parameters = dict(model.named_parameters())
     if initial_parameters is not None:

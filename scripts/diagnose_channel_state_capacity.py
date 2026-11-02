@@ -57,7 +57,7 @@ def state_output(model, context, parameters=None):
                  "source_cir_delta_norm": float((cir - context.condition.complex_cir).norm())}
 
 
-def candidates_and_guards(model, context):
+def candidates_and_guards(model, context, objectives=("channel_state_signal",)):
     """不访问 Data 标签；幅度档位固定，不根据事后指标排序。"""
     with torch.no_grad():
         cir0, base_info = state_output(model, context)
@@ -65,22 +65,23 @@ def candidates_and_guards(model, context):
         ber0, _ = _reward_metrics(logits0, context.frame)
         loss0 = float(channel_state_reward_loss(model, context))
     decisions, candidates = [], {}
-    for name, lr, steps, radius in ACTIONS:
-        fast, info = differentiable_adapt(model, [context], learning_rate=lr, steps=steps,
-            max_delta_norm=radius, groups={"channel_state_head"}, objective="channel_state_signal", receiver_input="full_rx")
-        fast = {key: value.detach() for key, value in fast.items()}
-        with torch.no_grad():
-            cir1, after_info = state_output(model, context, fast)
-            logits1 = context_logits(model, context, fast)
-            ber1, _ = _reward_metrics(logits1, context.frame)
-            loss1 = float(channel_state_reward_loss(model, context, fast))
-            accepted = should_accept_reward_guard(reward_loss_before=loss0, reward_loss_after=loss1,
-                reward_ber_before=ber0, reward_ber_after=ber1, allow_loss_only=True, peft_delta_norm=info["delta_norm"])
-        candidates[name] = logits1
-        decisions.append({"action": name, "accepted": accepted, "learning_rate": lr, "steps": steps,
-            "radius": radius, "cir_step_norm": float((cir1 - cir0).norm()),
-            "before": base_info, "after": after_info, "reward_loss_before": loss0,
-            "reward_loss_after": loss1, "reward_ber_before": ber0, "reward_ber_after": ber1, **info})
+    for objective in objectives:
+        for name, lr, steps, radius in ACTIONS:
+            fast, info = differentiable_adapt(model, [context], learning_rate=lr, steps=steps,
+                max_delta_norm=radius, groups={"channel_state_head"}, objective=objective, receiver_input="full_rx")
+            fast = {key: value.detach() for key, value in fast.items()}
+            with torch.no_grad():
+                cir1, after_info = state_output(model, context, fast)
+                logits1 = context_logits(model, context, fast)
+                ber1, _ = _reward_metrics(logits1, context.frame)
+                loss1 = float(channel_state_reward_loss(model, context, fast))
+                accepted = should_accept_reward_guard(reward_loss_before=loss0, reward_loss_after=loss1,
+                    reward_ber_before=ber0, reward_ber_after=ber1, allow_loss_only=True, peft_delta_norm=info["delta_norm"])
+            candidates[name + ":" + objective] = logits1
+            decisions.append({"action": name + ":" + objective, "objective": objective, "accepted": accepted, "learning_rate": lr, "steps": steps,
+                "radius": radius, "cir_step_norm": float((cir1 - cir0).norm()),
+                "before": base_info, "after": after_info, "reward_loss_before": loss0,
+                "reward_loss_after": loss1, "reward_ber_before": ber0, "reward_ber_after": ber1, **info})
     return logits0, candidates, decisions
 
 
@@ -91,6 +92,7 @@ def main():
     parser.add_argument("--seed-start", type=int, default=77000)
     parser.add_argument("--num-seeds", type=int, default=3)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--objectives", nargs="+", choices=["channel_state_signal", "channel_state_map"], default=["channel_state_signal"])
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
@@ -116,7 +118,7 @@ def main():
             for index in ages:
                 frame = frames[index]
                 context = make_context(frame, cir, cfo, tail, snr)
-                frozen, candidates, decisions = candidates_and_guards(model, context)
+                frozen, candidates, decisions = candidates_and_guards(model, context, args.objectives)
                 with torch.no_grad():
                     ber0, bce0 = _metrics(frozen, frame, frame.data_mask)
                     for decision in decisions:
@@ -127,20 +129,21 @@ def main():
         print(json.dumps({"snr_db": snr, "complete": True}), flush=True)
     summary = []
     for snr in config["main_snrs"]:
-        for action, *_ in ACTIONS:
-            subset = [r for r in rows if r["snr_db"] == snr and r["action"] == action]
-            item = {"snr_db": snr, "action": action, "accepted": sum(r["accepted"] for r in subset), "frames": len(subset),
-                    "cir_step_norm_mean": float(np.mean([r["cir_step_norm"] for r in subset]))}
-            for key in ("ber_candidate", "ber_committed", "bce_candidate"):
-                before = "bce_frozen" if key.startswith("bce") else "ber_frozen"
-                item[key + "_gain"] = paired_interval([
-                    np.mean([r[before] - r[key] for r in subset if r["seed"] == seed]) for seed in seeds])
-            summary.append(item)
+        for objective in args.objectives:
+            for action, *_ in ACTIONS:
+                subset = [r for r in rows if r["snr_db"] == snr and r["action"] == action + ":" + objective]
+                item = {"snr_db": snr, "action": action, "objective": objective, "accepted": sum(r["accepted"] for r in subset), "frames": len(subset),
+                        "cir_step_norm_mean": float(np.mean([r["cir_step_norm"] for r in subset]))}
+                for key in ("ber_candidate", "ber_committed", "bce_candidate"):
+                    before = "bce_frozen" if key.startswith("bce") else "ber_frozen"
+                    item[key + "_gain"] = paired_interval([
+                        np.mean([r[before] - r[key] for r in subset if r["seed"] == seed]) for seed in seeds])
+                summary.append(item)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps({"diagnostic_only": True, "main_aggregation_allowed": False,
         "state_split": "offline_train", "data_labels_used_for_control": False,
         "checkpoint": args.pretrained, "checkpoint_sha256": hashlib.sha256(Path(args.pretrained).read_bytes()).hexdigest(),
-        "config": config, "seeds": seeds, "ages": ages, "actions": ACTIONS,
+        "config": config, "seeds": seeds, "ages": ages, "actions": ACTIONS, "objectives": args.objectives,
         "elapsed_seconds": time.monotonic() - started, "per_snr": summary, "rows": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
