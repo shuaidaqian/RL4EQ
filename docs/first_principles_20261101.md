@@ -142,6 +142,12 @@ PPO 更新数值对照。FFT 加快的是同一线性算子的计算，不改变
 下一步应重审 Pilot 可辨认的信道状态与参数作用族，而非把更多历史默认视为
 新信息。见[多帧聚合结果](prefix_window_alignment_stage_20261102.md)。
 
+新的合法信道状态筛查在 0 dB 发现前向 Pilot 方程可产生改善冻结网络的候选，
+但其余 SNR 尚不确定，且该候选未训练任何神经参数。后续应检验对应神经状态
+残差及前向适配目标，不能把物理条件更新充作在线神经微调成功。
+用户已明确先验证统计收益并报告耗时，机制成立后再做实时优化。
+见[信道状态信息筛查](pilot_state_transfer_stage_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、

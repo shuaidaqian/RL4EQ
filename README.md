@@ -6,6 +6,8 @@
 > [128 帧结果](docs/persistent_prefix_stage_20261102.md)也未建立平均或后期优势，
 > [1/4/8 帧 Pilot 聚合](docs/prefix_window_alignment_stage_20261102.md)亦未确认稳定迁移，
 > 下一步重新核对可观测信道状态与神经调制表示；主目标未完成。
+> [合法信道状态筛查](docs/pilot_state_transfer_stage_20261102.md)在 0 dB 有探索性
+> 改善证据，其余 SNR 尚不确定；下一步验证神经状态残差与匹配的前向适配损失。
 
 > 2026-11-01：新增真实 Level B 的 Pilot 更新后 Data 泛化训练与四臂配对机制实验。
 > 用户已授权重新训练适配友好的 checkpoint；原 checkpoint 保留为对照。
