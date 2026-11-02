@@ -148,6 +148,12 @@ PPO 更新数值对照。FFT 加快的是同一线性算子的计算，不改变
 用户已明确先验证统计收益并报告耗时，机制成立后再做实时优化。
 见[信道状态信息筛查](pilot_state_transfer_stage_20261102.md)。
 
+神经状态残差随后得到 0 dB 的离线改善线索，但四臂在线区间仍跨零。幅度审计
+确认更大的参数更新确实增加 CIR 变化，却没有可靠收益。下一项待验证假设是
+先验一致性：后验状态方向与仅含信号残差的更新目标并非相同后验目标，不能
+默认拟合 Pilot 波形就保留了 acquisition 先验。见
+[神经状态四臂结果](channel_state_transfer_stage_20261102.md)。
+
 证据：[相位动作四臂结果](pilot_transfer_stage_20261101.md)、
 [神经 head 四臂结果](head_transfer_stage_20261101.md)、
 [传统线性校准计划](linear_baseline_calibration_plan_20261101.md)、

@@ -965,3 +965,23 @@ def test_neural_channel_state_four_arm_guard_is_label_free(tmp_path, monkeypatch
         assert all(r["reward_objective"] == "channel_state_signal" for r in rows)
         decisions.append([(r["accepted"], r["reward_loss_before"], r["reward_loss_after"], r["delta_norm"]) for r in rows])
     assert decisions[0] == decisions[1]
+
+
+def test_channel_state_capacity_audit_hides_data_labels_and_preserves_weights():
+    from scripts.diagnose_channel_state_capacity import candidates_and_guards
+
+    _, model, context = _channel_state_fixture()
+    with torch.no_grad():
+        model.channel_state.head.bias.fill_(.1)
+    before = {n: v.clone() for n, v in model.state_dict().items()}
+    original = candidates_and_guards(model, context)
+    frame = context.frame
+    bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
+    bits[frame.data_mask], tx[frame.data_mask] = ~bits[frame.data_mask], 1000j
+    altered = candidates_and_guards(model, replace(context, frame=replace(frame, bits=bits, tx_symbols=tx)))
+    assert original[2] == altered[2]
+    assert len(original[2]) == 3
+    for name in original[1]:
+        torch.testing.assert_close(original[1][name], altered[1][name], rtol=0, atol=0)
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, before[name], rtol=0, atol=0)
