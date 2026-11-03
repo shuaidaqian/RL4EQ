@@ -39,6 +39,16 @@ def test_zero_coefficients_preserve_source_and_jacobian_matches_finite_differenc
         "base_logits","features","logit_scale","adapt_mask","adapt_labels","validation_mask","validation_labels"}
 
 
+@pytest.mark.parametrize("architecture", ["pointwise_mlp_v1", "temporal_conv_v1"])
+def test_subspace_architectures_preserve_shape_and_zero_coefficient_identity(architecture):
+    observation = fixture_observation()
+    model = DetectionSubspace(4, architecture=architecture)
+    basis = model.basis(observation)
+    assert basis.shape == (40, 4)
+    torch.testing.assert_close(model.logits(observation), observation.base_logits, atol=0, rtol=0)
+    assert torch.isfinite(basis).all()
+
+
 @pytest.mark.parametrize("steps", [1,3])
 def test_functional_adam_projection_matches_torch_and_unrolled_training(steps):
     observation = fixture_observation()

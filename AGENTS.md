@@ -68,4 +68,5 @@
 - 第三轮只读梯度诊断：B臂5 dB的Adapt/Data BCE梯度余弦均值约0.055，15 dB Adapt梯度范数约2.6e-6且方向中位余弦近零。下一R2迭代优先验证物理模型辅助Pilot目标的尺度/归一化与离线内外循环匹配；Data梯度只用于事后诊断，不进入可部署控制。
 - 第四轮固定清单 `configs/audits/detection_subspace_long_v4_tempered_adapt_v1.json` 仅把Adapt BCE logits除以0.5，验证仍使用原始BCE/硬BER；不按SNR调度。全部SNR必须报告，seed复用只作开发机制对照。实现后定向65项通过，GPU审计与四臂结果待归档。
 - 第四轮结果已归档于 `docs/results/detection_subspace_long_v4_tempered_adapt_v1_20261103/`：固定温度没有改善B臂Data BER，0/5 dB均值退化，交互为负，温度只保留为失败开发消融；R2继续，不能进入R3。
+- 第五轮固定清单 `configs/audits/detection_subspace_long_v5_temporal_basis_v1.json` 只将逐符号MLP基改为局部卷积基（temporal_conv_v1），使用v3更新规则，不带温度缩放；信道、Pilot、seed、A/B预算不变。定向67项通过，GPU几何和四臂评估待运行。
 - 阶段成果整理代码、文档、配置与结果指纹，提交并推送。没有实验或测试证据时明确写“未运行/待实现”，不得用计划替代完成证据。

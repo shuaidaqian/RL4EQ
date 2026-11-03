@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -140,17 +140,17 @@ def capture_sessions(spec, role, device, *, dense_diagnostic=False):
     return sessions, dense_rows
 
 
-def make_subspace(dimension, seed, device):
+def make_subspace(dimension, seed, device, architecture="pointwise_mlp_v1"):
     # 初始化隔离于环境的专用RNG；候选共享预先固定种子，不能按收益重抽。
     with torch.random.fork_rng(devices=[]):
         torch.manual_seed(seed)
-        return DetectionSubspace(dimension).to(device)
+        return DetectionSubspace(dimension, architecture=architecture).to(device)
 
 
 def inspect_candidates(spec, sessions, device):
     result = []
     for dimension in spec["dimensions"]:
-        model = make_subspace(dimension, spec["initialization_seed"], device)
+        model = make_subspace(dimension, spec["initialization_seed"], device, spec.get("architecture", "pointwise_mlp_v1"))
         for session in sessions:
             for row in session["frames"]:
                 if row["identity"]["frame"] not in spec["geometry_frames"]:
@@ -185,7 +185,7 @@ def inspect_candidates(spec, sessions, device):
 
 def reachability_smoke(spec, sessions, dimension, device):
     """独立副本上的普通监督作用检查，只证明表示可训练，不证明在线泛化。"""
-    model = make_subspace(dimension, spec["initialization_seed"], device)
+    model = make_subspace(dimension, spec["initialization_seed"], device, spec.get("architecture", "pointwise_mlp_v1"))
     rows = [session["frames"][0] for session in sessions if session["seed"] == spec["data_roles"]["inspection"]["seeds"][0]]
     optimizer = torch.optim.AdamW(model.parameters(), lr=spec["training"]["outer_learning_rate"], weight_decay=0.)
     initial_state = copy.deepcopy(model.state_dict())
@@ -356,7 +356,7 @@ def run_training(manifest_path, inspection_dir, output_dir, device="cpu"):
     models, history, checkpoints = {}, [], {}
     training_settings = spec["training"]
     for name in ("A_supervised", "B_post_adapt"):
-        model = make_subspace(dimension, spec["initialization_seed"], device)
+        model = make_subspace(dimension, spec["initialization_seed"], device, spec.get("architecture", "pointwise_mlp_v1"))
         optimizer = torch.optim.AdamW(model.parameters(), lr=training_settings["outer_learning_rate"], weight_decay=0.)
         best, best_state, best_step = float("inf"), None, None
         tick = time.perf_counter()
@@ -386,7 +386,7 @@ def run_training(manifest_path, inspection_dir, output_dir, device="cpu"):
         model.load_state_dict(best_state, strict=True)
         models[name] = model
         path = target / (name + ".pt")
-        torch.save(dict(state_dict=best_state, dimension=dimension, training=name, selected_step=best_step,
+        torch.save(dict(state_dict=best_state, dimension=dimension, architecture=model.architecture, training=name, selected_step=best_step,
             selection_loss=best, manifest_sha256=sha256(manifest_path),
             source_checkpoint_sha256=spec["checkpoint_sha256"]), path)
         checkpoints[name] = dict(path=path.name, sha256=sha256(path), selected_step=best_step,
