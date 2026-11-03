@@ -1,0 +1,103 @@
+{
+  "schema_version": "fixed-channel-subspace-development-v6",
+  "role": "development",
+  "config": "configs/eme_long_memory_v2_shared_pilot_memory_rl.json",
+  "config_sha256": "535c1ce48a3ed194c0efc90b4d55afad371179d4d1b8415a3ba57ed40da6d149",
+  "checkpoint": "pretrained/cross_frame_memory_control64_20261103/model_best.pt",
+  "checkpoint_sha256": "11e58a5d94801ae613ec8f7a55679ed2304e0864535c7b0468b316827e2bec51",
+  "snrs_db": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "dimensions": [
+    2,
+    4,
+    8
+  ],
+  "initialization_seed": 121009,
+  "architecture": "temporal_conv_v1",
+  "inner_history_frames": 8,
+  "maximum_condition_number": 100,
+  "geometry_frames": [
+    0,
+    7
+  ],
+  "reachability_smoke_steps": 8,
+  "update": {
+    "learning_rate": 0.02,
+    "steps": 3,
+    "step_radius": 0.15,
+    "total_radius": 0.8,
+    "proximal_weight": 0.1,
+    "min_validation_improvement": 1e-05,
+    "reset_to_origin_on_validation": true,
+    "origin_retention_decay": 0.5
+  },
+  "data_roles": {
+    "inspection": {
+      "seeds": [
+        121000,
+        121001
+      ],
+      "frames": 8
+    },
+    "training": {
+      "seeds": [
+        121100,
+        121101,
+        121102,
+        121103
+      ],
+      "frames": 9
+    },
+    "selection": {
+      "seeds": [
+        121200,
+        121201
+      ],
+      "frames": 9
+    },
+    "evaluation": {
+      "seeds": [
+        121300,
+        121301,
+        121302
+      ],
+      "frames": 32
+    }
+  },
+  "training": {
+    "outer_steps": 64,
+    "outer_learning_rate": 0.001,
+    "checkpoint_steps": [
+      16,
+      32,
+      48,
+      64
+    ],
+    "sequence_update_frames": 8,
+    "outer_target_offsets": [
+      0,
+      1
+    ],
+    "checkpoint_selection": "相同选择会话上Frozen与Online的完整四SNR等权平均Data BCE，严格改善才替换，平局取早期",
+    "trainable_scope": "仅子空间非线性基网络和系数初始化，来源接收机全部冻结",
+    "budget_comparison": "相同初始化、序列、标签和64次外层更新；记录A/B真实计算差异，不声称等算力"
+  },
+  "stopping_rule": "固定预算；几何无合格维数则不训练；任意非有限数、信息隔离、源指纹或协议失败立即停止并归档；不按收益追加seed或改变信道",
+  "scope": "固定原长回波的R2跨帧Adapt历史单因素开发；时序卷积基与v5保持不变，仅把当前帧Adapt损失改为最近8帧合法Adapt联合损失，守门仍用当前验证Pilot；seed复用仅作机制对比",
+  "heldout_confirmation": false,
+  "channel_changes": false,
+  "reset_policy": {
+    "enabled": true,
+    "rule": "动作后比较当前保留值与离线初始系数；验证Pilot损失严格改善且硬BER不升时回退初始系数；不读取Data",
+    "origin": "每个会话的离线checkpoint初始化系数"
+  },
+  "retention_decay_policy": {
+    "enabled": true,
+    "factor": 0.5,
+    "rule": "守门通过后将候选系数向离线初始系数线性收缩一半，再用验证Pilot执行最终守门；离线内循环与在线共用同一规则"
+  }
+}

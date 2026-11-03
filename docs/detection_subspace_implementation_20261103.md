@@ -58,4 +58,6 @@ R2第三轮清单`configs/audits/detection_subspace_long_v3_decay_v1.json`只加
 
 第五轮GPU审计2/4/8维均通过，固定规则选择8维；四臂训练和768条开发评估完成。B臂0/5 dB Online相对Frozen点估计都约`+2.71e-5`，95%区间跨零；5 dB交互同向，10/15 dB没有有效增益判断。完整结果见[第五轮时序表示归档](results/detection_subspace_long_v5_temporal_basis_v1_20261103/README.md)。这是一项有希望但未经独立确认的开发信号，R2仍不能宣告完成，R3也不能仅凭重复开发seed启动。完整pytest为908 passed。用户已冻结主要SNR为0/5/10/15 dB全部四点；下一步还需冻结允许退化界限、统计方案、样本量与会话/恢复定义。
 
-第六轮清单`configs/audits/detection_subspace_long_v6_adapt_history8_v1.json`沿用第五轮8维卷积结构和更新保护，仅将每次Adapt目标改为最近8帧合法Pilot BCE的均值；每会话历史从当前帧开始、最多8帧，离线内循环与在线回放一致。动作验收仍只看当前帧独立验证Pilot。不得用重复历史外推成独立信息，也不得向更新器传入历史Data标签。定向测试68 passed；GPU审计、匹配四臂与开发评估待运行。
+第六轮清单`configs/audits/detection_subspace_long_v6_adapt_history8_v1.json`沿用第五轮8维卷积结构和更新保护，仅将每次Adapt目标改为最近8帧合法Pilot BCE的均值；每会话历史从当前帧开始、最多8帧，离线内循环与在线回放一致。动作验收仍只看当前帧独立验证Pilot。不得用重复历史外推成独立信息，也不得向更新器传入历史Data标签。定向测试68 passed；GPU几何审计、匹配四臂与768条开发评估已完成并归档，配置指纹与既有长回波配置一致。
+
+第六轮 B 臂在线相对Frozen的 BER 增益在0/5 dB均约`+1.36e-5`，3-seed探索区间跨零；10 dB约`-1.36e-5`且区间跨零，15 dB零变化但错误不足以判断。B-A交互未提供稳定正证据，故核心可归因在线Data增益仍未成立。每帧增量子空间计算约40 ms，仅为缓存特征后的子空间更新时间，不含端到端接收与来源状态跟踪延迟。完整数字、回退计数和时延范围见[第六轮归档](results/detection_subspace_long_v6_adapt_history8_v1_20261103/README.md)及机器汇总。R2继续，不进入R3；主要SNR为0/5/10/15 dB，正式确认仍待应用指标和统计门槛冻结。
