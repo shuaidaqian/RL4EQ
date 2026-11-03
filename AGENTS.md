@@ -60,4 +60,5 @@
 - 默认测试：`python -m pytest -q -p no:cacheprovider`。本工作树尚无 `.venv-gpu`；可用 GPU Python 位于 `D:\Research\RL4EQ\.venv-gpu\Scripts\python.exe`，运行前检查环境，不把机器路径当项目依赖。
 - 跨帧 `pretrain.py` 当前使用 `--stage pilot_transfer`；共同历史配置的旧确定性 Pilot 兼容入口不支持该目标，不能仅用 `--method pilot` 冒称新确定性方法已实现。旧 PPO 复现需显式 `--method ppo`。
 - 新确定性开发审计使用 `online_train.py --method audit --audit-manifest configs/audits/adaptability_long_anchor_v1.json`，条件由清单固定，禁止混用旧切片参数。长回波实现见[阶段说明](docs/deterministic_audit_implementation_20261103.md)；它尚不代表新结构、匹配离线训练或正式确认已完成。
+- 固定信道检测子空间新增 `online_train.py --method subspace_audit` 与 `pretrain.py --stage detection_subspace`，使用独立清单 `configs/audits/detection_subspace_long_v1.json`。检查通过后才训练，预算与数据角色见[实现说明](docs/detection_subspace_implementation_20261103.md)；来源网络冻结，在线仅更新2/4/8维神经检测系数，实际结果另行归档。
 - 阶段成果整理代码、文档、配置与结果指纹，提交并推送。没有实验或测试证据时明确写“未运行/待实现”，不得用计划替代完成证据。

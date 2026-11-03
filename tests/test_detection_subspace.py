@@ -1,0 +1,137 @@
+# -*- coding: utf-8 -*-
+"""固定信道子空间的数值一致性、参数作用与信息边界。"""
+
+import copy
+from dataclasses import fields, replace
+import json
+
+import pytest
+import torch
+
+from agent.detection_subspace import DetectionSubspace, PilotObservation, capture_observation
+from evaluation.adaptability_audit import deployable_frame
+from evaluation.subspace_development import read_manifest, sequence_loss
+from training.deterministic_adaptation import DeterministicSettings
+from training.subspace_adaptation import coefficient_update, pilot_loss, project, update_subspace
+
+
+def fixture_observation():
+    torch.manual_seed(7)
+    mask = torch.arange(40) < 20
+    validation = (torch.arange(40) >= 20) & (torch.arange(40) < 28)
+    return PilotObservation(torch.randn(40), torch.randn(40, 7), torch.tensor([[2.]]),
+        mask, torch.randint(0, 2, (40,)).float(), validation, torch.randint(0, 2, (40,)).float())
+
+
+@pytest.mark.parametrize("dimension", [2,4,8])
+def test_zero_coefficients_preserve_source_and_jacobian_matches_finite_difference(dimension):
+    observation = fixture_observation()
+    model = DetectionSubspace(dimension)
+    torch.testing.assert_close(model.logits(observation), observation.base_logits, atol=0, rtol=0)
+    basis = model.basis(observation)
+    for index in range(dimension):
+        delta = torch.zeros(dimension)
+        delta[index] = .01
+        actual = (model.logits(observation, delta) - observation.base_logits) / .01
+        torch.testing.assert_close(actual, basis[:, index], atol=2e-5, rtol=2e-4)
+    assert basis[~(observation.adapt_mask | observation.validation_mask)].norm() > 0
+    assert {field.name for field in fields(observation)} == {
+        "base_logits","features","logit_scale","adapt_mask","adapt_labels","validation_mask","validation_labels"}
+
+
+@pytest.mark.parametrize("steps", [1,3])
+def test_functional_adam_projection_matches_torch_and_unrolled_training(steps):
+    observation = fixture_observation()
+    model = DetectionSubspace(4)
+    basis = model.basis(observation).detach()
+    settings = DeterministicSettings(steps=steps, step_radius=.015, total_radius=.02)
+    origin = torch.zeros(4)
+    initial = torch.full((4,), .002)
+    candidate, retained, control = coefficient_update(observation.base_logits, basis, observation,
+        initial, origin, settings)
+    parameter = torch.nn.Parameter(initial.clone())
+    optimizer = torch.optim.AdamW([parameter], lr=settings.learning_rate, weight_decay=0.)
+    for _ in range(steps):
+        optimizer.zero_grad(set_to_none=True)
+        loss = pilot_loss(observation.base_logits+basis@parameter, observation, "adapt")
+        loss = loss + settings.proximal_weight*(parameter-initial).square().sum()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_([parameter], 1.)
+        optimizer.step()
+        with torch.no_grad():
+            parameter.copy_(project(project(parameter, initial, settings.step_radius), origin, settings.total_radius))
+    torch.testing.assert_close(candidate, parameter, atol=2e-7, rtol=2e-5)
+    graph_initial = initial.clone().requires_grad_(True)
+    graph_candidate, graph_retained, graph_control = coefficient_update(observation.base_logits, basis,
+        observation, graph_initial, origin, settings, create_graph=True)
+    torch.testing.assert_close(graph_candidate, candidate, atol=2e-7, rtol=2e-5)
+    torch.testing.assert_close(graph_retained, retained, atol=2e-7, rtol=2e-5)
+    assert graph_control["accepted"] == control["accepted"]
+    assert control["retained_total_norm"] <= settings.total_radius + 1e-6
+
+
+def test_validation_labels_do_not_enter_candidate_and_rejection_restores_initial():
+    observation = fixture_observation()
+    model = DetectionSubspace(4)
+    initial = torch.zeros(4)
+    settings = DeterministicSettings(min_validation_improvement=100.)
+    first = update_subspace(model, observation, initial, initial, settings)
+    changed = replace(observation, validation_labels=1-observation.validation_labels)
+    second = update_subspace(model, changed, initial, initial, settings)
+    torch.testing.assert_close(first[0], second[0], atol=0, rtol=0)
+    torch.testing.assert_close(first[1], initial, atol=0, rtol=0)
+    assert first[2]["accepted"] is False
+
+
+def test_capture_does_not_read_data_truth_and_removes_temporary_hook():
+    from tests.test_pilot_transfer import _symbol_fixture
+    _, model, context = _symbol_fixture()
+    original = capture_observation(model, replace(context, frame=deployable_frame(context.frame)))
+    symbols, bits = context.frame.tx_symbols.clone(), context.frame.bits.clone()
+    symbols[context.frame.data_mask] = complex(float("nan"), float("nan"))
+    bits[context.frame.data_mask] = ~bits[context.frame.data_mask]
+    poisoned = replace(context.frame, tx_symbols=symbols, bits=bits,
+        true_cir=torch.full((5,), float("nan")), tail_symbols=torch.full((4,), float("nan")))
+    alternate = capture_observation(model, replace(context, frame=deployable_frame(poisoned)))
+    for field in fields(original):
+        torch.testing.assert_close(getattr(original,field.name), getattr(alternate,field.name), atol=0, rtol=0)
+    assert not model.symbol_residual._forward_pre_hooks
+
+
+def test_outer_future_labels_change_only_outer_loss_not_current_candidate():
+    observation = fixture_observation()
+    model = DetectionSubspace(4)
+    data_mask = ~(observation.adapt_mask | observation.validation_mask)
+    row = dict(observation=observation, offline=dict(data_mask=data_mask,bits=torch.zeros(40,dtype=torch.bool)))
+    session = dict(frames=[row,copy.deepcopy(row)])
+    settings = DeterministicSettings()
+    first_candidate = update_subspace(model,observation,model.coefficients,model.coefficients,settings)[0]
+    first_loss = sequence_loss(model,session,settings,1,adapt=True,create_graph=True)
+    session["frames"][1]["offline"]["bits"] = torch.ones(40,dtype=torch.bool)
+    second_loss = sequence_loss(model,session,settings,1,adapt=True,create_graph=True)
+    second_candidate = update_subspace(model,observation,model.coefficients,model.coefficients,settings)[0]
+    assert not torch.isclose(first_loss,second_loss)
+    torch.testing.assert_close(first_candidate,second_candidate,atol=0,rtol=0)
+    second_loss.backward()
+    assert all(p.grad is not None and torch.isfinite(p.grad).all() for p in model.parameters())
+
+
+def test_development_manifest_keeps_original_channel_and_disjoint_roles():
+    spec = read_manifest("configs/audits/detection_subspace_long_v1.json")
+    assert spec["channel_changes"] is False
+    assert spec["config"] == "configs/eme_long_memory_v2_shared_pilot_memory_rl.json"
+
+
+def test_dense_memory_origin_reset_equals_physical_branch():
+    from tests.test_adaptability_audit import _fixture
+    from training.deterministic_adaptation import DeterministicMemoryAdapter
+    from training.pilot_transfer import context_logits
+    model, context = _fixture()
+    neural = copy.deepcopy(model)
+    adapter = DeterministicMemoryAdapter(neural,DeterministicSettings())
+    adapter.step(context)
+    retained = neural.channel_state.memory.weight.detach().clone()
+    with torch.no_grad():
+        neural.channel_state.memory.weight.copy_(adapter.origin)
+        torch.testing.assert_close(context_logits(neural,context),context_logits(model,context),atol=0,rtol=0)
+        neural.channel_state.memory.weight.copy_(retained)

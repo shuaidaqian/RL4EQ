@@ -15,7 +15,7 @@ def main() -> None:
     parser.add_argument("--config", default="configs/continual_ppo.json")
     parser.add_argument("--pretrained", default="pretrained/model_best.pt")
     parser.add_argument("--phase", choices=["offline", "continual", "all"], default="all")
-    parser.add_argument("--method", choices=["pilot", "ppo", "audit"], default="pilot")
+    parser.add_argument("--method", choices=["pilot", "ppo", "audit", "subspace_audit"], default="pilot")
     parser.add_argument("--audit-manifest", help="确定性开发审计清单；配置、checkpoint与条件由清单固定。")
     parser.add_argument("--audit-smoke", action="store_true", help="仅运行清单中声明的烟测帧预算。")
     parser.add_argument("--device", default=None, help="开发审计计算设备，默认优先 CUDA。")
@@ -44,7 +44,7 @@ def main() -> None:
     if args.version:
         print("RL4EQ continual-ppo schema-v1")
         return
-    if args.method == "audit":
+    if args.method in {"audit", "subspace_audit"}:
         import sys
         import torch
         from evaluation.adaptability_audit import run_audit
@@ -56,8 +56,14 @@ def main() -> None:
         if not args.audit_manifest:
             parser.error("--method audit 必须提供 --audit-manifest。")
         torch.set_num_threads(1)
-        run_audit(args.audit_manifest, args.output_dir,
-            device=args.device or ("cuda" if torch.cuda.is_available() else "cpu"), smoke=args.audit_smoke)
+        device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
+        if args.method == "subspace_audit":
+            if args.audit_smoke:
+                parser.error("子空间检查的帧预算仅由清单指定，不使用旧烟测切片。")
+            from evaluation.subspace_development import run_inspection
+            run_inspection(args.audit_manifest, args.output_dir, device)
+        else:
+            run_audit(args.audit_manifest, args.output_dir, device=device, smoke=args.audit_smoke)
         print(f"saved {args.output_dir}")
         return
     if args.audit_manifest or args.audit_smoke or args.device:

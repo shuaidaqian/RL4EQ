@@ -21,11 +21,27 @@ def main() -> None:
     parser.add_argument("--save-dir", default="pretrained")
     parser.add_argument("--transfer-objective", choices=["baseline", "post_adapt"], default=None)
     parser.add_argument("--device", choices=["cpu", "cuda"], default=None)
+    parser.add_argument("--subspace-manifest", default=None, help="固定信道子空间的开发训练清单。")
+    parser.add_argument("--inspection-dir", default=None, help="已通过几何检查的子空间审计目录。")
     args = parser.parse_args()
     if args.version:
         print("RL4EQ continual-ppo schema-v1")
         return
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
+    if args.stage == "detection_subspace":
+        import sys
+        from evaluation.subspace_development import run_training
+        allowed = {"--stage", "--subspace-manifest", "--inspection-dir", "--save-dir", "--device"}
+        if any(item.startswith("--") and item.split("=",1)[0] not in allowed for item in sys.argv[1:]):
+            parser.error("子空间训练条件只能由清单指定，禁止混用旧训练覆盖参数。")
+        if not args.subspace_manifest or not args.inspection_dir:
+            parser.error("子空间训练必须提供清单和已有检查目录。")
+        torch.set_num_threads(1)
+        run_training(args.subspace_manifest, args.inspection_dir, args.save_dir, device)
+        print(f"saved {args.save_dir}")
+        return
+    if args.subspace_manifest or args.inspection_dir:
+        parser.error("子空间清单参数仅用于--stage detection_subspace。")
     config = load_config(args.config)
     if int(config.get("receiver_lookahead_len", 0)) and args.stage != "pilot_transfer":
         raise ValueError("跨帧观测离线训练请使用 --stage pilot_transfer；其他训练入口尚未支持该协议。")
