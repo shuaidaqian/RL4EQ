@@ -43,6 +43,8 @@ class TransferContext:
     tail: torch.Tensor
     # 仅供离线外层评分；模型与 Adapt 目标不会读取这些未来上下文。
     offline_post_contexts: tuple["TransferContext", ...] = ()
+    # 仅用于离线复现共同状态内循环；不把历史 Data/Reward 标签带入更新。
+    offline_adapt_contexts: tuple["TransferContext", ...] = ()
 
 
 def receiver_inputs(settings):
@@ -51,7 +53,7 @@ def receiver_inputs(settings):
     reward = settings.get("reward_receiver_input", "pilot_only")
     if inner not in {"adapt_only", "full_rx"} or reward not in {"pilot_only", "full_rx"}:
         raise ValueError("不支持的内循环或 Reward 接收输入协议。")
-    if inner == "full_rx" and settings.get("inner_objective", "pilot_signal_reconstruction") not in {"bce", "channel_state_signal", "channel_state_map"}:
+    if inner == "full_rx" and settings.get("inner_objective", "pilot_signal_reconstruction") not in {"bce", "channel_state_signal", "channel_state_map", "channel_state_shared_map"}:
         raise ValueError("整帧接收输入只支持 Adapt BCE 或神经信道状态信号目标。")
     return inner, reward
 
@@ -230,15 +232,15 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
     if not math.isfinite(max_delta_norm) or max_delta_norm <= 0:
         raise ValueError("更新半径必须为正有限数。")
     selected_groups = {"phase_trend"} if groups is None else set(groups)
-    if objective not in {"pilot_signal_reconstruction", "bce", "channel_state_signal", "channel_state_map"}:
+    if objective not in {"pilot_signal_reconstruction", "bce", "channel_state_signal", "channel_state_map", "channel_state_shared_map"}:
         raise ValueError("内循环目标必须为 pilot_signal_reconstruction 或 bce。")
     if receiver_input not in {"adapt_only", "full_rx"}:
         raise ValueError("接收输入必须为 adapt_only 或 full_rx。")
-    if objective not in {"bce", "channel_state_signal", "channel_state_map"} and receiver_input != "adapt_only":
+    if objective not in {"bce", "channel_state_signal", "channel_state_map", "channel_state_shared_map"} and receiver_input != "adapt_only":
         raise ValueError("整帧接收输入只支持 Adapt BCE 或神经信道状态信号目标。")
     if objective == "pilot_signal_reconstruction" and selected_groups != {"phase_trend"}:
         raise ValueError("相位信号重构只允许更新 phase_trend 参数组。")
-    if objective in {"channel_state_signal", "channel_state_map"}:
+    if objective in {"channel_state_signal", "channel_state_map", "channel_state_shared_map"}:
         allowed = ({"channel_state_head"}, {"channel_state_memory"})
         if (selected_groups not in allowed or model.channel_state is None or
                 (selected_groups == {"channel_state_memory"} and model.channel_state.memory is None)):
@@ -255,13 +257,22 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
             fast[name] = fast[name].detach().clone().requires_grad_(True)
     before = {name: fast[name] for name in names}
     moments, variances = {}, {}
-    objective_module = _AdaptObjective(model, score_start, objective, receiver_input)
+    if objective == "channel_state_shared_map":
+        from training.shared_pilot_state import SharedNeuralPilotObjective
+        if selected_groups != {"channel_state_memory"}:
+            raise ValueError("共同状态只支持受限神经复数记忆内循环。")
+        objective_module = SharedNeuralPilotObjective(model, contexts)
+    else:
+        objective_module = _AdaptObjective(model, score_start, objective, receiver_input)
     losses = []
     for step in range(1, int(steps) + 1):
-        loss = torch.stack([
-            functional_call(objective_module, {"model." + name: value for name, value in fast.items()}, (context,))
-            for context in contexts
-        ]).mean()
+        if objective == "channel_state_shared_map":
+            loss = functional_call(objective_module, {"model." + name: value for name, value in fast.items()}, ())
+        else:
+            loss = torch.stack([
+                functional_call(objective_module, {"model." + name: value for name, value in fast.items()}, (context,))
+                for context in contexts
+            ]).mean()
         gradients = torch.autograd.grad(
             loss, [fast[name] for name in names], create_graph=create_graph, allow_unused=True,
         )
@@ -340,7 +351,13 @@ class PilotTransferTrainer:
             raise ValueError("离线外层帧偏移必须为从零开始的递增非负整数列表。")
         self.post_target_frame_offsets = offsets
         self.inner_receiver_input, self.reward_receiver_input = receiver_inputs(self.settings)
+        self.inner_history_frames = int(self.settings.get("inner_history_frames", 1))
+        if self.inner_history_frames < 1 or (self.inner_history_frames > 1 and
+            self.settings.get("inner_objective") != "channel_state_shared_map"):
+            raise ValueError("多帧离线内循环要求共同神经状态目标和正历史长度。")
         self.inner_task, self.reward_task = receiver_tasks(self.settings)
+        if self.settings.get("inner_objective") == "channel_state_shared_map" and self.inner_task != "full_frame":
+            raise ValueError("共同状态内循环要求完整帧的合法 Adapt 方程。")
         self.objective = objective or self.settings.get("objective", "post_adapt")
         if self.objective not in {"baseline", "post_adapt"}:
             raise ValueError("训练目标必须为 baseline 或 post_adapt。")
@@ -437,6 +454,11 @@ class PilotTransferTrainer:
                 context = make_context(frame, cir, cfo, tail, snr)
                 tail = next_pilot_tail(self.model, context, alpha=float(self.config.get("tail_update_alpha", 0.5)))
         context = make_context(frames[history_frames], cir, cfo, tail, snr)
+        if self.inner_history_frames > 1:
+            from training.shared_pilot_state import adapt_only_history_context
+            past = tuple(adapt_only_history_context(frame, make_context(frame, cir, cfo, tail, snr).condition, tail)
+                         for frame in frames[max(0, history_frames-self.inner_history_frames+1):history_frames])
+            context = replace(context, offline_adapt_contexts=past)
         if len(self.post_target_frame_offsets) > 1:
             # 未来条件只允许由各自 acquisition/Adapt 生成，不沿用隐藏发送符号。
             # 当前 prefix 不覆盖帧尾；未来窗口若覆盖帧尾，需要逐帧合法递推，不能静默复用。
@@ -457,10 +479,12 @@ class PilotTransferTrainer:
         root = Path(self.settings["offline_sample_cache_dir"])
         path = root / (digest + ".pt")
         indices = [history_frames + offset for offset in self.post_target_frame_offsets]
+        adapt_indices = list(range(max(0, history_frames-self.inner_history_frames+1), history_frames))
         if path.exists():
             payload = torch.load(path, map_location="cpu", weights_only=False)
             if (payload.get("protocol") != protocol or not payload.get("offline_supervision_only")
-                    or [frame.frame_index for frame in payload.get("frames", [])] != indices):
+                    or [frame.frame_index for frame in payload.get("frames", [])] != indices
+                    or [frame.frame_index for frame in payload.get("adapt_history_frames", [])] != adapt_indices):
                 raise ValueError("离线样本缓存协议或帧龄不匹配，禁止静默复用。")
             self.sample_cache_hits += 1
         else:
@@ -471,7 +495,8 @@ class PilotTransferTrainer:
             payload = {"protocol": protocol, "offline_supervision_only": True,
                        "cir": cir.detach().cpu(), "cfo": float(cfo), "tail": tail.detach().cpu(),
                        "channel_state": env.state_metadata(),
-                       "frames": [frame_to_device(frames[index], "cpu") for index in indices]}
+                       "frames": [frame_to_device(frames[index], "cpu") for index in indices],
+                       "adapt_history_frames": [frame_to_device(frames[index], "cpu") for index in adapt_indices]}
             root.mkdir(parents=True, exist_ok=True)
             # 多个离线准备进程可重复生成同一确定性样本；使用独立临时文件原子发布。
             temporary = path.with_suffix(f".{os.getpid()}.tmp")
@@ -481,6 +506,14 @@ class PilotTransferTrainer:
         contexts = [make_context(frame_to_device(frame, self.device), payload["cir"].to(self.device),
                     payload["cfo"], payload["tail"].to(self.device), snr) for frame in payload["frames"]]
         context = replace(contexts[0], offline_post_contexts=tuple(contexts[1:]))
+        if adapt_indices:
+            from training.shared_pilot_state import adapt_only_history_context
+            past = []
+            for frame in payload["adapt_history_frames"]:
+                item = make_context(frame_to_device(frame, self.device), payload["cir"].to(self.device),
+                                    payload["cfo"], payload["tail"].to(self.device), snr)
+                past.append(adapt_only_history_context(item.frame, item.condition, item.tail))
+            context = replace(context, offline_adapt_contexts=tuple(past))
         return context, payload["channel_state"], snr, seed
 
     def train(self, steps, batch_size=1, accumulation_steps=1, use_amp=False):
@@ -514,7 +547,7 @@ class PilotTransferTrainer:
                 base_loss, before_data = torch.stack(base_terms).mean(), torch.stack(before_terms).mean()
                 inner_context, score_start = task_context(context, self.inner_task, role="adapt")
                 fast, update = differentiable_adapt(
-                    self.model, [inner_context], learning_rate=float(self.settings["inner_learning_rate"]),
+                    self.model, list(context.offline_adapt_contexts) + [inner_context], learning_rate=float(self.settings["inner_learning_rate"]),
                     steps=int(self.settings["inner_steps"]), max_delta_norm=float(self.settings["max_delta_norm"]),
                     create_graph=self.objective == "post_adapt",
                     groups=self.settings.get("inner_groups", ["phase_trend"]),
@@ -540,6 +573,9 @@ class PilotTransferTrainer:
                     "step": step + 1, "seed": seed, "snr_db": snr,
                     "frame_index": frame.frame_index,
                     "post_target_frame_indices": [target.frame.frame_index for target in targets],
+                    "inner_adapt_frame_indices": [item.frame.frame_index for item in context.offline_adapt_contexts] + [frame.frame_index],
+                    "inner_history_adapt_rx_sha256": [hashlib.sha256(item.frame.rx_symbols.detach().cpu().numpy().tobytes()).hexdigest()
+                                                       for item in context.offline_adapt_contexts],
                     "offline_sample_cache_key": self.last_sample_cache_key,
                     "offline_sample_input_sha256": hashlib.sha256(frame.rx_symbols.detach().cpu().numpy().tobytes()).hexdigest(),
                     "lookahead_len": int(frame.lookahead_rx_symbols.numel()) if frame.lookahead_rx_symbols is not None else 0,
@@ -568,6 +604,7 @@ class PilotTransferTrainer:
             "inner_uses_data_waveform": self.inner_receiver_input == "full_rx" and self.inner_task == "full_frame"
                                          and self.settings.get("inner_objective") == "bce",
             "inner_receiver_input": self.inner_receiver_input,
+            "inner_history_frames": self.inner_history_frames,
             "reward_receiver_input": self.reward_receiver_input,
             "inner_task": self.inner_task, "reward_task": self.reward_task,
             "outer_uses_offline_data_labels": True,

@@ -125,6 +125,8 @@ class WindowedDiscreteOnlineState:
     tail_update_alpha: float = 1.0
     reward_receiver_input: str = "pilot_only"
     adapt_receiver_input: str = "adapt_only"
+    channel_state_history_frames: int = 1
+    channel_state_history: list = field(default_factory=list)
 
 
 def validate_discrete_receiver_contract(model, actions, pilot_layout, reward_receiver_input, adapt_receiver_input="adapt_only"):
@@ -262,6 +264,7 @@ def run_windowed_discrete_online(
                     tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
                     reward_receiver_input=reward_receiver_input,
                     adapt_receiver_input=adapt_receiver_input,
+                    channel_state_history_frames=int(config.get("rl_channel_state_history_frames", 1)),
                 )
                 for frame_index in range(1, int(frames) + 1):
                     frame = _frame_to_device(
@@ -334,6 +337,8 @@ def run_windowed_discrete_frame(
         raise ValueError("神经信道状态分支需要显式物理帧龄，不能用局部计数代替。")
     # 无状态支路的旧诊断桩没有物理帧号，保留其局部计数兼容。
     physical_age = int(physical_age if physical_age is not None else max(0, int(frame_index) - 1))
+    if type(state.channel_state_history_frames) is not int or state.channel_state_history_frames < 1:
+        raise ValueError("神经状态历史长度必须为正整数。")
     adapt_view = _adapt_receiver_view(frame)
     adapt_only_mask = adapt_view.adapt_mask.to(dtype=torch.bool)
     adapt_only_rx_iq = torch.stack(
@@ -345,6 +350,17 @@ def run_windowed_discrete_frame(
     lookahead_kwargs = _lookahead_model_kwargs(frame)
     adapt_labels = (adapt_view.adapt_symbols.real > 0.0).to(frame.bits.dtype)
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
+    if state.channel_state_history_frames > 1:
+        from training.shared_pilot_state import adapt_only_history_context
+
+        if state.cir_update_mode != "fixed" or any(action.peft_groups and
+            (set(action.peft_groups) != {"channel_state_memory"} or action.peft_objective != "channel_state_map")
+            for action in state.actions):
+            raise ValueError("共同历史状态要求固定 acquisition CIR，且仅允许神经记忆 MAP 动作。")
+        if state.channel_state_history and physical_age != state.channel_state_history[-1].frame.frame_index + 1:
+            raise ValueError("共同状态历史必须按真实相邻帧推进。")
+        state.channel_state_history.append(adapt_only_history_context(frame, condition, tail.squeeze(0)))
+        state.channel_state_history = state.channel_state_history[-state.channel_state_history_frames:]
     identity = state.actions[0]
     if state.current_action is None or state.frames_in_window <= 0:
         # PPO 的动作 observation 只由 Adapt Pilot 构成；Reward Pilot 留给动作后的验收。
@@ -478,6 +494,7 @@ def run_windowed_discrete_frame(
             max_delta_norm=sampled_action.peft_max_delta_norm,
             receiver_input=adapt_receiver_input,
             lookahead_kwargs=lookahead_kwargs,
+            shared_contexts=state.channel_state_history or None,
         )
         if sampled_action.peft_max_delta_norm is not None:
             if state.current_window_peft_snapshot is not None:
@@ -802,6 +819,10 @@ def run_windowed_discrete_frame(
         "trajectory_peft_delta_norm_before_reward": float(trajectory_peft_delta_norm),
         "window_peft_delta_norm_before_reward": float(window_peft_delta_norm),
         "peft_objective": str(sampled_action.peft_objective),
+        "channel_state_history_frames_requested": int(state.channel_state_history_frames),
+        "rl_channel_state_history_frames": int(state.channel_state_history_frames),
+        "channel_state_history_frames_used": len(state.channel_state_history) or 1,
+        "channel_state_update_state": "shared_current_once" if state.channel_state_history else "per_frame",
         "data_labels_used_online": False,
         "data_waveform_used_online": state.reward_receiver_input == "full_rx" or (
             bool(sampled_action.peft_groups) and adapt_receiver_input == "full_rx"),
@@ -1018,6 +1039,7 @@ def _apply_adapt_peft_update(
     max_delta_norm: float | None = None,
     receiver_input: str = "adapt_only",
     lookahead_kwargs: dict | None = None,
+    shared_contexts: list | None = None,
 ) -> float:
     """损失只用 Adapt 标签；默认输入仍为 Adapt-only，实验可显式选整帧波形。"""
 
@@ -1026,6 +1048,9 @@ def _apply_adapt_peft_update(
     if objective not in {"bce", "channel_state_signal", "channel_state_map"} and receiver_input != "adapt_only":
         raise ValueError("整帧接收输入实验目前只支持 Adapt BCE。")
     before = _snapshot_peft_groups(model, groups)
+    if shared_contexts and (shared_contexts[-1].frame.frame_index != frame.frame_index or
+        not torch.equal(shared_contexts[-1].condition.complex_cir, condition.complex_cir)):
+        raise ValueError("共同历史必须结束于当前帧并共享当前 acquisition CIR。")
     model.train()
     model.set_trainable_groups(set(groups))
     trainable = model.trainable_parameters()
@@ -1059,7 +1084,13 @@ def _apply_adapt_peft_update(
             role = "adapt"
             objective_module = ChannelStateSignalObjective(model, role=role,
                 include_prior=objective == "channel_state_map")
-            loss = objective_module(TransferContext(frame, condition, tail.squeeze(0)))
+            if shared_contexts:
+                if objective != "channel_state_map":
+                    raise ValueError("共同状态目前只支持神经记忆 MAP。")
+                from training.shared_pilot_state import SharedNeuralPilotObjective
+                loss = SharedNeuralPilotObjective(model, shared_contexts)()
+            else:
+                loss = objective_module(TransferContext(frame, condition, tail.squeeze(0)))
         elif objective == "pilot_signal_reconstruction":
             if groups != {"phase_trend"}:
                 raise ValueError(

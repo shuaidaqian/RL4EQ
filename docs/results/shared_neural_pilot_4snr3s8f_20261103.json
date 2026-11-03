@@ -1,0 +1,665 @@
+{
+  "schema_version": "shared-neural-pilot-diagnostic-v1",
+  "diagnostic_only": true,
+  "main_aggregation_allowed": false,
+  "config": {
+    "schema_version": "eme-long-memory-config-v2",
+    "channel_profile": "eme_long_memory_v2",
+    "profile_name": "eme_long_memory_v2",
+    "profile_frozen_before_proposed": true,
+    "frozen_candidate_id": "LM-B1",
+    "traditional_only_calibration": true,
+    "traditional_only_calibration_summary": "logs/eme_long_memory_v2_traditional_calibration_2026-08-28_fresh/summary.json",
+    "traditional_only_calibration_frames_per_seed": 20,
+    "traditional_only_calibration_status": "阶段性冻结；正式论文统计需无并发重跑至少 60 帧",
+    "proposed_results_used_for_freeze": false,
+    "semantics": "independent EME-inspired long-memory channel class constrained by published lunar radar delay-power envelopes",
+    "source_basis": [
+      "10.6028/jres.069d.195",
+      "10.1109/wescon.1958.1150219"
+    ],
+    "level": "B",
+    "main_level": "B",
+    "aggregation_role": "diagnostic",
+    "max_delay_seconds": 0.0116,
+    "sample_rate_hz": 10000,
+    "symbol_rate_hz": 10000,
+    "samples_per_symbol": 1,
+    "frame_len": 1024,
+    "frame_duration_seconds": 0.1024,
+    "max_delay": 116,
+    "main_delays": [
+      116
+    ],
+    "main_snrs": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "snrs_main": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "snrs_pressure": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "reward_pilot_total": 32,
+    "pilot_sweep_totals": [
+      64,
+      96,
+      128,
+      160,
+      256
+    ],
+    "strong_path_count": [
+      12,
+      24
+    ],
+    "diffuse_energy_ratio": [
+      0.2,
+      0.35
+    ],
+    "coherence_time_seconds": 1200,
+    "acquisition_to_data_gap_seconds": 0,
+    "rho_frame": 0.999914670307452,
+    "rho": 0.999914670307452,
+    "include_anomalous_scatterer": false,
+    "eme_physical_fields_passthrough": "implemented",
+    "impairment_profile": "cfo_phase_tiny",
+    "residual_cfo_limit": 0.0012,
+    "acquisition_cfo_limit": 0.004,
+    "traditional_methods": [
+      "CFO+DD-Phase LMMSE-FIR",
+      "CFO+DD-Phase DFE-RLS",
+      "SC-FDE-MMSE"
+    ],
+    "optional_impairments": {
+      "cfo": true,
+      "phase_perturbation": true,
+      "nonlinearity": false,
+      "coding": false,
+      "higher_order_modulation": false
+    },
+    "model_validation_sequence_state": true,
+    "training_tail_mode": "online_soft",
+    "tail_update_alpha": 0.5,
+    "online_adaptation_groups": [
+      "phase"
+    ],
+    "online_adaptation_algorithm": "rls",
+    "online_rls_forgetting_factor": 0.995,
+    "online_rls_ridge": 10,
+    "online_rls_warmup_symbols": 116,
+    "online_rls_target_logit": 2,
+    "online_rls_max_total_delta_norm": 0.5,
+    "online_rls_condition_source": "pilot_cir_phase",
+    "online_condition_source": "pilot_cir_phase",
+    "online_adaptation_learning_rate": 0.0004,
+    "online_adaptation_steps": 1,
+    "online_adaptation_max_delta_norm": 1,
+    "online_adaptation_proximal_weight": 0.1,
+    "online_hard_example_weighting": false,
+    "online_hard_example_temperature": 0.5,
+    "online_adaptation_freeze_below_snr_db": 5,
+    "online_adaptation_min_reward_improvement": 0.0005,
+    "online_bandit_action_cost": 1e-06,
+    "online_reward_windows": 2,
+    "online_cross_frame_rollback_tolerance": 1e-05,
+    "online_phase_tracking_smoothing": 0.5,
+    "online_phase_tracking_min_confidence": 0.5,
+    "online_phase_tracking_cfo_limit": 0.0012,
+    "online_adaptation_candidates": [
+      {
+        "name": "lora_conservative",
+        "groups": [
+          "phase"
+        ],
+        "learning_rate_scale": 0.5,
+        "steps": 1,
+        "max_delta_scale": 0.5
+      }
+    ],
+    "offline_state_split": "offline_train",
+    "offline_loss": "bce_all",
+    "online_state_splits": {
+      "offline_train": {
+        "strong_path_count": [
+          12,
+          18
+        ],
+        "diffuse_energy_ratio": [
+          0.2,
+          0.28
+        ],
+        "cfo_abs_range": [
+          0.0002,
+          0.0006
+        ],
+        "phase_noise_std_range": [
+          0.0002,
+          0.0006
+        ]
+      },
+      "heldout_edge": {
+        "strong_path_count": [
+          19,
+          24
+        ],
+        "diffuse_energy_ratio": [
+          0.29,
+          0.35
+        ],
+        "cfo_abs_range": [
+          0.0006,
+          0.0008
+        ],
+        "phase_noise_std_range": [
+          0.0006,
+          0.0008
+        ]
+      },
+      "drift": {
+        "strong_path_count": [
+          12,
+          24
+        ],
+        "diffuse_energy_ratio": [
+          0.2,
+          0.35
+        ],
+        "cfo_abs_range": [
+          0.0002,
+          0.0008
+        ],
+        "phase_noise_std_range": [
+          0.0002,
+          0.0008
+        ]
+      }
+    },
+    "model": {
+      "frame_len": 1024,
+      "max_delay": 116,
+      "iterations": 4,
+      "d_model": 64,
+      "num_heads": 4,
+      "adapter_rank": 8,
+      "lora_rank": 8,
+      "conditioner_uses_cir_summary": true,
+      "pilot_conditioned": true,
+      "enable_phase_correction_branch": true,
+      "phase_correction_segments": 4,
+      "phase_correction_initial_scale": 1,
+      "analytic_logit_skip_scale": 0,
+      "physics_warm_start_iterations": 8,
+      "physics_warm_start_scale": 1,
+      "neural_residual_scale": 0.1,
+      "enable_symbol_residual_branch": true,
+      "enable_channel_state_branch": true,
+      "enable_channel_state_memory": true,
+      "channel_state_memory_output_scale": 0.25
+    },
+    "experiment_note": "跨帧116样本共同接收窗的离线适配与离散窗口PPO机制检查；不作为主结果。",
+    "diagnostic_only": true,
+    "main_aggregation_allowed": false,
+    "rl_action_names": [
+      "identity",
+      "peft_memory_signal_small",
+      "peft_memory_signal_medium",
+      "peft_memory_map_small",
+      "peft_memory_map_medium",
+      "rollback_identity"
+    ],
+    "rl_peft_max_episode_delta_norm": 0.8,
+    "rl_reward_receiver_input": "full_rx",
+    "online_ppo_learning_rate": 0.001,
+    "online_ppo_pilot_state_embedding": false,
+    "ppo_window_size": 8,
+    "pilot_transfer": {
+      "objective": "post_adapt",
+      "seed": 98100,
+      "history_frames": 1,
+      "outer_learning_rate": 0.01,
+      "inner_learning_rate": 0.02,
+      "inner_steps": 3,
+      "max_delta_norm": 0.8,
+      "base_weight": 1,
+      "post_weight": 1,
+      "inner_groups": [
+        "channel_state_memory"
+      ],
+      "inner_objective": "channel_state_map",
+      "inner_receiver_input": "full_rx",
+      "reward_receiver_input": "full_rx",
+      "outer_groups": [
+        "channel_state_memory_scale"
+      ],
+      "initialize_symbol_residual_from_base": false,
+      "history_frame_choices": [
+        0,
+        127,
+        1023,
+        2047,
+        4095
+      ],
+      "reward_objective": "channel_state_signal",
+      "initialize_channel_state_from_base": false,
+      "post_target_frame_offsets": [
+        0,
+        8
+      ],
+      "offline_sample_cache_dir": "logs/cross_frame_offline_samples_20261103",
+      "evaluation_history_frames": 1023,
+      "initialize_channel_state_memory_from_base": true
+    },
+    "rl_enable_channel_state_memory_actions": true,
+    "receiver_lookahead_len": 116,
+    "rl_adapt_receiver_input": "full_rx"
+  },
+  "seeds": [
+    110080,
+    110081,
+    110082
+  ],
+  "snrs": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "age": 1023,
+  "frames": 8,
+  "window": 8,
+  "records": 384,
+  "per_snr": [
+    {
+      "snr_db": 0,
+      "arms": {
+        "single": {
+          "ber_frozen": 0.17751736535380283,
+          "ber_candidate": 0.1794162398825089,
+          "ber_guarded": 0.1764865511407455,
+          "reward_loss_before": 1.2548689271012943,
+          "reward_loss_after": 1.2488900125026703,
+          "delta_norm": 0.5099420075615247,
+          "gain": {
+            "mean": 0.001030814213057359,
+            "ci95": [
+              -0.0029375628012746824,
+              0.0049991912273894
+            ],
+            "seeds": 3
+          },
+          "accepted": 14,
+          "frames": 24
+        },
+        "old_mean": {
+          "ber_frozen": 0.17751736535380283,
+          "ber_candidate": 0.18370226273934046,
+          "ber_guarded": 0.17903646267950535,
+          "reward_loss_before": 1.2548689271012943,
+          "reward_loss_after": 1.2999136447906494,
+          "delta_norm": 0.34604443113009137,
+          "gain": {
+            "mean": -0.0015190973257025082,
+            "ci95": [
+              -0.006117209724204581,
+              0.003079015072799565
+            ],
+            "seeds": 3
+          },
+          "accepted": 5,
+          "frames": 24
+        },
+        "shared_repeated": {
+          "ber_frozen": 0.17751736535380283,
+          "ber_candidate": 0.17664931124697128,
+          "ber_guarded": 0.17464193111906448,
+          "reward_loss_before": 1.2548689271012943,
+          "reward_loss_after": 1.219434288640817,
+          "delta_norm": 0.7424611250559489,
+          "gain": {
+            "mean": 0.00287543423473835,
+            "ci95": [
+              -0.001009681122235749,
+              0.006760549591712449
+            ],
+            "seeds": 3
+          },
+          "accepted": 16,
+          "frames": 24
+        },
+        "shared_once": {
+          "ber_frozen": 0.17751736535380283,
+          "ber_candidate": 0.17138672433793545,
+          "ber_guarded": 0.1725260466337204,
+          "reward_loss_before": 1.2548689271012943,
+          "reward_loss_after": 1.1977577209472656,
+          "delta_norm": 0.7909004365404447,
+          "gain": {
+            "mean": 0.004991318720082442,
+            "ci95": [
+              -0.0017903270152984287,
+              0.011772964455463313
+            ],
+            "seeds": 3
+          },
+          "accepted": 17,
+          "frames": 24
+        }
+      },
+      "shared_once_minus_single_gain": {
+        "mean": 0.003960504507025083,
+        "ci95": [
+          -0.002175744785961483,
+          0.010096753800011647
+        ],
+        "seeds": 3
+      },
+      "once_minus_repeated_gain": {
+        "mean": 0.002115884485344092,
+        "ci95": [
+          -0.006374821740777246,
+          0.010606590711465429
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 5,
+      "arms": {
+        "single": {
+          "ber_frozen": 0.04524739715270698,
+          "ber_candidate": 0.043457032491763435,
+          "ber_guarded": 0.043782553635537624,
+          "reward_loss_before": 1.3545120035608609,
+          "reward_loss_after": 1.3191525141398113,
+          "delta_norm": 0.47526569788654643,
+          "gain": {
+            "mean": 0.0014648435171693563,
+            "ci95": [
+              -0.0013653922358134694,
+              0.004295079270152182
+            ],
+            "seeds": 3
+          },
+          "accepted": 13,
+          "frames": 24
+        },
+        "old_mean": {
+          "ber_frozen": 0.04524739715270698,
+          "ber_candidate": 0.052137588849291205,
+          "ber_guarded": 0.046495227220778666,
+          "reward_loss_before": 1.3545120035608609,
+          "reward_loss_after": 1.4335003073016803,
+          "delta_norm": 0.36691408480207127,
+          "gain": {
+            "mean": -0.0012478300680716832,
+            "ci95": [
+              -0.0024830466145159035,
+              -1.2613521627462872e-05
+            ],
+            "seeds": 3
+          },
+          "accepted": 5,
+          "frames": 24
+        },
+        "shared_repeated": {
+          "ber_frozen": 0.04524739715270698,
+          "ber_candidate": 0.03889974132956316,
+          "ber_guarded": 0.03971354341289649,
+          "reward_loss_before": 1.3545120035608609,
+          "reward_loss_after": 1.2393519580364227,
+          "delta_norm": 0.676804651816686,
+          "gain": {
+            "mean": 0.005533853739810486,
+            "ci95": [
+              -0.003922376938528523,
+              0.014990084418149495
+            ],
+            "seeds": 3
+          },
+          "accepted": 19,
+          "frames": 24
+        },
+        "shared_once": {
+          "ber_frozen": 0.04524739715270698,
+          "ber_candidate": 0.037597657336543,
+          "ber_guarded": 0.038085938586543,
+          "reward_loss_before": 1.3545120035608609,
+          "reward_loss_after": 1.197882706920306,
+          "delta_norm": 0.7261124327778816,
+          "gain": {
+            "mean": 0.007161458566163977,
+            "ci95": [
+              0.003926904157631916,
+              0.010396012974696037
+            ],
+            "seeds": 3
+          },
+          "accepted": 22,
+          "frames": 24
+        }
+      },
+      "shared_once_minus_single_gain": {
+        "mean": 0.00569661504899462,
+        "ci95": [
+          0.0017145308470281262,
+          0.009678699250961115
+        ],
+        "seeds": 3
+      },
+      "once_minus_repeated_gain": {
+        "mean": 0.0016276048263534904,
+        "ci95": [
+          -0.0051740970171741665,
+          0.008429306669881148
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 10,
+      "arms": {
+        "single": {
+          "ber_frozen": 0.004882812674622983,
+          "ber_candidate": 0.0033637153974268585,
+          "ber_guarded": 0.003689236269565299,
+          "reward_loss_before": 1.7280744562546413,
+          "reward_loss_after": 1.5974759012460709,
+          "delta_norm": 0.4695987217128277,
+          "gain": {
+            "mean": 0.0011935764050576836,
+            "ci95": [
+              -0.0010332406276266537,
+              0.003420393437742021
+            ],
+            "seeds": 3
+          },
+          "accepted": 19,
+          "frames": 24
+        },
+        "old_mean": {
+          "ber_frozen": 0.004882812674622983,
+          "ber_candidate": 0.006401909888760808,
+          "ber_guarded": 0.005045573100990926,
+          "reward_loss_before": 1.7280744562546413,
+          "reward_loss_after": 1.8462874790032704,
+          "delta_norm": 0.40981081624825794,
+          "gain": {
+            "mean": -0.0001627604263679435,
+            "ci95": [
+              -0.000567079727434451,
+              0.000241558874698564
+            ],
+            "seeds": 3
+          },
+          "accepted": 4,
+          "frames": 24
+        },
+        "shared_repeated": {
+          "ber_frozen": 0.004882812674622983,
+          "ber_candidate": 0.002224392388598062,
+          "ber_guarded": 0.0023328993459775424,
+          "reward_loss_before": 1.7280744562546413,
+          "reward_loss_after": 1.421782520910104,
+          "delta_norm": 0.6300737683971723,
+          "gain": {
+            "mean": 0.0025499133286454403,
+            "ci95": [
+              -0.0017733423633381714,
+              0.0068731690206290524
+            ],
+            "seeds": 3
+          },
+          "accepted": 22,
+          "frames": 24
+        },
+        "shared_once": {
+          "ber_frozen": 0.004882812674622983,
+          "ber_candidate": 0.0020073785077935704,
+          "ber_guarded": 0.0020073785077935704,
+          "reward_loss_before": 1.7280744562546413,
+          "reward_loss_after": 1.3315139537056286,
+          "delta_norm": 0.686877245704333,
+          "gain": {
+            "mean": 0.0028754341668294123,
+            "ci95": [
+              -0.0015598092368358314,
+              0.0073106775704946565
+            ],
+            "seeds": 3
+          },
+          "accepted": 23,
+          "frames": 24
+        }
+      },
+      "shared_once_minus_single_gain": {
+        "mean": 0.0016818577617717285,
+        "ci95": [
+          -0.000544959476569069,
+          0.003908675000112526
+        ],
+        "seeds": 3
+      },
+      "once_minus_repeated_gain": {
+        "mean": 0.00032552083818397176,
+        "ci95": [
+          -0.0011322731485099583,
+          0.001783314824877902
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 15,
+      "arms": {
+        "single": {
+          "ber_frozen": 0.0015733507413339491,
+          "ber_candidate": 0.000705295159908322,
+          "ber_guarded": 0.0008680555862762654,
+          "reward_loss_before": 2.834109753370285,
+          "reward_loss_after": 2.4263333876927695,
+          "delta_norm": 0.5111925341188908,
+          "gain": {
+            "mean": 0.0007052951550576836,
+            "ci95": [
+              -0.0007146275877885633,
+              0.0021252178979039305
+            ],
+            "seeds": 3
+          },
+          "accepted": 23,
+          "frames": 24
+        },
+        "old_mean": {
+          "ber_frozen": 0.0015733507413339491,
+          "ber_candidate": 0.0014105903052647288,
+          "ber_guarded": 0.0016276042054717739,
+          "reward_loss_before": 2.834109753370285,
+          "reward_loss_after": 2.8724387834469476,
+          "delta_norm": 0.46831803023815155,
+          "gain": {
+            "mean": -5.425346413782487e-05,
+            "ci95": [
+              -0.0014741762189929477,
+              0.0013656692907172978
+            ],
+            "seeds": 3
+          },
+          "accepted": 11,
+          "frames": 24
+        },
+        "shared_repeated": {
+          "ber_frozen": 0.0015733507413339491,
+          "ber_candidate": 0.00032552084303461015,
+          "ber_guarded": 0.00032552084303461015,
+          "reward_loss_before": 2.834109753370285,
+          "reward_loss_after": 1.9264622430006664,
+          "delta_norm": 0.6152842516700426,
+          "gain": {
+            "mean": 0.001247829898299339,
+            "ci95": [
+              -0.0007466298491712361,
+              0.003242289645769914
+            ],
+            "seeds": 3
+          },
+          "accepted": 24,
+          "frames": 24
+        },
+        "shared_once": {
+          "ber_frozen": 0.0015733507413339491,
+          "ber_candidate": 0.00032552084303461015,
+          "ber_guarded": 0.00032552084303461015,
+          "reward_loss_before": 2.834109753370285,
+          "reward_loss_after": 1.834034154812495,
+          "delta_norm": 0.6507100909948349,
+          "gain": {
+            "mean": 0.001247829898299339,
+            "ci95": [
+              -0.0008269756196162797,
+              0.0033226354162149575
+            ],
+            "seeds": 3
+          },
+          "accepted": 24,
+          "frames": 24
+        }
+      },
+      "shared_once_minus_single_gain": {
+        "mean": 0.0005425347432416553,
+        "ci95": [
+          -0.0002991230131875694,
+          0.00138419249967088
+        ],
+        "seeds": 3
+      },
+      "once_minus_repeated_gain": {
+        "mean": 0.0,
+        "ci95": [
+          -0.000808638602133014,
+          0.000808638602133014
+        ],
+        "seeds": 3
+      }
+    }
+  ],
+  "checkpoint_sha256": "11e58a5d94801ae613ec8f7a55679ed2304e0864535c7b0468b316827e2bec51",
+  "raw_sha256": "ba5569725742ddc1e044da87f54ef168904a93024731c2c13b8f8f18c181851b",
+  "model_unchanged": true,
+  "wall_seconds": 254.93005580001045,
+  "source_sha256": {
+    "evaluation/joint_pilot_state.py": "19ed691d4ddd49f11e5349eaf4cb0bdd1e7ea3be2755ce99034db4c30bb636c3",
+    "scripts/diagnose_shared_neural_pilot.py": "bb7975e5833db2de29e1f26de6763d05380891579ea2aaaaf4a3e3025fc165c2"
+  },
+  "interpretation": "同神经记忆的状态/先验消融，非持续更新，非RL，不得当作正式成功。"
+}

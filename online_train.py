@@ -2,6 +2,7 @@
 """在线均衡入口；默认使用 Pilot 驱动在线适配，PPO 仅作可选消融。"""
 
 import argparse
+import json
 from pathlib import Path
 
 from training.windowed_discrete_ppo import run_windowed_discrete_online
@@ -40,6 +41,10 @@ def main() -> None:
     if args.version:
         print("RL4EQ continual-ppo schema-v1")
         return
+    if args.method == "pilot":
+        config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+        if int(config.get("rl_channel_state_history_frames", 1)) > 1:
+            parser.error("共同神经状态配置必须显式使用 --method ppo；Pilot 兼容入口不支持历史目标。")
     del args.amp, args.phase, args.resume
     common = {
         "config_path": args.config,

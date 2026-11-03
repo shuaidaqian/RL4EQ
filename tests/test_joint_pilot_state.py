@@ -119,7 +119,7 @@ def test_synthetic_level_b_geometry_and_coordinate_checks():
 
 
 def test_shared_single_frame_matches_existing_map_value_and_gradient():
-    from evaluation.joint_pilot_state import SharedNeuralPilotObjective
+    from training.shared_pilot_state import SharedNeuralPilotObjective
     from tests.test_pilot_transfer import _channel_memory_fixture
     from training.pilot_transfer import ChannelStateSignalObjective
 
@@ -165,7 +165,7 @@ def test_shared_candidate_uses_only_pilot_and_keeps_original_neural_state():
 
 
 def test_shared_objective_isolates_all_history_hidden_and_reward_labels():
-    from evaluation.joint_pilot_state import SharedNeuralPilotObjective
+    from training.shared_pilot_state import SharedNeuralPilotObjective
     from tests.test_pilot_transfer import _channel_memory_fixture
 
     _, model, context = _channel_memory_fixture()
@@ -183,3 +183,45 @@ def test_shared_objective_isolates_all_history_hidden_and_reward_labels():
     torch.testing.assert_close(clean, altered, atol=0, rtol=0)
     with pytest.raises(ValueError, match="相邻"):
         SharedNeuralPilotObjective(model, contexts[::-1])
+
+
+def test_shared_offline_inner_matches_formal_multi_frame_update_and_outer_gradient():
+    from tests.test_pilot_transfer import _channel_memory_fixture
+    from training.pilot_transfer import differentiable_adapt
+    from training.windowed_discrete_ppo import _apply_adapt_peft_update
+
+    _, model, context = _channel_memory_fixture()
+    _, actual, _ = _channel_memory_fixture()
+    context = replace(context, frame=replace(context.frame, frame_index=1, rx_symbols=context.frame.rx_symbols + .3j))
+    previous = replace(context, frame=replace(context.frame, frame_index=context.frame.frame_index-1,
+        rx_symbols=context.frame.rx_symbols * (.9 + .1j)))
+    contexts = [previous, context]
+    model.set_trainable_groups({"channel_state_memory_scale"})
+    fast, _ = differentiable_adapt(model, contexts, learning_rate=.02, steps=3, max_delta_norm=.8,
+        groups={"channel_state_memory"}, objective="channel_state_shared_map", receiver_input="full_rx", create_graph=True)
+    _apply_adapt_peft_update(actual, context.frame, context.condition, context.tail,
+        groups={"channel_state_memory"}, lr=.02, steps=3, max_delta_norm=.8,
+        objective="channel_state_map", shared_contexts=contexts)
+    torch.testing.assert_close(fast["channel_state.memory.weight"], actual.channel_state.memory.weight, atol=2e-7, rtol=3e-5)
+    probe = model.channel_state.memory_scale.bias
+    gradient, = torch.autograd.grad(fast["channel_state.memory.weight"].square().sum(), probe)
+    assert torch.isfinite(gradient).all() and float(gradient.norm()) > 1e-8
+    start = probe.detach().clone()
+    values = []
+    for sign in (-1, 1):
+        with torch.no_grad():
+            probe.copy_(start)
+            probe[0].add_(sign*.002)
+        candidate, _ = differentiable_adapt(model, contexts, learning_rate=.02, steps=3, max_delta_norm=.8,
+            groups={"channel_state_memory"}, objective="channel_state_shared_map", receiver_input="full_rx")
+        values.append(float(candidate["channel_state.memory.weight"].square().sum().detach()))
+    assert float(gradient[0]) == pytest.approx((values[1]-values[0])/.004, abs=2e-4, rel=.05)
+
+
+def test_statistics_refuse_mixed_shared_history_protocols():
+    from evaluation.receiver_protocol import audit_lookahead_rows
+
+    rows = [{"snr_db": 10, "seed": 1, "frame": 1},
+            {"snr_db": 10, "seed": 1, "frame": 2, "rl_channel_state_history_frames": 8}]
+    with pytest.raises(ValueError, match="共同状态历史协议"):
+        audit_lookahead_rows(rows)

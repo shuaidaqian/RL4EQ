@@ -592,6 +592,9 @@ def main() -> None:
             "--resume 检测到不兼容的 lookahead_len："
             f"已有 {sorted(existing_lookaheads)}，当前 {int(args.lookahead_len)}。"
         )
+    expected_state_history = int(config.get("rl_channel_state_history_frames", 1))
+    if existing_rows and {int(row.get("rl_channel_state_history_frames", 1)) for row in existing_rows} != {expected_state_history}:
+        raise ValueError("--resume 检测到不同的神经共同状态历史协议。")
     existing_keys = {_row_key(row) for row in existing_rows}
     rows = list(existing_rows)
     mode = "a" if args.resume else "w"
@@ -702,6 +705,7 @@ def main() -> None:
                             payload["lookahead_frame_index"] = frame.lookahead_frame_index
                             payload["lookahead_rx_sha256"] = lookahead_sha256
                             payload["environment_seed"] = int(env_config.seed)
+                            payload["rl_channel_state_history_frames"] = expected_state_history
                             payload["traditional_calibration_sha256"] = expected_calibration
                             key = _row_key(payload)
                             if key in existing_keys:
@@ -748,6 +752,7 @@ def main() -> None:
         "main_aggregation_allowed": bool(config.get("main_aggregation_allowed", True)),
         "lookahead_len": int(args.lookahead_len),
         "lookahead_protocol_version": "cross-frame-prefix-v1" if int(args.lookahead_len) else "none",
+        "rl_channel_state_history_frames": expected_state_history,
         "online_condition_source": config.get("online_condition_source", "pilot_cir_phase"),
         "online_scheduler": scheduler,
         "profile_prior": profile_prior,
@@ -1190,6 +1195,7 @@ def _build_method_states(
                     tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
                     reward_receiver_input=reward_receiver_input,
                     adapt_receiver_input=adapt_receiver_input,
+                    channel_state_history_frames=int(config.get("rl_channel_state_history_frames", 1)),
                     rollout=[],
                 ),
                 pretrained_loaded=pretrained_path is not None,

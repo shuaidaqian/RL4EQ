@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from evaluation.joint_pilot_state import SharedNeuralPilotObjective
+from training.shared_pilot_state import SharedNeuralPilotObjective
 from evaluation.pilot_transfer import _load_branch, paired_interval
 from scripts.diagnose_cross_frame_pilot_history import history_candidate
 from training.pilot_transfer import channel_state_reward_loss, context_logits, frame_to_device, make_context, make_episode

@@ -7,8 +7,13 @@ from collections import defaultdict
 def audit_lookahead_rows(rows):
     """兼容历史无后缀记录；启用后缀时强制校验协议、配对 hash 和帧龄。"""
     protocols = set()
+    state_histories = set()
     pairs = defaultdict(set)
     for row in rows:
+        history = row.get("rl_channel_state_history_frames", 1)
+        if type(history) is not int or history < 1:
+            raise ValueError("神经共同状态历史长度必须为正整数。")
+        state_histories.add(history)
         length = row.get("lookahead_len", 0)
         if isinstance(length, bool) or not isinstance(length, int) or length < 0:
             raise ValueError("跨帧窗口长度必须为非负整数。")
@@ -27,6 +32,8 @@ def audit_lookahead_rows(rows):
         protocols.add((length, version))
         key = (row["snr_db"], row["seed"], row["frame"])
         pairs[key].add((length, version, future, signature))
+    if len(state_histories) > 1:
+        raise ValueError("混合了不同神经共同状态历史协议。")
     if len(protocols) != 1 or any(len(values) != 1 for values in pairs.values()):
         raise ValueError("混合了不同跨帧协议或同帧后缀波形不一致。")
     length, version = next(iter(protocols))

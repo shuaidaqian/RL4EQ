@@ -29,12 +29,14 @@ def _state(model, context):
         previous_window_reward=0., last_action_delta_norm=0., rollout=[], reward_receiver_input="full_rx")
 
 
-def test_full_rx_memory_control_ignores_data_labels_across_ppo_windows(monkeypatch):
+@pytest.mark.parametrize("history_frames", [1, 2, 8])
+def test_full_rx_memory_control_ignores_data_labels_across_ppo_windows(monkeypatch, history_frames):
     _, model, context = _channel_memory_fixture()
     clean = _state(model, context)
     _, other_model, _ = _channel_memory_fixture()
     other_model.load_state_dict(model.state_dict())
     poisoned = _state(other_model, context)
+    clean.channel_state_history_frames = poisoned.channel_state_history_frames = history_frames
     poisoned.policy.load_state_dict(clean.policy.state_dict())
     frame = context.frame
     bits, tx = frame.bits.clone(), frame.tx_symbols.clone()
@@ -60,6 +62,7 @@ def test_full_rx_memory_control_ignores_data_labels_across_ppo_windows(monkeypat
         assert a["data_waveform_used_online"] is True
         assert a["data_labels_used_online"] is False
         assert a["trajectory_peft_delta_norm_after_reward"] <= .800001
+        assert a["channel_state_history_frames_used"] == min(index, history_frames)
     # 第一次为 Adapt observation，随后两次 Reward 前向必须收到完整波形。
     assert not seen[0][0, ~frame.adapt_mask].any()
     full_rx = torch.stack((frame.rx_symbols.real, frame.rx_symbols.imag), -1).unsqueeze(0)
@@ -68,6 +71,11 @@ def test_full_rx_memory_control_ignores_data_labels_across_ppo_windows(monkeypat
     for left, right in ((clean.model, poisoned.model), (clean.policy, poisoned.policy)):
         for key, value in left.state_dict().items():
             torch.testing.assert_close(value, right.state_dict()[key], atol=0, rtol=0)
+    for cached in clean.channel_state_history:
+        assert cached.frame.true_cir is None
+        assert not cached.frame.bits.any()
+        assert not cached.frame.rx_symbols[~cached.frame.adapt_mask].any()
+        assert not cached.frame.tx_symbols[~cached.frame.adapt_mask].any()
 
 
 def test_online_runner_retains_acquisition_cfo_and_honors_config(tmp_path, monkeypatch):

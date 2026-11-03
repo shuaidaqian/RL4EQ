@@ -114,6 +114,10 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
         raise ValueError("机制评估历史帧数必须为非负整数。")
     inner_input, reward_input = receiver_inputs(settings)
     inner_task, reward_task = receiver_tasks(settings)
+    inner_history_frames = int(settings.get("inner_history_frames", 1))
+    if inner_history_frames < 1 or (inner_history_frames > 1 and
+        (settings.get("inner_objective") != "channel_state_shared_map" or inner_task != "full_frame")):
+        raise ValueError("多帧四臂检查要求共同状态目标和完整帧 Adapt 方程。")
     reward_objective = settings.get("reward_objective", "bce")
     if reward_objective not in {"bce", "channel_state_signal"}:
         raise ValueError("不支持的 Reward 验收目标。")
@@ -154,6 +158,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 raise ValueError("四臂实验的训练与在线接收任务不匹配。")
             if metrics.get("stage") == "pilot_transfer" and metrics.get("settings", {}).get("reward_objective", "bce") != reward_objective:
                 raise ValueError("四臂实验的训练与在线 Reward 目标不匹配。")
+            if metrics.get("stage") == "pilot_transfer" and int(metrics.get("settings", {}).get("inner_history_frames", 1)) != inner_history_frames:
+                raise ValueError("四臂实验的训练与在线 Adapt 历史范围不匹配。")
             signature = {
                 "source_sha256": (metrics.get("source_checkpoint") or {}).get("sha256"),
                 "receiver_lookahead_len": int(metrics.get("receiver_lookahead_len", 0)),
@@ -162,7 +168,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 "samples": [(item.get("seed"), item.get("snr_db"), item.get("frame_index"),
                              item.get("post_target_frame_indices"), item.get("channel_state"),
                              item.get("offline_sample_cache_key"), item.get("offline_sample_input_sha256"),
-                             item.get("lookahead_len", 0), item.get("offline_sample_lookahead_sha256"))
+                             item.get("lookahead_len", 0), item.get("offline_sample_lookahead_sha256"),
+                             item.get("inner_adapt_frame_indices"), item.get("inner_history_adapt_rx_sha256"))
                             for item in metrics.get("history", [])],
             }
             if branch == "baseline":
@@ -185,6 +192,12 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                     # 物理历史生成与 Pilot 布局检查留在 CPU，只移动真正评分的帧。
                     # 这样不为数千个无神经更新的历史帧触发逐帧 GPU 同步。
                     cir, tail = cir.to(device), tail.to(device)
+                    adapt_history = []
+                    if inner_history_frames > 1:
+                        from training.shared_pilot_state import adapt_only_history_context
+                        for historical in episode_frames[max(0, history_frames-inner_history_frames+1):history_frames]:
+                            item = make_context(frame_to_device(historical, device), cir, cfo, tail, snr)
+                            adapt_history.append(adapt_only_history_context(item.frame, item.condition, item.tail))
                     episode_frames = [frame_to_device(frame, device) for frame in episode_frames[history_frames:]]
                     initial = {name: value.detach().clone() for name, value in model.peft.named_group_parameters(
                         settings.get("inner_groups", ["phase_trend"]),
@@ -207,8 +220,9 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                                                           for name, value in initial.items())).detach().cpu())
                         inner_context, score_start = task_context(context, inner_task, role="adapt")
                         reward_context, _ = task_context(context, reward_task, role="reward")
+                        inner_contexts = adapt_history + [inner_context]
                         candidate, update = differentiable_adapt(
-                            model, [inner_context], learning_rate=float(settings["inner_learning_rate"]),
+                            model, inner_contexts, learning_rate=float(settings["inner_learning_rate"]),
                             steps=int(settings["inner_steps"]), max_delta_norm=float(settings["max_delta_norm"]),
                             initial_parameters=before,
                             groups=settings.get("inner_groups", ["phase_trend"]),
@@ -262,6 +276,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                                "lookahead_protocol_version": "cross-frame-prefix-v1" if future_rx is not None else "none",
                                "lookahead_rx_sha256": future_hash,
                                "lookahead_frame_index": frame.lookahead_frame_index,
+                               "inner_history_frames": inner_history_frames,
+                               "inner_adapt_frame_indices": [item.frame.frame_index for item in inner_contexts],
                                "data_labels_used_online": False,
                                "data_waveform_used_online": update_uses_data_waveform or guard_uses_data_waveform,
                                "data_waveform_used_for_update": update_uses_data_waveform,
@@ -275,6 +291,9 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                         handle.write(json.dumps(row, ensure_ascii=False) + "\n")
                         handle.flush()
                         tail = next_pilot_tail(model, context, alpha=float(config.get("tail_update_alpha", 0.5)))
+                        if inner_history_frames > 1:
+                            adapt_history.append(adapt_only_history_context(frame, context.condition, context.tail))
+                            adapt_history = adapt_history[-(inner_history_frames-1):]
                     print(json.dumps({"branch": branch, "snr_db": snr, "seed": seed,
                                       "frames_complete": frames}, ensure_ascii=False), flush=True)
             del model
