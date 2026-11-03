@@ -55,3 +55,5 @@ R2第三轮清单`configs/audits/detection_subspace_long_v3_decay_v1.json`只加
 第四轮清单`configs/audits/detection_subspace_long_v4_tempered_adapt_v1.json`固定Adapt logit温度0.5，验证守门仍用原始BCE与硬BER，其他更新保护、信道、Pilot、预算和开发seed不变。只读梯度筛查显示固定温度会提升5 dB方向对齐但降低0 dB对齐，因此报告全部SNR。第四轮已完成GPU几何审计、A/B训练及768条评估：B臂0 dB和5 dB BER均值退化、交互为负，10/15 dB无有效增益；温度设置不保留为当前方法。完整结果见[第四轮归档](results/detection_subspace_long_v4_tempered_adapt_v1_20261103/README.md)。第四轮实现定向测试65 passed，当前全量pytest待复跑。核心目标未完成，R2继续；R3应用与统计门槛仍待冻结。
 
 第五轮清单`configs/audits/detection_subspace_long_v5_temporal_basis_v1.json`只改变基网络的符号上下文：从逐符号MLP改为kernel=5的一维局部卷积，更新规则沿用v3（锚点回退/收缩，Adapt温度1.0），其余资源和seed沿用已观察开发协议。目的在于让神经残差方向显式利用邻近符号ISI，而不增加在线自由度。定向测试67 passed；GPU审计与四臂开发待运行。第五轮仍是开发机制对比，非独立确认。
+
+第五轮GPU审计2/4/8维均通过，固定规则选择8维；四臂训练和768条开发评估完成。B臂0/5 dB Online相对Frozen点估计都约`+2.71e-5`，95%区间跨零；5 dB交互同向，10/15 dB没有有效增益判断。完整结果见[第五轮时序表示归档](results/detection_subspace_long_v5_temporal_basis_v1_20261103/README.md)。这是一项有希望但未经独立确认的开发信号，R2仍不能宣告完成，R3也不能仅凭重复开发seed启动。完整pytest为908 passed。下一步先冻结候选结构，并补齐正式确认的应用主要SNR、退化界限、统计方案和样本量；相关用户应用条件此前明确尚未确定。
