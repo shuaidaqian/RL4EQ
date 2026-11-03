@@ -50,11 +50,12 @@
 - `BER_data < 0.01` 仅是可能的系统指标；应用要求未确定时不能冒充已冻结的正式目标。
 - 正式测试前冻结主要区间、效应量/退化界限、统计方法、多重比较处理、样本量、会话与漂移定义、停止规则、配置与 checkpoint。开发集不得反复当作独立确认集。
 - 旧门槛未通过的事实保留。新路线调整本身不代表新核心目标已经达成。
-- 代码入口仍是 `pretrain.py`、`online_train.py`、`compare.py`、`calibrate_channel.py` 和 `pytest`。旧方法分组不是新路线已实现的证明；新审计矩阵尚需实现，按[首轮审计计划](docs/adaptability_audit_plan_20261103.md)推进。
+- 代码入口仍是 `pretrain.py`、`online_train.py`、`compare.py`、`calibrate_channel.py` 和 `pytest`。旧方法分组不是新路线已实现的证明；按[首轮审计计划](docs/adaptability_audit_plan_20261103.md)推进，已接通长回波开发审计，短记忆机制与新离线训练仍待实现。
 
 ## 验证与阶段交付
 
 - 代码改动运行适当测试；纯路线/文档调整检查内容、JSON 和链接，不为此重复完整 GPU 训练。
 - 默认测试：`python -m pytest -q -p no:cacheprovider`。本工作树尚无 `.venv-gpu`；可用 GPU Python 位于 `D:\Research\RL4EQ\.venv-gpu\Scripts\python.exe`，运行前检查环境，不把机器路径当项目依赖。
 - 跨帧 `pretrain.py` 当前使用 `--stage pilot_transfer`；共同历史配置的旧确定性 Pilot 兼容入口不支持该目标，不能仅用 `--method pilot` 冒称新确定性方法已实现。旧 PPO 复现需显式 `--method ppo`。
+- 新确定性开发审计使用 `online_train.py --method audit --audit-manifest configs/audits/adaptability_long_anchor_v1.json`，条件由清单固定，禁止混用旧切片参数。长回波实现见[阶段说明](docs/deterministic_audit_implementation_20261103.md)；它尚不代表短记忆机制、新离线训练或正式确认已完成。
 - 阶段成果整理代码、文档、配置与结果指纹，提交并推送。没有实验或测试证据时明确写“未运行/待实现”，不得用计划替代完成证据。

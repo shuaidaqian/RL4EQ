@@ -15,7 +15,10 @@ def main() -> None:
     parser.add_argument("--config", default="configs/continual_ppo.json")
     parser.add_argument("--pretrained", default="pretrained/model_best.pt")
     parser.add_argument("--phase", choices=["offline", "continual", "all"], default="all")
-    parser.add_argument("--method", choices=["pilot", "ppo"], default="pilot")
+    parser.add_argument("--method", choices=["pilot", "ppo", "audit"], default="pilot")
+    parser.add_argument("--audit-manifest", help="确定性开发审计清单；配置、checkpoint与条件由清单固定。")
+    parser.add_argument("--audit-smoke", action="store_true", help="仅运行清单中声明的烟测帧预算。")
+    parser.add_argument("--device", default=None, help="开发审计计算设备，默认优先 CUDA。")
     parser.add_argument("--frames", type=int, default=300)
     parser.add_argument("--num-seeds", type=int, default=1)
     parser.add_argument("--update-interval", type=int, default=32)
@@ -41,6 +44,24 @@ def main() -> None:
     if args.version:
         print("RL4EQ continual-ppo schema-v1")
         return
+    if args.method == "audit":
+        import sys
+        import torch
+        from evaluation.adaptability_audit import run_audit
+        allowed = {"--method", "--audit-manifest", "--audit-smoke", "--device", "--output-dir"}
+        overrides = [item.split("=", 1)[0] for item in sys.argv[1:]
+            if item.startswith("--") and item.split("=", 1)[0] not in allowed]
+        if overrides:
+            parser.error("审计条件只能由版本化清单指定，禁止混用旧参数：" + ", ".join(overrides))
+        if not args.audit_manifest:
+            parser.error("--method audit 必须提供 --audit-manifest。")
+        torch.set_num_threads(1)
+        run_audit(args.audit_manifest, args.output_dir,
+            device=args.device or ("cuda" if torch.cuda.is_available() else "cpu"), smoke=args.audit_smoke)
+        print(f"saved {args.output_dir}")
+        return
+    if args.audit_manifest or args.audit_smoke or args.device:
+        parser.error("--audit-manifest、--audit-smoke 与 --device 仅用于 --method audit。")
     if args.method == "pilot":
         config = json.loads(Path(args.config).read_text(encoding="utf-8"))
         if int(config.get("rl_channel_state_history_frames", 1)) > 1:

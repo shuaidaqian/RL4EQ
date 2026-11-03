@@ -169,6 +169,7 @@ class ExtremeDelayChannel:
         self._profile_metadata: Mapping[str, Any] | None = None
         self._global_symbol_index = 0
         self._phase_state = 0.0
+        self._last_phase_used = torch.empty(0, dtype=torch.float32)
         self._impairment = PhaseImpairmentSettings()
         self._state_metadata: dict[str, Any] = {}
 
@@ -223,6 +224,7 @@ class ExtremeDelayChannel:
         self._global_symbol_index = 0
         self._phase_state = 0.0
         self._impairment = self._sample_impairment()
+        self._last_phase_used = torch.empty(0, dtype=torch.float32)
         base_power = torch.abs(self._base_cir).pow(2)
         diffuse_ratio = float(
             base_power[self._diffuse_mask].sum()
@@ -285,12 +287,13 @@ class ExtremeDelayChannel:
         tx = symbols.detach().to(dtype=torch.complex64, device="cpu")
         rx = self._convolve_with_history(tx, self._current_cir)
         self._last_cir_used = self._current_cir.clone()
-        rx, self._phase_state = apply_phase_impairment(
+        rx, self._phase_state, self._last_phase_used = apply_phase_impairment(
             rx,
             global_start=self._global_symbol_index,
             settings=self._impairment,
             phase_state=self._phase_state,
             phase_rng=self._phase_rng,
+            return_phase=True,
         )
         if add_noise:
             rx = rx + self._sample_noise(tx.numel())
@@ -309,6 +312,10 @@ class ExtremeDelayChannel:
         """返回最近一次 transmit 实际用于生成接收帧的 CIR。"""
 
         return self._last_cir_used.clone()
+
+    def last_phase_used(self) -> torch.Tensor:
+        """仅供离线诊断读取实际逐样本相位，不加入接收端视图。"""
+        return self._last_phase_used.clone()
 
     def _convolve_with_history(self, symbols: torch.Tensor, cir: torch.Tensor) -> torch.Tensor:
         padded = torch.cat([self._history, symbols])

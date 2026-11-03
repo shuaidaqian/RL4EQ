@@ -38,7 +38,7 @@
 3. 相同物理状态流程加固定规则神经微调。
 4. 独立离线分支中的真实 CIR/同步状态诊断，保留同样的未知 Data 边界。
 
-先分离 CIR 漂移与同步失配，再做联合外推；完整评分当前帧及后续帧，不能只报告被接受的更新。现有 `Perfect-CSI Block` 不等于上述真实状态加同源网络诊断，新四臂审计尚待实现。具体输入、输出和分支判据见[审计计划](docs/adaptability_audit_plan_20261103.md)。
+先分离 CIR 漂移与同步失配，再做联合外推；完整评分当前帧及后续帧，不能只报告被接受的更新。现有 `Perfect-CSI Block` 不等于上述真实状态加同源网络诊断。长回波锚点的四分支与确定性更新已接入新审计入口，详见[实现与边界](docs/deterministic_audit_implementation_20261103.md)；它不替代尚待实现的短记忆单因素机制与新离线训练。具体输入、输出和分支判据见[审计计划](docs/adaptability_audit_plan_20261103.md)。
 
 ## 信息与物理边界
 
@@ -68,13 +68,14 @@
 |---|---|---|
 |`pretrain.py --stage pilot_transfer`|当前/未来外层Data、可微Pilot内循环、部分共同状态目标|可复用；低维新表示与真实序列持久训练仍待实现|
 |`online_train.py --method pilot`|历史Pilot兼容路径|不自动支持共同历史目标，不冒充新的确定性主方法|
+|`online_train.py --method audit`|长回波同波形 F/P/N/T、确定性持久微调、一次候选有效期|开发归因；版本化清单控制条件，不作为正式确认入口|
 |`online_train.py --method ppo`|旧离散安全窗口RL|保留复现，可选扩展，不是当前优先任务|
 |`compare.py`|旧方法分组、传统校准、同波形与部分协议审计|保留复现；新审计矩阵与新归因分组待实现|
 |`calibrate_channel.py`、`baseline/`|传统难度与接收机校准|新场景/接收窗口需匹配重校准|
 |`training/shared_pilot_state.py`|合法历史方程约束当前神经CIR、一次先验|机制参考；不是完整新方法|
 |`env/`|独立profile、信道状态、卷积与接收视图|新机制场景需独立版本，旧EME物理校验继续生效|
 
-旧 `--method-group main` 或 `main_aggregation_allowed` 只表达其原协议，不能作为新目标已验收的依据。代码支持范围与研究允许范围分开记录；此次路线调整没有完成新的接收机实现。
+旧 `--method-group main` 或 `main_aggregation_allowed` 只表达其原协议，不能作为新目标已验收的依据。代码支持范围与研究允许范围分开记录；新审计实现不等于完整新方法及其独立确认已完成。
 
 ## 验证与复现
 
@@ -88,4 +89,4 @@ python -m pytest -q -p no:cacheprovider
 & 'D:\Research\RL4EQ\.venv-gpu\Scripts\python.exe' -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
-需要自建环境时使用 `scripts/setup_gpu_env.ps1`。旧烟测命令见归档README；新审计入口尚待实现，因此目前没有可当作新主实验直接运行的命令。
+需要自建环境时使用 `scripts/setup_gpu_env.ps1`。旧烟测命令见归档README；新的开发审计命令见[实现说明](docs/deterministic_audit_implementation_20261103.md)，不是正式主实验命令。

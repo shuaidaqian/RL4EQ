@@ -111,10 +111,13 @@ def apply_phase_impairment(
     settings: PhaseImpairmentSettings,
     phase_state: float,
     phase_rng: torch.Generator,
-) -> tuple[torch.Tensor, float]:
+    return_phase: bool = False,
+) -> tuple[torch.Tensor, float] | tuple[torch.Tensor, float, torch.Tensor]:
     """对一帧接收符号施加连续 CFO 与慢相位随机游走。"""
 
     if settings.cfo_cycles_per_symbol == 0.0 and settings.phase_noise_std == 0.0 and phase_state == 0.0:
+        if return_phase:
+            return rx, phase_state, torch.zeros_like(rx.real)
         return rx, phase_state
     frame_len = rx.numel()
     indices = torch.arange(global_start, global_start + frame_len, dtype=torch.float32, device=rx.device)
@@ -127,6 +130,8 @@ def apply_phase_impairment(
     else:
         next_phase_state = float(phase_state)
     rotated = rx * torch.exp(1j * phase.to(torch.float32)).to(torch.complex64)
+    if return_phase:
+        return rotated.to(torch.complex64), next_phase_state, phase.detach().clone()
     return rotated.to(torch.complex64), next_phase_state
 
 

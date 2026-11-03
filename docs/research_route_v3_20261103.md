@@ -141,4 +141,4 @@ R3与R4可以在同一次预注册长回波确认中合并执行，避免重复�
 
 旧四SNR联合门槛未通过的[阶段结果](shared_neural_pilot_stage_20261103.md)和[固定动作结果](shared_pilot_fixed_actions_stage_20261103.md)不变。其所有已用seed、模型和结果默认属于已观察开发证据，不能因为重命名路线重新变为独立最终测试。
 
-本轮不修改旧实验配置、方法名、结果文件或数值。`compare.py`旧方法分组与旧配置的`main_aggregation_allowed`保持复现意义，不是新路线的主方法清单。新的确定性共同状态接收机、新机制profile和四臂审计尚待实现，不因改文档而声称可运行。
+路线重置不修改旧实验配置、方法名、结果文件或数值。`compare.py`旧方法分组与旧配置的`main_aggregation_allowed`保持复现意义，不是新路线的主方法清单。路线初次制定时，新接收机、新机制profile和四臂审计均未实现；后续已接通[长回波确定性开发审计](deterministic_audit_implementation_20261103.md)，短记忆机制、新离线训练与独立确认仍待完成。

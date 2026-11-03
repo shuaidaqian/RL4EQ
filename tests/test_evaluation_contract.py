@@ -546,7 +546,7 @@ def test_coordinate_refine_single_has_no_per_symbol_python_loop():
     assert "for index in range(frame_len)" not in source
 
 
-def test_docs_share_single_research_contract():
+def test_docs_point_to_versioned_research_contract_without_reclassifying_history():
     root = Path(__file__).resolve().parents[1]
     docs = {
         "README.md": (root / "README.md").read_text(encoding="utf-8"),
@@ -554,17 +554,16 @@ def test_docs_share_single_research_contract():
         "开发框架.md": (root / "开发框架.md").read_text(encoding="utf-8"),
         "RL信道均衡研究分析.md": (root / "RL信道均衡研究分析.md").read_text(encoding="utf-8"),
     }
-    required = [
-        "Level B",
-        "RL-Modulated Neural Block Equalizer",
-        "整帧缓冲",
-        "非因果",
-        "明显超过传统",
-        "CFO",
-        "相位",
-        "合理补偿",
-        "不使用数据标签上界",
-    ]
+    protocol = json.loads((root / "docs/protocols/research_route_v3_20261103.json").read_text(encoding="utf-8"))
+    # 防止旧叙述或自动任务再次把可选RL与传统竞争力绑回核心必要门槛。
+    assert all("docs/research_route_v3_20261103.md" in text for text in docs.values())
+    assert protocol["rl_required_for_core"] is False
+    assert protocol["traditional_comparison_required"] is True
+    assert protocol["beat_every_traditional_baseline_at_every_snr_required_for_core"] is False
+    assert protocol["monotonically_increasing_advantage_required"] is False
+    assert protocol["initial_controls"]["data_labels_used_online"] is False
+    assert protocol["initial_controls"]["generation_truth_used_online"] is False
+    assert protocol["historical_protocol"]["results_reclassified_as_success"] is False
     forbidden = [
         "逐符号" + "实时输出",
         "LDPC " + "编解码实验",
@@ -572,7 +571,6 @@ def test_docs_share_single_research_contract():
         "agent/" + "ppo.py",
         "Best Fixed 前置门槛",
     ]
-    assert all(all(term in text for term in required) for text in docs.values())
     assert all(all(term not in text for term in forbidden) for text in docs.values())
 def test_summary_uses_explicit_eme_main_matrix():
     from evaluation.metrics import summarize_main_matrix
