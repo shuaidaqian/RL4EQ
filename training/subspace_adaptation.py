@@ -65,11 +65,23 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         and math.isfinite(candidate_loss) and candidate_loss < before_loss - settings.min_validation_improvement
         and candidate_ber <= before_ber)
     retained = current if accepted else initial
+    if accepted and settings.origin_retention_decay < 1:
+        retained = origin + settings.origin_retention_decay * (retained - origin)
+    retained_logits = base + basis @ retained
+    retained_loss = float(pilot_loss(retained_logits, observation, "validation").detach())
+    retained_ber = float(((retained_logits.detach()[mask] >= 0) != labels[mask]).float().mean())
+    accepted = bool(accepted and math.isfinite(retained_loss)
+        and retained_loss < before_loss - settings.min_validation_improvement
+        and retained_ber <= before_ber)
+    if not accepted:
+        retained = initial
+        retained_logits = before_logits
+        retained_loss, retained_ber = before_loss, before_ber
     candidate_accepted = accepted
     reset_to_origin = False
     if settings.reset_to_origin_on_validation:
-        retained_loss = candidate_loss if accepted else before_loss
-        retained_ber = candidate_ber if accepted else before_ber
+        retained_loss = retained_loss if accepted else before_loss
+        retained_ber = retained_ber if accepted else before_ber
         reset_to_origin = bool(
             math.isfinite(origin_loss)
             and origin_loss < retained_loss - settings.min_validation_improvement
@@ -84,6 +96,7 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         validation_loss_before=before_loss, validation_loss_candidate=candidate_loss,
         validation_ber_before=before_ber, validation_ber_candidate=candidate_ber,
         validation_loss_origin=origin_loss, validation_ber_origin=origin_ber,
+        validation_loss_retained=retained_loss, validation_ber_retained=retained_ber,
         delta_norm=float((current - initial).detach().norm()),
         retained_total_norm=float((retained - origin).detach().norm()),
         parameter_count=current.numel(), data_labels_used_for_control=False,

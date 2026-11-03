@@ -22,6 +22,7 @@ class DeterministicSettings:
     proximal_weight: float = .1
     min_validation_improvement: float = 1e-5
     reset_to_origin_on_validation: bool = False
+    origin_retention_decay: float = 1.0
 
     def __post_init__(self):
         values = (self.learning_rate, self.step_radius, self.total_radius)
@@ -34,6 +35,8 @@ class DeterministicSettings:
             raise ValueError("近端权重与验证阈值必须非负且有限。")
         if type(self.reset_to_origin_on_validation) is not bool:
             raise ValueError("是否允许验证驱动的初始系数回退必须是布尔值。")
+        if not math.isfinite(self.origin_retention_decay) or not 0 < self.origin_retention_decay <= 1:
+            raise ValueError("离线锚点收缩系数必须在(0,1]内。")
 
 
 def validation_metrics(model, context, logits):

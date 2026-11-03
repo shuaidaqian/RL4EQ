@@ -113,6 +113,19 @@ def test_validation_can_reset_stale_history_to_offline_origin_without_data_label
     assert graph_metrics["reset_to_origin"] is metrics["reset_to_origin"]
 
 
+def test_origin_retention_decay_is_applied_before_final_validation_gate():
+    observation = fixture_observation()
+    model = DetectionSubspace(4)
+    settings = DeterministicSettings(origin_retention_decay=.5)
+    origin = torch.zeros(4)
+    candidate, retained, metrics = coefficient_update(
+        observation.base_logits, model.basis(observation).detach(), observation,
+        torch.zeros(4), origin, settings)
+    if metrics["accepted"]:
+        torch.testing.assert_close(retained, origin + .5 * (candidate - origin), atol=0, rtol=0)
+        assert metrics["validation_loss_retained"] <= metrics["validation_loss_before"]
+
+
 def test_capture_does_not_read_data_truth_and_removes_temporary_hook():
     from tests.test_pilot_transfer import _symbol_fixture
     _, model, context = _symbol_fixture()
