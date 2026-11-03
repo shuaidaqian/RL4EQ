@@ -1,5 +1,12 @@
 # RL4EQ：Level B 极端长回波下的 RL-Modulated Neural Block Equalizer
 
+> 当前进度（2026-11-03）：[跨帧协议](docs/cross_frame_stage_20261103.md)已贯通，
+> 原 checkpoint 的3 seed × 128帧未证明在线收益；[离线尺度配对](docs/cross_frame_offline_pair_stage_20261103.md)
+> 和[历史目标直接平均](docs/cross_frame_pilot_history_stage_20261103.md)也未通过。
+> [共同物理状态检查](docs/joint_pilot_state_stage_20261103.md)确认一次先验与递推等价，
+> 5/10/15 dB 的历史Pilot留出预测有改善证据，正在固定新seed验证共享神经状态目标。
+> 这只是机制证据；总体研究成功门槛尚未达到。
+
 > 当前进度（2026-11-02）：[10 dB、约210秒连续探测](docs/channel_memory_rl_continuous_stage_20261102.md)
 > 已完成：全程Frozen/RL BER为.34008%/.33213%，前两段退化、末52秒改善.09333个百分点，
 > 后期减早期改善+.10844个百分点。单seed仅是机制线索，不能宣称统计成功。

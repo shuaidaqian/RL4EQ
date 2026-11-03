@@ -1,0 +1,567 @@
+{
+  "schema_version": "joint-pilot-state-diagnostic-v1",
+  "diagnostic_only": true,
+  "main_aggregation_allowed": false,
+  "synthetic": {
+    "seed": 110069,
+    "taps": 117,
+    "rows_per_frame": 108,
+    "frames": 8,
+    "complex_joint_rank": 117,
+    "batch_recursive_mean_max_error": 3.079073087440436e-16,
+    "batch_recursive_cov_max_error": 1.8973538018496328e-19,
+    "both_sides_coordinate_transport_max_error": 1.3947004136484323e-16,
+    "synthetic_true_phase_removal_max_error": 3.4418956839979497e-09,
+    "gauge_prediction_max_error": 5.7388703743623724e-08,
+    "once_prior_cir_mse": 0.00013746077271006572,
+    "repeated_prior_cir_mse": 0.0001644384231207084,
+    "uncorrected_phase_cir_mse": 0.02109911779000132,
+    "repeated_vs_once_solution_norm": 0.06913949188459867,
+    "true_coordinates_used_only_for_offline_algebra": true,
+    "online_control_executed": false
+  },
+  "source_sha256": {
+    "evaluation/joint_pilot_state.py": "5902036c2f6b02d19d4b4835cad5b76c9fcbc6e049925efe33f8afdc8644c610",
+    "scripts/diagnose_joint_pilot_state.py": "abd3a35d024d4c81a2e34942d83142614d3853ec63d5f162a04eb02adb846bc3"
+  },
+  "actual": {
+    "seeds": [
+      110070,
+      110071,
+      110072
+    ],
+    "snrs": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "age": 1023,
+    "frames": 8,
+    "window": 8,
+    "records": 288,
+    "per_snr_coordinate": [
+      {
+        "snr_db": 0,
+        "coordinate": "raw",
+        "heldout_current_loss_previous1": 2.8896100233941584,
+        "heldout_current_loss_previous_history": 2.2399860746345164,
+        "prior_current_loss": 2.8378482141620593,
+        "in_sample_current_loss_single": 1.2305063030460566,
+        "in_sample_current_loss_joint": 1.7112976615965472,
+        "in_sample_current_loss_repeated_prior": 2.1256768379223137,
+        "batch_recursive_mean_max_error": 2.1042573131838936e-16,
+        "batch_recursive_cov_max_error": 1.183587371630009e-18,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 0.649623948759642,
+          "ci95": [
+            0.42893496088369687,
+            0.8703129366355872
+          ],
+          "seeds": 3
+        }
+      },
+      {
+        "snr_db": 0,
+        "coordinate": "pilot_phase",
+        "heldout_current_loss_previous1": 1.6141427783377564,
+        "heldout_current_loss_previous_history": 1.5026133296689919,
+        "prior_current_loss": 1.625588199882495,
+        "in_sample_current_loss_single": 0.8964137499549228,
+        "in_sample_current_loss_joint": 1.1970427336053355,
+        "in_sample_current_loss_repeated_prior": 1.3856307088242286,
+        "batch_recursive_mean_max_error": 4.1454560178515195e-16,
+        "batch_recursive_cov_max_error": 1.183587371630009e-18,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 0.11152944866876474,
+          "ci95": [
+            -0.15892725804936525,
+            0.38198615538689473
+          ],
+          "seeds": 3
+        }
+      },
+      {
+        "snr_db": 0,
+        "coordinate": "neural_phase",
+        "heldout_current_loss_previous1": 1.6162797803060327,
+        "heldout_current_loss_previous_history": 1.5018365287620024,
+        "prior_current_loss": 1.6300748582306965,
+        "in_sample_current_loss_single": 0.897644130870539,
+        "in_sample_current_loss_joint": 1.1965951803944979,
+        "in_sample_current_loss_repeated_prior": 1.3863948372297055,
+        "batch_recursive_mean_max_error": 4.2124841971950673e-16,
+        "batch_recursive_cov_max_error": 1.183587371630009e-18,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 0.11444325154403046,
+          "ci95": [
+            -0.14710035468715338,
+            0.3759868577752143
+          ],
+          "seeds": 3
+        }
+      },
+      {
+        "snr_db": 5,
+        "coordinate": "raw",
+        "heldout_current_loss_previous1": 7.572801387290645,
+        "heldout_current_loss_previous_history": 4.827275576330639,
+        "prior_current_loss": 6.85521522930861,
+        "in_sample_current_loss_single": 1.5155802203890503,
+        "in_sample_current_loss_joint": 3.3876766861157184,
+        "in_sample_current_loss_repeated_prior": 4.1134106312019245,
+        "batch_recursive_mean_max_error": 1.8229176015504058e-16,
+        "batch_recursive_cov_max_error": 4.2577522815316165e-19,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 2.745525810960005,
+          "ci95": [
+            1.8564239482994211,
+            3.634627673620589
+          ],
+          "seeds": 3
+        }
+      },
+      {
+        "snr_db": 5,
+        "coordinate": "pilot_phase",
+        "heldout_current_loss_previous1": 1.456712338840795,
+        "heldout_current_loss_previous_history": 1.2362084162666644,
+        "prior_current_loss": 1.7743130580196034,
+        "in_sample_current_loss_single": 0.7591308468875484,
+        "in_sample_current_loss_joint": 0.9921233273521394,
+        "in_sample_current_loss_repeated_prior": 1.1979367847678943,
+        "batch_recursive_mean_max_error": 5.625537777341299e-16,
+        "batch_recursive_cov_max_error": 4.2577522815316165e-19,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 0.22050392257413057,
+          "ci95": [
+            0.04381219642508774,
+            0.39719564872317337
+          ],
+          "seeds": 3
+        }
+      },
+      {
+        "snr_db": 5,
+        "coordinate": "neural_phase",
+        "heldout_current_loss_previous1": 1.4372162382096685,
+        "heldout_current_loss_previous_history": 1.2265363838331171,
+        "prior_current_loss": 1.7697555349423177,
+        "in_sample_current_loss_single": 0.758307661452651,
+        "in_sample_current_loss_joint": 0.9852297605926493,
+        "in_sample_current_loss_repeated_prior": 1.191182670557703,
+        "batch_recursive_mean_max_error": 5.128964380491533e-16,
+        "batch_recursive_cov_max_error": 4.2577522815316165e-19,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 0.21067985437655143,
+          "ci95": [
+            0.06158550366197457,
+            0.3597742050911283
+          ],
+          "seeds": 3
+        }
+      },
+      {
+        "snr_db": 10,
+        "coordinate": "raw",
+        "heldout_current_loss_previous1": 23.912682913093448,
+        "heldout_current_loss_previous_history": 13.17419115673677,
+        "prior_current_loss": 19.603396412625624,
+        "in_sample_current_loss_single": 1.8102975895414104,
+        "in_sample_current_loss_joint": 8.650413207300382,
+        "in_sample_current_loss_repeated_prior": 9.839667791265773,
+        "batch_recursive_mean_max_error": 1.6544929644845996e-16,
+        "batch_recursive_cov_max_error": 1.4568966692773966e-19,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 10.73849175635668,
+          "ci95": [
+            6.828728689877057,
+            14.648254822836304
+          ],
+          "seeds": 3
+        }
+      },
+      {
+        "snr_db": 10,
+        "coordinate": "pilot_phase",
+        "heldout_current_loss_previous1": 1.6108018120646488,
+        "heldout_current_loss_previous_history": 1.1979132197562332,
+        "prior_current_loss": 2.9866664489333643,
+        "in_sample_current_loss_single": 0.6606852752061881,
+        "in_sample_current_loss_joint": 0.9410895530537147,
+        "in_sample_current_loss_repeated_prior": 1.16676673195604,
+        "batch_recursive_mean_max_error": 6.107264450373503e-16,
+        "batch_recursive_cov_max_error": 1.4568966692773966e-19,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 0.4128885923084156,
+          "ci95": [
+            0.1995417838847268,
+            0.6262354007321045
+          ],
+          "seeds": 3
+        }
+      },
+      {
+        "snr_db": 10,
+        "coordinate": "neural_phase",
+        "heldout_current_loss_previous1": 1.5972674099779802,
+        "heldout_current_loss_previous_history": 1.1904533989608415,
+        "prior_current_loss": 3.007524721199662,
+        "in_sample_current_loss_single": 0.6617549283036833,
+        "in_sample_current_loss_joint": 0.93613414593535,
+        "in_sample_current_loss_repeated_prior": 1.164530498199784,
+        "batch_recursive_mean_max_error": 5.551236520951267e-16,
+        "batch_recursive_cov_max_error": 1.4568966692773966e-19,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 0.40681401101713877,
+          "ci95": [
+            0.2211046134957107,
+            0.5925234085385669
+          ],
+          "seeds": 3
+        }
+      },
+      {
+        "snr_db": 15,
+        "coordinate": "raw",
+        "heldout_current_loss_previous1": 79.25237193851522,
+        "heldout_current_loss_previous_history": 40.16383995140793,
+        "prior_current_loss": 60.498761603005654,
+        "in_sample_current_loss_single": 2.0469506230452565,
+        "in_sample_current_loss_joint": 25.270405497936522,
+        "in_sample_current_loss_repeated_prior": 27.105414754089356,
+        "batch_recursive_mean_max_error": 1.7537024911432304e-16,
+        "batch_recursive_cov_max_error": 4.8845566624997984e-20,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 39.088531987107295,
+          "ci95": [
+            23.063382107141308,
+            55.11368186707328
+          ],
+          "seeds": 3
+        }
+      },
+      {
+        "snr_db": 15,
+        "coordinate": "pilot_phase",
+        "heldout_current_loss_previous1": 2.1450336154992233,
+        "heldout_current_loss_previous_history": 1.312411723124826,
+        "prior_current_loss": 7.039606303855457,
+        "in_sample_current_loss_single": 0.53664101759663,
+        "in_sample_current_loss_joint": 0.9852811995998909,
+        "in_sample_current_loss_repeated_prior": 1.2207953784101993,
+        "batch_recursive_mean_max_error": 5.567322031366365e-16,
+        "batch_recursive_cov_max_error": 4.8845566624997984e-20,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 0.832621892374397,
+          "ci95": [
+            0.37761820434005283,
+            1.287625580408741
+          ],
+          "seeds": 3
+        }
+      },
+      {
+        "snr_db": 15,
+        "coordinate": "neural_phase",
+        "heldout_current_loss_previous1": 2.1048008780107375,
+        "heldout_current_loss_previous_history": 1.2891706572406092,
+        "prior_current_loss": 7.076791074866008,
+        "in_sample_current_loss_single": 0.5387524529783069,
+        "in_sample_current_loss_joint": 0.9729329479700795,
+        "in_sample_current_loss_repeated_prior": 1.2100460111089744,
+        "batch_recursive_mean_max_error": 5.625818578504977e-16,
+        "batch_recursive_cov_max_error": 4.8845566624997984e-20,
+        "neural_memory_scale_max_relative_change": 0.0,
+        "heldout_history_gain": {
+          "mean": 0.8156302207701284,
+          "ci95": [
+            0.49901787367755535,
+            1.1322425678627015
+          ],
+          "seeds": 3
+        }
+      }
+    ],
+    "model_unchanged": true,
+    "checkpoint_sha256": "11e58a5d94801ae613ec8f7a55679ed2304e0864535c7b0468b316827e2bec51",
+    "raw_sha256": "7cb6df8349c505570599349b2df1c261692744f40d1aa0f62893d9e64d5be407",
+    "config": {
+      "schema_version": "eme-long-memory-config-v2",
+      "channel_profile": "eme_long_memory_v2",
+      "profile_name": "eme_long_memory_v2",
+      "profile_frozen_before_proposed": true,
+      "frozen_candidate_id": "LM-B1",
+      "traditional_only_calibration": true,
+      "traditional_only_calibration_summary": "logs/eme_long_memory_v2_traditional_calibration_2026-08-28_fresh/summary.json",
+      "traditional_only_calibration_frames_per_seed": 20,
+      "traditional_only_calibration_status": "阶段性冻结；正式论文统计需无并发重跑至少 60 帧",
+      "proposed_results_used_for_freeze": false,
+      "semantics": "independent EME-inspired long-memory channel class constrained by published lunar radar delay-power envelopes",
+      "source_basis": [
+        "10.6028/jres.069d.195",
+        "10.1109/wescon.1958.1150219"
+      ],
+      "level": "B",
+      "main_level": "B",
+      "aggregation_role": "diagnostic",
+      "max_delay_seconds": 0.0116,
+      "sample_rate_hz": 10000,
+      "symbol_rate_hz": 10000,
+      "samples_per_symbol": 1,
+      "frame_len": 1024,
+      "frame_duration_seconds": 0.1024,
+      "max_delay": 116,
+      "main_delays": [
+        116
+      ],
+      "main_snrs": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_main": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_pressure": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "pilot_layout": "prefix",
+      "pilot_total": 256,
+      "reward_pilot_total": 32,
+      "pilot_sweep_totals": [
+        64,
+        96,
+        128,
+        160,
+        256
+      ],
+      "strong_path_count": [
+        12,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.2,
+        0.35
+      ],
+      "coherence_time_seconds": 1200,
+      "acquisition_to_data_gap_seconds": 0,
+      "rho_frame": 0.999914670307452,
+      "rho": 0.999914670307452,
+      "include_anomalous_scatterer": false,
+      "eme_physical_fields_passthrough": "implemented",
+      "impairment_profile": "cfo_phase_tiny",
+      "residual_cfo_limit": 0.0012,
+      "acquisition_cfo_limit": 0.004,
+      "traditional_methods": [
+        "CFO+DD-Phase LMMSE-FIR",
+        "CFO+DD-Phase DFE-RLS",
+        "SC-FDE-MMSE"
+      ],
+      "optional_impairments": {
+        "cfo": true,
+        "phase_perturbation": true,
+        "nonlinearity": false,
+        "coding": false,
+        "higher_order_modulation": false
+      },
+      "model_validation_sequence_state": true,
+      "training_tail_mode": "online_soft",
+      "tail_update_alpha": 0.5,
+      "online_adaptation_groups": [
+        "phase"
+      ],
+      "online_adaptation_algorithm": "rls",
+      "online_rls_forgetting_factor": 0.995,
+      "online_rls_ridge": 10,
+      "online_rls_warmup_symbols": 116,
+      "online_rls_target_logit": 2,
+      "online_rls_max_total_delta_norm": 0.5,
+      "online_rls_condition_source": "pilot_cir_phase",
+      "online_condition_source": "pilot_cir_phase",
+      "online_adaptation_learning_rate": 0.0004,
+      "online_adaptation_steps": 1,
+      "online_adaptation_max_delta_norm": 1,
+      "online_adaptation_proximal_weight": 0.1,
+      "online_hard_example_weighting": false,
+      "online_hard_example_temperature": 0.5,
+      "online_adaptation_freeze_below_snr_db": 5,
+      "online_adaptation_min_reward_improvement": 0.0005,
+      "online_bandit_action_cost": 1e-06,
+      "online_reward_windows": 2,
+      "online_cross_frame_rollback_tolerance": 1e-05,
+      "online_phase_tracking_smoothing": 0.5,
+      "online_phase_tracking_min_confidence": 0.5,
+      "online_phase_tracking_cfo_limit": 0.0012,
+      "online_adaptation_candidates": [
+        {
+          "name": "lora_conservative",
+          "groups": [
+            "phase"
+          ],
+          "learning_rate_scale": 0.5,
+          "steps": 1,
+          "max_delta_scale": 0.5
+        }
+      ],
+      "offline_state_split": "offline_train",
+      "offline_loss": "bce_all",
+      "online_state_splits": {
+        "offline_train": {
+          "strong_path_count": [
+            12,
+            18
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.28
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0006
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0006
+          ]
+        },
+        "heldout_edge": {
+          "strong_path_count": [
+            19,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.29,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0006,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0006,
+            0.0008
+          ]
+        },
+        "drift": {
+          "strong_path_count": [
+            12,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0008
+          ]
+        }
+      },
+      "model": {
+        "frame_len": 1024,
+        "max_delay": 116,
+        "iterations": 4,
+        "d_model": 64,
+        "num_heads": 4,
+        "adapter_rank": 8,
+        "lora_rank": 8,
+        "conditioner_uses_cir_summary": true,
+        "pilot_conditioned": true,
+        "enable_phase_correction_branch": true,
+        "phase_correction_segments": 4,
+        "phase_correction_initial_scale": 1,
+        "analytic_logit_skip_scale": 0,
+        "physics_warm_start_iterations": 8,
+        "physics_warm_start_scale": 1,
+        "neural_residual_scale": 0.1,
+        "enable_symbol_residual_branch": true,
+        "enable_channel_state_branch": true,
+        "enable_channel_state_memory": true,
+        "channel_state_memory_output_scale": 0.25
+      },
+      "experiment_note": "跨帧116样本共同接收窗的离线适配与离散窗口PPO机制检查；不作为主结果。",
+      "diagnostic_only": true,
+      "main_aggregation_allowed": false,
+      "rl_action_names": [
+        "identity",
+        "peft_memory_signal_small",
+        "peft_memory_signal_medium",
+        "peft_memory_map_small",
+        "peft_memory_map_medium",
+        "rollback_identity"
+      ],
+      "rl_peft_max_episode_delta_norm": 0.8,
+      "rl_reward_receiver_input": "full_rx",
+      "online_ppo_learning_rate": 0.001,
+      "online_ppo_pilot_state_embedding": false,
+      "ppo_window_size": 8,
+      "pilot_transfer": {
+        "objective": "post_adapt",
+        "seed": 98100,
+        "history_frames": 1,
+        "outer_learning_rate": 0.01,
+        "inner_learning_rate": 0.02,
+        "inner_steps": 3,
+        "max_delta_norm": 0.8,
+        "base_weight": 1,
+        "post_weight": 1,
+        "inner_groups": [
+          "channel_state_memory"
+        ],
+        "inner_objective": "channel_state_map",
+        "inner_receiver_input": "full_rx",
+        "reward_receiver_input": "full_rx",
+        "outer_groups": [
+          "channel_state_memory_scale"
+        ],
+        "initialize_symbol_residual_from_base": false,
+        "history_frame_choices": [
+          0,
+          127,
+          1023,
+          2047,
+          4095
+        ],
+        "reward_objective": "channel_state_signal",
+        "initialize_channel_state_from_base": false,
+        "post_target_frame_offsets": [
+          0,
+          8
+        ],
+        "offline_sample_cache_dir": "logs/cross_frame_offline_samples_20261103",
+        "evaluation_history_frames": 1023,
+        "initialize_channel_state_memory_from_base": true
+      },
+      "rl_enable_channel_state_memory_actions": true,
+      "receiver_lookahead_len": 116,
+      "rl_adapt_receiver_input": "full_rx"
+    },
+    "prior_protocol": "每个对比统一当前帧龄的acquisition对角先验，静态共同CIR假设，仅诊断",
+    "heldout_protocol": "前1帧或前window-1帧Adapt拟合，当前帧Adapt完全留出",
+    "interpretation": "不是Data BER，不是神经/RL在线结果；相位未校正仅作坐标反例"
+  },
+  "wall_seconds": 129.94136349996552
+}
