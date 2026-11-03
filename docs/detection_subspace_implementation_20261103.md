@@ -61,3 +61,5 @@ R2第三轮清单`configs/audits/detection_subspace_long_v3_decay_v1.json`只加
 第六轮清单`configs/audits/detection_subspace_long_v6_adapt_history8_v1.json`沿用第五轮8维卷积结构和更新保护，仅将每次Adapt目标改为最近8帧合法Pilot BCE的均值；每会话历史从当前帧开始、最多8帧，离线内循环与在线回放一致。动作验收仍只看当前帧独立验证Pilot。不得用重复历史外推成独立信息，也不得向更新器传入历史Data标签。定向测试68 passed；GPU几何审计、匹配四臂与768条开发评估已完成并归档，配置指纹与既有长回波配置一致。
 
 第六轮 B 臂在线相对Frozen的 BER 增益在0/5 dB均约`+1.36e-5`，3-seed探索区间跨零；10 dB约`-1.36e-5`且区间跨零，15 dB零变化但错误不足以判断。B-A交互未提供稳定正证据，故核心可归因在线Data增益仍未成立。每帧增量子空间计算约40 ms，仅为缓存特征后的子空间更新时间，不含端到端接收与来源状态跟踪延迟。完整数字、回退计数和时延范围见[第六轮归档](results/detection_subspace_long_v6_adapt_history8_v1_20261103/README.md)及机器汇总。R2继续，不进入R3；主要SNR为0/5/10/15 dB，正式确认仍待应用指标和统计门槛冻结。
+
+第六轮只读守门诊断见[归档](results/detection_subspace_long_v6_gate_alignment_v1_20261103/README.md)：按每个seed会话比较最终保留Pilot BCE改善与同帧Data BCE改善，0/5/10/15 dB会话内Spearman均值约`+0.11/-0.14/-0.34/-0.60`；每点仅3个重复开发会话，不能作正式推断。5/10 dB接受候选后的平均Data BCE为退化方向，说明守门校准是当前R2瓶颈之一。逐帧轨迹未保存梯度向量，需独立只读采样才能判断Adapt/Data梯度方向；Data梯度不得进入在线控制。
