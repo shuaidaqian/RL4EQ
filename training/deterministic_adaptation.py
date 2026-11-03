@@ -23,6 +23,7 @@ class DeterministicSettings:
     min_validation_improvement: float = 1e-5
     reset_to_origin_on_validation: bool = False
     origin_retention_decay: float = 1.0
+    adapt_logit_temperature: float = 1.0
 
     def __post_init__(self):
         values = (self.learning_rate, self.step_radius, self.total_radius)
@@ -37,6 +38,8 @@ class DeterministicSettings:
             raise ValueError("是否允许验证驱动的初始系数回退必须是布尔值。")
         if not math.isfinite(self.origin_retention_decay) or not 0 < self.origin_retention_decay <= 1:
             raise ValueError("离线锚点收缩系数必须在(0,1]内。")
+        if not math.isfinite(self.adapt_logit_temperature) or self.adapt_logit_temperature <= 0:
+            raise ValueError("Adapt Pilot logit温度必须为正有限数。")
 
 
 def validation_metrics(model, context, logits):

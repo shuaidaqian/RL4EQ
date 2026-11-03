@@ -50,4 +50,6 @@ R2第三轮清单`configs/audits/detection_subspace_long_v3_decay_v1.json`只加
 
 ## 验证状态
 
-第一轮完整pytest为903 passed。第二轮实现后定向回归79 passed；第三轮锚点收缩实现后定向回归64 passed；当前完整pytest为905 passed。第二、三轮均完成GPU几何审计、四臂训练与768条A/B开发评估并归档。第三轮减少部分有害保留但未建立核心在线Data增益，R2仍进行中；R3应用与统计门槛仍待冻结。
+第一轮完整pytest为903 passed。第二轮实现后定向回归79 passed；第三轮锚点收缩实现后定向回归64 passed，完整pytest为905 passed。第二、三轮均完成GPU几何审计、四臂训练与768条A/B开发评估并归档。第三轮减少部分有害保留但未建立核心在线Data增益，离线梯度诊断显示B臂5 dB方向对齐弱、15 dB Adapt梯度近零。
+
+第四轮清单`configs/audits/detection_subspace_long_v4_tempered_adapt_v1.json`固定Adapt logit温度0.5，验证守门仍用原始BCE与硬BER，其他更新保护、信道、Pilot、预算和开发seed不变。只读梯度筛查显示固定温度会提升5 dB方向对齐但降低0 dB对齐，因此必须报告全部SNR，不以某个点决定是否可用。第四轮实现定向测试65 passed；GPU几何审计、A/B训练及评估待运行。第四轮是重复开发seed机制比较，不是独立迁移证据。核心目标未完成，R2继续；R3应用与统计门槛仍待冻结。

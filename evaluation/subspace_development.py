@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -101,7 +101,8 @@ def capture_sessions(spec, role, device, *, dense_diagnostic=False):
             cir, tail = cir.to(device), start.initial_soft_tail.to(device)
             tracker = LegalStateTracker(cir, 10**(-snr/10), config["frame_len"]-config["max_delay"], config["rho_frame"])
             dense_settings = replace(DeterministicSettings(**spec["update"]),
-                reset_to_origin_on_validation=False) if dense_diagnostic else None
+                reset_to_origin_on_validation=False, origin_retention_decay=1.0,
+                adapt_logit_temperature=1.0) if dense_diagnostic else None
             adapter = DeterministicMemoryAdapter(copy.deepcopy(model), dense_settings) if dense_diagnostic else None
             frames = []
             for index in range(count):

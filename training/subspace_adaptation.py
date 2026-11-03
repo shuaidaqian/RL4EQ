@@ -15,9 +15,12 @@ def project(vector, center, radius):
     return center + delta * (radius / delta.norm().clamp_min(1e-12)).clamp(max=1.)
 
 
-def pilot_loss(logits, observation, role):
+def pilot_loss(logits, observation, role, *, temperature=1.0):
     if role == "adapt":
         mask, labels = observation.adapt_mask, observation.adapt_labels
+        if not math.isfinite(temperature) or temperature <= 0:
+            raise ValueError("Adapt Pilot logit温度必须为正有限数。")
+        logits = logits / temperature
     elif role == "validation":
         mask, labels = observation.validation_mask, observation.validation_labels
     else:
@@ -36,7 +39,8 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
     first, second = torch.zeros_like(current), torch.zeros_like(current)
     losses = []
     for step in range(1, settings.steps + 1):
-        loss = pilot_loss(base + basis @ current, observation, "adapt")
+        loss = pilot_loss(base + basis @ current, observation, "adapt",
+                          temperature=settings.adapt_logit_temperature)
         loss = loss + settings.proximal_weight * (current - initial).square().sum()
         gradient, = torch.autograd.grad(loss, current, create_graph=create_graph)
         if not bool(torch.isfinite(loss)) or not bool(torch.isfinite(gradient).all()):

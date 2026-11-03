@@ -126,6 +126,18 @@ def test_origin_retention_decay_is_applied_before_final_validation_gate():
         assert metrics["validation_loss_retained"] <= metrics["validation_loss_before"]
 
 
+def test_adapt_logit_temperature_changes_only_inner_objective():
+    observation = fixture_observation()
+    logits = torch.randn(40)
+    base = pilot_loss(logits, observation, "adapt")
+    same = pilot_loss(logits, observation, "adapt", temperature=1.)
+    tempered = pilot_loss(logits, observation, "adapt", temperature=.5)
+    validation = pilot_loss(logits, observation, "validation")
+    torch.testing.assert_close(base, same, atol=0, rtol=0)
+    assert not torch.isclose(base, tempered)
+    torch.testing.assert_close(validation, pilot_loss(logits, observation, "validation", temperature=.5), atol=0, rtol=0)
+
+
 def test_capture_does_not_read_data_truth_and_removes_temporary_hook():
     from tests.test_pilot_transfer import _symbol_fixture
     _, model, context = _symbol_fixture()
