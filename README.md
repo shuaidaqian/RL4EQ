@@ -6,7 +6,8 @@
 > [共同物理状态检查](docs/joint_pilot_state_stage_20261103.md)确认一次先验与递推等价，
 > 5/10/15 dB 的历史Pilot留出预测有改善证据；[共享神经状态四臂](docs/shared_neural_pilot_stage_20261103.md)
 > 在5 dB确认短窗Data改善；随后10 dB、3seed×128帧的正式RL平均及后期区间仍跨零。
-> 离线/在线目标已接通，全量862项测试通过；下一步做相同波形固定动作消融以检查持续迁移。
+> 离线/在线目标已接通，全量862项测试通过；[固定动作持续消融](docs/shared_pilot_fixed_actions_stage_20261103.md)
+> 的small/medium三seed点估计均改善，但平均与后期区间仍跨零，下一步在训练范围核验持久状态有效期。
 > 这只是机制证据；总体研究成功门槛尚未达到。
 
 > 当前进度（2026-11-02）：[10 dB、约210秒连续探测](docs/channel_memory_rl_continuous_stage_20261102.md)

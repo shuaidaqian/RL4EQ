@@ -1,0 +1,57 @@
+{
+  "schema_version": "shared-pilot-integration-smoke-v1",
+  "diagnostic_only": true,
+  "main_aggregation_allowed": false,
+  "offline_checkpoint_sha256": "e0b95ae98030cc8078e687d93a28a0ccd9e02769a4dc7f837de3d1aaf9da7d9f",
+  "offline_steps": 2,
+  "offline_inner_frames": [
+    [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    [
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127
+    ]
+  ],
+  "offline_outer_trainable_parameter_count": 34,
+  "offline_elapsed_seconds": 13.766000000061467,
+  "ppo_frames": 16,
+  "ppo_updates": 4,
+  "ppo_actions": [
+    "identity"
+  ],
+  "ppo_history_lengths": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    8,
+    8,
+    8,
+    8,
+    8,
+    8,
+    8,
+    8
+  ],
+  "ppo_raw_sha256": "1928fc4e1d0956ec2fffe4ca84b5222648b8b5358fa323fcca2c1db26c0ce5d4",
+  "ppo_has_online_parameter_update": false,
+  "pilot_compatibility_run_excluded": true
+}

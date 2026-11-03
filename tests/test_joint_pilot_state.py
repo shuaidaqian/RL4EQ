@@ -225,3 +225,31 @@ def test_statistics_refuse_mixed_shared_history_protocols():
             {"snr_db": 10, "seed": 1, "frame": 2, "rl_channel_state_history_frames": 8}]
     with pytest.raises(ValueError, match="共同状态历史协议"):
         audit_lookahead_rows(rows)
+
+
+def test_fixed_action_runner_never_learns_policy_and_ignores_data_truth():
+    from scripts.diagnose_shared_pilot_fixed_actions import fixed_state
+    from tests.test_pilot_transfer import _channel_memory_fixture
+    from training.windowed_discrete_ppo import run_windowed_discrete_frame
+
+    _, model, context = _channel_memory_fixture()
+    _, other, _ = _channel_memory_fixture()
+    config = {"rl_peft_max_episode_delta_norm": .8, "ppo_window_size": 2,
+              "rl_channel_state_history_frames": 2}
+    clean = fixed_state(model, context.condition.complex_cir.flatten(), context.tail, config,
+                        "peft_memory_map_medium", "cpu")
+    poisoned = fixed_state(other, context.condition.complex_cir.flatten(), context.tail, config,
+                           "peft_memory_map_medium", "cpu")
+    for index in range(1, 5):
+        frame = replace(context.frame, frame_index=index-1)
+        bits, symbols = frame.bits.clone(), frame.tx_symbols.clone()
+        bits[frame.data_mask], symbols[frame.data_mask] = ~bits[frame.data_mask], complex(float("nan"), 0)
+        a = run_windowed_discrete_frame(clean, frame, context.condition, 10., index, 100)
+        b = run_windowed_discrete_frame(poisoned, replace(frame, bits=bits, tx_symbols=symbols),
+                                       context.condition, 10., index, 100)
+        assert a["policy_action_name"] == "peft_memory_map_medium"
+        assert a["policy_loss"] is None
+        for key in ("reward", "peft_frame_accepted", "window_reward_rollback", "trajectory_peft_delta_norm_after_reward"):
+            assert a[key] == b[key]
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, other.state_dict()[name], atol=0, rtol=0)
