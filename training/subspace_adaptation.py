@@ -28,7 +28,7 @@ def pilot_loss(logits, observation, role):
 
 
 def coefficient_update(base, basis, observation, initial, origin, settings: DeterministicSettings, *, create_graph=False):
-    """每帧重置Adam状态；返回候选、保留值及审计指标，不接收Data标签。"""
+    """每帧重置Adam状态；可用验证Pilot把失效历史回退到离线初始系数。"""
     if not create_graph:
         base, basis, origin = base.detach(), basis.detach(), origin.detach()
         initial = initial.detach().clone().requires_grad_(True)
@@ -52,19 +52,38 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         losses.append(float(loss.detach()))
         if not create_graph:
             current = current.detach().requires_grad_(True)
-    before_logits, candidate_logits = base + basis @ initial, base + basis @ current
+    before_logits, candidate_logits, origin_logits = (
+        base + basis @ initial, base + basis @ current, base + basis @ origin)
     mask, labels = observation.validation_mask, observation.validation_labels.bool()
     before_loss = float(pilot_loss(before_logits, observation, "validation").detach())
     candidate_loss = float(pilot_loss(candidate_logits, observation, "validation").detach())
+    origin_loss = float(pilot_loss(origin_logits, observation, "validation").detach())
     before_ber = float(((before_logits.detach()[mask] >= 0) != labels[mask]).float().mean())
     candidate_ber = float(((candidate_logits.detach()[mask] >= 0) != labels[mask]).float().mean())
+    origin_ber = float(((origin_logits.detach()[mask] >= 0) != labels[mask]).float().mean())
     accepted = bool((current.detach() - initial.detach()).norm() > 0
         and math.isfinite(candidate_loss) and candidate_loss < before_loss - settings.min_validation_improvement
         and candidate_ber <= before_ber)
     retained = current if accepted else initial
+    candidate_accepted = accepted
+    reset_to_origin = False
+    if settings.reset_to_origin_on_validation:
+        retained_loss = candidate_loss if accepted else before_loss
+        retained_ber = candidate_ber if accepted else before_ber
+        reset_to_origin = bool(
+            math.isfinite(origin_loss)
+            and origin_loss < retained_loss - settings.min_validation_improvement
+            and origin_ber <= retained_ber
+            and (retained.detach() - origin.detach()).norm() > 0
+        )
+        if reset_to_origin:
+            retained = origin
+            accepted = False
     metrics = dict(accepted=accepted, adapt_losses=losses, gradient_norm=float(gradient_norm.detach()),
+        candidate_accepted=candidate_accepted, reset_to_origin=reset_to_origin,
         validation_loss_before=before_loss, validation_loss_candidate=candidate_loss,
         validation_ber_before=before_ber, validation_ber_candidate=candidate_ber,
+        validation_loss_origin=origin_loss, validation_ber_origin=origin_ber,
         delta_norm=float((current - initial).detach().norm()),
         retained_total_norm=float((retained - origin).detach().norm()),
         parameter_count=current.numel(), data_labels_used_for_control=False,

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import json
 from pathlib import Path
 import subprocess
@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") != "fixed-channel-subspace-development-v1" or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -100,7 +100,9 @@ def capture_sessions(spec, role, device, *, dense_diagnostic=False):
                 cfo_limit=config["acquisition_cfo_limit"])
             cir, tail = cir.to(device), start.initial_soft_tail.to(device)
             tracker = LegalStateTracker(cir, 10**(-snr/10), config["frame_len"]-config["max_delay"], config["rho_frame"])
-            adapter = DeterministicMemoryAdapter(copy.deepcopy(model), DeterministicSettings(**spec["update"])) if dense_diagnostic else None
+            dense_settings = replace(DeterministicSettings(**spec["update"]),
+                reset_to_origin_on_validation=False) if dense_diagnostic else None
+            adapter = DeterministicMemoryAdapter(copy.deepcopy(model), dense_settings) if dense_diagnostic else None
             frames = []
             for index in range(count):
                 original = frame_to_device(env.next_frame(config["receiver_lookahead_len"]), device)
@@ -123,6 +125,7 @@ def capture_sessions(spec, role, device, *, dense_diagnostic=False):
                         ber_retained=ber(retained, dict(data_mask=original.data_mask, bits=original.bits)),
                         ber_reset_to_source=ber(observation.base_logits, dict(data_mask=original.data_mask, bits=original.bits)),
                         reset_is_read_only_counterfactual=True,
+                        dense_reset_policy_applied=False,
                         reset_equivalence="仅memory.weight与来源不同；重置后与P为同一接收函数，不改变持续分支",
                         data_scoring_used_for_control=False))
                 frames.append(dict(observation=observation, offline=dict(data_mask=original.data_mask.clone(),
@@ -315,6 +318,8 @@ def evaluate_subspaces(models, sessions, settings, device):
             arms[name] = dict(ber_frozen=float(np.mean([row["ber_frozen"] for row in active])),
                 ber_online=float(np.mean([row["ber_online"] for row in active])), gain=paired_interval(gains),
                 per_seed_gain=dict(zip(map(str,seeds),gains)), accepted=sum(row["accepted"] for row in active),
+                candidate_accepted=sum(row["candidate_accepted"] for row in active),
+                reset_to_origin=sum(row["reset_to_origin"] for row in active),
                 harmful_accepted=sum(row["accepted"] and row["ber_online"]>row["ber_before"] for row in active),
                 harmful_retained=sum(row["ber_online"]>row["ber_frozen"] for row in active),
                 mean_incremental_update_ms=float(np.mean([row["subspace_update_ms"] for row in active])))

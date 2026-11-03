@@ -83,6 +83,36 @@ def test_validation_labels_do_not_enter_candidate_and_rejection_restores_initial
     assert first[2]["accepted"] is False
 
 
+def test_validation_can_reset_stale_history_to_offline_origin_without_data_labels():
+    # Adapt Pilot 推动当前记忆，验证 Pilot 显示离线初始点更可靠；Data不在接口中。
+    observation = PilotObservation(
+        base_logits=torch.zeros(4), features=torch.zeros(4, 7), logit_scale=torch.ones(1, 1),
+        adapt_mask=torch.tensor([True, True, False, False]),
+        adapt_labels=torch.tensor([1., 1., 0., 0.]),
+        validation_mask=torch.tensor([False, False, True, True]),
+        validation_labels=torch.tensor([0., 0., 0., 0.]),
+    )
+    basis = torch.tensor([[1., 0.], [1., 0.], [1., 0.], [1., 0.]])
+    settings = DeterministicSettings(steps=1, learning_rate=.02, step_radius=.15,
+        total_radius=.8, proximal_weight=0., reset_to_origin_on_validation=True)
+    initial, origin = torch.tensor([.5, 0.]), torch.zeros(2)
+    candidate, retained, metrics = coefficient_update(
+        observation.base_logits, basis, observation, initial, origin, settings)
+    assert metrics["candidate_accepted"] is False
+    assert metrics["reset_to_origin"] is True
+    assert metrics["accepted"] is False
+    torch.testing.assert_close(retained, origin, atol=0, rtol=0)
+    assert metrics["validation_loss_origin"] < metrics["validation_loss_before"]
+    graph_candidate, graph_retained, graph_metrics = coefficient_update(
+        observation.base_logits, basis, observation,
+        initial.clone().requires_grad_(True), origin.clone().requires_grad_(True), settings,
+        create_graph=True)
+    torch.testing.assert_close(graph_candidate.detach(), candidate, atol=2e-7, rtol=2e-5)
+    torch.testing.assert_close(graph_retained.detach(), retained, atol=2e-7, rtol=2e-5)
+    assert graph_metrics["candidate_accepted"] is metrics["candidate_accepted"]
+    assert graph_metrics["reset_to_origin"] is metrics["reset_to_origin"]
+
+
 def test_capture_does_not_read_data_truth_and_removes_temporary_hook():
     from tests.test_pilot_transfer import _symbol_fixture
     _, model, context = _symbol_fixture()
