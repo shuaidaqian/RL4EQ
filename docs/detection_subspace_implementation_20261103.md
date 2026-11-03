@@ -63,3 +63,5 @@ R2第三轮清单`configs/audits/detection_subspace_long_v3_decay_v1.json`只加
 第六轮 B 臂在线相对Frozen的 BER 增益在0/5 dB均约`+1.36e-5`，3-seed探索区间跨零；10 dB约`-1.36e-5`且区间跨零，15 dB零变化但错误不足以判断。B-A交互未提供稳定正证据，故核心可归因在线Data增益仍未成立。每帧增量子空间计算约40 ms，仅为缓存特征后的子空间更新时间，不含端到端接收与来源状态跟踪延迟。完整数字、回退计数和时延范围见[第六轮归档](results/detection_subspace_long_v6_adapt_history8_v1_20261103/README.md)及机器汇总。R2继续，不进入R3；主要SNR为0/5/10/15 dB，正式确认仍待应用指标和统计门槛冻结。
 
 第六轮只读守门诊断见[归档](results/detection_subspace_long_v6_gate_alignment_v1_20261103/README.md)：按每个seed会话比较最终保留Pilot BCE改善与同帧Data BCE改善，0/5/10/15 dB会话内Spearman均值约`+0.11/-0.14/-0.34/-0.60`；每点仅3个重复开发会话，不能作正式推断。5/10 dB接受候选后的平均Data BCE为退化方向，说明守门校准是当前R2瓶颈之一。逐帧轨迹未保存梯度向量，需独立只读采样才能判断Adapt/Data梯度方向；Data梯度不得进入在线控制。
+
+基于第六轮缓存与逐帧系数状态重建的[只读梯度诊断](results/detection_subspace_long_v6_gradient_alignment_v1_20261103/README.md)显示：Adapt/Data系数梯度余弦在四SNR约`0.408/0.236/0.224/0.169`；15 dB Adapt梯度范数仅约`3.51e-6`，而Data梯度约`1.54e-3`。验证/Data梯度余弦在5/10 dB约`0.056/-0.012`。这分别支持高SNR更新信号消失与中SNR验证代理弱对齐两个R2问题。下一轮先只读对比全局Adapt logit温度/尺度对四SNR梯度范数和方向的影响；验证守门维持原样，只有发现不损害低SNR对齐的统一尺度后才进入固定单因素训练。
