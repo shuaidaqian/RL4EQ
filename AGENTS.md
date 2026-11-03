@@ -62,4 +62,5 @@
 - 新确定性开发审计使用 `online_train.py --method audit --audit-manifest configs/audits/adaptability_long_anchor_v1.json`，条件由清单固定，禁止混用旧切片参数。长回波实现见[阶段说明](docs/deterministic_audit_implementation_20261103.md)；它尚不代表新结构、匹配离线训练或正式确认已完成。
 - 固定信道检测子空间新增 `online_train.py --method subspace_audit` 与 `pretrain.py --stage detection_subspace`，使用独立清单 `configs/audits/detection_subspace_long_v1.json`。检查通过后才训练，预算与数据角色见[实现说明](docs/detection_subspace_implementation_20261103.md)；来源网络冻结，在线仅更新2/4/8维神经检测系数，实际结果另行归档。
 - R2 第二轮允许使用 `configs/audits/detection_subspace_long_v2_reset_v1.json` 的验证Pilot初始系数回退规则；它只比较当前、候选和离线初始神经系数，不读取Data标签，`candidate_accepted`与`reset_to_origin`必须分开报告。信道和观测资源不变，未通过开发证据前不进入R3。
+- R2 第二轮结果已归档于 `docs/results/detection_subspace_long_v2_reset_v1_20261103/`：回退实际触发但没有可归因、可重复的Data增益；验证Pilot BCE与Data BER在接受候选中的一致性很低。下一步先做验证统计量/外层目标校准的只读诊断，再决定结构或训练单因素，禁止按此结果进入R3或扩大同结构seed矩阵。
 - 阶段成果整理代码、文档、配置与结果指纹，提交并推送。没有实验或测试证据时明确写“未运行/待实现”，不得用计划替代完成证据。
