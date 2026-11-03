@@ -64,4 +64,5 @@
 - R2 第二轮允许使用 `configs/audits/detection_subspace_long_v2_reset_v1.json` 的验证Pilot初始系数回退规则；它只比较当前、候选和离线初始神经系数，不读取Data标签，`candidate_accepted`与`reset_to_origin`必须分开报告。信道和观测资源不变，未通过开发证据前不进入R3。
 - R2 第二轮结果已归档于 `docs/results/detection_subspace_long_v2_reset_v1_20261103/`：回退实际触发但没有可归因、可重复的Data增益；验证Pilot BCE与Data BER在接受候选中的一致性很低。下一步先做验证统计量/外层目标校准的只读诊断，再决定结构或训练单因素，禁止按此结果进入R3或扩大同结构seed矩阵。
 - 只读连续Data BCE诊断修正了BER并列导致的判断：验证BCE与候选Data BCE方向在0 dB约86%、5 dB约65%一致；R2第三轮清单 `configs/audits/detection_subspace_long_v3_decay_v1.json` 固定0.5离线锚点收缩，收缩后再守门，内外循环一致，沿用开发seed仅作机制对比。不得将其视作独立泛化证据；运行结果需归档后再决定下一项R2单因素。
+- 第三轮结果已归档于 `docs/results/detection_subspace_long_v3_decay_v1_20261103/`：部分有害保留减少，但核心可归因在线Data增益仍未成立。R2继续，不能进入R3或正式确认。
 - 阶段成果整理代码、文档、配置与结果指纹，提交并推送。没有实验或测试证据时明确写“未运行/待实现”，不得用计划替代完成证据。

@@ -46,8 +46,8 @@ python pretrain.py --stage detection_subspace --subspace-manifest configs/audits
 
 对第二轮768条评估帧做只读复算后发现，BER符号一致率受大量并列影响，不能用于判定校准。改用连续Data BCE后，接受候选的验证BCE改善与当帧Data BCE改善方向在0 dB约86%、5 dB约65%一致；但持久运行的Data BER仍没有收益，提示单步目标部分有效而跨帧累计可能抵消作用。Data BCE只用于动作后的离线诊断，不参与在线更新或控制阈值。
 
-R2第三轮清单`configs/audits/detection_subspace_long_v3_decay_v1.json`只加固定0.5锚点收缩：验证守门先通过候选后，将候选向离线初始系数收缩一半，再用同一验证Pilot守门；B内循环与在线流程复用该规则。固定信道、Pilot、更新步数、A/B预算与seed不变。沿用已观察的开发seed只作单因素机制比较，不构成独立迁移证据；对应代码和测试已提交，GPU结果待运行。不能据此进入R3或宣称核心目标已完成。
+R2第三轮清单`configs/audits/detection_subspace_long_v3_decay_v1.json`只加固定0.5锚点收缩：验证守门先通过候选后，将候选向离线初始系数收缩一半，再用同一验证Pilot守门；B内循环与在线流程复用该规则。固定信道、Pilot、更新步数、A/B预算与seed不变。GPU第三轮已完成：回退后B在0 dB均值增益约`+4.07e-5`但区间跨零，B相对A交互为负；5 dB退化，10/15 dB无有效增益；有害保留有下降但没有可靠收益。完整记录见[第三轮归档](results/detection_subspace_long_v3_decay_v1_20261103/README.md)。不能据此进入R3或宣称核心目标已完成。
 
 ## 验证状态
 
-第一轮完整pytest为903 passed。第二轮实现后定向回归79 passed；GPU几何审计选择4维（2/4合格、8淘汰），四臂训练和768条A/B开发评估均已运行并归档。第三轮0.5锚点收缩实现后定向回归64 passed，GPU实验待运行。第二轮未支持核心在线Data增益，R2仍进行中；R3应用与统计门槛仍待冻结。
+第一轮完整pytest为903 passed。第二轮实现后定向回归79 passed；第三轮锚点收缩实现后定向回归64 passed。第二、三轮均完成GPU几何审计、四臂训练与768条A/B开发评估并归档。第三轮减少部分有害保留但未建立核心在线Data增益，R2仍进行中；R3应用与统计门槛仍待冻结。
