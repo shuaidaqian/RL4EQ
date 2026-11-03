@@ -30,6 +30,22 @@
       "interaction_B_minus_A": 0.0
     }
   },
+  "offline_only_gradient_alignment": {
+    "method": "每个当前会话系数处，用Adapt BCE和Data BCE分别对8维系数求梯度并计算余弦；每SNR/A-B各96帧；Data梯度只作离线事后诊断，不进入更新器",
+    "A_supervised": {
+      "0": {"mean_cosine": 0.5190, "median_cosine": 0.6755, "positive_fraction": 0.8438, "mean_adapt_gradient_norm": 0.00337},
+      "5": {"mean_cosine": 0.2223, "median_cosine": 0.3728, "positive_fraction": 0.6667, "mean_adapt_gradient_norm": 0.00270},
+      "10": {"mean_cosine": 0.2686, "median_cosine": 0.5683, "positive_fraction": 0.6562, "mean_adapt_gradient_norm": 0.000727},
+      "15": {"mean_cosine": 0.0141, "median_cosine": 0.0000, "positive_fraction": 0.6146, "mean_adapt_gradient_norm": 0.00000201}
+    },
+    "B_post_adapt": {
+      "0": {"mean_cosine": 0.4886, "median_cosine": 0.6501, "positive_fraction": 0.8333, "mean_adapt_gradient_norm": 0.00360},
+      "5": {"mean_cosine": 0.1363, "median_cosine": 0.2376, "positive_fraction": 0.5938, "mean_adapt_gradient_norm": 0.00291},
+      "10": {"mean_cosine": 0.1755, "median_cosine": 0.4637, "positive_fraction": 0.5938, "mean_adapt_gradient_norm": 0.000817},
+      "15": {"mean_cosine": 0.0024, "median_cosine": 0.0000, "positive_fraction": 0.6146, "mean_adapt_gradient_norm": 0.00000239}
+    },
+    "interpretation": "时序卷积将B在5 dB的平均梯度对齐由上一点式结构约0.055提高到约0.136，但仍只有约59%方向为正；15 dB仍接近零梯度且中位余弦为0。可解释开发点估计改善，不能替代独立信道确认。"
+  },
   "conclusion": "局部卷积基使8维系数通过几何审计，并带来0/5 dB正向点估计；两个在线增益区间均跨零，当前开发seed不足以证明可重复神经增益。10/15 dB无有效收益判断。结构值得独立确认前继续冻结并做机制复核，但不可宣告R2/R3完成。",
   "artifacts_sha256": {
     "inspection.json": "bc5b8525e2d29418c7c0cb2f8b4c7fb6d2d3527914c8950dfcd87bea14253902",

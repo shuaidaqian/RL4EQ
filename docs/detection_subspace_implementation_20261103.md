@@ -56,4 +56,4 @@ R2第三轮清单`configs/audits/detection_subspace_long_v3_decay_v1.json`只加
 
 第五轮清单`configs/audits/detection_subspace_long_v5_temporal_basis_v1.json`只改变基网络的符号上下文：从逐符号MLP改为kernel=5的一维局部卷积，更新规则沿用v3（锚点回退/收缩，Adapt温度1.0），其余资源和seed沿用已观察开发协议。目的在于让神经残差方向显式利用邻近符号ISI，而不增加在线自由度。定向测试67 passed；GPU审计与四臂开发待运行。第五轮仍是开发机制对比，非独立确认。
 
-第五轮GPU审计2/4/8维均通过，固定规则选择8维；四臂训练和768条开发评估完成。B臂0/5 dB Online相对Frozen点估计都约`+2.71e-5`，95%区间跨零；5 dB交互同向，10/15 dB没有有效增益判断。完整结果见[第五轮时序表示归档](results/detection_subspace_long_v5_temporal_basis_v1_20261103/README.md)。这是一项有希望但未经独立确认的开发信号，R2仍不能宣告完成，R3也不能仅凭重复开发seed启动。完整pytest为908 passed。下一步先冻结候选结构，并补齐正式确认的应用主要SNR、退化界限、统计方案和样本量；相关用户应用条件此前明确尚未确定。
+第五轮GPU审计2/4/8维均通过，固定规则选择8维；四臂训练和768条开发评估完成。B臂0/5 dB Online相对Frozen点估计都约`+2.71e-5`，95%区间跨零；5 dB交互同向，10/15 dB没有有效增益判断。完整结果见[第五轮时序表示归档](results/detection_subspace_long_v5_temporal_basis_v1_20261103/README.md)。这是一项有希望但未经独立确认的开发信号，R2仍不能宣告完成，R3也不能仅凭重复开发seed启动。完整pytest为908 passed。用户已冻结主要SNR为0/5/10/15 dB全部四点；下一步还需冻结允许退化界限、统计方案、样本量与会话/恢复定义。
