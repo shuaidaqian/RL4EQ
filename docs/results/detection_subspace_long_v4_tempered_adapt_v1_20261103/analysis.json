@@ -1,0 +1,40 @@
+{
+  "schema_version": "detection-subspace-development-analysis-v4-tempered-adapt-v1",
+  "role": "development",
+  "channel_changes": false,
+  "confirmation_ready": false,
+  "selected_dimension": 4,
+  "evaluation_records": 768,
+  "reused_development_seeds": true,
+  "adapt_logit_temperature": 0.5,
+  "validation_temperature": 1.0,
+  "per_snr": {
+    "0": {
+      "A_supervised": {"frozen_ber": 0.1731770884556075, "online_ber": 0.17314996166775623, "gain": 0.000027126787851254146, "ci95": [-0.0001272762428343554, 0.00018152981853686369], "accepted": 39, "candidate_accepted": 42, "reset_to_origin": 21, "harmful_retained": 1},
+      "B_post_adapt": {"frozen_ber": 0.17312283487990499, "online_ber": 0.17313639835144082, "gain": -0.000013563471535841623, "ci95": [-0.00007192237936368652, 0.00004479543629200327], "accepted": 45, "candidate_accepted": 50, "reset_to_origin": 20, "harmful_retained": 2},
+      "interaction_B_minus_A": -0.00004069025938709577
+    },
+    "5": {
+      "A_supervised": {"frozen_ber": 0.033501520238739126, "online_ber": 0.03350152019993402, "gain": 0.00000000003880510727564493, "ci95": [-0.0000000001281597934700604, 0.00000000020577000802135026], "accepted": 30, "candidate_accepted": 31, "reset_to_origin": 18, "harmful_retained": 1},
+      "B_post_adapt": {"frozen_ber": 0.03348795682541095, "online_ber": 0.03350152019993402, "gain": -0.000013563374523073435, "ci95": [-0.00007192186493866647, 0.000044795115892519594], "accepted": 32, "candidate_accepted": 37, "reset_to_origin": 17, "harmful_retained": 1},
+      "interaction_B_minus_A": -0.00001356341332818071
+    },
+    "10": {
+      "A_supervised": {"frozen_ber": 0.003404405483403631, "online_ber": 0.003404405483403631, "gain": 0.0, "ci95": [0.0, 0.0], "accepted": 6, "candidate_accepted": 6, "reset_to_origin": 3, "harmful_retained": 0},
+      "B_post_adapt": {"frozen_ber": 0.003417968848225428, "online_ber": 0.003417968848225428, "gain": 0.0, "ci95": [0.0, 0.0], "accepted": 6, "candidate_accepted": 6, "reset_to_origin": 3, "harmful_retained": 0},
+      "interaction_B_minus_A": 0.0
+    },
+    "15": {
+      "A_supervised": {"frozen_ber": 0.0005560981044254731, "online_ber": 0.0005560981044254731, "gain": 0.0, "ci95": [0.0, 0.0], "accepted": 0, "candidate_accepted": 0, "reset_to_origin": 0, "harmful_retained": 0},
+      "B_post_adapt": {"frozen_ber": 0.0005560981044254731, "online_ber": 0.0005560981044254731, "gain": 0.0, "ci95": [0.0, 0.0], "accepted": 0, "candidate_accepted": 0, "reset_to_origin": 0, "harmful_retained": 0},
+      "interaction_B_minus_A": 0.0
+    }
+  },
+  "conclusion": "固定温度0.5没有改善B臂在线Data BER：0 dB和5 dB均值退化，10/15 dB无增益；B-A交互为负或零。温度只保留为已归档的开发消融，不作为当前方法。",
+  "artifacts_sha256": {
+    "inspection.json": "696de105221d00eca6e866d1ae7089c9235bd12df21a010f2887bd2fe65fd686",
+    "manifest.json": "100afe9d03256318ff8166851798b37e3152825a46dd1d734531c59efa890f02",
+    "summary.json": "20b32ad22162a42270bdf641ddc2f2aa038e11ece18933b93a08c4634ecc25e7",
+    "frame_metrics.jsonl.gz": "3d417db5e6378ca2b0152222b099cbfda33b119a966ba7d92c98bbd788e50d19"
+  }
+}
