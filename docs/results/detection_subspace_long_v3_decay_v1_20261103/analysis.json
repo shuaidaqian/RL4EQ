@@ -30,6 +30,23 @@
     }
   },
   "timing_ms": {"A_mean_incremental_update": {"0": 16.0574562542, "5": 16.2909156243, "10": 16.2771489583, "15": 16.0124604142}, "B_mean_incremental_update": {"0": 15.6806020835, "5": 15.3785739579, "10": 15.5845395821, "15": 15.6873208386}},
+  "offline_only_gradient_alignment": {
+    "method": "在动作前的当前系数处，比较Adapt BCE梯度与Data BCE梯度的4维余弦；Data梯度只作离线事后诊断，不输入在线更新器",
+    "frames_per_arm_snr": 96,
+    "A_supervised": {
+      "0": {"mean_cosine": 0.5658, "median_cosine": 0.7420, "positive_fraction": 0.8438},
+      "5": {"mean_cosine": 0.1381, "median_cosine": 0.1670, "positive_fraction": 0.5521},
+      "10": {"mean_cosine": 0.3834, "median_cosine": 0.5226, "positive_fraction": 0.7188},
+      "15": {"mean_cosine": 0.0690, "median_cosine": 0.0000, "positive_fraction": 0.8021}
+    },
+    "B_post_adapt": {
+      "0": {"mean_cosine": 0.5102, "median_cosine": 0.6936, "positive_fraction": 0.8125},
+      "5": {"mean_cosine": 0.0551, "median_cosine": 0.0072, "positive_fraction": 0.5000},
+      "10": {"mean_cosine": 0.2860, "median_cosine": 0.4019, "positive_fraction": 0.6667},
+      "15": {"mean_cosine": 0.0526, "median_cosine": 0.0000, "positive_fraction": 0.6667}
+    },
+    "interpretation": "5 dB的B梯度方向接近零对齐，15 dB的Adapt梯度范数约2.6e-6且中位余弦近零，指出中高SNR下Pilot驱动方向/信号强度可能是当前瓶颈。该分析为开发集事后诊断，不是可部署Data控制规则，也不是独立统计确认。"
+  },
   "conclusion": "固定0.5锚点收缩降低了部分有害保留，但核心神经在线增益未成立。B在0 dB区间跨零，5 dB仍退化，10/15 dB没有有效增益。此为重复开发seed上的机制比较，不是独立泛化确认。",
   "artifacts_sha256": {
     "inspection.json": "0b0ff4b93b715ebc23e03476cf0ed5d73a180bda6bb109ffa7788ec5863c8821",
