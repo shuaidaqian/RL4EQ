@@ -37,11 +37,27 @@ def _mean(values: list[float]) -> float | None:
     return sum(values) / len(values) if values else None
 
 
+def parse_temperatures(value: str) -> list[float]:
+    try:
+        temperatures = [float(item.strip()) for item in value.split(",") if item.strip()]
+    except ValueError as exc:
+        raise ValueError("Adapt温度必须是逗号分隔的正有限数。") from exc
+    if not temperatures or any(not torch.isfinite(torch.tensor(item)) or item <= 0 for item in temperatures):
+        raise ValueError("Adapt温度必须是逗号分隔的正有限数。")
+    if len(set(temperatures)) != len(temperatures):
+        raise ValueError("Adapt温度不能重复。")
+    return temperatures
+
+
 def _loss_gradient(model: DetectionSubspace, observation, coefficients: torch.Tensor,
-                   role: str, data_row: dict | None = None) -> tuple[float, torch.Tensor]:
+                   role: str, data_row: dict | None = None, *,
+                   adapt_temperature: float = 1.0) -> tuple[float, torch.Tensor]:
     logits = model.logits(observation, coefficients)
     if role == "adapt":
         mask, labels = observation.adapt_mask, observation.adapt_labels
+        if not torch.isfinite(torch.tensor(adapt_temperature)) or adapt_temperature <= 0:
+            raise ValueError("Adapt温度必须为正有限数。")
+        logits = logits / adapt_temperature
     elif role == "validation":
         mask, labels = observation.validation_mask, observation.validation_labels
     elif role == "data":
@@ -61,7 +77,7 @@ def _loss_gradient(model: DetectionSubspace, observation, coefficients: torch.Te
 
 
 def analyze_sessions(sessions: list[dict], trajectory_rows: list[dict], checkpoint: Path,
-                     *, device: str = "cpu") -> dict:
+                     *, device: str = "cpu", adapt_temperature: float = 1.0) -> dict:
     if not sessions:
         raise ValueError("缺少评估特征会话。")
     by_key = {(int(row["seed"]), int(row["snr_db"]), int(row["frame"])): row
@@ -92,7 +108,8 @@ def analyze_sessions(sessions: list[dict], trajectory_rows: list[dict], checkpoi
             history.append(frame["observation"])
             history = history[-int(session.get("inner_history_frames", 8)):]
             current = current.detach().clone().requires_grad_(True)
-            adapt_terms = [_loss_gradient(model, observation, current, "adapt")[1] for observation in history]
+            adapt_terms = [_loss_gradient(model, observation, current, "adapt",
+                             adapt_temperature=adapt_temperature)[1] for observation in history]
             adapt_gradient = torch.stack(adapt_terms).mean(dim=0)
             validation_loss, validation_gradient = _loss_gradient(
                 model, frame["observation"], current, "validation")
@@ -139,6 +156,7 @@ def analyze_sessions(sessions: list[dict], trajectory_rows: list[dict], checkpoi
         "data_gradient_used_for_control": False,
         "gradient_parameters": "第六轮实际在线更新的8维系数；基网络与来源网络冻结",
         "gradient_definition": "当前更新前系数状态；Adapt为最近最多8帧Pilot BCE均值；验证为当前帧Reward Pilot BCE；Data为当前帧离线标签BCE",
+        "adapt_logit_temperature": adapt_temperature,
         "independent_unit": "seed-session; 每SNR仅3个重复开发seed",
         "by_snr": by_snr,
         "sessions": sessions_summary,
@@ -153,6 +171,8 @@ def main() -> None:
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--adapt-temperatures", default="1.0",
+                        help="只缩放Adapt BCE logits的全局温度，逗号分隔；验证与Data目标不变")
     args = parser.parse_args()
     paths = {name: Path(getattr(args, name.replace("-", "_"))) for name in
              ("feature-cache", "trajectory", "checkpoint")}
@@ -162,7 +182,18 @@ def main() -> None:
     sessions = torch.load(paths["feature-cache"], map_location=args.device, weights_only=False)
     with gzip.open(paths["trajectory"], "rt", encoding="utf-8") as handle:
         trajectory_rows = [json.loads(line) for line in handle if line.strip()]
-    result = analyze_sessions(sessions, trajectory_rows, paths["checkpoint"], device=args.device)
+    temperatures = parse_temperatures(args.adapt_temperatures)
+    analyses = [analyze_sessions(sessions, trajectory_rows, paths["checkpoint"],
+                  device=args.device, adapt_temperature=temperature)
+                for temperature in temperatures]
+    baseline_index = temperatures.index(1.0) if 1.0 in temperatures else 0
+    result = analyses[baseline_index]
+    result["temperature_sweep"] = [
+        {"adapt_logit_temperature": temperature, "by_snr": analysis["by_snr"],
+         "sessions": analysis["sessions"]}
+        for temperature, analysis in zip(temperatures, analyses)
+    ]
+    result["temperature_sweep_order"] = temperatures
     result["inputs"] = {name: {"path": str(path), "sha256": _sha256(path)} for name, path in paths.items()}
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")

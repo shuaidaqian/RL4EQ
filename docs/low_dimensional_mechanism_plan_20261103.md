@@ -42,3 +42,5 @@
 ## 当前阶段结果
 
 上述固定信道结构检查和A/B四臂开发已完成，归档于[检测子空间结果](results/detection_subspace_long_v1_20261103/README.md)。4维候选通过可辨识性和普通监督作用门槛；A/B Online相对同源Frozen的四SNR配对区间均跨零，且验证Pilot通过后仍有少量Data有害保留。因此当前不是进入R3确认，而是按“有作用但不泛化”分支重新设计更新目标、验证留出代表性、历史有效期与受控重置/遗忘；不扩大本结构的同类seed矩阵。
+
+第七轮只读温度筛查与温度2匹配训练已完成，详见[温度筛查](results/detection_subspace_long_v6_temperature_sweep_v1_20261103/README.md)和[第七轮归档](results/detection_subspace_long_v7_adapt_temperature2_v1_20261104/README.md)。统一温度2提升四SNR Adapt/Data梯度对齐，但B臂在线 BER 增量仍小且配对区间跨零；10/15 dB候选接受极少。当前R2瓶颈收敛到验证Pilot守门对Data变化代理弱，以及跨帧保留状态的有效更新频率，不进入R3。下一项应只改变一个基于合法验证Pilot的动作后风险统计量，并先用已有开发轨迹作只读候选分析；不得以Data标签校准在线阈值或扩大同类seed矩阵。

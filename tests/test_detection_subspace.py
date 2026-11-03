@@ -206,6 +206,17 @@ def test_development_manifest_keeps_original_channel_and_disjoint_roles():
     assert spec["config"] == "configs/eme_long_memory_v2_shared_pilot_memory_rl.json"
 
 
+def test_temperature2_manifest_changes_only_the_adapt_loss_scale():
+    baseline = read_manifest("configs/audits/detection_subspace_long_v6_adapt_history8_v1.json")
+    candidate = read_manifest("configs/audits/detection_subspace_long_v7_adapt_temperature2_v1.json")
+    assert candidate["update"]["adapt_logit_temperature"] == 2.0
+    assert baseline["update"].get("adapt_logit_temperature", 1.0) == 1.0
+    assert candidate["config_sha256"] == baseline["config_sha256"]
+    assert candidate["checkpoint_sha256"] == baseline["checkpoint_sha256"]
+    assert candidate["data_roles"] == baseline["data_roles"]
+    assert candidate["channel_changes"] is False
+
+
 def test_dense_memory_origin_reset_equals_physical_branch():
     from tests.test_adaptability_audit import _fixture
     from training.deterministic_adaptation import DeterministicMemoryAdapter
