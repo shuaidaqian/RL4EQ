@@ -123,3 +123,39 @@ def test_calibrated_compare_cli_audits_shared_rx_and_rejects_mixed_resume(tmp_pa
     failed = subprocess.run(changed_window + ["--resume"], capture_output=True, timeout=90)
     assert failed.returncode != 0
     assert (output / "frame_metrics.jsonl").read_bytes() == before
+
+
+def test_cross_frame_calibration_and_frozen_entry_use_identical_windows(tmp_path, monkeypatch):
+    """校准与部署封装必须同窗、同补偿、同当前帧 tail；新协议不能退回零后缀。"""
+    import hashlib
+    from baseline.calibration import FrozenTraditionalCalibration
+    from scripts.calibrate_linear_baselines import run_calibration
+
+    monkeypatch.setenv("RL4EQ_LINEAR_OPERATOR_BACKEND", "fft")
+    original = load_frozen_traditional_calibration(PROTOCOL)
+    config = {**original.source_config, "receiver_lookahead_len": 116, "main_snrs": [10]}
+    selection = {**original.selection,
+        "config_sha256": hashlib.sha256(json.dumps(config, sort_keys=True).encode("utf-8")).hexdigest()}
+    calibration = FrozenTraditionalCalibration(config, selection, "x" * 64, "test")
+    result = run_calibration(config, [47127], 2, tmp_path / "calibration.json", selection=selection)
+    env = CommunicationEnvironment(build_comm_env_config(
+        config, level="B", max_delay=116, snr_db=10, seed=47127, total_pilot=256,
+        reward_pilot_total=32, pilot_layout="prefix", state_split="offline_train"))
+    start = env.reset_episode()
+    cir, cfo = estimate_acquisition_cir_with_cfo(start.acquisition, 116)
+    tails = {method: start.initial_soft_tail.clone() for method in CALIBRATED_METHODS}
+    for index in range(2):
+        frame = env.next_frame(lookahead_len=116)
+        for method, kind in CALIBRATED_METHODS.items():
+            output = run_calibrated_traditional_equalizer(method, frame.receiver_view(), cir, tails[method],
+                10, acquisition_cfo=cfo, calibration=calibration)
+            tails[method] = output.soft_tail
+            ber = float(((output.logits[frame.data_mask] >= 0) != frame.bits[frame.data_mask]).float().mean())
+            row = next(row for row in result["rows"] if row["frame"] == index and row["kind"] == kind)
+            assert row["ber_data"] == ber
+            assert row["lookahead_len"] == 116
+        with pytest.raises(ValueError, match="校准窗口不匹配"):
+            run_calibrated_traditional_equalizer("LMMSE-FIR",
+                replace(frame, lookahead_rx_symbols=None, lookahead_adapt_symbols=None,
+                        lookahead_frame_index=None).receiver_view(), cir, start.initial_soft_tail,
+                10, acquisition_cfo=cfo, calibration=calibration)

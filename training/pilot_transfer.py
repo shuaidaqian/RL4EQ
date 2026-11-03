@@ -465,7 +465,7 @@ class PilotTransferTrainer:
             self.sample_cache_hits += 1
         else:
             env, cir, cfo, tail, frames = make_episode(self.config, self.model, seed=seed, snr=snr,
-                frames=indices[-1] + 1, state_split="offline_train", device=self.device)
+                frames=indices[-1] + 1, state_split="offline_train", device="cpu")
             if any(bool(frame.adapt_mask[-tail.numel():].any()) for frame in frames):
                 raise ValueError("离线长轨迹缓存目前只支持前缀不覆盖帧尾。")
             payload = {"protocol": protocol, "offline_supervision_only": True,

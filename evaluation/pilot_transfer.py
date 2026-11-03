@@ -15,11 +15,12 @@ from scipy.stats import t
 
 from training.pilot_transfer import (
     context_logits, differentiable_adapt, make_context, make_episode, next_pilot_tail, receiver_inputs,
-    receiver_tasks, task_context, channel_state_reward_loss,
+    receiver_tasks, task_context, channel_state_reward_loss, frame_to_device,
 )
 from training.rl_modulated_online import _build_equalizer
 from training.windowed_discrete_ppo import should_accept_reward_guard
 from agent.unfolded_equalizer import UnfoldedConfig
+from evaluation.receiver_protocol import audit_lookahead_rows
 
 
 def paired_interval(values):
@@ -36,6 +37,7 @@ def paired_interval(values):
 
 
 def summarize_transfer(rows):
+    audit_lookahead_rows(rows)
     grouped = defaultdict(list)
     for row in rows:
         grouped[(row["branch"], row["snr_db"], row["seed"])].append(row)
@@ -130,6 +132,7 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 "main_aggregation_allowed": False, "state_split": state_split,
                 "seeds": list(seeds), "snrs": list(snrs), "frames": frames,
                 "evaluation_history_frames": history_frames,
+                "receiver_lookahead_len": int(config.get("receiver_lookahead_len", 0)),
                 "persistent": persistent, "config": config, "checkpoints": {},
                 "inner_receiver_input": inner_input, "reward_receiver_input": reward_input,
                 "inner_task": inner_task, "reward_task": reward_task, "reward_objective": reward_objective}
@@ -143,6 +146,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
             if training_seeds.intersection(seeds):
                 raise ValueError("测试 seed 与离线训练 seed 重叠。")
             metrics = payload.get("metrics", {})
+            if int(metrics.get("receiver_lookahead_len", 0)) != int(config.get("receiver_lookahead_len", 0)):
+                raise ValueError("四臂实验的离线训练与评估跨帧接收窗口不匹配。")
             if metrics.get("stage") == "pilot_transfer" and receiver_inputs(metrics.get("settings", {})) != (inner_input, reward_input):
                 raise ValueError("四臂实验的训练与在线接收输入协议不匹配。")
             if metrics.get("stage") == "pilot_transfer" and receiver_tasks(metrics.get("settings", {})) != (inner_task, reward_task):
@@ -151,11 +156,13 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 raise ValueError("四臂实验的训练与在线 Reward 目标不匹配。")
             signature = {
                 "source_sha256": (metrics.get("source_checkpoint") or {}).get("sha256"),
+                "receiver_lookahead_len": int(metrics.get("receiver_lookahead_len", 0)),
                 "training_settings": {key: value for key, value in metrics.get("settings", {}).items()
                                       if key != "objective"},
                 "samples": [(item.get("seed"), item.get("snr_db"), item.get("frame_index"),
                              item.get("post_target_frame_indices"), item.get("channel_state"),
-                             item.get("offline_sample_cache_key"), item.get("offline_sample_input_sha256"))
+                             item.get("offline_sample_cache_key"), item.get("offline_sample_input_sha256"),
+                             item.get("lookahead_len", 0), item.get("offline_sample_lookahead_sha256"))
                             for item in metrics.get("history", [])],
             }
             if branch == "baseline":
@@ -169,23 +176,30 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 for seed in seeds:
                     env, cir, cfo, tail, episode_frames = make_episode(
                         config, model, seed=seed, snr=snr, frames=history_frames + frames,
-                        state_split=state_split, device=device,
+                        state_split=state_split, device="cpu",
                     )
                     if history_frames and any(bool(frame.adapt_mask[-tail.numel():].any())
                                               for frame in episode_frames[:history_frames]):
                         raise ValueError("带历史的机制评估目前要求前缀不覆盖帧尾。")
                     # 历史只推进物理轨迹，不执行神经更新；不是从首帧持续适配的主结果。
-                    episode_frames = episode_frames[history_frames:]
+                    # 物理历史生成与 Pilot 布局检查留在 CPU，只移动真正评分的帧。
+                    # 这样不为数千个无神经更新的历史帧触发逐帧 GPU 同步。
+                    cir, tail = cir.to(device), tail.to(device)
+                    episode_frames = [frame_to_device(frame, device) for frame in episode_frames[history_frames:]]
                     initial = {name: value.detach().clone() for name, value in model.peft.named_group_parameters(
                         settings.get("inner_groups", ["phase_trend"]),
                     )}
                     active = dict(initial)
                     for index, frame in enumerate(episode_frames):
                         fingerprint = hashlib.sha256(frame.rx_symbols.detach().cpu().numpy().tobytes()).hexdigest()
+                        future_rx = frame.lookahead_rx_symbols
+                        future_hash = (hashlib.sha256(future_rx.detach().cpu().numpy().tobytes()).hexdigest()
+                                       if future_rx is not None else None)
+                        window_fingerprint = (fingerprint, future_hash, frame.lookahead_frame_index)
                         key = (snr, seed, index)
                         if branch == "baseline":
-                            fingerprints[key] = fingerprint
-                        elif fingerprints[key] != fingerprint:
+                            fingerprints[key] = window_fingerprint
+                        elif fingerprints[key] != window_fingerprint:
                             raise ValueError("两个训练分支的测试接收波形不一致。")
                         context = make_context(frame, cir, cfo, tail, snr)
                         before = active if persistent else initial
@@ -244,6 +258,10 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                                "reward_loss_before": loss_before, "reward_loss_after": loss_after,
                                "reward_ber_before": reward_before, "reward_ber_after": reward_after,
                                "input_sha256": fingerprint, "episode_final_channel_state": env.state_metadata(), **update,
+                               "lookahead_len": int(future_rx.numel()) if future_rx is not None else 0,
+                               "lookahead_protocol_version": "cross-frame-prefix-v1" if future_rx is not None else "none",
+                               "lookahead_rx_sha256": future_hash,
+                               "lookahead_frame_index": frame.lookahead_frame_index,
                                "data_labels_used_online": False,
                                "data_waveform_used_online": update_uses_data_waveform or guard_uses_data_waveform,
                                "data_waveform_used_for_update": update_uses_data_waveform,

@@ -192,3 +192,77 @@ def test_offline_inner_loop_matches_online_cross_frame_update_and_ignores_data()
     assert short.frame.lookahead_rx_symbols is None
     assert short.frame.lookahead_adapt_symbols is None
     assert short.frame.lookahead_frame_index is None
+
+
+def test_four_arm_comparison_audits_training_and_received_suffix(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+    import evaluation.pilot_transfer as evaluation
+    from training.pilot_transfer import PilotTransferTrainer
+
+    env, start = _episode()
+    frame = env.next_frame(8)
+    config = {"model": _model().config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "receiver_lookahead_len": 8,
+              "pilot_transfer": {"inner_learning_rate": .001, "inner_steps": 1, "max_delta_norm": .05,
+                  "inner_objective": "bce", "inner_groups": ["head"],
+                  "inner_receiver_input": "full_rx", "reward_receiver_input": "full_rx"}}
+    trainer = PilotTransferTrainer(config, "cpu")
+    trainer.save(tmp_path / "checkpoint", {"receiver_lookahead_len": 8, "history": []})
+    checkpoint = tmp_path / "checkpoint/model_best.pt"
+    calls = []
+    poison_suffix = False
+
+    def episode(*args, **kwargs):
+        calls.append(1)
+        item = replace(frame, lookahead_rx_symbols=frame.lookahead_rx_symbols + 1) if poison_suffix and len(calls) % 2 == 0 else frame
+        return SimpleNamespace(state_metadata=lambda: {}), frame.true_cir, 0., start.initial_soft_tail, [item]
+
+    monkeypatch.setattr(evaluation, "make_episode", episode)
+    common = dict(baseline_checkpoint=checkpoint, post_checkpoint=checkpoint, seeds=[81001],
+                  snrs=[10.], frames=1, device="cpu")
+    result = evaluation.run_transfer_comparison(config, **common, output_dir=tmp_path / "valid")
+    assert result["manifest"]["receiver_lookahead_len"] == 8
+    rows = [json.loads(line) for line in (tmp_path / "valid/frame_metrics.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert len({row["lookahead_rx_sha256"] for row in rows}) == 1
+    assert all(row["lookahead_frame_index"] == row["channel_frame_index"] + 1 for row in rows)
+    poison_suffix = True
+    with pytest.raises(ValueError, match="接收波形不一致"):
+        evaluation.run_transfer_comparison(config, **common, output_dir=tmp_path / "bad_suffix")
+    with pytest.raises(ValueError, match="跨帧接收窗口不匹配"):
+        evaluation.run_transfer_comparison({**config, "receiver_lookahead_len": 0}, **common,
+                                           output_dir=tmp_path / "bad_training")
+
+
+def test_pilot_history_can_resolve_rank_deficiency_without_hidden_symbols():
+    from env.frame_structure import FrameConfig, FrameGenerator
+    from training.pilot_transfer import TransferContext
+    from scripts.diagnose_cross_frame_pilot_history import adapt_design_rank
+
+    generator = FrameGenerator(FrameConfig(frame_len=128, total_pilot=64, max_delay=32), seed=902)
+    condition = condition_from_cir(torch.ones(33, dtype=torch.complex64), 10.)
+    contexts = [TransferContext(generator.generate(index), condition, torch.zeros(32, dtype=torch.complex64)) for index in range(8)]
+    assert adapt_design_rank(contexts[-1:]) == {"complex_rows": 16, "complex_columns": 33, "complex_rank": 16}
+    joint = adapt_design_rank(contexts)
+    assert joint == {"complex_rows": 128, "complex_columns": 33, "complex_rank": 33}
+    assert joint == adapt_design_rank([replace(context, frame=_poison_data(context.frame)) for context in contexts])
+
+
+def test_history_candidate_control_ignores_all_frames_data_and_does_not_commit():
+    from training.pilot_transfer import TransferContext
+    from scripts.diagnose_cross_frame_pilot_history import history_candidate
+
+    env, start = _episode()
+    frames = [env.next_frame(8) for _ in range(2)]
+    contexts = [TransferContext(frame, condition_from_cir(frame.true_cir.unsqueeze(0), 10.), start.initial_soft_tail) for frame in frames]
+    model = _model()
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+    settings = {"inner_learning_rate": .001, "inner_steps": 1, "max_delta_norm": .05,
+                "inner_groups": ["head"], "inner_objective": "bce", "inner_receiver_input": "full_rx"}
+    control, logits, candidate = history_candidate(model, contexts, settings)
+    changed, other_logits, other_candidate = history_candidate(model,
+        [replace(context, frame=_poison_data(context.frame)) for context in contexts], settings)
+    assert control == changed
+    torch.testing.assert_close(logits, other_logits, atol=0, rtol=0)
+    torch.testing.assert_close(candidate, other_candidate, atol=0, rtol=0)
+    assert all(torch.equal(value, before[name]) for name, value in model.state_dict().items())

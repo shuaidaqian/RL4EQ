@@ -1,0 +1,614 @@
+{
+  "schema_version": "cross-frame-pilot-history-diagnostic-v1",
+  "diagnostic_only": true,
+  "main_aggregation_allowed": false,
+  "seeds": [
+    110060,
+    110061,
+    110062
+  ],
+  "snrs": [
+    0.0,
+    5.0,
+    10.0,
+    15.0
+  ],
+  "physical_age": 1023,
+  "frames": 8,
+  "windows": [
+    1,
+    8
+  ],
+  "per_snr": [
+    {
+      "snr_db": 0.0,
+      "windows": {
+        "1": {
+          "gain": {
+            "mean": 0.0037434895833333335,
+            "ci95": [
+              0.0010921863500833783,
+              0.006394792816583289
+            ],
+            "seeds": 3
+          },
+          "ber_frozen": 0.173339848096172,
+          "ber_guarded": 0.1695963585128387,
+          "accepted": 12,
+          "frames": 24,
+          "complex_rows": [
+            108
+          ],
+          "complex_columns": [
+            117
+          ],
+          "complex_rank": [
+            108
+          ],
+          "ber_candidate": 0.17127821625520787,
+          "candidate_gain": {
+            "mean": 0.0020616318409641585,
+            "ci95": [
+              -0.0007782183830956938,
+              0.004901482065024011
+            ],
+            "seeds": 3
+          },
+          "mean_reward_signal_loss_gain": 0.006527356803417206
+        },
+        "8": {
+          "gain": {
+            "mean": 0.001247828205426534,
+            "ci95": [
+              -0.0036096156480629983,
+              0.006105272058916066
+            ],
+            "seeds": 3
+          },
+          "ber_frozen": 0.173339848096172,
+          "ber_guarded": 0.1720920198907455,
+          "accepted": 4,
+          "frames": 24,
+          "complex_rows": [
+            864
+          ],
+          "complex_columns": [
+            117
+          ],
+          "complex_rank": [
+            117
+          ],
+          "ber_candidate": 0.17692057881504297,
+          "candidate_gain": {
+            "mean": -0.003580730718870958,
+            "ci95": [
+              -0.007286381241699235,
+              0.00012491980395731893
+            ],
+            "seeds": 3
+          },
+          "mean_reward_signal_loss_gain": -0.028308485945065815
+        }
+      },
+      "last_vs_first_window_gain": {
+        "mean": -0.0024956613779067993,
+        "ci95": [
+          -0.006484578207844001,
+          0.0014932554520304024
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 5.0,
+      "windows": {
+        "1": {
+          "gain": {
+            "mean": -1.1641532182693481e-10,
+            "ci95": [
+              -0.001457794459029342,
+              0.0014577942261986983
+            ],
+            "seeds": 3
+          },
+          "ber_frozen": 0.033474393266563617,
+          "ber_guarded": 0.03347439338297894,
+          "accepted": 14,
+          "frames": 24,
+          "complex_rows": [
+            108
+          ],
+          "complex_columns": [
+            117
+          ],
+          "complex_rank": [
+            108
+          ],
+          "ber_candidate": 0.03379991444914291,
+          "candidate_gain": {
+            "mean": -0.0003255211825792988,
+            "ci95": [
+              -0.003378064471446998,
+              0.0027270221062884
+            ],
+            "seeds": 3
+          },
+          "mean_reward_signal_loss_gain": 0.0236676683028539
+        },
+        "8": {
+          "gain": {
+            "mean": -0.0010850693409641583,
+            "ci95": [
+              -0.003777159740176654,
+              0.0016070210582483375
+            ],
+            "seeds": 3
+          },
+          "ber_frozen": 0.033474393266563617,
+          "ber_guarded": 0.03455946260752777,
+          "accepted": 6,
+          "frames": 24,
+          "complex_rows": [
+            864
+          ],
+          "complex_columns": [
+            117
+          ],
+          "complex_rank": [
+            117
+          ],
+          "ber_candidate": 0.038302952384886645,
+          "candidate_gain": {
+            "mean": -0.004828559118323028,
+            "ci95": [
+              -0.009189463072842022,
+              -0.0004676551638040337
+            ],
+            "seeds": 3
+          },
+          "mean_reward_signal_loss_gain": -0.048026626308759056
+        }
+      },
+      "last_vs_first_window_gain": {
+        "mean": -0.0010850692245488365,
+        "ci95": [
+          -0.0027683840948875098,
+          0.000598245645789837
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 10.0,
+      "windows": {
+        "1": {
+          "gain": {
+            "mean": 0.0013020833672878023,
+            "ci95": [
+              -0.001613504530905675,
+              0.004217671265481279
+            ],
+            "seeds": 3
+          },
+          "ber_frozen": 0.0049370661048063385,
+          "ber_guarded": 0.0036349827375185364,
+          "accepted": 19,
+          "frames": 24,
+          "complex_rows": [
+            108
+          ],
+          "complex_columns": [
+            117
+          ],
+          "complex_rank": [
+            108
+          ],
+          "ber_candidate": 0.0037977431541852034,
+          "candidate_gain": {
+            "mean": 0.0011393229506211355,
+            "ci95": [
+              -0.0016618833370905762,
+              0.003940529238332847
+            ],
+            "seeds": 3
+          },
+          "mean_reward_signal_loss_gain": 0.1333305388689041
+        },
+        "8": {
+          "gain": {
+            "mean": -0.00021701387595385313,
+            "ci95": [
+              -0.0020401905816773173,
+              0.001606162829769611
+            ],
+            "seeds": 3
+          },
+          "ber_frozen": 0.0049370661048063385,
+          "ber_guarded": 0.005154079980760192,
+          "accepted": 6,
+          "frames": 24,
+          "complex_rows": [
+            864
+          ],
+          "complex_columns": [
+            117
+          ],
+          "complex_rank": [
+            117
+          ],
+          "ber_candidate": 0.005805121695933242,
+          "candidate_gain": {
+            "mean": -0.0008680555911269039,
+            "ci95": [
+              -0.003736538999559288,
+              0.00200042781730548
+            ],
+            "seeds": 3
+          },
+          "mean_reward_signal_loss_gain": -0.06582061449686687
+        }
+      },
+      "last_vs_first_window_gain": {
+        "mean": -0.0015190972432416554,
+        "ci95": [
+          -0.005446062424450947,
+          0.002407867937967636
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 15.0,
+      "windows": {
+        "1": {
+          "gain": {
+            "mean": 0.0005425347238391017,
+            "ci95": [
+              -0.002492105358570079,
+              0.003577174806248283
+            ],
+            "seeds": 3
+          },
+          "ber_frozen": 0.001736111148299339,
+          "ber_guarded": 0.0011935764244602372,
+          "accepted": 19,
+          "frames": 24,
+          "complex_rows": [
+            108
+          ],
+          "complex_columns": [
+            117
+          ],
+          "complex_rank": [
+            108
+          ],
+          "ber_candidate": 0.0009765625339544688,
+          "candidate_gain": {
+            "mean": 0.0007595486143448701,
+            "ci95": [
+              -0.002607082298496932,
+              0.004126179527186673
+            ],
+            "seeds": 3
+          },
+          "mean_reward_signal_loss_gain": 0.4776991009712219
+        },
+        "8": {
+          "gain": {
+            "mean": -0.0001627604263679435,
+            "ci95": [
+              -0.0005670797455089313,
+              0.00024155889277304433
+            ],
+            "seeds": 3
+          },
+          "ber_frozen": 0.001736111148299339,
+          "ber_guarded": 0.0018988715746672824,
+          "accepted": 16,
+          "frames": 24,
+          "complex_rows": [
+            864
+          ],
+          "complex_columns": [
+            117
+          ],
+          "complex_rank": [
+            117
+          ],
+          "ber_candidate": 0.0019531250533570224,
+          "candidate_gain": {
+            "mean": -0.0002170139050576836,
+            "ci95": [
+              -0.00045044777280229967,
+              1.6419962686932524e-05
+            ],
+            "seeds": 3
+          },
+          "mean_reward_signal_loss_gain": 0.1070783684651057
+        }
+      },
+      "last_vs_first_window_gain": {
+        "mean": -0.0007052951502070451,
+        "ci95": [
+          -0.003397385649858495,
+          0.001986795349444405
+        ],
+        "seeds": 3
+      }
+    }
+  ],
+  "config": {
+    "schema_version": "eme-long-memory-config-v2",
+    "channel_profile": "eme_long_memory_v2",
+    "profile_name": "eme_long_memory_v2",
+    "profile_frozen_before_proposed": true,
+    "frozen_candidate_id": "LM-B1",
+    "traditional_only_calibration": true,
+    "traditional_only_calibration_summary": "logs/eme_long_memory_v2_traditional_calibration_2026-08-28_fresh/summary.json",
+    "traditional_only_calibration_frames_per_seed": 20,
+    "traditional_only_calibration_status": "阶段性冻结；正式论文统计需无并发重跑至少 60 帧",
+    "proposed_results_used_for_freeze": false,
+    "semantics": "independent EME-inspired long-memory channel class constrained by published lunar radar delay-power envelopes",
+    "source_basis": [
+      "10.6028/jres.069d.195",
+      "10.1109/wescon.1958.1150219"
+    ],
+    "level": "B",
+    "main_level": "B",
+    "aggregation_role": "diagnostic",
+    "max_delay_seconds": 0.0116,
+    "sample_rate_hz": 10000,
+    "symbol_rate_hz": 10000,
+    "samples_per_symbol": 1,
+    "frame_len": 1024,
+    "frame_duration_seconds": 0.1024,
+    "max_delay": 116,
+    "main_delays": [
+      116
+    ],
+    "main_snrs": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "snrs_main": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "snrs_pressure": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "reward_pilot_total": 32,
+    "pilot_sweep_totals": [
+      64,
+      96,
+      128,
+      160,
+      256
+    ],
+    "strong_path_count": [
+      12,
+      24
+    ],
+    "diffuse_energy_ratio": [
+      0.2,
+      0.35
+    ],
+    "coherence_time_seconds": 1200,
+    "acquisition_to_data_gap_seconds": 0,
+    "rho_frame": 0.999914670307452,
+    "rho": 0.999914670307452,
+    "include_anomalous_scatterer": false,
+    "eme_physical_fields_passthrough": "implemented",
+    "impairment_profile": "cfo_phase_tiny",
+    "residual_cfo_limit": 0.0012,
+    "acquisition_cfo_limit": 0.004,
+    "traditional_methods": [
+      "CFO+DD-Phase LMMSE-FIR",
+      "CFO+DD-Phase DFE-RLS",
+      "SC-FDE-MMSE"
+    ],
+    "optional_impairments": {
+      "cfo": true,
+      "phase_perturbation": true,
+      "nonlinearity": false,
+      "coding": false,
+      "higher_order_modulation": false
+    },
+    "model_validation_sequence_state": true,
+    "training_tail_mode": "online_soft",
+    "tail_update_alpha": 0.5,
+    "online_adaptation_groups": [
+      "phase"
+    ],
+    "online_adaptation_algorithm": "rls",
+    "online_rls_forgetting_factor": 0.995,
+    "online_rls_ridge": 10,
+    "online_rls_warmup_symbols": 116,
+    "online_rls_target_logit": 2,
+    "online_rls_max_total_delta_norm": 0.5,
+    "online_rls_condition_source": "pilot_cir_phase",
+    "online_condition_source": "pilot_cir_phase",
+    "online_adaptation_learning_rate": 0.0004,
+    "online_adaptation_steps": 1,
+    "online_adaptation_max_delta_norm": 1,
+    "online_adaptation_proximal_weight": 0.1,
+    "online_hard_example_weighting": false,
+    "online_hard_example_temperature": 0.5,
+    "online_adaptation_freeze_below_snr_db": 5,
+    "online_adaptation_min_reward_improvement": 0.0005,
+    "online_bandit_action_cost": 1e-06,
+    "online_reward_windows": 2,
+    "online_cross_frame_rollback_tolerance": 1e-05,
+    "online_phase_tracking_smoothing": 0.5,
+    "online_phase_tracking_min_confidence": 0.5,
+    "online_phase_tracking_cfo_limit": 0.0012,
+    "online_adaptation_candidates": [
+      {
+        "name": "lora_conservative",
+        "groups": [
+          "phase"
+        ],
+        "learning_rate_scale": 0.5,
+        "steps": 1,
+        "max_delta_scale": 0.5
+      }
+    ],
+    "offline_state_split": "offline_train",
+    "offline_loss": "bce_all",
+    "online_state_splits": {
+      "offline_train": {
+        "strong_path_count": [
+          12,
+          18
+        ],
+        "diffuse_energy_ratio": [
+          0.2,
+          0.28
+        ],
+        "cfo_abs_range": [
+          0.0002,
+          0.0006
+        ],
+        "phase_noise_std_range": [
+          0.0002,
+          0.0006
+        ]
+      },
+      "heldout_edge": {
+        "strong_path_count": [
+          19,
+          24
+        ],
+        "diffuse_energy_ratio": [
+          0.29,
+          0.35
+        ],
+        "cfo_abs_range": [
+          0.0006,
+          0.0008
+        ],
+        "phase_noise_std_range": [
+          0.0006,
+          0.0008
+        ]
+      },
+      "drift": {
+        "strong_path_count": [
+          12,
+          24
+        ],
+        "diffuse_energy_ratio": [
+          0.2,
+          0.35
+        ],
+        "cfo_abs_range": [
+          0.0002,
+          0.0008
+        ],
+        "phase_noise_std_range": [
+          0.0002,
+          0.0008
+        ]
+      }
+    },
+    "model": {
+      "frame_len": 1024,
+      "max_delay": 116,
+      "iterations": 4,
+      "d_model": 64,
+      "num_heads": 4,
+      "adapter_rank": 8,
+      "lora_rank": 8,
+      "conditioner_uses_cir_summary": true,
+      "pilot_conditioned": true,
+      "enable_phase_correction_branch": true,
+      "phase_correction_segments": 4,
+      "phase_correction_initial_scale": 1,
+      "analytic_logit_skip_scale": 0,
+      "physics_warm_start_iterations": 8,
+      "physics_warm_start_scale": 1,
+      "neural_residual_scale": 0.1,
+      "enable_symbol_residual_branch": true,
+      "enable_channel_state_branch": true,
+      "enable_channel_state_memory": true,
+      "channel_state_memory_output_scale": 0.25
+    },
+    "experiment_note": "跨帧116样本共同接收窗的离线适配与离散窗口PPO机制检查；不作为主结果。",
+    "diagnostic_only": true,
+    "main_aggregation_allowed": false,
+    "rl_action_names": [
+      "identity",
+      "peft_memory_signal_small",
+      "peft_memory_signal_medium",
+      "peft_memory_map_small",
+      "peft_memory_map_medium",
+      "rollback_identity"
+    ],
+    "rl_peft_max_episode_delta_norm": 0.8,
+    "rl_reward_receiver_input": "full_rx",
+    "online_ppo_learning_rate": 0.001,
+    "online_ppo_pilot_state_embedding": false,
+    "ppo_window_size": 8,
+    "pilot_transfer": {
+      "objective": "post_adapt",
+      "seed": 98100,
+      "history_frames": 1,
+      "outer_learning_rate": 0.01,
+      "inner_learning_rate": 0.02,
+      "inner_steps": 3,
+      "max_delta_norm": 0.8,
+      "base_weight": 1,
+      "post_weight": 1,
+      "inner_groups": [
+        "channel_state_memory"
+      ],
+      "inner_objective": "channel_state_map",
+      "inner_receiver_input": "full_rx",
+      "reward_receiver_input": "full_rx",
+      "outer_groups": [
+        "channel_state_memory_scale"
+      ],
+      "initialize_symbol_residual_from_base": false,
+      "history_frame_choices": [
+        0,
+        127,
+        1023,
+        2047,
+        4095
+      ],
+      "reward_objective": "channel_state_signal",
+      "initialize_channel_state_from_base": false,
+      "post_target_frame_offsets": [
+        0,
+        8
+      ],
+      "offline_sample_cache_dir": "logs/cross_frame_offline_samples_20261103",
+      "evaluation_history_frames": 1023,
+      "initialize_channel_state_memory_from_base": true
+    },
+    "rl_enable_channel_state_memory_actions": true,
+    "receiver_lookahead_len": 116,
+    "rl_adapt_receiver_input": "full_rx"
+  },
+  "checkpoint_sha256": "11e58a5d94801ae613ec8f7a55679ed2304e0864535c7b0468b316827e2bec51",
+  "raw_file_sha256": "faf141963e004ce0cb6fb975ec9ae74976be17bf0a1ed3e085b87e5e168df4ff",
+  "model_unchanged": true,
+  "persistent": false,
+  "interpretation": "无参数提交的方程窗口诊断；不是持续在线或RL结果；单帧与历史候选均接受当前Reward验收。",
+  "complete_process_timing": {
+    "scope": "complete_research_process",
+    "elapsed_seconds": 205.9596905,
+    "exit_code": 0
+  },
+  "adapt_objective_aggregation": "mean_of_per_frame_objectives",
+  "phase_coordinates": "per_frame_estimated_phase_coordinates"
+}

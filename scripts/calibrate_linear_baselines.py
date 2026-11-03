@@ -18,6 +18,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from baseline.linear_mmse import linear_block_lmmse, zero_padded_wiener_fde as padded_fde
+from baseline.calibration import extended_adapt_observation
 from baseline.synchronization_compensation import apply_phase_correction
 from baseline.traditional_equalizers import (
     _dfe_rls, _lmmse_fir, _sc_fde_mmse, _tail_from_estimate,
@@ -67,21 +68,22 @@ def run_calibration(config, seeds, frames, output, *, state_split="offline_train
             )
             tails = {setting: start.initial_soft_tail.clone() for setting in settings}
             for index in range(frames):
-                frame = env.next_frame()
+                frame = env.next_frame(lookahead_len=int(config.get("receiver_lookahead_len", 0)))
                 view = frame.receiver_view()
+                current_len, received, adapt_mask, adapt_symbols = extended_adapt_observation(view)
                 candidates = []
                 for setting in settings:
                     kind, length, regularizer = setting
                     tail = tails[setting]
                     # 与神经接收机相同的 acquisition CFO 先验及当前 Adapt 相位信息。
                     phase = estimate_phase_residual_vector(view, cir, tail, cfo_hint=cfo)
-                    corrected = apply_phase_correction(view.rx_symbols, float(phase[0]), cfo)
+                    corrected = apply_phase_correction(received, float(phase[0]), cfo)
                     extra = {}
                     if kind == "fir":
-                        estimate, _ = _lmmse_fir(corrected, view.adapt_mask, view.adapt_symbols,
+                        estimate, _ = _lmmse_fir(corrected, adapt_mask, adapt_symbols,
                                                 length, variance * regularizer)
                     elif kind == "dfe":
-                        estimate, _ = _dfe_rls(corrected, view.adapt_mask, view.adapt_symbols,
+                        estimate, _ = _dfe_rls(corrected, adapt_mask, adapt_symbols,
                                               length, feedback_len=regularizer)
                     elif kind == "circular_fde":
                         estimate, _ = _sc_fde_mmse(corrected, cir, variance)
@@ -89,9 +91,10 @@ def run_calibration(config, seeds, frames, output, *, state_split="offline_train
                         estimate = padded_fde(corrected, cir, tail, variance)
                     else:
                         estimate, extra = linear_block_lmmse(
-                            corrected, cir, tail, variance, known_symbols=view.adapt_symbols,
-                            known_mask=view.adapt_mask, real_bpsk=kind == "block_real",
+                            corrected, cir, tail, variance, known_symbols=adapt_symbols,
+                            known_mask=adapt_mask, real_bpsk=kind == "block_real",
                         )
+                    estimate = estimate[:current_len]
                     tails[setting] = _tail_from_estimate(estimate, memory)
                     candidates.append((setting, estimate.detach(), extra))
                 # 本帧全部接收机的估计和状态递推已经结束；Data 仅用于离线校准评分。
@@ -100,6 +103,7 @@ def run_calibration(config, seeds, frames, output, *, state_split="offline_train
                     ber = float(((estimate.real[mask] >= 0) != frame.bits[mask]).float().mean())
                     rows.append({"kind": kind, "filter_length": length, "regularizer_or_feedback": regularizer,
                                  "snr_db": snr, "seed": seed, "frame": index, "ber_data": ber,
+                                 "lookahead_len": int(config.get("receiver_lookahead_len", 0)),
                                  "data_labels_used_for_receiver": False, **extra})
             print(json.dumps({"snr_db": snr, "seed": seed, "frames_complete": frames}), flush=True)
     summary = []
@@ -116,6 +120,7 @@ def run_calibration(config, seeds, frames, output, *, state_split="offline_train
                "purpose": "传统接收机参数校准或固定设置的独立核验，不包含神经结果",
                "state_split": state_split, "config": config, "seeds": seeds, "frames": frames,
                "config_sha256": config_sha256, "frozen_selection": selection,
+               "receiver_lookahead_len": int(config.get("receiver_lookahead_len", 0)),
                "linear_operator_backend": os.environ.get("RL4EQ_LINEAR_OPERATOR_BACKEND", "direct"),
                "compensation": "acquisition CFO prior + current Adapt phase median",
                "per_snr": summary, "rows": rows}

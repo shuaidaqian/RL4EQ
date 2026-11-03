@@ -86,13 +86,8 @@ def load_frozen_traditional_calibration(path):
     return calibration
 
 
-def run_calibrated_traditional_equalizer(method, receiver_view, cir, soft_tail, snr_db,
-                                         *, acquisition_cfo, calibration):
-    """使用冻结设置、acquisition CFO 和当前 Adapt 相位，保留各自历史递推。"""
-    if not math.isfinite(float(acquisition_cfo)):
-        raise ValueError("传统同步需要有限的 acquisition CFO 估计。")
-    kind, length, regularizer = calibration.settings_for(method, snr_db)
-    phase = estimate_phase_residual_vector(receiver_view, cir, soft_tail, cfo_hint=acquisition_cfo)
+def extended_adapt_observation(receiver_view):
+    """让传统校准网格与冻结接收入口使用相同的当前帧加合法前缀观测。"""
     current_len = int(receiver_view.rx_symbols.numel())
     received = receiver_view.rx_symbols
     adapt_mask = receiver_view.adapt_mask
@@ -107,6 +102,20 @@ def run_calibrated_traditional_equalizer(method, receiver_view, cir, soft_tail, 
         received = torch.cat((received, future_rx))
         adapt_mask = torch.cat((adapt_mask, future_mask))
         adapt_symbols = torch.cat((adapt_symbols, future_symbols))
+    return current_len, received, adapt_mask, adapt_symbols
+
+
+def run_calibrated_traditional_equalizer(method, receiver_view, cir, soft_tail, snr_db,
+                                         *, acquisition_cfo, calibration):
+    """使用冻结设置、acquisition CFO 和当前 Adapt 相位，保留各自历史递推。"""
+    if not math.isfinite(float(acquisition_cfo)):
+        raise ValueError("传统同步需要有限的 acquisition CFO 估计。")
+    kind, length, regularizer = calibration.settings_for(method, snr_db)
+    phase = estimate_phase_residual_vector(receiver_view, cir, soft_tail, cfo_hint=acquisition_cfo)
+    current_len, received, adapt_mask, adapt_symbols = extended_adapt_observation(receiver_view)
+    calibrated_window = calibration.source_config.get("receiver_lookahead_len")
+    if calibrated_window is not None and received.numel() - current_len != int(calibrated_window):
+        raise ValueError("实际跨帧接收窗口与冻结传统校准窗口不匹配。")
     # 相位坐标在当前帧起点连续延伸到下一帧前缀，不能对后缀重新从零计时。
     corrected = apply_phase_correction(received, float(phase[0]), acquisition_cfo)
     variance = torch.tensor(10 ** (-float(snr_db) / 10), device=corrected.device, dtype=torch.float32)

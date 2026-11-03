@@ -1,0 +1,377 @@
+{
+  "manifest": {
+    "schema_version": "pilot-transfer-four-arm-v1",
+    "diagnostic_only": true,
+    "linear_operator_backend": "fft",
+    "main_aggregation_allowed": false,
+    "state_split": "heldout_edge",
+    "seeds": [
+      110050,
+      110051,
+      110052
+    ],
+    "snrs": [
+      10.0
+    ],
+    "frames": 8,
+    "evaluation_history_frames": 1023,
+    "receiver_lookahead_len": 116,
+    "persistent": true,
+    "config": {
+      "schema_version": "eme-long-memory-config-v2",
+      "channel_profile": "eme_long_memory_v2",
+      "profile_name": "eme_long_memory_v2",
+      "profile_frozen_before_proposed": true,
+      "frozen_candidate_id": "LM-B1",
+      "traditional_only_calibration": true,
+      "traditional_only_calibration_summary": "logs/eme_long_memory_v2_traditional_calibration_2026-08-28_fresh/summary.json",
+      "traditional_only_calibration_frames_per_seed": 20,
+      "traditional_only_calibration_status": "阶段性冻结；正式论文统计需无并发重跑至少 60 帧",
+      "proposed_results_used_for_freeze": false,
+      "semantics": "independent EME-inspired long-memory channel class constrained by published lunar radar delay-power envelopes",
+      "source_basis": [
+        "10.6028/jres.069d.195",
+        "10.1109/wescon.1958.1150219"
+      ],
+      "level": "B",
+      "main_level": "B",
+      "aggregation_role": "diagnostic",
+      "max_delay_seconds": 0.0116,
+      "sample_rate_hz": 10000,
+      "symbol_rate_hz": 10000,
+      "samples_per_symbol": 1,
+      "frame_len": 1024,
+      "frame_duration_seconds": 0.1024,
+      "max_delay": 116,
+      "main_delays": [
+        116
+      ],
+      "main_snrs": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_main": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_pressure": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "pilot_layout": "prefix",
+      "pilot_total": 256,
+      "reward_pilot_total": 32,
+      "pilot_sweep_totals": [
+        64,
+        96,
+        128,
+        160,
+        256
+      ],
+      "strong_path_count": [
+        12,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.2,
+        0.35
+      ],
+      "coherence_time_seconds": 1200,
+      "acquisition_to_data_gap_seconds": 0,
+      "rho_frame": 0.999914670307452,
+      "rho": 0.999914670307452,
+      "include_anomalous_scatterer": false,
+      "eme_physical_fields_passthrough": "implemented",
+      "impairment_profile": "cfo_phase_tiny",
+      "residual_cfo_limit": 0.0012,
+      "acquisition_cfo_limit": 0.004,
+      "traditional_methods": [
+        "CFO+DD-Phase LMMSE-FIR",
+        "CFO+DD-Phase DFE-RLS",
+        "SC-FDE-MMSE"
+      ],
+      "optional_impairments": {
+        "cfo": true,
+        "phase_perturbation": true,
+        "nonlinearity": false,
+        "coding": false,
+        "higher_order_modulation": false
+      },
+      "model_validation_sequence_state": true,
+      "training_tail_mode": "online_soft",
+      "tail_update_alpha": 0.5,
+      "online_adaptation_groups": [
+        "phase"
+      ],
+      "online_adaptation_algorithm": "rls",
+      "online_rls_forgetting_factor": 0.995,
+      "online_rls_ridge": 10,
+      "online_rls_warmup_symbols": 116,
+      "online_rls_target_logit": 2,
+      "online_rls_max_total_delta_norm": 0.5,
+      "online_rls_condition_source": "pilot_cir_phase",
+      "online_condition_source": "pilot_cir_phase",
+      "online_adaptation_learning_rate": 0.0004,
+      "online_adaptation_steps": 1,
+      "online_adaptation_max_delta_norm": 1,
+      "online_adaptation_proximal_weight": 0.1,
+      "online_hard_example_weighting": false,
+      "online_hard_example_temperature": 0.5,
+      "online_adaptation_freeze_below_snr_db": 5,
+      "online_adaptation_min_reward_improvement": 0.0005,
+      "online_bandit_action_cost": 1e-06,
+      "online_reward_windows": 2,
+      "online_cross_frame_rollback_tolerance": 1e-05,
+      "online_phase_tracking_smoothing": 0.5,
+      "online_phase_tracking_min_confidence": 0.5,
+      "online_phase_tracking_cfo_limit": 0.0012,
+      "online_adaptation_candidates": [
+        {
+          "name": "lora_conservative",
+          "groups": [
+            "phase"
+          ],
+          "learning_rate_scale": 0.5,
+          "steps": 1,
+          "max_delta_scale": 0.5
+        }
+      ],
+      "offline_state_split": "offline_train",
+      "offline_loss": "bce_all",
+      "online_state_splits": {
+        "offline_train": {
+          "strong_path_count": [
+            12,
+            18
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.28
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0006
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0006
+          ]
+        },
+        "heldout_edge": {
+          "strong_path_count": [
+            19,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.29,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0006,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0006,
+            0.0008
+          ]
+        },
+        "drift": {
+          "strong_path_count": [
+            12,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0008
+          ]
+        }
+      },
+      "model": {
+        "frame_len": 1024,
+        "max_delay": 116,
+        "iterations": 4,
+        "d_model": 64,
+        "num_heads": 4,
+        "adapter_rank": 8,
+        "lora_rank": 8,
+        "conditioner_uses_cir_summary": true,
+        "pilot_conditioned": true,
+        "enable_phase_correction_branch": true,
+        "phase_correction_segments": 4,
+        "phase_correction_initial_scale": 1,
+        "analytic_logit_skip_scale": 0,
+        "physics_warm_start_iterations": 8,
+        "physics_warm_start_scale": 1,
+        "neural_residual_scale": 0.1,
+        "enable_symbol_residual_branch": true,
+        "enable_channel_state_branch": true,
+        "enable_channel_state_memory": true,
+        "channel_state_memory_output_scale": 0.25
+      },
+      "experiment_note": "跨帧116样本共同接收窗的离线适配与离散窗口PPO机制检查；不作为主结果。",
+      "diagnostic_only": true,
+      "main_aggregation_allowed": false,
+      "rl_action_names": [
+        "identity",
+        "peft_memory_signal_small",
+        "peft_memory_signal_medium",
+        "peft_memory_map_small",
+        "peft_memory_map_medium",
+        "rollback_identity"
+      ],
+      "rl_peft_max_episode_delta_norm": 0.8,
+      "rl_reward_receiver_input": "full_rx",
+      "online_ppo_learning_rate": 0.001,
+      "online_ppo_pilot_state_embedding": false,
+      "ppo_window_size": 8,
+      "pilot_transfer": {
+        "objective": "post_adapt",
+        "seed": 98100,
+        "history_frames": 1,
+        "outer_learning_rate": 0.01,
+        "inner_learning_rate": 0.02,
+        "inner_steps": 3,
+        "max_delta_norm": 0.8,
+        "base_weight": 1,
+        "post_weight": 1,
+        "inner_groups": [
+          "channel_state_memory"
+        ],
+        "inner_objective": "channel_state_map",
+        "inner_receiver_input": "full_rx",
+        "reward_receiver_input": "full_rx",
+        "outer_groups": [
+          "channel_state_memory_scale"
+        ],
+        "initialize_symbol_residual_from_base": false,
+        "history_frame_choices": [
+          0,
+          127,
+          1023,
+          2047,
+          4095
+        ],
+        "reward_objective": "channel_state_signal",
+        "initialize_channel_state_from_base": false,
+        "post_target_frame_offsets": [
+          0,
+          8
+        ],
+        "offline_sample_cache_dir": "logs/cross_frame_offline_samples_20261103",
+        "evaluation_history_frames": 1023,
+        "initialize_channel_state_memory_from_base": true
+      },
+      "rl_enable_channel_state_memory_actions": true,
+      "receiver_lookahead_len": 116,
+      "rl_adapt_receiver_input": "full_rx"
+    },
+    "checkpoints": {
+      "baseline": {
+        "path": "C:\\Users\\SDQ\\.codex\\worktrees\\online-peft-research\\RL4EQ\\pretrained\\cross_frame_memory_control64_20261103\\model_best.pt",
+        "sha256": "11e58a5d94801ae613ec8f7a55679ed2304e0864535c7b0468b316827e2bec51",
+        "training_objective": "baseline"
+      },
+      "post_adapt": {
+        "path": "C:\\Users\\SDQ\\.codex\\worktrees\\online-peft-research\\RL4EQ\\pretrained\\cross_frame_memory_post64_20261103\\model_best.pt",
+        "sha256": "1bf2fcc43c214d6769f903b9bde2d298f9ba4c44bec068cc48780f52d0ca4298",
+        "training_objective": "post_adapt"
+      }
+    },
+    "inner_receiver_input": "full_rx",
+    "reward_receiver_input": "full_rx",
+    "inner_task": "full_frame",
+    "reward_task": "full_frame",
+    "reward_objective": "channel_state_signal"
+  },
+  "per_snr": [
+    {
+      "snr_db": 10.0,
+      "baseline": {
+        "ber_frozen": 0.01095920174945301,
+        "ber_online": 0.007215712001197971,
+        "gain": {
+          "mean": 0.003743489748255039,
+          "ci95": [
+            -0.005440879372736953,
+            0.01292785886924703
+          ],
+          "seeds": 3
+        },
+        "late_minus_early_gain": {
+          "mean": 0.006076389147589604,
+          "ci95": [
+            -0.011957038947957934,
+            0.024109817243137144
+          ],
+          "seeds": 3
+        },
+        "positive_seeds": 3,
+        "accepted": 22,
+        "frames": 24,
+        "harmful_acceptances": 1
+      },
+      "post_adapt": {
+        "ber_frozen": 0.01095920174945301,
+        "ber_online": 0.00878906283469405,
+        "gain": {
+          "mean": 0.0021701389147589603,
+          "ci95": [
+            -0.0037491474825523436,
+            0.008089425312070265
+          ],
+          "seeds": 3
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0034722222480922937,
+          "ci95": [
+            -0.0038204856009295685,
+            0.010764930097114156
+          ],
+          "seeds": 3
+        },
+        "positive_seeds": 2,
+        "accepted": 21,
+        "frames": 24,
+        "harmful_acceptances": 1
+      },
+      "adaptation_gain_interaction": {
+        "mean": -0.0015733508334960788,
+        "ci95": [
+          -0.005330112928229253,
+          0.002183411261237095
+        ],
+        "seeds": 3
+      },
+      "post_vs_baseline_online_gain": {
+        "mean": -0.0015733508334960788,
+        "ci95": [
+          -0.005330112928229253,
+          0.002183411261237095
+        ],
+        "seeds": 3
+      }
+    }
+  ],
+  "raw_file_sha256": "ae3e9e4d16ad80fbc51b50b0d5f6f6142333bc466ea0b0281551f5b8f633bbcf",
+  "complete_process_timing": {
+    "scope": "complete_research_process",
+    "elapsed_seconds": 77.0400932,
+    "exit_code": 0
+  },
+  "diagnostic_only": true,
+  "main_aggregation_allowed": false
+}

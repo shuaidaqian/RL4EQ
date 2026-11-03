@@ -754,6 +754,8 @@ def main() -> None:
         "traditional_calibration": (
             {"schema_version": traditional_calibration.schema_version,
              "sha256": traditional_calibration.sha256, "path": traditional_calibration.path,
+             "receiver_lookahead_len": int(traditional_calibration.source_config.get("receiver_lookahead_len", 0)),
+             "receiver_window_calibrated": int(traditional_calibration.source_config.get("receiver_lookahead_len", 0)) == int(args.lookahead_len),
              "applied_methods": [method for method in selected_methods if method in CALIBRATED_METHODS]}
             if traditional_calibration else None
         ),
