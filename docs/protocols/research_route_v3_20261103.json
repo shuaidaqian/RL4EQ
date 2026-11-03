@@ -5,7 +5,7 @@
   "authority": "用户明确要求按所提供分析调整路线，随后明确不改信道配置、按R0–R6推进；应用要求暂未确定，先开发审计",
   "objective": "离线学习可由少量合法在线观测适配的神经块均衡器，在线实际更新少量神经参数，证明相对同源同状态跟踪冻结网络的可归因、可重复Data检测增益与持续跟踪，并完成所声明的长回波迁移及性能资源比较；RL为可选扩展。",
   "core_status": "unproven",
-  "current_phase": "R1_long_anchor_audited_representation_redesign_next",
+  "current_phase": "R2_fixed_channel_subspace_development_complete_update_task_next",
   "channel_change_policy": {
     "current_channel_frozen": true,
     "config": "configs/eme_long_memory_v2_shared_pilot_memory_rl.json",
@@ -77,9 +77,9 @@
   "implementation_document": "docs/deterministic_audit_implementation_20261103.md",
   "development_manifest": "configs/audits/adaptability_long_anchor_v1.json",
   "remaining_audit_scope": [
-    "fixed_long_echo_parameter_effect_and_identifiability_diagnostics",
-    "low_dimensional_representation_selection",
-    "matched_sequence_offline_training_four_arms",
+    "fixed_long_echo_parameter_effect_and_identifiability_diagnostics_complete_development",
+    "update_objective_prior_and_state_age_redesign",
+    "matched_sequence_offline_training_four_arms_rerun_after_redesign",
     "independent_continual_confirmation",
     "long_echo_transfer_and_traditional_comparison"
   ],
