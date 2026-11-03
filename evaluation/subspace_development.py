@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -133,7 +133,8 @@ def capture_sessions(spec, role, device, *, dense_diagnostic=False):
                     bits=original.bits.clone()), identity=identity, physical_ms=physical_ms))
                 values = torch.tanh(observation.base_logits[-model.config.max_delay:]/2)
                 tail = torch.complex(values, torch.zeros_like(values)).detach()
-            sessions.append(dict(seed=seed, snr_db=snr, frames=frames))
+            sessions.append(dict(seed=seed, snr_db=snr, frames=frames,
+                                 inner_history_frames=int(spec.get("inner_history_frames", 1))))
             print(json.dumps(dict(role=role, seed=seed, snr_db=snr, captured=count), ensure_ascii=False), flush=True)
     if any(not torch.equal(base_weights[name], value) for name, value in model.state_dict().items()):
         raise AssertionError("来源Frozen网络被修改。")
@@ -251,14 +252,18 @@ def data_loss(logits, row):
 
 
 def sequence_loss(model, session, settings, update_frames, *, adapt, create_graph):
-    """当前帧守门后同时评分当前和下一帧；下一帧标签绝不进入更新器。"""
+    """联合最近合法Adapt历史更新；当前帧守门后评分当前和下一帧Data。"""
     origin = model.coefficients
     current = origin
     losses = []
+    history = []
+    history_limit = int(session.get("inner_history_frames", update_frames))
     for index, row in enumerate(session["frames"][:update_frames]):
         if adapt:
+            history.append(row["observation"])
+            history = history[-history_limit:]
             _, current, _ = update_subspace(model, row["observation"], current, origin,
-                settings, create_graph=create_graph)
+                settings, adapt_history=history, create_graph=create_graph)
         for offset in (0, 1):
             target = session["frames"][index + offset]
             losses.append(data_loss(model.logits(target["observation"], current), target))
@@ -281,8 +286,11 @@ def evaluate_subspaces(models, sessions, settings, device):
         for session in sessions:
             origin = model.coefficients.detach().clone()
             current = origin.clone()
+            history = []
             for row in session["frames"]:
                 observation = row["observation"]
+                history.append(observation)
+                history = history[-int(session.get("inner_history_frames", 8)):]
                 synchronize(device)
                 tick = time.perf_counter()
                 with torch.no_grad():
@@ -292,7 +300,8 @@ def evaluate_subspaces(models, sessions, settings, device):
                 synchronize(device)
                 frozen_ms = 1000 * (time.perf_counter() - tick)
                 tick = time.perf_counter()
-                candidate, retained, control = update_subspace(model, observation, current, origin, settings)
+                candidate, retained, control = update_subspace(model, observation, current, origin, settings,
+                                                               adapt_history=history)
                 synchronize(device)
                 update_ms = 1000 * (time.perf_counter() - tick)
                 with torch.no_grad():

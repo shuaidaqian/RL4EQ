@@ -57,3 +57,5 @@ R2第三轮清单`configs/audits/detection_subspace_long_v3_decay_v1.json`只加
 第五轮清单`configs/audits/detection_subspace_long_v5_temporal_basis_v1.json`只改变基网络的符号上下文：从逐符号MLP改为kernel=5的一维局部卷积，更新规则沿用v3（锚点回退/收缩，Adapt温度1.0），其余资源和seed沿用已观察开发协议。目的在于让神经残差方向显式利用邻近符号ISI，而不增加在线自由度。定向测试67 passed；GPU审计与四臂开发待运行。第五轮仍是开发机制对比，非独立确认。
 
 第五轮GPU审计2/4/8维均通过，固定规则选择8维；四臂训练和768条开发评估完成。B臂0/5 dB Online相对Frozen点估计都约`+2.71e-5`，95%区间跨零；5 dB交互同向，10/15 dB没有有效增益判断。完整结果见[第五轮时序表示归档](results/detection_subspace_long_v5_temporal_basis_v1_20261103/README.md)。这是一项有希望但未经独立确认的开发信号，R2仍不能宣告完成，R3也不能仅凭重复开发seed启动。完整pytest为908 passed。用户已冻结主要SNR为0/5/10/15 dB全部四点；下一步还需冻结允许退化界限、统计方案、样本量与会话/恢复定义。
+
+第六轮清单`configs/audits/detection_subspace_long_v6_adapt_history8_v1.json`沿用第五轮8维卷积结构和更新保护，仅将每次Adapt目标改为最近8帧合法Pilot BCE的均值；每会话历史从当前帧开始、最多8帧，离线内循环与在线回放一致。动作验收仍只看当前帧独立验证Pilot。不得用重复历史外推成独立信息，也不得向更新器传入历史Data标签。定向测试68 passed；GPU审计、匹配四臂与开发评估待运行。

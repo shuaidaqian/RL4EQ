@@ -93,6 +93,25 @@ def test_validation_labels_do_not_enter_candidate_and_rejection_restores_initial
     assert first[2]["accepted"] is False
 
 
+def test_adapt_history_changes_inner_update_but_validation_stays_on_current_frame():
+    observation = fixture_observation()
+    previous = replace(observation, adapt_labels=1-observation.adapt_labels)
+    model = DetectionSubspace(4, architecture="temporal_conv_v1")
+    origin = torch.zeros(4)
+    initial = torch.zeros(4)
+    settings = DeterministicSettings(proximal_weight=0.)
+    current_only = update_subspace(model, observation, initial, origin, settings)
+    with_history = update_subspace(model, observation, initial, origin, settings,
+        adapt_history=[previous, observation])
+    assert not torch.equal(current_only[0], with_history[0])
+    assert with_history[2]["adapt_history_frames"] == 2
+    poisoned_validation = replace(observation, validation_labels=1-observation.validation_labels)
+    changed_validation = update_subspace(model, poisoned_validation, initial, origin, settings,
+        adapt_history=[previous, poisoned_validation])
+    torch.testing.assert_close(with_history[0], changed_validation[0], atol=0, rtol=0)
+    assert changed_validation[2]["adapt_history_frames"] == 2
+
+
 def test_validation_can_reset_stale_history_to_offline_origin_without_data_labels():
     # Adapt Pilot 推动当前记忆，验证 Pilot 显示离线初始点更可靠；Data不在接口中。
     observation = PilotObservation(

@@ -71,4 +71,5 @@
 - 第五轮固定清单 `configs/audits/detection_subspace_long_v5_temporal_basis_v1.json` 只将逐符号MLP基改为局部卷积基（temporal_conv_v1），使用v3更新规则，不带温度缩放；信道、Pilot、seed、A/B预算不变。定向67项通过，GPU几何和四臂评估待运行。
 - 第五轮结果已归档于 `docs/results/detection_subspace_long_v5_temporal_basis_v1_20261103/`：8维通过审计，B在0/5 dB有同向正点估计但区间跨零；10/15 dB没有可确认增益。该结构只达到“值得独立确认前继续冻结并核对”的开发证据，不等于R2/R3完成。R3启动前必须冻结应用主要SNR、退化界限、统计方法和样本量。
 - 第五轮后完整pytest为908 passed；当前路线文档与结果归档同步到该状态。
+- 第六轮清单 `configs/audits/detection_subspace_long_v6_adapt_history8_v1.json` 只将内循环Adapt BCE扩展到最近8帧合法Pilot的均值；当前帧验证Pilot仍独立守门，外层与在线历史长度/时序一致，其他信道、Pilot、结构、预算和开发seed不变。定向68项通过，GPU实验待运行。
 - 阶段成果整理代码、文档、配置与结果指纹，提交并推送。没有实验或测试证据时明确写“未运行/待实现”，不得用计划替代完成证据。

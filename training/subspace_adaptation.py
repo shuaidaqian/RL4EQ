@@ -30,17 +30,26 @@ def pilot_loss(logits, observation, role, *, temperature=1.0):
     return F.binary_cross_entropy_with_logits(logits[mask], labels[mask])
 
 
-def coefficient_update(base, basis, observation, initial, origin, settings: DeterministicSettings, *, create_graph=False):
-    """每帧重置Adam状态；可用验证Pilot把失效历史回退到离线初始系数。"""
+def coefficient_update(base, basis, observation, initial, origin, settings: DeterministicSettings, *,
+                       adapt_history=None, create_graph=False):
+    """每帧重置Adam；内循环可联合最近多帧Adapt，验证只用当前帧。"""
     if not create_graph:
         base, basis, origin = base.detach(), basis.detach(), origin.detach()
         initial = initial.detach().clone().requires_grad_(True)
+    history = adapt_history or [(base, basis, observation)]
+    if not history or history[-1][2] is not observation:
+        raise ValueError("Adapt历史必须非空且以当前帧Pilot观测结束。")
+    if not create_graph:
+        history = [(item_base.detach(), item_basis.detach(), item_observation)
+                   for item_base, item_basis, item_observation in history]
     current = initial
     first, second = torch.zeros_like(current), torch.zeros_like(current)
     losses = []
     for step in range(1, settings.steps + 1):
-        loss = pilot_loss(base + basis @ current, observation, "adapt",
+        frame_losses = [pilot_loss(item_base + item_basis @ current, item_observation, "adapt",
                           temperature=settings.adapt_logit_temperature)
+                        for item_base, item_basis, item_observation in history]
+        loss = torch.stack(frame_losses).mean()
         loss = loss + settings.proximal_weight * (current - initial).square().sum()
         gradient, = torch.autograd.grad(loss, current, create_graph=create_graph)
         if not bool(torch.isfinite(loss)) or not bool(torch.isfinite(gradient).all()):
@@ -101,6 +110,7 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         validation_ber_before=before_ber, validation_ber_candidate=candidate_ber,
         validation_loss_origin=origin_loss, validation_ber_origin=origin_ber,
         validation_loss_retained=retained_loss, validation_ber_retained=retained_ber,
+        adapt_history_frames=len(history),
         delta_norm=float((current - initial).detach().norm()),
         retained_total_norm=float((retained - origin).detach().norm()),
         parameter_count=current.numel(), data_labels_used_for_control=False,
@@ -110,7 +120,10 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
     return current, retained, metrics
 
 
-def update_subspace(model, observation, initial, origin, settings, *, create_graph=False):
+def update_subspace(model, observation, initial, origin, settings, *, adapt_history=None, create_graph=False):
     basis = model.basis(observation)
+    history = None
+    if adapt_history is not None:
+        history = [(item.base_logits, model.basis(item), item) for item in adapt_history]
     return coefficient_update(observation.base_logits, basis, observation, initial, origin,
-                              settings, create_graph=create_graph)
+                              settings, adapt_history=history, create_graph=create_graph)
