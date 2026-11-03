@@ -2,28 +2,59 @@
 
 我是中文语境开发者，所有对话和代码注释都用中文。
 
-本仓库当前唯一研究路线是 Level B 极端稀疏长回波信道下的 `RL-Modulated Neural Block Equalizer`。任何新代码、测试和文档必须遵守以下契约：
+## 当前目标与指令优先级
 
-- 主论文场景是 Level B；Level C 只做压力测试，不混入主平均。
-- 主论文 SNR 固定为 0/5/10/15 dB。
-- Pilot 只放在前缀；two-block/multi-block 只能作为历史兼容或诊断，不作为主实验。
-- 接收机是整帧缓冲、非因果块神经均衡器；在线适配按帧进行。
-- Proposed 方法是唯一使用神经网络和 RL 的方法。
-- RL 选择离散安全动作，调制神经均衡器 Adapter/FiLM/LoRA/head；同一动作作用于短窗口，reward 使用窗口级 Reward Pilot BER/loss 改善；不逐 bit 判决，不直接输出完整高维参数增量。
-- 传统 baseline 不使用神经网络，不使用 RL，只允许使用 acquisition/Adapt Pilot、接收信号和传统自适应规则；在 CFO/慢相位扰动实验中必须提供基于 Pilot 的合理补偿。
-- `Perfect-CSI Block` 与 `Fixed CG-BPSK-DD Block Detector` 只作为诊断参考，不作为主 baseline，不纳入主成功门槛。
-- Reward Pilot 只用于动作后的 reward 与留出评估；Data 标签只用于离线监督和仿真评估。
-- 在线 observation、reward、动作选择和调制更新不使用数据标签上界。
-- 正式第一目标为 proposed 在 Level B 主配置逐配置明显超过传统非神经、非 RL baseline，并且优势随在线帧数增加而更明显；`BER_data < 0.01` 只作为辅助系统指标，不再作为第一门槛。
-- 不恢复旧 A2C、旧逐符号 PPO、Data Oracle、多载波、MIMO 或 RIS 路线。
-- clean Level B 只作为 sanity check；主攻方向允许逐级加入 residual CFO 与慢相位扰动。非线性、信道编码和高阶调制只作为后续按需扩展，当前不进入主实验。
-- 代码入口以 `pretrain.py`、`online_train.py`、`compare.py`、`calibrate_channel.py` 和 `pytest` 为准。
+2026-11-03 用户明确要求按新的分析调整研究路线。本文件及[研究路线 v3](docs/research_route_v3_20261103.md)取代此前“唯一 Level B + 必须 RL + 四 SNR 逐配置超越传统 + 后期优势扩大”的研究契约。旧配置、代码、实验结果保留原语义，不能按新标准追认旧实验成功。
 
-默认验证命令：
+核心目标：**离线学习可由少量合法在线观测适配的神经均衡器，在线真正更新少量神经参数，证明相比同源、具有相同物理状态跟踪的冻结网络有可归因、可重复的 Data 检测增益，并验证持续跟踪能力。**
 
-```powershell
-.\.venv-gpu\Scripts\python.exe -m pytest -q -p no:cacheprovider
-.\.venv-gpu\Scripts\python.exe pretrain.py --config configs/continual_ppo.json --stage all --steps 2 --batch-size 1 --amp --save-dir pretrained/final_smoke
-.\.venv-gpu\Scripts\python.exe online_train.py --config configs/continual_ppo.json --pretrained pretrained/final_smoke/model_best.pt --frames 8 --num-seeds 1 --window-size 4 --update-interval 4 --delays 20 --snrs 10 --pilot-total 64 --pilot-layout prefix --amp --output-dir logs/final_online_smoke
-.\.venv-gpu\Scripts\python.exe compare.py --config configs/continual_ppo.json --method-group main --pretrained pretrained/final_smoke/model_best.pt --delays 20 --snrs 10 --num-seeds 1 --frames 1 --pilot-total 64 --pilot-layout prefix --resume --output-dir logs/final_compare_smoke
-```
+- EME 长回波是重要应用背景与迁移验证对象；Level B 不再是所有机制设计与验收的唯一入口。
+- RL 是可选调度扩展，不是核心方法或核心成功的必要条件。先验证确定性神经微调，再决定是否研究调度；不得继续把旧 PPO 大矩阵作为默认下一步。
+- 物理状态跟踪的改善不等于神经参数微调的改善。必须分别测出物理状态适应、离线表示和在线梯度更新的贡献。
+
+## 不可放松的信息与公平性约束
+
+- 在线允许读取已收到的波形；禁止读取 Data 发送符号、Data 比特、仿真真实 CIR/相位/CFO 等隐藏真值来更新、选择、验收、回滚或设定阈值。
+- Adapt Pilot 用于更新。现有 Reward Pilot 保持为独立动作后留出集，只用于验收、reward 与评估，不回流内循环拟合。无 RL 时称为“验证 Pilot”，历史字段可继续叫 Reward。
+- Data 标签只用于离线训练、离线开发/校准、独立测试的事后评分；这些角色的数据、seed 和访问时序必须隔离。外层未来标签不得泄漏到在线更新。
+- 真状态接收机只作隔离的离线诊断，不能给可部署分支提供真值。`Perfect-CSI Block`、`Fixed CG-BPSK-DD Block Detector` 不自动是最优性能界，不进入可部署主方法比较。
+- 同波形比较必须匹配 Pilot 预算、接收窗口、acquisition、同步补偿与物理跟踪协议，报告在线参数数目、更新次数、计算量和延迟。Frozen 不必执行无用梯度来消耗相同时间，实际计算差异必须报告。
+- 传统 baseline 不使用神经网络或 RL，只用合法观测与传统规则，提供合理同步/自适应补偿并独立校准。允许多个神经对照和确定性 PEFT 方法，不再限定只有 Proposed 能用神经网络。
+- Frozen 表示网络权重冻结，仍可依协议逐帧进行 Pilot 条件适应；不得人为削弱 Frozen 制造在线收益。
+
+## 场景与建模规则
+
+- 分开报告：短/中记忆可控机制、116 符号长回波迁移、经物理标定的 EME 应用。场景层次与代码里的 Level A/B/C 是不同概念；不同 profile/Level 不混合成一个主平均。
+- 同分布新信道先行；再逐一改变 CIR 漂移、CFO、慢相位、强径数或弥散比例；联合外推另列压力测试。
+- 首轮保留前缀 Pilot、单载波线性 BPSK、整帧缓冲的非因果块均衡。现有长回波的 116 样本/11.6 ms 后缀公平使用。Pilot 布局与采样率等不是物理定律，后续变更需要单独版本和同资源消融，不能静默修改历史协议。
+- 开发审计完整报告 0/5/10/15 dB；这不表示四点都必须显著改善。应用主要运行区间、允许退化门槛、目标频段/带宽/吞吐目前未定，用户已确认在独立确认前冻结；不得根据历史正结果挑主区间。
+- 11.6 ms 时延支撑不等于当前全部 PDP、强径数、弥散比例和 1200 s 相关时间已被测量支持。每个物理参数标记文献/测量来源、建模假设或机制变量。
+- 不为获得神经胜出而调整信道。旧 EME profile 的严格尺寸与物理字段校验继续生效；短记忆机制必须新建独立配置/profile，不得将旧 EME 配置改短后继续沿用 EME 标识。
+- 不恢复旧 A2C、逐符号 PPO、Data Oracle、多载波、MIMO 或 RIS 路线。非线性、编码和高阶调制当前不扩展。
+
+## 方法与离线训练
+
+- 优先物理模型辅助的神经块均衡；同步状态、物理信道状态与可训练神经参数分开定义。
+- 在线自由度由合法 Pilot 信息矩阵的秩、条件数、变化结构与留出泛化决定，不能用“占整网比例小”代替可辨识性。
+- 低维神经子空间、Adapter/FiLM/head/LoRA/context 都可作为候选，但在线神经参数必须实际改变；纯 Kalman/RLS CIR 跟踪不能单独完成核心目标。
+- 离线内循环复现在线的损失、历史、优化器、正则、投影、持久保留和更新时序；外循环评估当前与后续 Data 泛化。可学习表示、子空间和初始化，不局限于旧 34 个尺度参数。
+- 用匹配数据与预算的普通监督/更新后训练四臂比较，排除仅继续训练或改变离线模型带来的收益。
+- 首先使用固定步长、近端或带遗忘等确定性更新。累计距离约束、逐步信赖域和过程正则需要单独验证，不能无证据取消保护。
+- 若以后引入 RL：只调度离散安全动作、作用短窗口，使用窗口级验证 Pilot 反馈；不逐 bit 判决，不直接生成完整高维参数增量，并与固定规则和简单漂移调度比较。
+
+## 证据与验收
+
+- 分开验收：核心神经微调增益、传统方法竞争力、EME 迁移/物理应用、可选调度增量。后一项失败不自动否定前一项；前一项未成立不能靠后者绕过。
+- 在预先指定的主运行区间，独立信道级配对结果支持相对同源状态跟踪 Frozen 的改善；其余区间满足预注册退化界限。四 SNR、逐 seed 和完整会话均报告。
+- 持续跟踪报告稳态 BER、漂移后恢复、失稳/有害更新与成本，不要求优势单调扩大。“后期减早期改善”仅在明确提出该主张时单独验证。
+- `BER_data < 0.01` 仅是可能的系统指标；应用要求未确定时不能冒充已冻结的正式目标。
+- 正式测试前冻结主要区间、效应量/退化界限、统计方法、多重比较处理、样本量、会话与漂移定义、停止规则、配置与 checkpoint。开发集不得反复当作独立确认集。
+- 旧门槛未通过的事实保留。新路线调整本身不代表新核心目标已经达成。
+- 代码入口仍是 `pretrain.py`、`online_train.py`、`compare.py`、`calibrate_channel.py` 和 `pytest`。旧方法分组不是新路线已实现的证明；新审计矩阵尚需实现，按[首轮审计计划](docs/adaptability_audit_plan_20261103.md)推进。
+
+## 验证与阶段交付
+
+- 代码改动运行适当测试；纯路线/文档调整检查内容、JSON 和链接，不为此重复完整 GPU 训练。
+- 默认测试：`python -m pytest -q -p no:cacheprovider`。本工作树尚无 `.venv-gpu`；可用 GPU Python 位于 `D:\Research\RL4EQ\.venv-gpu\Scripts\python.exe`，运行前检查环境，不把机器路径当项目依赖。
+- 跨帧 `pretrain.py` 当前使用 `--stage pilot_transfer`；共同历史配置的旧确定性 Pilot 兼容入口不支持该目标，不能仅用 `--method pilot` 冒称新确定性方法已实现。旧 PPO 复现需显式 `--method ppo`。
+- 阶段成果整理代码、文档、配置与结果指纹，提交并推送。没有实验或测试证据时明确写“未运行/待实现”，不得用计划替代完成证据。

@@ -1,0 +1,23 @@
+{
+  "schema_version": "research-route-change-source-v1",
+  "date": "2026-11-03",
+  "previous_revision": "cdeb3db87b947580cf15b69c84c79985ba82ffd2",
+  "previous_files": {
+    "AGENTS.md": {
+      "sha256": "9143289db12e464ce465afbffac8ce96014181ac866781102ace345b8f2720cc",
+      "archive": "docs/archive/route_before_v3_20261103/AGENTS.md.txt"
+    },
+    "README.md": {
+      "sha256": "467c0be22631975d4c5db3f60e0f7ffd149590c329b3d56ee9c91b777c71b8e9",
+      "archive": "docs/archive/route_before_v3_20261103/README.md.txt"
+    }
+  },
+  "user_analysis": {
+    "sha256": "e92bfef8a0e9892f29b5aa230a6319625fff7a6b7ea3d2ad45f7d874f1330362",
+    "archive": "docs/archive/route_before_v3_20261103/user_route_analysis.txt"
+  },
+  "change_reason": "用户明确要求按所提供分析调整路线和目标，RL改为可选，核心检验为在线神经微调的独立增量。",
+  "application_requirements": "用户确认尚未确定，先完成开发审计，正式主区间与非劣门槛在独立确认前冻结。",
+  "old_research_gate_passed": false,
+  "historical_results_reclassified_as_success": false
+}
