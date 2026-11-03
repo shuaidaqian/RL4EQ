@@ -1,0 +1,20 @@
+{
+  "role": "interrupted_development_not_aggregated",
+  "original_directory": "logs\\adaptability_long_anchor_v1_20261103",
+  "actual_exit_reason": "进程已退出，无完整summary；未取得可归因的退出原因",
+  "recovery": "固定配置和seed从12条会话起点完整重跑，新结果不与部分结果拼接",
+  "source_revision": "027e7ff0e611934b47bb79ef66b81eafde76ff52",
+  "files": {
+    "frame_metrics.jsonl": {
+      "records": 627,
+      "sha256": "8d4d1ae6c57693c0bacd7f252cc62d78cb503f83d749fb25333d934a9deac384",
+      "bytes": 4007154
+    },
+    "fixed_candidate_metrics.jsonl": {
+      "records": 24,
+      "sha256": "cffc2016e449cb890a2efe6544242e8ff2b44693a30582f96710e7e744b94b1d",
+      "bytes": 10548
+    }
+  },
+  "complete_replacement": "logs/adaptability_long_anchor_v1_complete_20261103"
+}
