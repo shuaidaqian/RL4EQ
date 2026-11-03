@@ -484,6 +484,52 @@ def test_eme_environment_retains_full_history_when_delay_exceeds_frame_length():
     assert torch.equal(second.tail_symbols, expected_after_first)
 
 
+def test_cross_frame_receive_window_matches_continuous_sequential_transmission():
+    config = _eme_env_config(
+        sample_rate_hz=10_000.0,
+        symbol_rate_hz=10_000.0,
+        frame_len=256,
+        total_pilot=64,
+        reward_pilot_total=16,
+    )
+    buffered_env = CommunicationEnvironment(config)
+    sequential_env = CommunicationEnvironment(config)
+    buffered_start = buffered_env.reset_episode()
+    sequential_start = sequential_env.reset_episode()
+
+    buffered_first = buffered_env.next_frame(lookahead_len=24)
+    sequential_first = sequential_env.next_frame()
+    sequential_second = sequential_env.next_frame()
+
+    assert torch.equal(buffered_first.rx_symbols, sequential_first.rx_symbols)
+    assert torch.equal(buffered_first.lookahead_rx_symbols, sequential_second.rx_symbols[:24])
+    assert buffered_first.lookahead_frame_index == sequential_second.frame_index
+    assert torch.equal(buffered_first.tail_symbols, sequential_first.tail_symbols)
+    assert torch.equal(buffered_start.initial_soft_tail, sequential_start.initial_soft_tail)
+
+    buffered_second = buffered_env.next_frame(lookahead_len=24)
+    sequential_third = sequential_env.next_frame()
+    assert buffered_second.frame_index == sequential_second.frame_index
+    assert torch.equal(buffered_second.rx_symbols, sequential_second.rx_symbols)
+    assert torch.equal(buffered_second.lookahead_rx_symbols, sequential_third.rx_symbols[:24])
+
+
+def test_cross_frame_receiver_view_only_exposes_next_adapt_prefix():
+    env = CommunicationEnvironment(
+        _eme_env_config(total_pilot=64, reward_pilot_total=16)
+    )
+    env.reset_episode()
+    frame = env.next_frame(lookahead_len=24)
+    view = frame.receiver_view()
+
+    assert view.lookahead_rx_symbols.shape == (24,)
+    assert view.lookahead_adapt_symbols.shape == (24,)
+    assert bool(view.lookahead_adapt_mask.all())
+    assert view.lookahead_frame_index == frame.frame_index + 1
+    for hidden_name in ("lookahead_bits", "lookahead_data_bits", "lookahead_tx_symbols", "lookahead_data_mask"):
+        assert not hasattr(view, hidden_name)
+
+
 def test_eme_environment_requires_prefix_but_legacy_keeps_diagnostic_layouts():
     with pytest.raises(ValueError, match="eme_measurement_v1.*prefix"):
         _eme_env_config(layout="two_block")

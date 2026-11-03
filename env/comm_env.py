@@ -103,6 +103,7 @@ class CommunicationEnvironment:
         )
         self._frame_index = 0
         self._last_tail = torch.zeros(self.channel.max_delay, dtype=torch.complex64)
+        self._cached_frame: Frame | None = None
 
     def reset_episode(self) -> EpisodeStart:
         tail_length = self.channel.max_delay
@@ -130,13 +131,42 @@ class CommunicationEnvironment:
         else:
             self._last_tail = torch.cat((warmup, acquisition.tx_symbols))[-tail_length:].clone()
         self._frame_index = 0
+        self._cached_frame = None
         return EpisodeStart(
             warmup_symbols=warmup,
             acquisition=acquisition,
             initial_soft_tail=self._last_tail.clone(),
         )
 
-    def next_frame(self) -> Frame:
+    def next_frame(self, lookahead_len: int = 0) -> Frame:
+        """取得当前帧，可选附加下一帧开头的已接收 Adapt Pilot 窗口。"""
+
+        lookahead_len = int(lookahead_len)
+        if lookahead_len < 0 or lookahead_len > self.channel.max_delay:
+            raise ValueError("lookahead_len 必须位于 0 到 max_delay 之间。")
+        current = self._cached_frame
+        self._cached_frame = None
+        if current is None:
+            current = self._transmit_next_frame()
+        if lookahead_len == 0:
+            return current
+
+        future = self._transmit_next_frame()
+        if not bool(future.adapt_mask[:lookahead_len].all()):
+            raise ValueError("lookahead 接收窗口必须完全落在下一帧前缀 Adapt Pilot 中。")
+        visible_pilots = torch.where(
+            future.adapt_mask[:lookahead_len],
+            future.tx_symbols[:lookahead_len],
+            torch.zeros_like(future.tx_symbols[:lookahead_len]),
+        )
+        self._cached_frame = future
+        return current.with_lookahead(
+            future.rx_symbols[:lookahead_len],
+            visible_pilots,
+            future.frame_index,
+        )
+
+    def _transmit_next_frame(self) -> Frame:
         frame = self.frame_generator.generate(self._frame_index)
         tail = self._last_tail.clone()
         rx = self.channel.transmit(frame.tx_symbols, add_noise=True)

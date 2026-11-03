@@ -51,3 +51,28 @@ def test_continuous_summary_rejects_incomplete_or_invalid_controls(problem):
         rows[-1]["method"] = "即时动作前对照"
     with pytest.raises(ValueError):
         _summarize(rows)
+
+
+@pytest.mark.parametrize("problem", ["none", "length", "hash", "missing_hash", "age", "version"])
+def test_continuous_summary_audits_joint_received_window(problem):
+    rows = _rows()
+    for row in rows:
+        row.update(lookahead_len=4, lookahead_protocol_version="cross-frame-prefix-v1",
+                   lookahead_rx_sha256="c" * 64, lookahead_frame_index=row["frame"])
+    result = _summarize(rows)
+    assert result["receiver_window_audit"]["shared_lookahead_rx_sha256_passed"]
+    if problem == "none":
+        rows[-1].update(lookahead_len=0, lookahead_protocol_version="none",
+                        lookahead_rx_sha256=None, lookahead_frame_index=None)
+    elif problem == "length":
+        rows[-1]["lookahead_len"] = 3
+    elif problem == "hash":
+        rows[-1]["lookahead_rx_sha256"] = "d" * 64
+    elif problem == "missing_hash":
+        rows[-1].pop("lookahead_rx_sha256")
+    elif problem == "age":
+        rows[-1]["lookahead_frame_index"] = 100
+    else:
+        rows[-1]["lookahead_protocol_version"] = "none"
+    with pytest.raises(ValueError):
+        _summarize(rows)

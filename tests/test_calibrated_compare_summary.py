@@ -37,6 +37,17 @@ def test_summary_uses_independent_seed_units_and_separates_late_gain():
         assert item["late_minus_early_online_gain"]["mean"] == pytest.approx(0)
 
 
+def test_calibrated_summary_rejects_mismatched_cross_frame_rx():
+    rows = _rows()
+    for row in rows:
+        row.update(lookahead_len=116, lookahead_protocol_version="cross-frame-prefix-v1",
+                   lookahead_rx_sha256="d" * 64, lookahead_frame_index=row["frame"])
+    assert summarize_rows(rows)["information_audit"]["lookahead_len"] == 116
+    rows[-1]["lookahead_rx_sha256"] = "e" * 64
+    with pytest.raises(ValueError, match="后缀波形"):
+        summarize_rows(rows)
+
+
 def test_summary_accepts_explicit_full_rx_but_rejects_mixed_or_unlabelled_visibility():
     rows = _rows()
     proposed = [row for row in rows if row["method"] == PROPOSED]

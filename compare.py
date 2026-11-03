@@ -6,7 +6,8 @@ import hashlib
 import json
 import math
 import sys
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import torch
@@ -267,6 +268,12 @@ def main() -> None:
     parser.add_argument("--num-seeds", type=int, default=1)
     parser.add_argument("--seed-start", type=int, default=0)
     parser.add_argument("--frames", type=int, default=2)
+    parser.add_argument(
+        "--lookahead-len",
+        type=int,
+        default=None,
+        help="每帧额外读取下一帧前缀的已接收样本数；要求窗口完全属于 Adapt Pilot。",
+    )
     parser.add_argument("--pilot-total", type=int, default=None)
     parser.add_argument("--reward-pilot-total", type=int, default=None)
     parser.add_argument(
@@ -402,11 +409,15 @@ def main() -> None:
         return
     selected_methods = method_group(args.method_group) if args.method_group else _select_methods(args.methods)
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    if args.lookahead_len is None:
+        args.lookahead_len = int(config.get("receiver_lookahead_len", 0))
     if args.transfer_checkpoint is not None:
         from evaluation.pilot_transfer import run_transfer_comparison
 
         if args.resume or args.method_group or args.methods or args.traditional_calibration:
             parser.error("四臂机制实验独立于正式方法组，暂不支持 resume。")
+        if args.lookahead_len != int(config.get("receiver_lookahead_len", 0)):
+            parser.error("四臂机制实验的跨帧窗口必须与配置一致，请另建明确的诊断配置。")
         if args.pilot_layout not in {None, "prefix"} or args.cir_update != "fixed":
             parser.error("四臂机制实验只支持 prefix 与固定 acquisition CIR。")
         if args.delays is not None and args.delays != config["main_delays"]:
@@ -575,6 +586,12 @@ def main() -> None:
             "--resume 检测到不兼容的 acquisition_to_data_gap_seconds："
             f"已有 {sorted(existing_gaps)}，当前 {expected_gap:g}。"
         )
+    existing_lookaheads = {int(row.get("lookahead_len", 0)) for row in existing_rows}
+    if existing_lookaheads and existing_lookaheads != {int(args.lookahead_len)}:
+        raise ValueError(
+            "--resume 检测到不兼容的 lookahead_len："
+            f"已有 {sorted(existing_lookaheads)}，当前 {int(args.lookahead_len)}。"
+        )
     existing_keys = {_row_key(row) for row in existing_rows}
     rows = list(existing_rows)
     mode = "a" if args.resume else "w"
@@ -626,8 +643,13 @@ def main() -> None:
                         pilot_layout=pilot_layout,
                     )
                     for frame_index in range(1, args.frames + 1):
-                        frame = env.next_frame()
+                        frame = env.next_frame(lookahead_len=int(args.lookahead_len))
                         rx_sha256 = hashlib.sha256(frame.rx_symbols.detach().cpu().numpy().tobytes()).hexdigest()
+                        lookahead_sha256 = (
+                            hashlib.sha256(frame.lookahead_rx_symbols.detach().cpu().numpy().tobytes()).hexdigest()
+                            if frame.lookahead_rx_symbols is not None
+                            else None
+                        )
                         frame_results = _run_methods_for_frame(
                             selected_methods,
                             frame,
@@ -673,6 +695,12 @@ def main() -> None:
                             payload["input_hash"] = result.input_hash
                             payload.update(result.extra)
                             payload["rx_sha256"] = rx_sha256
+                            payload["lookahead_protocol_version"] = (
+                                "cross-frame-prefix-v1" if int(args.lookahead_len) else "none"
+                            )
+                            payload["lookahead_len"] = int(args.lookahead_len)
+                            payload["lookahead_frame_index"] = frame.lookahead_frame_index
+                            payload["lookahead_rx_sha256"] = lookahead_sha256
                             payload["environment_seed"] = int(env_config.seed)
                             payload["traditional_calibration_sha256"] = expected_calibration
                             key = _row_key(payload)
@@ -718,6 +746,8 @@ def main() -> None:
         "aggregation_role": str(config.get("aggregation_role", "main")),
         "diagnostic_only": bool(config.get("diagnostic_only", False)),
         "main_aggregation_allowed": bool(config.get("main_aggregation_allowed", True)),
+        "lookahead_len": int(args.lookahead_len),
+        "lookahead_protocol_version": "cross-frame-prefix-v1" if int(args.lookahead_len) else "none",
         "online_condition_source": config.get("online_condition_source", "pilot_cir_phase"),
         "online_scheduler": scheduler,
         "profile_prior": profile_prior,
@@ -1105,8 +1135,9 @@ def _build_method_states(
                 include_channel_state_memory=bool(config.get("rl_enable_channel_state_memory_actions", False)),
             )
             reward_receiver_input = str(config.get("rl_reward_receiver_input", "pilot_only"))
+            adapt_receiver_input = str(config.get("rl_adapt_receiver_input", "adapt_only"))
             validate_discrete_receiver_contract(
-                model, actions, pilot_layout or config.get("pilot_layout", "prefix"), reward_receiver_input)
+                model, actions, pilot_layout or config.get("pilot_layout", "prefix"), reward_receiver_input, adapt_receiver_input)
             from agent.rl_modulator import ModulationObservationEncoder
 
             encoder = ModulationObservationEncoder(
@@ -1156,6 +1187,7 @@ def _build_method_states(
                     tail_refinement_passes=int(config.get("tail_refinement_passes", 0)),
                     tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
                     reward_receiver_input=reward_receiver_input,
+                    adapt_receiver_input=adapt_receiver_input,
                     rollout=[],
                 ),
                 pretrained_loaded=pretrained_path is not None,
@@ -1268,7 +1300,21 @@ def _run_methods_for_frame(
     for method in methods:
         if method in results:
             continue
-        results[method] = _run_new_or_single_method(method, frame, snr_db, states[method], delay, frame_index, update_interval)
+        state = states[method]
+        model = getattr(getattr(state, "online_state", state), "model", None)
+        model_device = next(model.parameters()).device if model is not None else None
+        if model_device is not None and model_device.type == "cuda":
+            torch.cuda.synchronize(model_device)
+        started = time.perf_counter()
+        result = _run_new_or_single_method(method, frame, snr_db, state, delay, frame_index, update_interval)
+        if model_device is not None and model_device.type == "cuda":
+            torch.cuda.synchronize(model_device)
+        elapsed_ms = (time.perf_counter() - started) * 1000.
+        # 包含在线处理、PPO 和仿真评估前向，不能解释为部署均衡器时延。
+        results[method] = replace(result, latency_ms=elapsed_ms, extra={
+            **result.extra, "latency_scope": "research_frame_including_eval_excluding_environment_acquisition",
+            "cuda_synchronized_for_timing": bool(model_device is not None and model_device.type == "cuda"),
+        })
     return results
 
 
@@ -1282,6 +1328,8 @@ def _run_new_or_single_method(
     update_interval: int,
 ) -> RealMethodResult:
     if method == "Continual PPO":
+        if getattr(frame, "lookahead_rx_symbols", None) is not None:
+            raise ValueError("历史 Continual PPO 诊断入口不支持跨帧协议；请使用正式离散窗口 Proposed。")
         return _run_real_method(method, frame, snr_db, state, delay, frame_index, update_interval)
     if method in TRADITIONAL_BASELINES:
         if not isinstance(state, BaselineMethodState):
@@ -1416,6 +1464,7 @@ def _run_new_or_single_method(
         )
         rx_iq = torch.stack((online_rx_symbols.real, online_rx_symbols.imag), dim=-1).unsqueeze(0).float()
         region_ids = frame_device.model_region_ids.unsqueeze(0).long()
+        lookahead_kwargs = _frame_lookahead_model_kwargs(frame_device)
         phase_features = _neural_phase_features(
             condition_source=state.condition_source,
             receiver_view=frame.receiver_view(),
@@ -1442,6 +1491,7 @@ def _run_new_or_single_method(
             modulation=state.modulation,
             adapt_symbols=frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64),
             adapt_mask=frame_device.adapt_mask.unsqueeze(0).bool(),
+            **lookahead_kwargs,
             **({"frame_index": int(frame_device.frame_index)}
                if bool(getattr(state.model.config, "enable_channel_state_branch", False)) else {}),
         )
@@ -1482,6 +1532,7 @@ def _run_new_or_single_method(
                 modulation=state.modulation,
                 adapt_symbols=frame_device.receiver_view().adapt_symbols.unsqueeze(0).to(torch.complex64),
                 adapt_mask=frame_device.adapt_mask.unsqueeze(0).bool(),
+                **lookahead_kwargs,
                 **({"frame_index": int(frame_device.frame_index)}
                    if bool(getattr(state.model.config, "enable_channel_state_branch", False)) else {}),
             )
@@ -1553,6 +1604,7 @@ def _run_pilot_rls_method(
     del delay, frame_index, update_interval
     device = next(state.model.parameters()).device
     frame_device = _frame_to_device(frame, device)
+    lookahead_kwargs = _frame_lookahead_model_kwargs(frame_device)
     # RLS 的在线决策只能看到两段已知 Pilot。完整波形保留到所有参数
     # 更新、Reward 守门和状态维护完成之后，仅用于最终 Data 评估。
     full_rx_iq = torch.stack(
@@ -1610,8 +1662,9 @@ def _run_pilot_rls_method(
             tail,
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            **lookahead_kwargs,
         )
-    adaptation = state.rls_adapter.adapt(frame_device, condition, tail)
+    adaptation = state.rls_adapter.adapt(frame_device, condition, tail, lookahead_kwargs=lookahead_kwargs)
     with torch.no_grad():
         logits_after, _ = state.model(
             rx_iq,
@@ -1620,6 +1673,7 @@ def _run_pilot_rls_method(
             tail,
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            **lookahead_kwargs,
         )
     logits_before = logits_before.squeeze(0)
     candidate_logits = logits_after.squeeze(0)
@@ -1728,6 +1782,7 @@ def _run_pilot_rls_method(
             tail,
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            **lookahead_kwargs,
         )
     final_logits = full_logits.squeeze(0)
     return _result_from_logits(
@@ -1999,6 +2054,7 @@ def _run_pilot_online_method(
 
     device = next(state.model.parameters()).device
     frame_device = _frame_to_device(frame, device)
+    lookahead_kwargs = _frame_lookahead_model_kwargs(frame_device)
     online_parameter_groups = tuple(sorted(state.adapter.groups))
     online_parameter_items = state.model.peft.named_group_parameters(
         online_parameter_groups
@@ -2110,6 +2166,7 @@ def _run_pilot_online_method(
                     adapt_symbols=adapt_symbols,
                     adapt_mask=adapt_mask,
                     online_state_embedding=online_state_embedding,
+                    **lookahead_kwargs,
                 )
                 candidate_logits, _ = state.model(
                     rx_iq,
@@ -2119,6 +2176,7 @@ def _run_pilot_online_method(
                     adapt_symbols=adapt_symbols,
                     adapt_mask=adapt_mask,
                     online_state_embedding=online_state_embedding,
+                    **lookahead_kwargs,
                 )
             reward_view = frame_device.receiver_view()
             reward_labels = (reward_view.reward_symbols.real > 0.0).to(frame_device.bits.dtype)
@@ -2232,6 +2290,7 @@ def _run_pilot_online_method(
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
             online_state_embedding=online_state_embedding,
+            **lookahead_kwargs,
         )
     before = before_logits.squeeze(0)
     receiver_view = frame_device.receiver_view()
@@ -2304,6 +2363,7 @@ def _run_pilot_online_method(
                 adapt_symbols=adapt_symbols,
                 adapt_mask=adapt_mask,
                 online_state_embedding=online_state_embedding,
+                **lookahead_kwargs,
             )
         previous_good = previous_good_logits.squeeze(0)
         previous_good_reward_loss = float(
@@ -2350,6 +2410,7 @@ def _run_pilot_online_method(
                 adapt_symbols=adapt_symbols,
                 adapt_mask=adapt_mask,
                 online_state_embedding=online_state_embedding,
+                **lookahead_kwargs,
             )
         pending_logits = pending_logits_value.squeeze(0)
         pending_update_reward_loss_before = float(reward_before.detach().cpu())
@@ -2523,6 +2584,7 @@ def _run_pilot_online_method(
             learning_rate=state.adapter.learning_rate * float(candidate["learning_rate_scale"]),
             steps=int(candidate["steps"]),
             max_delta_norm=state.adapter.max_delta_norm * float(candidate["max_delta_scale"]),
+            lookahead_kwargs=lookahead_kwargs,
         )
         with torch.no_grad():
             after_logits, _ = state.model(
@@ -2533,6 +2595,7 @@ def _run_pilot_online_method(
                 adapt_symbols=adapt_symbols,
                 adapt_mask=adapt_mask,
                 online_state_embedding=online_state_embedding,
+                **lookahead_kwargs,
             )
         after = after_logits.squeeze(0)
         reward_after = _masked_bce(after, reward_labels, frame_device.reward_mask)
@@ -2777,6 +2840,7 @@ def _run_pilot_online_method(
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
             online_state_embedding=online_state_embedding,
+            **lookahead_kwargs,
         )
     full_before = full_before_logits.squeeze(0)
     for ranking_record, candidate_snapshot in candidate_snapshot_records:
@@ -2790,6 +2854,7 @@ def _run_pilot_online_method(
                 adapt_symbols=adapt_symbols,
                 adapt_mask=adapt_mask,
                 online_state_embedding=online_state_embedding,
+                **lookahead_kwargs,
             )
         candidate_data = _data_eval_metrics(
             full_before,
@@ -2825,6 +2890,7 @@ def _run_pilot_online_method(
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
             online_state_embedding=online_state_embedding,
+            **lookahead_kwargs,
         )
     final = full_final_logits.squeeze(0)
     # 这些字段只用于离线评估更新对 Data 区域输出的影响；Data 标签不参与
@@ -3642,7 +3708,28 @@ def _frame_to_device(frame, device: torch.device | str):
         model_region_ids=frame.model_region_ids.to(device),
         tail_symbols=frame.tail_symbols.to(device) if frame.tail_symbols is not None else None,
         true_cir=frame.true_cir.to(device) if frame.true_cir is not None else None,
+        lookahead_rx_symbols=(
+            frame.lookahead_rx_symbols.to(device) if frame.lookahead_rx_symbols is not None else None
+        ),
+        lookahead_adapt_symbols=(
+            frame.lookahead_adapt_symbols.to(device) if frame.lookahead_adapt_symbols is not None else None
+        ),
     )
+
+
+def _frame_lookahead_model_kwargs(frame) -> dict:
+    """生成模型所需的下一帧已知前缀输入，不携带未来标签。"""
+
+    received = frame.lookahead_rx_symbols
+    pilots = frame.lookahead_adapt_symbols
+    if received is None and pilots is None:
+        return {}
+    if received is None or pilots is None or received.shape != pilots.shape:
+        raise ValueError("跨帧接收视图中的 Adapt Pilot 与接收样本不匹配。")
+    return {
+        "lookahead_rx_symbols": received.unsqueeze(0).to(torch.complex64),
+        "lookahead_adapt_symbols": pilots.unsqueeze(0).to(torch.complex64),
+    }
 
 
 def _run_ppo_method(method: str, frame, snr_db: float, state: PPOMethodState, delay: int, frame_index: int, update_interval: int) -> RealMethodResult:
@@ -3775,6 +3862,7 @@ def _row_key(row: dict) -> tuple[str, int, float, int, int, int, int, str, str, 
                 row.get("state_instance", {}).get("acquisition_to_data_gap_seconds", 0.0),
             )
         ),
+        int(row.get("lookahead_len", 0)),
     )
 
 

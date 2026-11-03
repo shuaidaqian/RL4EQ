@@ -117,6 +117,8 @@ class PilotResidualRLSAdapter:
         frame,
         condition: CIRCondition,
         soft_tail: torch.Tensor,
+        *,
+        lookahead_kwargs: dict | None = None,
     ) -> OnlineRLSAdaptationResult:
         """使用当前帧有效 Adapt Pilot 更新残差 Adapter。"""
 
@@ -161,6 +163,7 @@ class PilotResidualRLSAdapter:
                     tail,
                     adapt_symbols=pilot_symbols,
                     adapt_mask=full_adapt_mask,
+                    **(lookahead_kwargs or {}),
                 )
                 features = self.model.online_residual_features
                 if features is None:
@@ -258,6 +261,7 @@ class PilotResidualRLSAdapter:
                     tail,
                     adapt_symbols=pilot_symbols,
                     adapt_mask=full_adapt_mask,
+                    **(lookahead_kwargs or {}),
                 )
                 logits_after = logits_after[0].float()
                 prediction_after = design @ torch.cat(
@@ -356,6 +360,7 @@ class PilotDrivenOnlineAdapter:
         proximal_weight: float | None = None,
         hard_example_weighting: bool | None = None,
         hard_example_temperature: float | None = None,
+        lookahead_kwargs: dict | None = None,
     ) -> OnlineAdaptationResult:
         """使用当前帧 Adapt Pilot 做一次受限在线更新。"""
 
@@ -442,6 +447,7 @@ class PilotDrivenOnlineAdapter:
                     adapt_symbols=adapt_symbols,
                     adapt_mask=mask.unsqueeze(0),
                     online_state_embedding=state_embedding,
+                    **(lookahead_kwargs or {}),
                 )
                 before_selected = before_logits[0, mask]
                 target_selected = target[mask]
@@ -463,6 +469,7 @@ class PilotDrivenOnlineAdapter:
                     adapt_symbols=adapt_symbols,
                     adapt_mask=mask.unsqueeze(0),
                     online_state_embedding=state_embedding,
+                    **(lookahead_kwargs or {}),
                 )
                 selected_logits = logits[0, mask]
                 if self.objective in {"pilot_reconstruction", "joint"}:
@@ -526,6 +533,7 @@ class PilotDrivenOnlineAdapter:
                     adapt_symbols=adapt_symbols,
                     adapt_mask=mask.unsqueeze(0),
                     online_state_embedding=state_embedding,
+                    **(lookahead_kwargs or {}),
                 )
                 after_selected = after_logits[0, mask]
                 target_selected = target[mask]
@@ -775,6 +783,7 @@ def run_pilot_driven_online(
     state_split: str | None = None,
     scheduler: str = "fixed",
     device: str = "cpu",
+    lookahead_len: int | None = None,
 ) -> dict:
     """运行正式的 Pilot 驱动在线适配入口。"""
 
@@ -783,6 +792,8 @@ def run_pilot_driven_online(
     if scheduler not in {"fixed", "bandit"}:
         raise ValueError(f"未知在线调度器：{scheduler}")
     config = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    if lookahead_len is None:
+        lookahead_len = int(config.get("receiver_lookahead_len", 0))
     selected_delays = delays or [int(value) for value in config.get("main_delays", [20, 30, 40])]
     selected_snrs = snrs or [float(value) for value in config.get("main_snrs", [0, 5, 10, 15])]
     target = Path(output_dir)
@@ -889,7 +900,10 @@ def run_pilot_driven_online(
                 previous_parameter_delta_norm = 0.0
                 consecutive_rejections = 0
                 for frame_index in range(1, int(frames) + 1):
-                    frame = _frame_to_device(env.next_frame(), device)
+                    frame = _frame_to_device(
+                        env.next_frame(lookahead_len=int(lookahead_len)), device
+                    )
+                    lookahead_kwargs = _frame_lookahead_model_kwargs(frame)
                     cir_before_update = cir.detach().clone()
                     if cir_update_mode == "pilot_sparse":
                         cir = pilot_sparse_cir_update(
@@ -942,6 +956,7 @@ def run_pilot_driven_online(
                         before_logits, _ = model(
                             rx_iq, condition, region_ids, tail,
                             adapt_symbols=adapt_symbols, adapt_mask=adapt_mask,
+                            **lookahead_kwargs,
                         )
                     before = before_logits.squeeze(0)
                     adapt_loss_before = _masked_bce(before, adapt_labels, frame.adapt_mask)
@@ -984,6 +999,7 @@ def run_pilot_driven_online(
                             learning_rate=adapter.learning_rate * float(action.learning_rate_scale),
                             steps=adapter.steps,
                             max_delta_norm=adapter.max_delta_norm * max(0.01, float(action.max_delta_scale)),
+                            lookahead_kwargs=lookahead_kwargs,
                         )
                         if update_applied
                         else None
@@ -992,6 +1008,7 @@ def run_pilot_driven_online(
                         after_logits, _ = model(
                             rx_iq, condition, region_ids, tail,
                             adapt_symbols=adapt_symbols, adapt_mask=adapt_mask,
+                            **lookahead_kwargs,
                         )
                     after = after_logits.squeeze(0)
                     reward_before = _masked_bce(before, reward_labels, frame.reward_mask)
@@ -1059,6 +1076,7 @@ def run_pilot_driven_online(
                             tail,
                             adapt_symbols=adapt_symbols,
                             adapt_mask=adapt_mask,
+                            **lookahead_kwargs,
                         )
                     final_eval = full_final_logits.squeeze(0)
                     rows.append(
@@ -1129,6 +1147,8 @@ def run_pilot_driven_online(
                             "uses_neural_network": True,
                             "uses_rl": scheduler == "bandit",
                             "pretrained_loaded": pretrained_path is not None,
+                            "lookahead_len": int(lookahead_len),
+                            "lookahead_frame_index": frame.lookahead_frame_index,
                         }
                     )
     payload = {
@@ -1186,7 +1206,31 @@ def _frame_to_device(frame, device: str):
         model_region_ids=frame.model_region_ids.to(device),
         tail_symbols=frame.tail_symbols.to(device) if frame.tail_symbols is not None else None,
         true_cir=frame.true_cir.to(device) if frame.true_cir is not None else None,
+        lookahead_rx_symbols=(
+            frame.lookahead_rx_symbols.to(device)
+            if frame.lookahead_rx_symbols is not None else None
+        ),
+        lookahead_adapt_symbols=(
+            frame.lookahead_adapt_symbols.to(device)
+            if frame.lookahead_adapt_symbols is not None else None
+        ),
+        lookahead_frame_index=frame.lookahead_frame_index,
     )
+
+
+def _frame_lookahead_model_kwargs(frame) -> dict:
+    """只传下一帧已收到前缀及其已知 Adapt Pilot，不传未来标签。"""
+
+    received = getattr(frame, "lookahead_rx_symbols", None)
+    pilots = getattr(frame, "lookahead_adapt_symbols", None)
+    if received is None and pilots is None:
+        return {}
+    if received is None or pilots is None or received.shape != pilots.shape:
+        raise ValueError("跨帧接收样本与已知 Adapt Pilot 必须同时存在且形状一致。")
+    return {
+        "lookahead_rx_symbols": received.unsqueeze(0).to(torch.complex64),
+        "lookahead_adapt_symbols": pilots.unsqueeze(0).to(torch.complex64),
+    }
 
 
 def _ber(logits: torch.Tensor, bits: torch.Tensor) -> float:

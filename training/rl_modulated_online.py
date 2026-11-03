@@ -19,6 +19,7 @@ from baseline.block_equalizers import bit_error_rate
 from baseline.traditional_equalizers import estimate_phase_residual_vector
 from env.comm_env import CommEnvConfig, CommunicationEnvironment, ReceiverState
 from training.meta_training import estimate_acquisition_cir_for_profile
+from training.online_adaptation import _frame_lookahead_model_kwargs
 
 
 @dataclass
@@ -48,6 +49,7 @@ def run_rl_modulated_online(
     update_interval: int = 32,
     pretrained: str | Path | None = None,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    lookahead_len: int = 0,
 ) -> dict:
     """运行 proposed 方法。
 
@@ -108,7 +110,7 @@ def run_rl_modulated_online(
                     rollout=[],
                 )
                 for frame_index in range(1, int(frames) + 1):
-                    frame = _frame_to_device(env.next_frame(), device)
+                    frame = _frame_to_device(env.next_frame(lookahead_len=int(lookahead_len)), device)
                     phase_features = estimate_phase_residual_vector(
                         frame.receiver_view(),
                         state.cir,
@@ -128,6 +130,7 @@ def run_rl_modulated_online(
                             "pilot_layout": str(pilot_layout),
                             "seed": int(seed),
                             "pretrained_loaded": pretrained_path is not None,
+                            "lookahead_len": int(lookahead_len),
                         }
                     )
                     rows.append(row)
@@ -172,7 +175,14 @@ def run_rl_modulated_frame(
     rx_iq = torch.stack((pilot_rx.real, pilot_rx.imag), dim=-1).unsqueeze(0).float()
     region_ids = frame.model_region_ids.unsqueeze(0).long()
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
-    logits_before, _ = state.model(rx_iq, condition, region_ids, tail, modulation=state.modulation)
+    lookahead_kwargs = _frame_lookahead_model_kwargs(frame)
+    view = frame.receiver_view()
+    model_kwargs = dict(
+        adapt_symbols=view.adapt_symbols.unsqueeze(0).to(torch.complex64),
+        adapt_mask=view.adapt_mask.unsqueeze(0).bool(),
+        **lookahead_kwargs,
+    )
+    logits_before, _ = state.model(rx_iq, condition, region_ids, tail, modulation=state.modulation, **model_kwargs)
     before = logits_before.squeeze(0)
     pilot_labels = (frame.tx_symbols.real > 0.0).to(frame.bits.dtype)
     reward_before = _masked_bce(before, pilot_labels, frame.reward_mask)
@@ -181,7 +191,7 @@ def run_rl_modulated_frame(
     hidden_in = state.hidden.detach()
     action, log_prob, value, state.hidden = state.policy.sample(observation, hidden_in)
     candidate = action.state
-    logits_after, _ = state.model(rx_iq, condition, region_ids, tail, modulation=candidate)
+    logits_after, _ = state.model(rx_iq, condition, region_ids, tail, modulation=candidate, **model_kwargs)
     after = logits_after.squeeze(0)
     reward_after = _masked_bce(after, pilot_labels, frame.reward_mask)
     delta_norm = float(torch.norm(candidate.to_vector() - state.modulation.to_vector()).detach().cpu())
@@ -207,7 +217,7 @@ def run_rl_modulated_frame(
     next_tail = torch.complex(next_tail_real, torch.zeros_like(next_tail_real))
     state.receiver_state.update_tail(torch.where(pilot_mask[-tail_len:], next_tail, state.receiver_state.soft_tail))
     with torch.no_grad():
-        full_after_logits, _ = state.model(full_rx_iq, condition, region_ids, state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64), modulation=state.modulation)
+        full_after_logits, _ = state.model(full_rx_iq, condition, region_ids, state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64), modulation=state.modulation, **model_kwargs)
     full_after = full_after_logits.squeeze(0)
     state.previous_reward = reward
     state.last_modulation_delta_norm = delta_norm
@@ -278,6 +288,9 @@ def _frame_to_device(frame, device: str):
         model_region_ids=frame.model_region_ids.to(device),
         tail_symbols=frame.tail_symbols.to(device) if frame.tail_symbols is not None else None,
         true_cir=frame.true_cir.to(device) if frame.true_cir is not None else None,
+        lookahead_rx_symbols=(frame.lookahead_rx_symbols.to(device) if frame.lookahead_rx_symbols is not None else None),
+        lookahead_adapt_symbols=(frame.lookahead_adapt_symbols.to(device) if frame.lookahead_adapt_symbols is not None else None),
+        lookahead_frame_index=frame.lookahead_frame_index,
     )
 
 

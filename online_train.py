@@ -23,6 +23,12 @@ def main() -> None:
     parser.add_argument("--snrs", nargs="*", type=float, default=None)
     parser.add_argument("--pilot-total", type=int, default=128)
     parser.add_argument("--pilot-layout", default="prefix")
+    parser.add_argument(
+        "--lookahead-len",
+        type=int,
+        default=None,
+        help="每帧额外读取下一帧前缀的接收样本数；窗口必须完全属于 Adapt Pilot。",
+    )
     parser.add_argument("--cir-update", choices=["fixed", "pilot_sparse", "decision_directed"], default="fixed")
     parser.add_argument("--cir-alpha", type=float, default=0.2)
     parser.add_argument("--state-split", choices=["offline_train", "heldout_edge", "drift"], default=None)
@@ -44,6 +50,7 @@ def main() -> None:
         "snrs": args.snrs,
         "pilot_total": args.pilot_total,
         "pilot_layout": args.pilot_layout,
+        "lookahead_len": args.lookahead_len,
         "pretrained": args.pretrained if args.pretrained and Path(args.pretrained).exists() else None,
         "cir_update_mode": args.cir_update,
         "cir_update_alpha": args.cir_alpha,

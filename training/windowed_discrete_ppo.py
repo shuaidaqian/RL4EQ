@@ -124,12 +124,15 @@ class WindowedDiscreteOnlineState:
     tail_refinement_passes: int = 0
     tail_update_alpha: float = 1.0
     reward_receiver_input: str = "pilot_only"
+    adapt_receiver_input: str = "adapt_only"
 
 
-def validate_discrete_receiver_contract(model, actions, pilot_layout, reward_receiver_input):
+def validate_discrete_receiver_contract(model, actions, pilot_layout, reward_receiver_input, adapt_receiver_input="adapt_only"):
     """在两个正式入口使用相同的动作与接收输入检查。"""
     if reward_receiver_input not in {"pilot_only", "full_rx"}:
         raise ValueError("Reward 接收输入必须为 pilot_only 或 full_rx。")
+    if adapt_receiver_input not in {"adapt_only", "full_rx"}:
+        raise ValueError("Adapt 接收输入必须为 adapt_only 或 full_rx。")
     if any(action.peft_groups and "channel_state_memory" in action.peft_groups for action in actions):
         branch = getattr(model, "channel_state", None)
         if branch is None or branch.memory is None or pilot_layout != "prefix":
@@ -154,10 +157,13 @@ def run_windowed_discrete_online(
     cir_update_alpha: float = 0.2,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     state_split: str | None = None,
+    lookahead_len: int | None = None,
 ) -> dict:
     if cir_update_mode not in {"fixed", "decision_directed"}:
         raise ValueError(f"未知 CIR 更新模式：{cir_update_mode}")
     config = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    if lookahead_len is None:
+        lookahead_len = int(config.get("receiver_lookahead_len", 0))
     selected_delays = delays or [int(value) for value in config.get("main_delays", [20, 30, 40])]
     selected_snrs = snrs or [float(value) for value in config.get("main_snrs", [0, 5, 10, 15])]
     env_configs = {
@@ -204,7 +210,8 @@ def run_windowed_discrete_online(
                     include_channel_state_memory=bool(config.get("rl_enable_channel_state_memory_actions", False)),
                 )
                 reward_receiver_input = str(config.get("rl_reward_receiver_input", "pilot_only"))
-                validate_discrete_receiver_contract(model, actions, pilot_layout, reward_receiver_input)
+                adapt_receiver_input = str(config.get("rl_adapt_receiver_input", "adapt_only"))
+                validate_discrete_receiver_contract(model, actions, pilot_layout, reward_receiver_input, adapt_receiver_input)
                 encoder = ModulationObservationEncoder(
                     include_pilot_state=bool(config.get("online_ppo_pilot_state_embedding", True)))
                 policy = DiscreteSafePolicy(len(encoder.FIELDS), len(actions)).to(device)
@@ -254,9 +261,12 @@ def run_windowed_discrete_online(
                     tail_refinement_passes=int(config.get("tail_refinement_passes", 0)),
                     tail_update_alpha=float(config.get("tail_update_alpha", 1.0)),
                     reward_receiver_input=reward_receiver_input,
+                    adapt_receiver_input=adapt_receiver_input,
                 )
                 for frame_index in range(1, int(frames) + 1):
-                    frame = _frame_to_device(env.next_frame(), device)
+                    frame = _frame_to_device(
+                        env.next_frame(lookahead_len=int(lookahead_len)), device
+                    )
                     phase_features = estimate_phase_residual_vector(
                         _adapt_receiver_view(frame),
                         state.cir,
@@ -285,6 +295,7 @@ def run_windowed_discrete_online(
                             "acquisition_cfo": float(acquisition_cfo),
                             "pretrained_loaded": pretrained_path is not None,
                             "policy_loaded": bool(policy_loaded),
+                            "lookahead_len": int(lookahead_len),
                         }
                     )
                     rows.append(row)
@@ -331,6 +342,7 @@ def run_windowed_discrete_frame(
     region_ids = frame.model_region_ids.unsqueeze(0).long()
     adapt_symbols = adapt_view.adapt_symbols.unsqueeze(0).to(torch.complex64)
     adapt_mask = adapt_view.adapt_mask.unsqueeze(0).bool()
+    lookahead_kwargs = _lookahead_model_kwargs(frame)
     adapt_labels = (adapt_view.adapt_symbols.real > 0.0).to(frame.bits.dtype)
     tail = state.receiver_state.soft_tail.unsqueeze(0).to(torch.complex64)
     identity = state.actions[0]
@@ -347,6 +359,7 @@ def run_windowed_discrete_frame(
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
             frame_index=physical_age,
+            **lookahead_kwargs,
         ).squeeze(0)
         pilot_state_embedding = None
         if bool(getattr(state.encoder, "include_pilot_state", False)):
@@ -421,9 +434,12 @@ def run_windowed_discrete_frame(
         adapt_symbols=adapt_symbols,
         adapt_mask=adapt_mask,
         frame_index=physical_age,
+        **lookahead_kwargs,
     )
     base = base_logits.squeeze(0)
     sampled_action = state.current_action
+    # 信号重构使用专门的 Pilot 方程；只有 BCE 前向按显式配置读取整帧波形。
+    adapt_receiver_input = state.adapt_receiver_input if sampled_action.peft_objective == "bce" else "adapt_only"
     applied_action = identity if sampled_action.name == "rollback_identity" else sampled_action
     if state.current_window_cir_snapshot is None:
         state.current_window_cir_snapshot = state.cir.detach().clone()
@@ -460,6 +476,8 @@ def run_windowed_discrete_frame(
             steps=int(sampled_action.peft_steps),
             objective=str(sampled_action.peft_objective),
             max_delta_norm=sampled_action.peft_max_delta_norm,
+            receiver_input=adapt_receiver_input,
+            lookahead_kwargs=lookahead_kwargs,
         )
         if sampled_action.peft_max_delta_norm is not None:
             if state.current_window_peft_snapshot is not None:
@@ -498,6 +516,7 @@ def run_windowed_discrete_frame(
         adapt_symbols=adapt_symbols,
         adapt_mask=adapt_mask,
         frame_index=physical_age,
+        **lookahead_kwargs,
     )
     after = logits_after.squeeze(0)
     reward_before_loss = _masked_bce(base, reward_labels, frame.reward_mask)
@@ -556,6 +575,7 @@ def run_windowed_discrete_frame(
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
             frame_index=physical_age,
+            **lookahead_kwargs,
         ).squeeze(0)
         state.cir = decision_directed_cir_update(
             frame,
@@ -632,6 +652,7 @@ def run_windowed_discrete_frame(
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
             frame_index=physical_age,
+            **lookahead_kwargs,
         ).squeeze(0)
         detected_tail = torch.complex(
             torch.tanh(adapt_tail_logits[-tail_len:] / 2.0),
@@ -667,6 +688,7 @@ def run_windowed_discrete_frame(
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
             frame_index=physical_age,
+            **lookahead_kwargs,
         )
     if sampled_action.peft_groups:
         _restore_snapshot(state.model, current_peft_snapshot)
@@ -683,6 +705,7 @@ def run_windowed_discrete_frame(
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
             frame_index=physical_age,
+            **lookahead_kwargs,
         )
     full_before = full_before_logits.squeeze(0)
     full_after = full_after_logits.squeeze(0)
@@ -780,7 +803,10 @@ def run_windowed_discrete_frame(
         "window_peft_delta_norm_before_reward": float(window_peft_delta_norm),
         "peft_objective": str(sampled_action.peft_objective),
         "data_labels_used_online": False,
-        "data_waveform_used_online": state.reward_receiver_input == "full_rx",
+        "data_waveform_used_online": state.reward_receiver_input == "full_rx" or (
+            bool(sampled_action.peft_groups) and adapt_receiver_input == "full_rx"),
+        "adapt_receiver_input": adapt_receiver_input,
+        "data_waveform_used_for_update": bool(sampled_action.peft_groups) and adapt_receiver_input == "full_rx",
         "reward_receiver_input": state.reward_receiver_input,
         "reward_loss_objective": ("channel_state_signal" if sampled_action.peft_objective in
                                   {"channel_state_signal", "channel_state_map"} else "bce"),
@@ -798,9 +824,14 @@ def run_windowed_discrete_frame(
             else state.current_pilot_state_embedding.detach().cpu().tolist()
         ),
         "policy_observation_fields": list(getattr(state.encoder, "FIELDS", ())),
-        "online_waveform_visibility": ("adapt_pilot_for_update_full_rx_for_reward_guard"
-                                      if state.reward_receiver_input == "full_rx" else
-                                      "adapt_pilot_for_update_reward_pilot_for_guard"),
+        "online_waveform_visibility": (
+            "full_rx_for_adapt_bce_full_rx_for_reward_guard"
+            if adapt_receiver_input == "full_rx" and state.reward_receiver_input == "full_rx" else
+            "full_rx_for_adapt_bce_reward_pilot_for_guard"
+            if adapt_receiver_input == "full_rx" else
+            "adapt_pilot_for_update_full_rx_for_reward_guard"
+            if state.reward_receiver_input == "full_rx" else
+            "adapt_pilot_for_update_reward_pilot_for_guard"),
         "adapt_params": int(state.policy.parameter_count() if policy_loss is not None else 0),
         "adapt_steps": int(1 if policy_loss is not None else 0),
         "parameter_delta_norm": float(applied_action.delta_norm + peft_delta_norm),
@@ -831,6 +862,8 @@ def refine_logits_with_tail(
     adapt_symbols: torch.Tensor | None = None,
     adapt_mask: torch.Tensor | None = None,
     frame_index: int = 0,
+    lookahead_rx_symbols: torch.Tensor | None = None,
+    lookahead_adapt_symbols: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """用当前帧无标签输出做有限次跨帧 soft-tail fixed-point refinement。"""
 
@@ -844,6 +877,8 @@ def refine_logits_with_tail(
         adapt_symbols=adapt_symbols,
         adapt_mask=adapt_mask,
         frame_index=frame_index,
+        lookahead_rx_symbols=lookahead_rx_symbols,
+        lookahead_adapt_symbols=lookahead_adapt_symbols,
     )
     tail_length = int(soft_tail.shape[-1])
     for _ in range(max(0, int(passes))):
@@ -862,6 +897,8 @@ def refine_logits_with_tail(
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
             frame_index=frame_index,
+            lookahead_rx_symbols=lookahead_rx_symbols,
+            lookahead_adapt_symbols=lookahead_adapt_symbols,
         )
     return logits
 
@@ -877,6 +914,8 @@ def _forward_model(
     adapt_symbols: torch.Tensor | None,
     adapt_mask: torch.Tensor | None,
     frame_index: int = 0,
+    lookahead_rx_symbols: torch.Tensor | None = None,
+    lookahead_adapt_symbols: torch.Tensor | None = None,
 ):
     """兼容旧诊断桩，并向新模型传递 Adapt Pilot 条件。"""
 
@@ -884,6 +923,12 @@ def _forward_model(
     age_kwargs = ({"frame_index": int(frame_index)}
                   if bool(getattr(model_config, "enable_channel_state_branch", False)) else {})
     if bool(getattr(model_config, "pilot_conditioned", False)):
+        lookahead_kwargs = {}
+        if lookahead_rx_symbols is not None:
+            lookahead_kwargs = {
+                "lookahead_rx_symbols": lookahead_rx_symbols,
+                "lookahead_adapt_symbols": lookahead_adapt_symbols,
+            }
         return model(
             rx_iq,
             condition,
@@ -892,6 +937,7 @@ def _forward_model(
             modulation=modulation,
             adapt_symbols=adapt_symbols,
             adapt_mask=adapt_mask,
+            **lookahead_kwargs,
             **age_kwargs,
         )
     return model(
@@ -971,6 +1017,7 @@ def _apply_adapt_peft_update(
     objective: str = "bce",
     max_delta_norm: float | None = None,
     receiver_input: str = "adapt_only",
+    lookahead_kwargs: dict | None = None,
 ) -> float:
     """损失只用 Adapt 标签；默认输入仍为 Adapt-only，实验可显式选整帧波形。"""
 
@@ -1036,6 +1083,7 @@ def _apply_adapt_peft_update(
                 tail,
                 adapt_symbols=pilot_view.adapt_symbols.to(device).unsqueeze(0).to(torch.complex64),
                 adapt_mask=frame.adapt_mask.to(device).unsqueeze(0).bool(),
+                **(lookahead_kwargs or {}),
                 **({"frame_index": int(frame.frame_index)}
                    if bool(getattr(getattr(model, "config", None), "enable_channel_state_branch", False)) else {}),
             )
@@ -1258,6 +1306,23 @@ def _adapt_receiver_view(frame):
     )
 
 
+def _lookahead_model_kwargs(frame) -> dict:
+    """把受限的后续接收前缀变为物理分支输入。"""
+
+    received = getattr(frame, "lookahead_rx_symbols", None)
+    pilots = getattr(frame, "lookahead_adapt_symbols", None)
+    if received is None and pilots is None:
+        return {}
+    if received is None or pilots is None:
+        raise ValueError("跨帧视图必须同时包含接收样本与已知 Adapt Pilot。")
+    if received.shape != pilots.shape:
+        raise ValueError("跨帧接收样本与 Adapt Pilot 长度必须相同。")
+    return {
+        "lookahead_rx_symbols": received.unsqueeze(0).to(torch.complex64),
+        "lookahead_adapt_symbols": pilots.unsqueeze(0).to(torch.complex64),
+    }
+
+
 def _pilot_receiver_view(frame):
     """返回 Adapt/Reward Pilot 视图，只供动作后的 Reward 验收使用。
 
@@ -1311,6 +1376,15 @@ def _frame_to_device(frame, device: str):
         model_region_ids=frame.model_region_ids.to(device),
         tail_symbols=frame.tail_symbols.to(device) if frame.tail_symbols is not None else None,
         true_cir=frame.true_cir.to(device) if frame.true_cir is not None else None,
+        lookahead_rx_symbols=(
+            frame.lookahead_rx_symbols.to(device)
+            if frame.lookahead_rx_symbols is not None else None
+        ),
+        lookahead_adapt_symbols=(
+            frame.lookahead_adapt_symbols.to(device)
+            if frame.lookahead_adapt_symbols is not None else None
+        ),
+        lookahead_frame_index=frame.lookahead_frame_index,
     )
 
 

@@ -30,7 +30,7 @@ from env.comm_env import CommunicationEnvironment
 from env.experiment_config import build_comm_env_config, validate_model_dimensions
 from env.frame_structure import Frame
 from training.checkpointing import save_checkpoint
-from training.online_adaptation import _pilot_signal_reconstruction_loss
+from training.online_adaptation import _pilot_signal_reconstruction_loss, _frame_lookahead_model_kwargs
 from training.windowed_discrete_ppo import _adapt_receiver_view
 
 
@@ -75,7 +75,8 @@ def prefix_context(context, end):
         raise ValueError("短窗必须长于信道记忆且不能超出已接收帧。")
     fields = ("bits", "tx_symbols", "rx_symbols", "adapt_mask", "reward_mask", "data_mask", "model_region_ids")
     short = replace(frame, **{name: getattr(frame, name)[:end] for name in fields},
-                    tail_symbols=None, true_cir=None, adapt_block_lengths=[int(frame.adapt_mask[:end].sum())])
+                    tail_symbols=None, true_cir=None, adapt_block_lengths=[int(frame.adapt_mask[:end].sum())],
+                    lookahead_rx_symbols=None, lookahead_adapt_symbols=None, lookahead_frame_index=None)
     return replace(context, frame=short)
 
 
@@ -128,6 +129,7 @@ def context_logits(model, context: TransferContext, parameters=None, *, visible=
     kwargs = {
         "adapt_symbols": view.adapt_symbols.unsqueeze(0),
         "adapt_mask": frame.adapt_mask.unsqueeze(0),
+        **_frame_lookahead_model_kwargs(frame),
     }
     if model.config.enable_channel_state_branch:
         kwargs["frame_index"] = frame.frame_index
@@ -299,7 +301,8 @@ def make_episode(config, model, *, seed, snr, frames, state_split, device):
         cfo_limit=float(config.get("acquisition_cfo_limit", 0.004)),
     )
     return env, cir.to(device), float(cfo), start.initial_soft_tail.to(device), [
-        frame_to_device(env.next_frame(), device) for _ in range(frames)
+        frame_to_device(env.next_frame(lookahead_len=int(config.get("receiver_lookahead_len", 0))), device)
+        for _ in range(frames)
     ]
 
 
@@ -539,6 +542,10 @@ class PilotTransferTrainer:
                     "post_target_frame_indices": [target.frame.frame_index for target in targets],
                     "offline_sample_cache_key": self.last_sample_cache_key,
                     "offline_sample_input_sha256": hashlib.sha256(frame.rx_symbols.detach().cpu().numpy().tobytes()).hexdigest(),
+                    "lookahead_len": int(frame.lookahead_rx_symbols.numel()) if frame.lookahead_rx_symbols is not None else 0,
+                    "offline_sample_lookahead_sha256": (
+                        hashlib.sha256(frame.lookahead_rx_symbols.detach().cpu().numpy().tobytes()).hexdigest()
+                        if frame.lookahead_rx_symbols is not None else None),
                     "loss": float(loss.detach().cpu()), "base_bce": float(base_loss.detach().cpu()),
                     "data_bce_before": float(before_data.detach().cpu()), "data_bce_after": float(post_loss.detach().cpu()),
                     "channel_state": channel_state, **update,
@@ -557,6 +564,7 @@ class PilotTransferTrainer:
             "outer_trainable_parameter_count": sum(parameter.numel() for parameter in self.optimizer.param_groups[0]["params"]),
             "elapsed_seconds": time.monotonic() - started,
             "inner_uses_data_labels": False,
+            "receiver_lookahead_len": int(self.config.get("receiver_lookahead_len", 0)),
             "inner_uses_data_waveform": self.inner_receiver_input == "full_rx" and self.inner_task == "full_frame"
                                          and self.settings.get("inner_objective") == "bce",
             "inner_receiver_input": self.inner_receiver_input,

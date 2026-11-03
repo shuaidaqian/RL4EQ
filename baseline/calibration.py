@@ -93,17 +93,33 @@ def run_calibrated_traditional_equalizer(method, receiver_view, cir, soft_tail, 
         raise ValueError("传统同步需要有限的 acquisition CFO 估计。")
     kind, length, regularizer = calibration.settings_for(method, snr_db)
     phase = estimate_phase_residual_vector(receiver_view, cir, soft_tail, cfo_hint=acquisition_cfo)
-    corrected = apply_phase_correction(receiver_view.rx_symbols, float(phase[0]), acquisition_cfo)
+    current_len = int(receiver_view.rx_symbols.numel())
+    received = receiver_view.rx_symbols
+    adapt_mask = receiver_view.adapt_mask
+    adapt_symbols = receiver_view.adapt_symbols
+    future_rx = getattr(receiver_view, "lookahead_rx_symbols", None)
+    if future_rx is not None:
+        future_symbols = receiver_view.lookahead_adapt_symbols
+        future_mask = receiver_view.lookahead_adapt_mask
+        if (future_symbols is None or future_mask is None
+                or future_symbols.shape != future_rx.shape or not bool(future_mask.all())):
+            raise ValueError("校准传统均衡器的跨帧窗口必须完全属于已知 Adapt Pilot。")
+        received = torch.cat((received, future_rx))
+        adapt_mask = torch.cat((adapt_mask, future_mask))
+        adapt_symbols = torch.cat((adapt_symbols, future_symbols))
+    # 相位坐标在当前帧起点连续延伸到下一帧前缀，不能对后缀重新从零计时。
+    corrected = apply_phase_correction(received, float(phase[0]), acquisition_cfo)
     variance = torch.tensor(10 ** (-float(snr_db) / 10), device=corrected.device, dtype=torch.float32)
     if kind == "fir":
-        estimate, iterations = _lmmse_fir(corrected, receiver_view.adapt_mask,
-                                         receiver_view.adapt_symbols, length, variance * regularizer)
+        estimate, iterations = _lmmse_fir(corrected, adapt_mask,
+                                         adapt_symbols, length, variance * regularizer)
     elif kind == "dfe":
-        estimate, iterations = _dfe_rls(corrected, receiver_view.adapt_mask,
-                                       receiver_view.adapt_symbols, length, feedback_len=regularizer)
+        estimate, iterations = _dfe_rls(corrected, adapt_mask,
+                                       adapt_symbols, length, feedback_len=regularizer)
     else:
         estimate = zero_padded_wiener_fde(corrected, cir, soft_tail, variance)
         iterations = corrected.numel()
+    estimate = estimate[:current_len]
     return TraditionalResult(
         method=method, logits=_estimate_to_logits(estimate, variance),
         soft_tail=_tail_from_estimate(estimate, soft_tail.numel()), iterations=iterations,

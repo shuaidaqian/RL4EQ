@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from evaluation.pilot_transfer import paired_interval
+from evaluation.receiver_protocol import audit_lookahead_rows
 
 FROZEN = "Frozen Offline NN"
 PROPOSED = "RL-Modulated Neural Block Equalizer"
@@ -23,6 +24,7 @@ PROPOSED = "RL-Modulated Neural Block Equalizer"
 def summarize_continuous_rows(rows, *, expected_frames, segment_frames, frame_seconds):
     if min(expected_frames, segment_frames, frame_seconds) <= 0 or expected_frames % segment_frames:
         raise ValueError("完整会话必须包含整数个预设分段，且时长为正。")
+    lookahead_audit = audit_lookahead_rows(rows)
     pairs = defaultdict(dict)
     for row in rows:
         method = row["method"]
@@ -88,6 +90,7 @@ def summarize_continuous_rows(rows, *, expected_frames, segment_frames, frame_se
     return {"schema_version": "continuous-rl-paired-diagnostic-v1", "diagnostic_only": True,
             "main_aggregation_allowed": False, "seeds": seeds, "frames_per_seed": expected_frames,
             "duration_seconds": expected_frames * frame_seconds, "per_snr": results,
+            "receiver_window_audit": lookahead_audit,
             "interpretation": "独立 Frozen 配对的连续机制探测；没有传统主比较，单 seed 不生成区间。"}
 
 

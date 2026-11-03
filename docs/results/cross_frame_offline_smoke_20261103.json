@@ -1,0 +1,138 @@
+{
+  "stage": "pilot_transfer",
+  "objective": "post_adapt",
+  "linear_operator_backend": "fft",
+  "attention_backend": "math",
+  "source_checkpoint": {
+    "path": "C:\\Users\\SDQ\\.codex\\worktrees\\online-peft-research\\RL4EQ\\pretrained\\channel_memory_map_control64_20261102\\model_best.pt",
+    "sha256": "153ccc68515fe77996f822924f0056d25a283ca0fd7b185c19a030bfe2871f08"
+  },
+  "history": [
+    {
+      "step": 1,
+      "seed": 98100,
+      "snr_db": 0.0,
+      "frame_index": 0,
+      "post_target_frame_indices": [
+        0,
+        8
+      ],
+      "offline_sample_cache_key": "682a4c0b2f034cd72390aee34a0ab2605602e938a8cd19cb2f65c3e8ca703dec",
+      "offline_sample_input_sha256": "ae1eaf22130d05d2de2f023ab37eb3120d0f84f807c912ffd361b3ad7b8cc5a0",
+      "lookahead_len": 116,
+      "offline_sample_lookahead_sha256": "1263d377ae4d1c7ddab488c010c957a2933ed9e40dfb2d0d0c89e08e392293b4",
+      "loss": 0.6368983387947083,
+      "base_bce": 0.31199830770492554,
+      "data_bce_before": 0.32289886474609375,
+      "data_bce_after": 0.3249000310897827,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 13,
+        "diffuse_energy_ratio": 0.2571795880794525,
+        "cfo_cycles_per_symbol": -0.0005639206249442587,
+        "phase_noise_std": 0.00046463803593020127,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        1.2188650369644165,
+        1.2032197713851929,
+        1.1956530809402466
+      ],
+      "delta_norm": 0.3665434420108795
+    },
+    {
+      "step": 2,
+      "seed": 98101,
+      "snr_db": 5.0,
+      "frame_index": 127,
+      "post_target_frame_indices": [
+        127,
+        135
+      ],
+      "offline_sample_cache_key": "c0e55fa6d2dcefa4a21122e7dd27c60eeab3997bc20b46136b7ccc0eaaef08f2",
+      "offline_sample_input_sha256": "69f22c978eee057fd067ab465a13485c6d729b0ab3b9c6b56dc53c3281400a9d",
+      "lookahead_len": 116,
+      "offline_sample_lookahead_sha256": "cafbff3e0b7f88a9e81d92cee5933c82cb29b89117f19bbca7f6871ad10f5a5a",
+      "loss": 0.15382373332977295,
+      "base_bce": 0.07536941021680832,
+      "data_bce_before": 0.07416009157896042,
+      "data_bce_after": 0.07845431566238403,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 18,
+        "diffuse_energy_ratio": 0.21496912837028503,
+        "cfo_cycles_per_symbol": 0.0004342716328769816,
+        "phase_noise_std": 0.0004094103105419107,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        1.2022981643676758,
+        1.1982765197753906,
+        1.1675118207931519
+      ],
+      "delta_norm": 0.3083518147468567
+    }
+  ],
+  "initialized_modules": [],
+  "outer_trainable_parameter_count": 34,
+  "elapsed_seconds": 6.077999999979511,
+  "inner_uses_data_labels": false,
+  "receiver_lookahead_len": 116,
+  "inner_uses_data_waveform": false,
+  "inner_receiver_input": "full_rx",
+  "reward_receiver_input": "full_rx",
+  "inner_task": "full_frame",
+  "reward_task": "full_frame",
+  "outer_uses_offline_data_labels": true,
+  "post_adapt_data_objective_enabled": true,
+  "post_target_frame_offsets": [
+    0,
+    8
+  ],
+  "offline_sample_cache_hits": 0,
+  "offline_sample_cache_misses": 2,
+  "offline_base_loss": "bce_all",
+  "reward_pilot_used_for_post_adapt_loss": false,
+  "checkpoint_selection": "fixed_training_budget_no_test_selection",
+  "settings": {
+    "objective": "post_adapt",
+    "seed": 98100,
+    "history_frames": 1,
+    "outer_learning_rate": 0.01,
+    "inner_learning_rate": 0.02,
+    "inner_steps": 3,
+    "max_delta_norm": 0.8,
+    "base_weight": 1,
+    "post_weight": 1,
+    "inner_groups": [
+      "channel_state_memory"
+    ],
+    "inner_objective": "channel_state_map",
+    "inner_receiver_input": "full_rx",
+    "reward_receiver_input": "full_rx",
+    "outer_groups": [
+      "channel_state_memory_scale"
+    ],
+    "initialize_symbol_residual_from_base": false,
+    "history_frame_choices": [
+      0,
+      127,
+      1023,
+      2047,
+      4095
+    ],
+    "reward_objective": "channel_state_signal",
+    "initialize_channel_state_from_base": false,
+    "post_target_frame_offsets": [
+      0,
+      8
+    ],
+    "offline_sample_cache_dir": "logs/cross_frame_offline_samples_20261103",
+    "evaluation_history_frames": 1023,
+    "initialize_channel_state_memory_from_base": true
+  }
+}

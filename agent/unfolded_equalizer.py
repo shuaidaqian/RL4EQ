@@ -12,7 +12,7 @@ from agent.cir_estimator import CIRCondition
 from agent.modulation import ModulationState
 from agent.peft import PEFTRegistry, mark_peft_group
 from agent.neural_channel_state import NeuralChannelStateAdapter, known_pilot_equations
-from env.linear_operator import LinearChannelOperator
+from env.linear_operator import CrossFrameLinearOperator, LinearChannelOperator
 
 
 @dataclass(frozen=True)
@@ -510,7 +510,26 @@ class UnfoldedEqualizer(nn.Module):
         adapt_mask: torch.Tensor | None = None,
         online_state_embedding: torch.Tensor | None = None,
         frame_index: int = 0,
+        lookahead_rx_symbols: torch.Tensor | None = None,
+        lookahead_adapt_symbols: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        current_len = rx_iq.shape[1]
+        if (lookahead_rx_symbols is None) != (lookahead_adapt_symbols is None):
+            raise ValueError("跨帧接收波形与已知 Adapt Pilot 必须同时提供。")
+        if lookahead_rx_symbols is not None:
+            future_rx = lookahead_rx_symbols.to(device=rx_iq.device, dtype=torch.complex64)
+            future_pilots = lookahead_adapt_symbols.to(device=rx_iq.device, dtype=torch.complex64)
+            if future_rx.ndim == 1:
+                future_rx = future_rx.unsqueeze(0)
+            if future_pilots.ndim == 1:
+                future_pilots = future_pilots.unsqueeze(0)
+            if (future_rx.shape != future_pilots.shape or future_rx.ndim != 2
+                    or future_rx.shape[0] != rx_iq.shape[0]
+                    or not 0 < future_rx.shape[1] <= condition.complex_cir.shape[1] - 1):
+                raise ValueError("跨帧输入形状必须匹配，且长度位于 1 到 max_delay 之间。")
+            # 在同一时间轴上校正当前帧和后缀，保留下一帧起点的 CFO 相位。
+            future_iq = torch.stack((future_rx.real, future_rx.imag), dim=-1).to(rx_iq.dtype)
+            rx_iq = torch.cat((rx_iq, future_iq), dim=1)
         if self.online_input_affine_adapter is not None:
             rx_iq = self.online_input_affine_adapter(rx_iq)
         if self.online_input_trend_adapter is not None:
@@ -527,18 +546,28 @@ class UnfoldedEqualizer(nn.Module):
             )
         rx_iq = self._apply_phase_correction(rx_iq, condition)
         if self.channel_state is not None:
-            condition = self._channel_state_condition(rx_iq, condition, adapt_symbols, adapt_mask, frame_index)
+            condition = self._channel_state_condition(rx_iq[:, :current_len], condition, adapt_symbols, adapt_mask, frame_index)
         if self.online_phase_trend_adapter is not None:
             rx_iq = self.online_phase_trend_adapter(
                 rx_iq,
                 state_embedding=online_state_embedding,
             )
+        if lookahead_rx_symbols is not None:
+            lookahead_rx_symbols = torch.complex(rx_iq[:, current_len:, 0], rx_iq[:, current_len:, 1])
+            lookahead_adapt_symbols = future_pilots
+            rx_iq = rx_iq[:, :current_len]
         self._last_online_features = None
         pilot_context = None
         if self.config.pilot_conditioned:
             pilot_context = self._pilot_context(rx_iq, adapt_symbols, adapt_mask)
         rx_complex = torch.complex(rx_iq[..., 0], rx_iq[..., 1]).to(torch.complex64)
-        physics_logits = self._physics_warm_start_logits(rx_complex, condition, soft_tail)
+        physics_logits = self._physics_warm_start_logits(
+            rx_complex,
+            condition,
+            soft_tail,
+            lookahead_rx_symbols=lookahead_rx_symbols,
+            lookahead_adapt_symbols=lookahead_adapt_symbols,
+        )
         operator = LinearChannelOperator(frame_len=rx_complex.shape[1], max_delay=condition.complex_cir.shape[1] - 1)
         soft_symbols = torch.zeros_like(rx_complex)
         logits = torch.zeros_like(rx_complex.real)
@@ -771,6 +800,8 @@ class UnfoldedEqualizer(nn.Module):
         rx_complex: torch.Tensor,
         condition: CIRCondition,
         soft_tail: torch.Tensor,
+        lookahead_rx_symbols: torch.Tensor | None = None,
+        lookahead_adapt_symbols: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """用接收端可见 CIR 和 soft tail 计算可微的长记忆物理 warm-start。"""
 
@@ -781,23 +812,72 @@ class UnfoldedEqualizer(nn.Module):
         tail = soft_tail.to(device=rx_complex.device, dtype=torch.complex64)
         if tail.ndim == 1:
             tail = tail.unsqueeze(0)
-        operator = LinearChannelOperator(
-            frame_len=rx_complex.shape[1],
-            max_delay=cir.shape[1] - 1,
-        )
         zero = torch.zeros_like(rx_complex)
-        tail_contribution = operator.forward(zero, cir, tail)
-        rhs = operator.adjoint(rx_complex - tail_contribution, cir)
+        use_lookahead = lookahead_rx_symbols is not None
+        if use_lookahead:
+            if lookahead_adapt_symbols is None:
+                raise ValueError("lookahead 接收波形必须提供对应的已知 Adapt Pilot 符号。")
+            future_rx = lookahead_rx_symbols.to(device=rx_complex.device, dtype=torch.complex64)
+            future_pilots = lookahead_adapt_symbols.to(device=rx_complex.device, dtype=torch.complex64)
+            if future_rx.ndim == 1:
+                future_rx = future_rx.unsqueeze(0)
+            if future_pilots.ndim == 1:
+                future_pilots = future_pilots.unsqueeze(0)
+            if future_rx.shape != future_pilots.shape:
+                raise ValueError("lookahead 接收波形与已知 Adapt Pilot 形状必须一致。")
+            if future_rx.shape[0] != rx_complex.shape[0]:
+                raise ValueError("lookahead batch 大小必须与当前帧一致。")
+            operator = CrossFrameLinearOperator(
+                frame_len=rx_complex.shape[1],
+                max_delay=cir.shape[1] - 1,
+                lookahead_len=future_rx.shape[1],
+            )
+            joint_rx = torch.cat((rx_complex, future_rx), dim=1)
+            known_next_contribution = operator.forward(
+                zero,
+                future_pilots,
+                cir,
+                torch.zeros_like(tail),
+            )
+            tail_contribution = operator.forward(
+                zero,
+                torch.zeros_like(future_rx),
+                cir,
+                tail,
+            )
+            rhs, _ = operator.adjoint(
+                joint_rx - known_next_contribution - tail_contribution,
+                cir,
+            )
+        else:
+            operator = LinearChannelOperator(
+                frame_len=rx_complex.shape[1],
+                max_delay=cir.shape[1] - 1,
+            )
+            tail_contribution = operator.forward(zero, cir, tail)
+            rhs = operator.adjoint(rx_complex - tail_contribution, cir)
         noise = condition.noise_variance.to(
             device=rx_complex.device,
             dtype=rx_complex.real.dtype,
         ).reshape(-1, 1).clamp_min(1e-6)
 
         def normal_matvec(vector: torch.Tensor) -> torch.Tensor:
-            return operator.adjoint(
-                operator.forward(vector, cir, torch.zeros_like(tail)),
-                cir,
-            ) + noise.to(vector.dtype) * vector
+            if use_lookahead:
+                current_gradient, _ = operator.adjoint(
+                    operator.forward(
+                        vector,
+                        torch.zeros_like(future_rx),
+                        cir,
+                        torch.zeros_like(tail),
+                    ),
+                    cir,
+                )
+            else:
+                current_gradient = operator.adjoint(
+                    operator.forward(vector, cir, torch.zeros_like(tail)),
+                    cir,
+                )
+            return current_gradient + noise.to(vector.dtype) * vector
 
         estimate = torch.zeros_like(rhs)
         residual = rhs - normal_matvec(estimate)
@@ -822,14 +902,27 @@ class UnfoldedEqualizer(nn.Module):
         base = (float(scale) * logits).clamp(-40.0, 40.0)
         if self.symbol_residual is None:
             return base
-        # 已知 CIR 下每个发送符号留在当前接收窗内的能量；帧尾观测较少。
+        # 每列在整个联合观测窗中的能量；完整后缀使帧尾恢复全 tap 覆盖。
         column_limit = torch.arange(rx_complex.shape[1] - 1, -1, -1, device=rx_complex.device)
+        if use_lookahead:
+            column_limit = column_limit + future_rx.shape[1]
         column_limit = column_limit.clamp(max=cir.shape[1] - 1)
         energy = cir.abs().square().cumsum(dim=1)[:, column_limit].clamp_min(1e-6)
         coverage = energy / cir.abs().square().sum(dim=1, keepdim=True).clamp_min(1e-6)
         soft = torch.complex(torch.tanh(logits / 2.0), torch.zeros_like(logits))
-        innovation = rx_complex - operator.forward(soft, cir, tail)
-        gradient = operator.adjoint(innovation, cir) / energy
+        if use_lookahead:
+            known_total = known_next_contribution + tail_contribution
+            soft_prediction = operator.forward(
+                soft,
+                torch.zeros_like(future_rx),
+                cir,
+                torch.zeros_like(tail),
+            )
+            current_gradient, _ = operator.adjoint(joint_rx - known_total - soft_prediction, cir)
+            gradient = current_gradient / energy
+        else:
+            innovation = rx_complex - operator.forward(soft, cir, tail)
+            gradient = operator.adjoint(innovation, cir) / energy
         features = torch.stack((
             estimate.real, estimate.imag, soft.real, gradient.real, gradient.imag,
             torch.log(noise).expand_as(estimate.real) / 5.0, coverage,

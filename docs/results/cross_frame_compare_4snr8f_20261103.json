@@ -1,0 +1,597 @@
+{
+  "schema_version": "calibrated-compare-diagnostic-v1",
+  "diagnostic_only": true,
+  "main_aggregation_allowed": false,
+  "frame_records": 160,
+  "paired_frames": 32,
+  "seeds": [
+    60040
+  ],
+  "frames_per_seed": 8,
+  "segment_frames": 2,
+  "traditional_calibration_sha256": "07c495cbe6a67226d443cd8996b6286ac297d3667060c366d768a13e5c2b7116",
+  "per_snr": [
+    {
+      "snr_db": 0.0,
+      "ber_data": {
+        "LMMSE-FIR": {
+          "mean": 0.2003580741584301,
+          "ci95": null,
+          "seeds": 1
+        },
+        "DFE-RLS": {
+          "mean": 0.2203776054084301,
+          "ci95": null,
+          "seeds": 1
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.25423177145421505,
+          "ci95": null,
+          "seeds": 1
+        },
+        "Frozen Offline NN": {
+          "mean": 0.1993815153837204,
+          "ci95": null,
+          "seeds": 1
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean": 0.1993815153837204,
+          "ci95": null,
+          "seeds": 1
+        }
+      },
+      "online_vs_frozen_gain": {
+        "mean": 0.0,
+        "ci95": null,
+        "seeds": 1
+      },
+      "online_vs_traditional_gain": {
+        "LMMSE-FIR": {
+          "mean": 0.0009765587747097015,
+          "ci95": null,
+          "seeds": 1
+        },
+        "DFE-RLS": {
+          "mean": 0.0209960900247097,
+          "ci95": null,
+          "seeds": 1
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.05485025607049465,
+          "ci95": null,
+          "seeds": 1
+        }
+      },
+      "late_minus_early_online_gain": {
+        "mean": 0.0,
+        "ci95": null,
+        "seeds": 1
+      },
+      "policy_action_frames": {
+        "identity": 8
+      },
+      "peft_attempt_frames": 0,
+      "peft_accepted_frames": 0,
+      "ppo_update_frames": 0,
+      "closed_windows": 1,
+      "positive_reward_windows": 0,
+      "window_rollbacks": 0,
+      "max_retained_trajectory_peft_delta_norm": 0.0,
+      "max_data_logit_abs_change": 0.0
+    },
+    {
+      "snr_db": 5.0,
+      "ber_data": {
+        "LMMSE-FIR": {
+          "mean": 0.10725911427289248,
+          "ci95": null,
+          "seeds": 1
+        },
+        "DFE-RLS": {
+          "mean": 0.1175130195915699,
+          "ci95": null,
+          "seeds": 1
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.050944010727107525,
+          "ci95": null,
+          "seeds": 1
+        },
+        "Frozen Offline NN": {
+          "mean": 0.03417968866415322,
+          "ci95": null,
+          "seeds": 1
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean": 0.03417968866415322,
+          "ci95": null,
+          "seeds": 1
+        }
+      },
+      "online_vs_frozen_gain": {
+        "mean": 0.0,
+        "ci95": null,
+        "seeds": 1
+      },
+      "online_vs_traditional_gain": {
+        "LMMSE-FIR": {
+          "mean": 0.07307942560873926,
+          "ci95": null,
+          "seeds": 1
+        },
+        "DFE-RLS": {
+          "mean": 0.08333333092741668,
+          "ci95": null,
+          "seeds": 1
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.016764322062954307,
+          "ci95": null,
+          "seeds": 1
+        }
+      },
+      "late_minus_early_online_gain": {
+        "mean": 0.0,
+        "ci95": null,
+        "seeds": 1
+      },
+      "policy_action_frames": {
+        "identity": 8
+      },
+      "peft_attempt_frames": 0,
+      "peft_accepted_frames": 0,
+      "ppo_update_frames": 0,
+      "closed_windows": 1,
+      "positive_reward_windows": 0,
+      "window_rollbacks": 0,
+      "max_retained_trajectory_peft_delta_norm": 0.0,
+      "max_data_logit_abs_change": 0.0
+    },
+    {
+      "snr_db": 10.0,
+      "ber_data": {
+        "LMMSE-FIR": {
+          "mean": 0.03889974020421505,
+          "ci95": null,
+          "seeds": 1
+        },
+        "DFE-RLS": {
+          "mean": 0.05094400979578495,
+          "ci95": null,
+          "seeds": 1
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.006184895770275034,
+          "ci95": null,
+          "seeds": 1
+        },
+        "Frozen Offline NN": {
+          "mean": 0.0026041666860692203,
+          "ci95": null,
+          "seeds": 1
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean": 0.0026041666860692203,
+          "ci95": null,
+          "seeds": 1
+        }
+      },
+      "online_vs_frozen_gain": {
+        "mean": 0.0,
+        "ci95": null,
+        "seeds": 1
+      },
+      "online_vs_traditional_gain": {
+        "LMMSE-FIR": {
+          "mean": 0.03629557351814583,
+          "ci95": null,
+          "seeds": 1
+        },
+        "DFE-RLS": {
+          "mean": 0.04833984310971573,
+          "ci95": null,
+          "seeds": 1
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.0035807290842058137,
+          "ci95": null,
+          "seeds": 1
+        }
+      },
+      "late_minus_early_online_gain": {
+        "mean": 0.0,
+        "ci95": null,
+        "seeds": 1
+      },
+      "policy_action_frames": {
+        "rollback_identity": 8
+      },
+      "peft_attempt_frames": 0,
+      "peft_accepted_frames": 0,
+      "ppo_update_frames": 0,
+      "closed_windows": 1,
+      "positive_reward_windows": 0,
+      "window_rollbacks": 0,
+      "max_retained_trajectory_peft_delta_norm": 0.0,
+      "max_data_logit_abs_change": 0.0
+    },
+    {
+      "snr_db": 15.0,
+      "ber_data": {
+        "LMMSE-FIR": {
+          "mean": 0.014485677005723119,
+          "ci95": null,
+          "seeds": 1
+        },
+        "DFE-RLS": {
+          "mean": 0.032714843517169356,
+          "ci95": null,
+          "seeds": 1
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.0,
+          "ci95": null,
+          "seeds": 1
+        },
+        "Frozen Offline NN": {
+          "mean": 0.0,
+          "ci95": null,
+          "seeds": 1
+        },
+        "RL-Modulated Neural Block Equalizer": {
+          "mean": 0.0,
+          "ci95": null,
+          "seeds": 1
+        }
+      },
+      "online_vs_frozen_gain": {
+        "mean": 0.0,
+        "ci95": null,
+        "seeds": 1
+      },
+      "online_vs_traditional_gain": {
+        "LMMSE-FIR": {
+          "mean": 0.014485677005723119,
+          "ci95": null,
+          "seeds": 1
+        },
+        "DFE-RLS": {
+          "mean": 0.032714843517169356,
+          "ci95": null,
+          "seeds": 1
+        },
+        "SC-FDE-MMSE": {
+          "mean": 0.0,
+          "ci95": null,
+          "seeds": 1
+        }
+      },
+      "late_minus_early_online_gain": {
+        "mean": 0.0,
+        "ci95": null,
+        "seeds": 1
+      },
+      "policy_action_frames": {
+        "identity": 8
+      },
+      "peft_attempt_frames": 0,
+      "peft_accepted_frames": 0,
+      "ppo_update_frames": 0,
+      "closed_windows": 1,
+      "positive_reward_windows": 0,
+      "window_rollbacks": 0,
+      "max_retained_trajectory_peft_delta_norm": 0.0,
+      "max_data_logit_abs_change": 0.0
+    }
+  ],
+  "information_audit": {
+    "shared_rx_sha256_passed": true,
+    "lookahead_len": 116,
+    "lookahead_protocol_version": "cross-frame-prefix-v1",
+    "shared_lookahead_rx_sha256_passed": true,
+    "rl_declares_no_data_labels_online": true,
+    "reward_receiver_input": "full_rx",
+    "adapt_receiver_input": "adapt_only",
+    "data_waveform_used_online": true,
+    "traditional_declares_no_hidden_labels_nn_or_rl": true
+  },
+  "interpretation": "信息声明与哈希需结合隔离测试；短轨迹不证明长期 PPO 学习，零经验区间不等于总体零风险。",
+  "raw_file_sha256": "e02659ec1f0ba0ac6324bc8b463024b64366674f239f481e881e4f19bbf1254a",
+  "comparison_manifest": {
+    "schema_version": "continual-ppo-compare-v2",
+    "methods": [
+      "Frozen Offline NN",
+      "RL-Modulated Neural Block Equalizer",
+      "LMMSE-FIR",
+      "DFE-RLS",
+      "SC-FDE-MMSE"
+    ],
+    "primary_summary_method": "RL-Modulated Neural Block Equalizer",
+    "main_level": "B",
+    "level_c_separate": true,
+    "per_config": [
+      {
+        "level": "B",
+        "delay": 116,
+        "snr_db": 0.0,
+        "mean_ber_data": 0.1993815153837204,
+        "count": 8
+      },
+      {
+        "level": "B",
+        "delay": 116,
+        "snr_db": 5.0,
+        "mean_ber_data": 0.03417968866415322,
+        "count": 8
+      },
+      {
+        "level": "B",
+        "delay": 116,
+        "snr_db": 10.0,
+        "mean_ber_data": 0.0026041666860692203,
+        "count": 8
+      },
+      {
+        "level": "B",
+        "delay": 116,
+        "snr_db": 15.0,
+        "mean_ber_data": 0.0,
+        "count": 8
+      }
+    ],
+    "generalization": {
+      "count": 0,
+      "mean_ber_data": NaN
+    },
+    "per_method": {
+      "Frozen Offline NN": {
+        "per_config": [
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 0.0,
+            "mean_ber_data": 0.1993815153837204,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 5.0,
+            "mean_ber_data": 0.03417968866415322,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 10.0,
+            "mean_ber_data": 0.0026041666860692203,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 15.0,
+            "mean_ber_data": 0.0,
+            "count": 8
+          }
+        ],
+        "generalization": {
+          "count": 0,
+          "mean_ber_data": NaN
+        }
+      },
+      "RL-Modulated Neural Block Equalizer": {
+        "per_config": [
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 0.0,
+            "mean_ber_data": 0.1993815153837204,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 5.0,
+            "mean_ber_data": 0.03417968866415322,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 10.0,
+            "mean_ber_data": 0.0026041666860692203,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 15.0,
+            "mean_ber_data": 0.0,
+            "count": 8
+          }
+        ],
+        "generalization": {
+          "count": 0,
+          "mean_ber_data": NaN
+        }
+      },
+      "LMMSE-FIR": {
+        "per_config": [
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 0.0,
+            "mean_ber_data": 0.2003580741584301,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 5.0,
+            "mean_ber_data": 0.10725911427289248,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 10.0,
+            "mean_ber_data": 0.03889974020421505,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 15.0,
+            "mean_ber_data": 0.014485677005723119,
+            "count": 8
+          }
+        ],
+        "generalization": {
+          "count": 0,
+          "mean_ber_data": NaN
+        }
+      },
+      "DFE-RLS": {
+        "per_config": [
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 0.0,
+            "mean_ber_data": 0.2203776054084301,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 5.0,
+            "mean_ber_data": 0.1175130195915699,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 10.0,
+            "mean_ber_data": 0.05094400979578495,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 15.0,
+            "mean_ber_data": 0.032714843517169356,
+            "count": 8
+          }
+        ],
+        "generalization": {
+          "count": 0,
+          "mean_ber_data": NaN
+        }
+      },
+      "SC-FDE-MMSE": {
+        "per_config": [
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 0.0,
+            "mean_ber_data": 0.25423177145421505,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 5.0,
+            "mean_ber_data": 0.050944010727107525,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 10.0,
+            "mean_ber_data": 0.006184895770275034,
+            "count": 8
+          },
+          {
+            "level": "B",
+            "delay": 116,
+            "snr_db": 15.0,
+            "mean_ber_data": 0.0,
+            "count": 8
+          }
+        ],
+        "generalization": {
+          "count": 0,
+          "mean_ber_data": NaN
+        }
+      }
+    },
+    "bootstrap": {
+      "mean": 0.059623211202342645,
+      "low": 0.039713542064419016,
+      "high": 0.09781901352107525,
+      "std": 0.020971666978070416,
+      "repetitions": 200,
+      "block_length": 8,
+      "resampling_order": [
+        "seed",
+        "contiguous_frame_block"
+      ]
+    },
+    "effective_channel": {
+      "profile_name": "eme_long_memory_v2",
+      "level": "B",
+      "max_delay": 116,
+      "sample_rate_hz": 10000.0,
+      "symbol_rate_hz": 10000.0,
+      "frame_len": 1024,
+      "max_delay_seconds": 0.0116,
+      "coherence_time_seconds": 1200.0,
+      "acquisition_to_data_gap_seconds": 0.0,
+      "rho_frame": 0.999914670307452,
+      "strong_path_count": [
+        19,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.29,
+        0.35
+      ],
+      "include_anomalous_scatterer": false,
+      "impairment_profile": "cfo_phase_tiny",
+      "pilot_layout": "prefix",
+      "pilot_total": 256,
+      "reward_pilot_total": 32,
+      "adapt_pilot_total": 224,
+      "state_split": "heldout_edge"
+    },
+    "impairment_profile": "cfo_phase_tiny",
+    "state_split": "heldout_edge",
+    "aggregation_role": "diagnostic",
+    "diagnostic_only": true,
+    "main_aggregation_allowed": false,
+    "online_condition_source": "pilot_cir_phase",
+    "online_scheduler": "fixed",
+    "profile_prior": {
+      "residual_cfo_limit": 0.0012,
+      "acquisition_cfo_limit": 0.004
+    },
+    "traditional_calibration": {
+      "schema_version": "traditional-calibration-protocol-v1",
+      "sha256": "07c495cbe6a67226d443cd8996b6286ac297d3667060c366d768a13e5c2b7116",
+      "path": "C:\\Users\\SDQ\\.codex\\worktrees\\online-peft-research\\RL4EQ\\configs\\traditional_calibration_20261101.json",
+      "applied_methods": [
+        "LMMSE-FIR",
+        "DFE-RLS",
+        "SC-FDE-MMSE"
+      ]
+    },
+    "forbidden": {
+      "data_label_upper_bound_method_present": false
+    }
+  },
+  "checkpoint": {
+    "path": "pretrained\\channel_memory_map_control64_20261102\\model_best.pt",
+    "sha256": "153ccc68515fe77996f822924f0056d25a283ca0fd7b185c19a030bfe2871f08"
+  },
+  "limitation": "四SNR各8帧单seed机制smoke；传统使用旧协议冻结设置，尚未在跨帧窗口重新校准；不支持正式成功结论。"
+}

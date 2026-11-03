@@ -18,6 +18,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from baseline.calibration import CALIBRATED_METHODS
 from evaluation.pilot_transfer import paired_interval
+from evaluation.receiver_protocol import audit_lookahead_rows
 
 
 FROZEN = "Frozen Offline NN"
@@ -29,6 +30,7 @@ def summarize_rows(rows):
     """先拒绝不完整配对或信息隔离失败，再计算 seed 级区间。"""
     if not rows or {row["method"] for row in rows} != set(METHODS):
         raise ValueError("此诊断需要三类校准传统方法、Frozen 和正式 RL 方法。")
+    lookahead_audit = audit_lookahead_rows(rows)
     groups = defaultdict(dict)
     protocols = set()
     receiver_protocols = set()
@@ -42,11 +44,15 @@ def summarize_rows(rows):
             raise ValueError("统一入口实际环境 seed 与记录索引不匹配。")
         if row["method"] == PROPOSED:
             receiver_protocol = row.get("reward_receiver_input", "pilot_only")
+            adapt_protocol = row.get("adapt_receiver_input", "adapt_only")
             if (row.get("data_labels_used_online") is not False
                     or receiver_protocol not in {"pilot_only", "full_rx"}
-                    or row.get("data_waveform_used_online") is not (receiver_protocol == "full_rx")):
+                    or adapt_protocol not in {"adapt_only", "full_rx"}
+                    or row.get("data_waveform_used_online") is not (
+                        receiver_protocol == "full_rx" or (
+                            adapt_protocol == "full_rx" and row.get("data_waveform_used_for_update") is True))):
                 raise ValueError("RL 在线信息隔离声明缺失或失败。")
-            receiver_protocols.add(receiver_protocol)
+            receiver_protocols.add((receiver_protocol, adapt_protocol))
         if row["method"] in CALIBRATED_METHODS and (
             row.get("traditional_calibration_applied") is not True
             or row.get("uses_reward_or_data_labels") is not False
@@ -56,7 +62,7 @@ def summarize_rows(rows):
     if len(protocols) != 1 or None in protocols:
         raise ValueError("配对记录混合了不同传统校准协议。")
     if len(receiver_protocols) != 1:
-        raise ValueError("配对记录混合了不同 Reward 接收协议。")
+        raise ValueError("配对记录混合了不同 Reward 或 Adapt 接收协议。")
     for group in groups.values():
         if set(group) != set(METHODS):
             raise ValueError("同一帧缺少比较方法。")
@@ -118,9 +124,12 @@ def summarize_rows(rows):
             "seeds": seeds, "frames_per_seed": len(frames), "segment_frames": segment,
             "traditional_calibration_sha256": next(iter(protocols)), "per_snr": summaries,
             "information_audit": {"shared_rx_sha256_passed": True,
+                                  **lookahead_audit,
                                   "rl_declares_no_data_labels_online": True,
-                                  "reward_receiver_input": next(iter(receiver_protocols)),
-                                  "data_waveform_used_online": next(iter(receiver_protocols)) == "full_rx",
+                                  "reward_receiver_input": next(iter(receiver_protocols))[0],
+                                  "adapt_receiver_input": next(iter(receiver_protocols))[1],
+                                  "data_waveform_used_online": any(
+                                      row.get("data_waveform_used_online") is True for row in rows if row["method"] == PROPOSED),
                                   "traditional_declares_no_hidden_labels_nn_or_rl": True},
             "interpretation": "信息声明与哈希需结合隔离测试；短轨迹不证明长期 PPO 学习，零经验区间不等于总体零风险。"}
 

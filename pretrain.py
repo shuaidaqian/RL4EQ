@@ -27,6 +27,8 @@ def main() -> None:
         return
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     config = load_config(args.config)
+    if int(config.get("receiver_lookahead_len", 0)) and args.stage != "pilot_transfer":
+        raise ValueError("跨帧观测离线训练请使用 --stage pilot_transfer；其他训练入口尚未支持该协议。")
     if args.stage == "pilot_transfer":
         from training.pilot_transfer import PilotTransferTrainer
 

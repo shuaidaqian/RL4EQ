@@ -44,6 +44,10 @@ class ReceiverFrameView:
     adapt_mask: torch.Tensor
     reward_symbols: torch.Tensor
     model_region_ids: torch.Tensor
+    lookahead_rx_symbols: torch.Tensor | None = None
+    lookahead_adapt_symbols: torch.Tensor | None = None
+    lookahead_adapt_mask: torch.Tensor | None = None
+    lookahead_frame_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -59,6 +63,9 @@ class Frame:
     adapt_block_lengths: Sequence[int]
     tail_symbols: torch.Tensor | None = None
     true_cir: torch.Tensor | None = None
+    lookahead_rx_symbols: torch.Tensor | None = None
+    lookahead_adapt_symbols: torch.Tensor | None = None
+    lookahead_frame_index: int | None = None
 
     @property
     def unknown_region_mask(self) -> torch.Tensor:
@@ -75,6 +82,18 @@ class Frame:
             adapt_mask=self.adapt_mask.clone(),
             reward_symbols=reward_symbols,
             model_region_ids=self.model_region_ids.clone(),
+            lookahead_rx_symbols=(
+                None if self.lookahead_rx_symbols is None else self.lookahead_rx_symbols.clone()
+            ),
+            lookahead_adapt_symbols=(
+                None if self.lookahead_adapt_symbols is None else self.lookahead_adapt_symbols.clone()
+            ),
+            lookahead_adapt_mask=(
+                None
+                if self.lookahead_adapt_symbols is None
+                else torch.ones_like(self.lookahead_adapt_symbols, dtype=torch.bool)
+            ),
+            lookahead_frame_index=self.lookahead_frame_index,
         )
 
     def offline_view(self) -> "Frame":
@@ -98,6 +117,36 @@ class Frame:
             adapt_block_lengths=self.adapt_block_lengths,
             tail_symbols=tail_symbols,
             true_cir=true_cir,
+            lookahead_rx_symbols=self.lookahead_rx_symbols,
+            lookahead_adapt_symbols=self.lookahead_adapt_symbols,
+            lookahead_frame_index=self.lookahead_frame_index,
+        )
+
+    def with_lookahead(
+        self,
+        rx_symbols: torch.Tensor,
+        adapt_symbols: torch.Tensor,
+        frame_index: int,
+    ) -> "Frame":
+        """附加下一帧已接收样本及其可见 Adapt Pilot，不附加未来帧标签。"""
+
+        if rx_symbols.ndim != 1 or adapt_symbols.shape != rx_symbols.shape:
+            raise ValueError("lookahead 接收样本与已知 Pilot 必须是一维等长张量。")
+        return Frame(
+            frame_index=self.frame_index,
+            bits=self.bits,
+            tx_symbols=self.tx_symbols,
+            rx_symbols=self.rx_symbols,
+            adapt_mask=self.adapt_mask,
+            reward_mask=self.reward_mask,
+            data_mask=self.data_mask,
+            model_region_ids=self.model_region_ids,
+            adapt_block_lengths=self.adapt_block_lengths,
+            tail_symbols=self.tail_symbols,
+            true_cir=self.true_cir,
+            lookahead_rx_symbols=rx_symbols.clone(),
+            lookahead_adapt_symbols=adapt_symbols.clone(),
+            lookahead_frame_index=int(frame_index),
         )
 
     def with_replaced_hidden_labels(self, reward_bits: torch.Tensor, data_bits: torch.Tensor) -> "Frame":
@@ -117,6 +166,9 @@ class Frame:
             adapt_block_lengths=self.adapt_block_lengths,
             tail_symbols=self.tail_symbols,
             true_cir=self.true_cir,
+            lookahead_rx_symbols=self.lookahead_rx_symbols,
+            lookahead_adapt_symbols=self.lookahead_adapt_symbols,
+            lookahead_frame_index=self.lookahead_frame_index,
         )
 
 

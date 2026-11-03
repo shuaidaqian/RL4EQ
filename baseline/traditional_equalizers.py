@@ -76,6 +76,7 @@ def run_traditional_equalizer(
     compensation_extra: dict = {}
     base_method = method
     rx_source = receiver_view.rx_symbols
+    lookahead_rx_source = getattr(receiver_view, "lookahead_rx_symbols", None)
     use_dd_phase_tracker = method.startswith("CFO+DD-Phase ")
     if use_dd_phase_tracker:
         base_method = method.removeprefix("CFO+DD-Phase ")
@@ -91,6 +92,13 @@ def run_traditional_equalizer(
         phase0 = (1.0 - phase_state.smoothing) * phase_state.phase0 + phase_state.smoothing * phase_estimate.phase0
         cfo = (1.0 - phase_state.smoothing) * phase_state.cfo_cycles_per_symbol + phase_state.smoothing * phase_estimate.cfo_cycles_per_symbol
         rx_source = apply_phase_correction(receiver_view.rx_symbols, phase0, cfo)
+        if lookahead_rx_source is not None:
+            frame_len = int(receiver_view.rx_symbols.numel())
+            lookahead_rx_source = apply_phase_correction(
+                lookahead_rx_source,
+                phase0 + 2.0 * math.pi * cfo * frame_len,
+                cfo,
+            )
         phase_state.phase0 = float(phase0)
         phase_state.cfo_cycles_per_symbol = float(cfo)
         compensation_extra = {
@@ -109,15 +117,26 @@ def run_traditional_equalizer(
         )
         phase0 = _pilot_common_phase(receiver_view, reference, reference_mask)
         rx_source = apply_phase_correction(receiver_view.rx_symbols, phase0, 0.0)
+        if lookahead_rx_source is not None:
+            lookahead_rx_source = apply_phase_correction(lookahead_rx_source, phase0, 0.0)
         compensation_extra = {
             "phase_compensation": "pilot_common_phase",
             "estimated_cfo_cycles_per_symbol": phase_estimate.cfo_cycles_per_symbol,
             "estimated_phase0": phase0,
             "phase_pilot_count": phase_estimate.pilot_count,
         }
+    current_len = int(receiver_view.rx_symbols.numel())
     rx = rx_source.flatten().to(torch.complex64)
     adapt_mask = receiver_view.adapt_mask.flatten().bool()
     adapt_tx = receiver_view.adapt_symbols.flatten().to(torch.complex64)
+    if lookahead_rx_source is not None:
+        future_pilots = receiver_view.lookahead_adapt_symbols.flatten().to(torch.complex64)
+        future_mask = receiver_view.lookahead_adapt_mask.flatten().bool()
+        if future_pilots.shape != lookahead_rx_source.flatten().shape or not bool(future_mask.all()):
+            raise ValueError("传统均衡器的 lookahead 必须完全由已知 Adapt Pilot 构成。")
+        rx = torch.cat((rx, lookahead_rx_source.flatten().to(torch.complex64)))
+        adapt_mask = torch.cat((adapt_mask, future_mask))
+        adapt_tx = torch.cat((adapt_tx, future_pilots))
     cir = cir.flatten().to(torch.complex64)
     noise_variance = torch.tensor(10.0 ** (-float(snr_db) / 10.0), dtype=torch.float32, device=rx.device)
     filter_len = _filter_length(cir)
@@ -143,6 +162,7 @@ def run_traditional_equalizer(
     else:
         raise ValueError(f"未知传统均衡器：{method}")
 
+    estimate = estimate[:current_len]
     logits = _estimate_to_logits(estimate, noise_variance)
     if use_dd_phase_tracker and phase_state is not None:
         residual = _decision_directed_phase_residual(receiver_view.rx_symbols, estimate, cir, next_tail=_tail_from_estimate(estimate, soft_tail.numel()))

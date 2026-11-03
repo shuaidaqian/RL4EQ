@@ -70,7 +70,8 @@ def test_protocol_checks_actual_channel_and_pilot_contract():
         calibration.validate_environment(replace(env, seed=36000))
 
 
-def test_calibrated_receiver_does_not_read_hidden_labels_or_symbols(monkeypatch):
+@pytest.mark.parametrize("lookahead", [0, 116])
+def test_calibrated_receiver_does_not_read_hidden_labels_or_symbols(monkeypatch, lookahead):
     """传统推理可读取接收信号，但隐藏发送符号不能进入同步或均衡。"""
     monkeypatch.setenv("RL4EQ_LINEAR_OPERATOR_BACKEND", "fft")
     calibration = load_frozen_traditional_calibration(PROTOCOL)
@@ -80,7 +81,7 @@ def test_calibrated_receiver_does_not_read_hidden_labels_or_symbols(monkeypatch)
     ))
     start = env.reset_episode()
     cir, cfo = estimate_acquisition_cir_with_cfo(start.acquisition, 116)
-    frame = env.next_frame()
+    frame = env.next_frame(lookahead_len=lookahead)
     hidden = ~frame.adapt_mask
     bits, symbols = frame.bits.clone(), frame.tx_symbols.clone()
     bits[hidden], symbols[hidden] = ~bits[hidden], complex(float("nan"), float("nan"))
@@ -91,6 +92,8 @@ def test_calibrated_receiver_does_not_read_hidden_labels_or_symbols(monkeypatch)
             acquisition_cfo=cfo, calibration=calibration,
         ) for item in (frame, changed)]
         torch.testing.assert_close(outputs[0].logits, outputs[1].logits, atol=0, rtol=0)
+        assert outputs[0].logits.shape == frame.rx_symbols.shape
+        assert outputs[0].soft_tail.shape == start.initial_soft_tail.shape
 
 
 def test_calibrated_compare_cli_audits_shared_rx_and_rejects_mixed_resume(tmp_path):
@@ -98,17 +101,25 @@ def test_calibrated_compare_cli_audits_shared_rx_and_rejects_mixed_resume(tmp_pa
     command = [sys.executable, "compare.py", "--config", str(CONFIG), "--methods", *CALIBRATED_METHODS,
                "--traditional-calibration", str(PROTOCOL), "--snrs", "10", "--seed-start", "47003",
                "--num-seeds", "1", "--frames", "1", "--state-split", "heldout_edge",
-               "--device", "cpu", "--output-dir", str(output)]
+               "--device", "cpu", "--lookahead-len", "116", "--output-dir", str(output)]
     completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=90)
     assert completed.returncode == 0, completed.stderr
     rows = [json.loads(line) for line in (output / "frame_metrics.jsonl").read_text(encoding="utf-8").splitlines()]
     assert len(rows) == 3
     assert len({row["rx_sha256"] for row in rows}) == 1
+    assert len({row["lookahead_rx_sha256"] for row in rows}) == 1
+    assert all(row["lookahead_len"] == 116 and len(row["lookahead_rx_sha256"]) == 64 for row in rows)
+    assert all(row["lookahead_frame_index"] == row["frame"] for row in rows)
     assert all(len(row["rx_sha256"]) == 64 and row["environment_seed"] == 97003 for row in rows)
     before = (output / "frame_metrics.jsonl").read_bytes()
     changed = list(command)
     position = changed.index("--traditional-calibration")
     del changed[position:position + 2]
     failed = subprocess.run(changed + ["--resume"], capture_output=True, timeout=90)
+    assert failed.returncode != 0
+    assert (output / "frame_metrics.jsonl").read_bytes() == before
+    changed_window = list(command)
+    changed_window[changed_window.index("--lookahead-len") + 1] = "0"
+    failed = subprocess.run(changed_window + ["--resume"], capture_output=True, timeout=90)
     assert failed.returncode != 0
     assert (output / "frame_metrics.jsonl").read_bytes() == before
