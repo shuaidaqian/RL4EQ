@@ -93,6 +93,21 @@ def test_validation_labels_do_not_enter_candidate_and_rejection_restores_initial
     assert first[2]["accepted"] is False
 
 
+def test_straight_through_gate_keeps_exact_rejection_forward_and_passes_outer_gradient():
+    observation = fixture_observation()
+    model = DetectionSubspace(4)
+    initial = torch.zeros(4, requires_grad=True)
+    origin = torch.zeros(4)
+    settings = DeterministicSettings(min_validation_improvement=100., surrogate_gate_gradient=True)
+    candidate, retained, metrics = update_subspace(model, observation, initial, origin, settings,
+        create_graph=True)
+    assert metrics["accepted"] is False
+    assert torch.equal(retained.detach(), initial.detach())
+    (retained * torch.arange(1., 5.)).sum().backward()
+    assert any(parameter.grad is not None and parameter.grad.norm() > 0 for parameter in model.parameters())
+    assert initial.grad is not None and torch.isfinite(initial.grad).all()
+
+
 def test_adapt_history_changes_inner_update_but_validation_stays_on_current_frame():
     observation = fixture_observation()
     previous = replace(observation, adapt_labels=1-observation.adapt_labels)
@@ -215,6 +230,16 @@ def test_temperature2_manifest_changes_only_the_adapt_loss_scale():
     assert candidate["checkpoint_sha256"] == baseline["checkpoint_sha256"]
     assert candidate["data_roles"] == baseline["data_roles"]
     assert candidate["channel_changes"] is False
+
+
+def test_v8_manifest_enables_surrogate_gradient_only_for_offline_outer_training():
+    baseline = read_manifest("configs/audits/detection_subspace_long_v7_adapt_temperature2_v1.json")
+    candidate = read_manifest("configs/audits/detection_subspace_long_v8_surrogate_gate_v1.json")
+    assert candidate["update"]["surrogate_gate_gradient"] is True
+    assert baseline["update"].get("surrogate_gate_gradient", False) is False
+    assert candidate["config_sha256"] == baseline["config_sha256"]
+    assert candidate["data_roles"] == baseline["data_roles"]
+    assert candidate["heldout_confirmation"] is False
 
 
 def test_dense_memory_origin_reset_equals_physical_branch():

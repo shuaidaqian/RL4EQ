@@ -87,7 +87,9 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         and retained_loss < before_loss - settings.min_validation_improvement
         and retained_ber <= before_ber)
     if not accepted:
-        retained = initial
+        # 外层训练保持线上拒绝时的精确前向值，但可选地将候选梯度直通到外层。
+        retained = (current + (initial - current).detach()
+                    if create_graph and settings.surrogate_gate_gradient else initial)
         retained_logits = before_logits
         retained_loss, retained_ber = before_loss, before_ber
     candidate_accepted = accepted
@@ -102,7 +104,8 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
             and (retained.detach() - origin.detach()).norm() > 0
         )
         if reset_to_origin:
-            retained = origin
+            retained = (retained + (origin - retained).detach()
+                        if create_graph and settings.surrogate_gate_gradient else origin)
             accepted = False
     metrics = dict(accepted=accepted, adapt_losses=losses, gradient_norm=float(gradient_norm.detach()),
         candidate_accepted=candidate_accepted, reset_to_origin=reset_to_origin,
