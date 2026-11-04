@@ -420,6 +420,32 @@ def test_pilot_risk_gate_only_adds_a_rejection_after_existing_hard_gate():
     torch.testing.assert_close(hard_retained, candidate)
 
 
+def test_pilot_risk_replacement_can_accept_a_hard_rejected_candidate_from_pilot_score():
+    observation = PilotObservation(
+        base_logits=torch.zeros(4), features=torch.zeros(4, 7), logit_scale=torch.ones(1, 1),
+        adapt_mask=torch.tensor([True, True, False, False]),
+        adapt_labels=torch.ones(4),
+        validation_mask=torch.tensor([False, False, True, True]),
+        validation_labels=torch.zeros(4))
+    basis = torch.ones(4, 1)
+    settings = DeterministicSettings(steps=1, learning_rate=.02, proximal_weight=0.,
+        reset_to_origin_on_validation=False, origin_retention_decay=1.)
+    origin = torch.zeros(1)
+    candidate, hard_retained, hard_metrics = coefficient_update(
+        observation.base_logits, basis, observation, origin, origin, settings)
+    assert hard_metrics["accepted"] is False
+    risk_candidate, risk_retained, risk_metrics = coefficient_update(
+        observation.base_logits, basis, observation, origin, origin, settings,
+        validation_risk_gate=lambda features: features.new_tensor(.1),
+        validation_risk_gate_mode="replace")
+    torch.testing.assert_close(risk_candidate, candidate)
+    assert risk_metrics["candidate_accepted"] is False
+    assert risk_metrics["accepted"] is True
+    assert risk_metrics["validation_risk_gate_rejected"] is False
+    torch.testing.assert_close(risk_retained, candidate)
+    torch.testing.assert_close(hard_retained, origin)
+
+
 def test_pilot_risk_manifest_fixes_base_checkpoint_split_and_threshold():
     import json
     spec = json.loads(open("configs/audits/pilot_validation_risk_gate_v1.json", encoding="utf-8").read())

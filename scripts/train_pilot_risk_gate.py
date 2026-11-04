@@ -94,10 +94,15 @@ def _score_predictions(predictions, targets):
         mean_predicted_gain=float(predictions.mean()), mean_actual_gain=float(targets.mean()))
 
 
-def _evaluate_branches(base_model, sessions, settings, gate, device):
+def _evaluate_branches(base_model, sessions, settings, gate, device, experiment_mode):
     rows = []
+    branches = ["hard_gate"]
+    if experiment_mode in {"filter", "both"}:
+        branches.append("pilot_risk_gate")
+    if experiment_mode in {"replace", "both"}:
+        branches.append("pilot_risk_replace")
     for session in sessions:
-        for branch in ("hard_gate", "pilot_risk_gate"):
+        for branch in branches:
             origin = base_model.coefficients.detach().clone()
             current = origin.clone()
             history = []
@@ -107,7 +112,8 @@ def _evaluate_branches(base_model, sessions, settings, gate, device):
                 history = history[-int(session.get("inner_history_frames", 8)):]
                 candidate, retained, control = update_subspace(base_model, observation, current,
                     origin, settings, adapt_history=history,
-                    validation_risk_gate=gate if branch == "pilot_risk_gate" else None)
+                    validation_risk_gate=gate if branch != "hard_gate" else None,
+                    validation_risk_gate_mode=("replace" if branch == "pilot_risk_replace" else "filter"))
                 basis = base_model.basis(observation)
                 before_logits = observation.base_logits + basis @ current
                 proposal = origin + settings.origin_retention_decay * (candidate - origin)
@@ -172,8 +178,10 @@ def run(manifest_path, base_training_dir, output_dir, *, device="cuda"):
         raise ValueError("v11基础清单指纹不符。")
     spec = read_manifest(base_manifest_path)
     policy = risk_spec["risk_gate"]
+    experiment_mode = risk_spec.get("experiment_mode", "filter")
     if policy.get("ridge") != 0.1 or policy.get("threshold") != 0.0 \
-            or policy.get("feature_names") != list(FEATURE_NAMES):
+            or policy.get("feature_names") != list(FEATURE_NAMES) \
+            or experiment_mode not in {"filter", "replace", "both"}:
         raise ValueError("门控超参数或特征定义与冻结清单不符。")
     source = Path(base_training_dir)
     target = Path(output_dir)
@@ -200,9 +208,10 @@ def run(manifest_path, base_training_dir, output_dir, *, device="cuda"):
     selection_predictions = gate.predict(select_x)
     selection_score = _score_predictions(selection_predictions, select_y)
 
-    rows = _evaluate_branches(model, evaluation_sessions, settings, gate, device)
+    rows = _evaluate_branches(model, evaluation_sessions, settings, gate, device, experiment_mode)
     output = dict(schema_version="pilot-validation-risk-gate-result-v1", role="development",
         core_confirmed=False, confirmation_ready=False, selected_dimension=int(payload["dimension"]),
+        experiment_mode=experiment_mode,
         feature_names=list(FEATURE_NAMES), training_samples=int(train_y.numel()),
         selection_samples=int(select_y.numel()), risk_model=gate.to_dict(),
         train_target_summary=_score_predictions(gate.predict(train_x), train_y),

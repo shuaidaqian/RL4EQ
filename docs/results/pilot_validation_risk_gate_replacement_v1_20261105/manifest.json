@@ -1,0 +1,35 @@
+{
+  "schema_version": "pilot-validation-risk-gate-v1",
+  "role": "development",
+  "base_manifest": "configs/audits/detection_subspace_long_v11_smooth_ber_outer_v1.json",
+  "base_manifest_sha256": "67060019ad546620383a5a87e428a827e89c527f4ed0178f2e45c8192658a462",
+  "base_checkpoint_sha256": "7f2b20c9fe9396c6d692d349acb6bf45760984905ef72f7730a84cc90d3d54ac",
+  "base_summary_sha256": "054bc35d4e8109b5870a2c14d7b5dd9165465c5f132c39684d6484aad072128e",
+  "risk_gate": {
+    "features": "仅使用更新前后验证Pilot统计与Adapt优化器状态；不使用Data或隐藏真值",
+    "feature_names": [
+      "验证BCE均值改善",
+      "验证BCE改善中位数",
+      "验证BCE改善下十分位",
+      "验证符号改善比例",
+      "验证硬BER改善",
+      "更新前平均绝对logit",
+      "更新后平均绝对logit",
+      "符号翻转比例",
+      "平均绝对logit变化",
+      "参数候选增量范数",
+      "Adapt梯度范数"
+    ],
+    "target": "动作候选相对当前系数的离线Data BCE改善，正数为获益",
+    "ridge": 0.1,
+    "threshold": 0.0,
+    "rule": "首先必须通过既有验证Pilot硬门控；再要求离线风险模型预测Data BCE改善大于0",
+    "training_role": "base_manifest.data_roles.training",
+    "selection_role": "base_manifest.data_roles.selection，仅只读报告校准指标，不调阈值",
+    "evaluation_role": "base_manifest.data_roles.evaluation，只报告隔离开发性能，不是独立确认"
+  },
+  "channel_changes": false,
+  "heldout_confirmation": false,
+  "scope": "固定岭回归器与阈值0；同一开发评估中并列比较原验证硬门控、硬门控后风险过滤以及风险分数替代验证损失/硬BER门控（仍保留累计锚点回退）；不据评估Data选择策略",
+  "experiment_mode": "both"
+}
