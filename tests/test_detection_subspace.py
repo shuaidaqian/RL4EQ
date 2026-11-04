@@ -10,7 +10,7 @@ import torch
 
 from agent.detection_subspace import DetectionSubspace, PilotObservation, capture_observation
 from evaluation.adaptability_audit import deployable_frame
-from evaluation.subspace_development import read_manifest, sequence_loss
+from evaluation.subspace_development import outer_data_loss, read_manifest, sequence_loss
 from training.deterministic_adaptation import DeterministicSettings
 from training.subspace_adaptation import coefficient_update, pilot_loss, project, update_subspace
 
@@ -343,6 +343,31 @@ def test_v10_manifest_keeps_protocol_and_enables_context_update_only():
     spec = read_manifest("configs/audits/detection_subspace_long_v10_context_update_v1.json")
     assert spec["learned_context_update"] is True
     assert spec["learned_gradient_transport"] is False
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+    assert spec["config"] == "configs/eme_long_memory_v2_shared_pilot_memory_rl.json"
+    assert spec["snrs_db"] == [0, 5, 10, 15]
+
+
+def test_smooth_ber_outer_objective_is_differentiable_and_tracks_signed_margin():
+    bits = torch.tensor([True, False])
+    row = dict(offline=dict(data_mask=torch.tensor([True, True]), bits=bits))
+    logits = torch.tensor([0.2, -0.2], requires_grad=True)
+    correct = outer_data_loss(logits, row, "smooth_ber", 1.0)
+    wrong = outer_data_loss(-logits, row, "smooth_ber", 1.0)
+    assert correct < wrong
+    gradient, = torch.autograd.grad(correct, logits)
+    assert torch.isfinite(gradient).all()
+    assert gradient[0] < 0 and gradient[1] > 0
+    with pytest.raises(ValueError):
+        outer_data_loss(logits, row, "smooth_ber", 0.)
+
+
+def test_v11_manifest_keeps_protocol_and_fixes_outer_surrogate_temperature():
+    spec = read_manifest("configs/audits/detection_subspace_long_v11_smooth_ber_outer_v1.json")
+    assert spec["training"]["outer_objective"] == "smooth_ber"
+    assert spec["training"]["smooth_ber_temperature"] == 1.0
+    assert spec["learned_context_update"] is True
     assert spec["channel_changes"] is False
     assert spec["heldout_confirmation"] is False
     assert spec["config"] == "configs/eme_long_memory_v2_shared_pilot_memory_rl.json"

@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -71,6 +71,14 @@ def read_manifest(path):
                 or policy.get("enabled") is not True
                 or spec["inner_history_frames"] != 8):
             raise ValueError("v10必须只启用固定8帧历史的上下文更新器。")
+    if spec.get("schema_version") == "fixed-channel-subspace-development-v11":
+        objective = spec.get("training", {}).get("outer_objective")
+        temperature = spec.get("training", {}).get("smooth_ber_temperature")
+        if (spec.get("learned_context_update") is not True
+                or objective != "smooth_ber"
+                or not isinstance(temperature, (int, float))
+                or not np.isfinite(temperature) or temperature <= 0):
+            raise ValueError("v11只允许固定正温度的平滑BER外层目标。")
     return spec
 
 
@@ -270,7 +278,22 @@ def data_loss(logits, row):
     return torch.nn.functional.binary_cross_entropy_with_logits(logits[mask], offline["bits"][mask].float())
 
 
-def sequence_loss(model, session, settings, update_frames, *, adapt, create_graph):
+def outer_data_loss(logits, row, objective="bce", smooth_ber_temperature=1.0):
+    """离线训练目标；线上更新器不接收Data标签。"""
+    if objective == "bce":
+        return data_loss(logits, row)
+    if objective != "smooth_ber":
+        raise ValueError("离线外层目标未登记。")
+    if not np.isfinite(smooth_ber_temperature) or smooth_ber_temperature <= 0:
+        raise ValueError("平滑BER温度必须为正有限数。")
+    offline = row["offline"]
+    mask = offline["data_mask"]
+    labels = offline["bits"][mask].float().mul(2).sub(1)
+    return torch.sigmoid(-labels * logits[mask] / smooth_ber_temperature).mean()
+
+
+def sequence_loss(model, session, settings, update_frames, *, adapt, create_graph,
+                  outer_objective="bce", smooth_ber_temperature=1.0):
     """联合最近合法Adapt历史更新；当前帧守门后评分当前和下一帧Data。"""
     origin = model.coefficients
     current = origin
@@ -285,7 +308,8 @@ def sequence_loss(model, session, settings, update_frames, *, adapt, create_grap
                 settings, adapt_history=history, create_graph=create_graph)
         for offset in (0, 1):
             target = session["frames"][index + offset]
-            losses.append(data_loss(model.logits(target["observation"], current), target))
+            losses.append(outer_data_loss(model.logits(target["observation"], current), target,
+                outer_objective, smooth_ber_temperature))
     outer = torch.stack(losses).mean()
     if model.learned_gradient_transport and settings.gradient_transport_regularization > 0:
         transport = model.gradient_transport_matrix()
@@ -294,13 +318,15 @@ def sequence_loss(model, session, settings, update_frames, *, adapt, create_grap
     return outer
 
 
-def selection_loss(model, sessions, settings, update_frames):
+def selection_loss(model, sessions, settings, update_frames, *, outer_objective="bce",
+                   smooth_ber_temperature=1.0):
     losses = []
     for session in sessions:
         # 选择标准两种训练方式完全相同，兼顾Frozen与Online，不只选最好的终点。
         for adapt in (False, True):
             losses.append(float(sequence_loss(model, session, settings, update_frames,
-                adapt=adapt, create_graph=False).detach()))
+                adapt=adapt, create_graph=False, outer_objective=outer_objective,
+                smooth_ber_temperature=smooth_ber_temperature).detach()))
     return float(np.mean(losses))
 
 
@@ -401,7 +427,9 @@ def run_training(manifest_path, inspection_dir, output_dir, device="cpu"):
             session = training[(step-1) % len(training)]
             optimizer.zero_grad(set_to_none=True)
             loss = sequence_loss(model, session, settings, training_settings["sequence_update_frames"],
-                adapt=name == "B_post_adapt", create_graph=name == "B_post_adapt")
+                adapt=name == "B_post_adapt", create_graph=name == "B_post_adapt",
+                outer_objective=training_settings.get("outer_objective", "bce"),
+                smooth_ber_temperature=training_settings.get("smooth_ber_temperature", 1.0))
             if not bool(torch.isfinite(loss)):
                 raise FloatingPointError("离线外层损失非有限。")
             loss.backward()
@@ -412,7 +440,9 @@ def run_training(manifest_path, inspection_dir, output_dir, device="cpu"):
             record = dict(training=name, step=step, seed=session["seed"], snr_db=session["snr_db"],
                 outer_loss=float(loss.detach()), gradient_norm=gradient_norm)
             if step in training_settings["checkpoint_steps"]:
-                value = selection_loss(model, selection, settings, training_settings["sequence_update_frames"])
+                value = selection_loss(model, selection, settings, training_settings["sequence_update_frames"],
+                    outer_objective=training_settings.get("outer_objective", "bce"),
+                    smooth_ber_temperature=training_settings.get("smooth_ber_temperature", 1.0))
                 record["selection_loss"] = value
                 if value < best:
                     best, best_step = value, step
