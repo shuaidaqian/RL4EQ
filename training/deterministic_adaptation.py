@@ -25,6 +25,7 @@ class DeterministicSettings:
     origin_retention_decay: float = 1.0
     adapt_logit_temperature: float = 1.0
     surrogate_gate_gradient: bool = False
+    gradient_transport_regularization: float = 0.0
 
     def __post_init__(self):
         values = (self.learning_rate, self.step_radius, self.total_radius)
@@ -43,6 +44,8 @@ class DeterministicSettings:
             raise ValueError("Adapt Pilot logit温度必须为正有限数。")
         if type(self.surrogate_gate_gradient) is not bool:
             raise ValueError("直通门控梯度开关必须为布尔值。")
+        if not math.isfinite(self.gradient_transport_regularization) or self.gradient_transport_regularization < 0:
+            raise ValueError("梯度传输映射正则必须是非负有限数。")
 
 
 def validation_metrics(model, context, logits):

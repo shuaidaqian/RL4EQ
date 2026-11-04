@@ -61,7 +61,8 @@ def analyze(manifest_path: Path, training_dir: Path, trajectory_path: Path,
     sessions = torch.load(root / "evaluation_features.pt", map_location=device, weights_only=False)
     payload = torch.load(root / "B_post_adapt.pt", map_location=device, weights_only=False)
     model = make_subspace(int(payload["dimension"]), int(spec["initialization_seed"]),
-                          device, payload["architecture"])
+                          device, payload["architecture"],
+                          learned_gradient_transport=payload.get("learned_gradient_transport", False))
     model.load_state_dict(payload["state_dict"], strict=True)
     model.eval()
     with gzip.open(trajectory_path, "rt", encoding="utf-8") as handle:

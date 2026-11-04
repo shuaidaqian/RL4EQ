@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -141,17 +141,21 @@ def capture_sessions(spec, role, device, *, dense_diagnostic=False):
     return sessions, dense_rows
 
 
-def make_subspace(dimension, seed, device, architecture="pointwise_mlp_v1"):
+def make_subspace(dimension, seed, device, architecture="pointwise_mlp_v1", *,
+                  learned_gradient_transport=False):
     # 初始化隔离于环境的专用RNG；候选共享预先固定种子，不能按收益重抽。
     with torch.random.fork_rng(devices=[]):
         torch.manual_seed(seed)
-        return DetectionSubspace(dimension, architecture=architecture).to(device)
+        return DetectionSubspace(dimension, architecture=architecture,
+            learned_gradient_transport=learned_gradient_transport).to(device)
 
 
 def inspect_candidates(spec, sessions, device):
     result = []
     for dimension in spec["dimensions"]:
-        model = make_subspace(dimension, spec["initialization_seed"], device, spec.get("architecture", "pointwise_mlp_v1"))
+        model = make_subspace(dimension, spec["initialization_seed"], device,
+            spec.get("architecture", "pointwise_mlp_v1"),
+            learned_gradient_transport=spec.get("learned_gradient_transport", False))
         for session in sessions:
             for row in session["frames"]:
                 if row["identity"]["frame"] not in spec["geometry_frames"]:
@@ -186,7 +190,9 @@ def inspect_candidates(spec, sessions, device):
 
 def reachability_smoke(spec, sessions, dimension, device):
     """独立副本上的普通监督作用检查，只证明表示可训练，不证明在线泛化。"""
-    model = make_subspace(dimension, spec["initialization_seed"], device, spec.get("architecture", "pointwise_mlp_v1"))
+    model = make_subspace(dimension, spec["initialization_seed"], device,
+        spec.get("architecture", "pointwise_mlp_v1"),
+        learned_gradient_transport=spec.get("learned_gradient_transport", False))
     rows = [session["frames"][0] for session in sessions if session["seed"] == spec["data_roles"]["inspection"]["seeds"][0]]
     optimizer = torch.optim.AdamW(model.parameters(), lr=spec["training"]["outer_learning_rate"], weight_decay=0.)
     initial_state = copy.deepcopy(model.state_dict())
@@ -197,7 +203,10 @@ def reachability_smoke(spec, sessions, dimension, device):
         optimizer.zero_grad(set_to_none=True)
         loss = torch.stack([data_loss(model.logits(row["observation"]),row) for row in rows]).mean()
         loss.backward()
-        if not bool(torch.isfinite(loss)) or any(p.grad is None or not bool(torch.isfinite(p.grad).all()) for p in model.parameters()):
+        missing_or_nonfinite = [name for name, parameter in model.named_parameters()
+            if name != "gradient_transport_raw" and
+            (parameter.grad is None or not bool(torch.isfinite(parameter.grad).all()))]
+        if not bool(torch.isfinite(loss)) or missing_or_nonfinite:
             raise FloatingPointError("普通监督作用检查的损失或梯度非有限。")
         torch.nn.utils.clip_grad_norm_(model.parameters(),1.)
         optimizer.step()
@@ -267,7 +276,12 @@ def sequence_loss(model, session, settings, update_frames, *, adapt, create_grap
         for offset in (0, 1):
             target = session["frames"][index + offset]
             losses.append(data_loss(model.logits(target["observation"], current), target))
-    return torch.stack(losses).mean()
+    outer = torch.stack(losses).mean()
+    if model.learned_gradient_transport and settings.gradient_transport_regularization > 0:
+        transport = model.gradient_transport_matrix()
+        identity = torch.eye(model.dimension, device=transport.device, dtype=transport.dtype)
+        outer = outer + settings.gradient_transport_regularization * (transport - identity).square().mean()
+    return outer
 
 
 def selection_loss(model, sessions, settings, update_frames):
@@ -365,7 +379,9 @@ def run_training(manifest_path, inspection_dir, output_dir, device="cpu"):
     models, history, checkpoints = {}, [], {}
     training_settings = spec["training"]
     for name in ("A_supervised", "B_post_adapt"):
-        model = make_subspace(dimension, spec["initialization_seed"], device, spec.get("architecture", "pointwise_mlp_v1"))
+        model = make_subspace(dimension, spec["initialization_seed"], device,
+            spec.get("architecture", "pointwise_mlp_v1"),
+            learned_gradient_transport=spec.get("learned_gradient_transport", False))
         optimizer = torch.optim.AdamW(model.parameters(), lr=training_settings["outer_learning_rate"], weight_decay=0.)
         best, best_state, best_step = float("inf"), None, None
         tick = time.perf_counter()
@@ -395,7 +411,9 @@ def run_training(manifest_path, inspection_dir, output_dir, device="cpu"):
         model.load_state_dict(best_state, strict=True)
         models[name] = model
         path = target / (name + ".pt")
-        torch.save(dict(state_dict=best_state, dimension=dimension, architecture=model.architecture, training=name, selected_step=best_step,
+        torch.save(dict(state_dict=best_state, dimension=dimension, architecture=model.architecture,
+            learned_gradient_transport=model.learned_gradient_transport,
+            training=name, selected_step=best_step,
             selection_loss=best, manifest_sha256=sha256(manifest_path),
             source_checkpoint_sha256=spec["checkpoint_sha256"]), path)
         checkpoints[name] = dict(path=path.name, sha256=sha256(path), selected_step=best_step,

@@ -26,7 +26,8 @@ class PilotObservation:
 class DetectionSubspace(nn.Module):
     """离线学习非线性残差基，在线仅更新实数系数；不存储物理 tap。"""
 
-    def __init__(self, dimension: int, architecture: str = "pointwise_mlp_v1"):
+    def __init__(self, dimension: int, architecture: str = "pointwise_mlp_v1",
+                 learned_gradient_transport: bool = False):
         super().__init__()
         if dimension not in {2, 4, 8}:
             raise ValueError("检测子空间只允许预先指定的2/4/8维。")
@@ -34,6 +35,7 @@ class DetectionSubspace(nn.Module):
             raise ValueError("检测子空间基网络结构未登记。")
         self.dimension = dimension
         self.architecture = architecture
+        self.learned_gradient_transport = bool(learned_gradient_transport)
         if architecture == "temporal_conv_v1":
             self.basis_network = nn.Sequential(
                 nn.Conv1d(7, 16, kernel_size=5, padding=2), nn.GELU(),
@@ -42,6 +44,20 @@ class DetectionSubspace(nn.Module):
             self.basis_network = nn.Sequential(nn.Linear(7, 16), nn.Tanh(), nn.Linear(16, dimension), nn.Tanh())
         # 零系数精确保留来源网络；普通监督首步先学习系数，随后表示也可获得梯度。
         self.coefficients = nn.Parameter(torch.zeros(dimension))
+        if self.learned_gradient_transport:
+            # 单位阵初始化时与原始增量完全一致；下三角因子保证映射对称正定。
+            self.gradient_transport_raw = nn.Parameter(torch.zeros(dimension, dimension))
+
+    def gradient_transport_matrix(self):
+        """返回有界对称正定的低维梯度传输矩阵；关闭时返回None。"""
+        if not self.learned_gradient_transport:
+            return None
+        raw = self.gradient_transport_raw
+        strict_lower = torch.tril(raw, diagonal=-1)
+        strict_lower = 0.25 * torch.tanh(strict_lower)
+        diagonal = torch.exp(0.5 * torch.tanh(torch.diagonal(raw)))
+        factor = strict_lower + torch.diag(diagonal)
+        return factor @ factor.transpose(-1, -2)
 
     def basis(self, observation: PilotObservation):
         if self.architecture == "temporal_conv_v1":

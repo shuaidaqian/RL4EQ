@@ -86,7 +86,8 @@ def analyze_sessions(sessions: list[dict], trajectory_rows: list[dict], checkpoi
         raise ValueError("评估轨迹缺少唯一B臂逐帧记录。")
     payload = torch.load(checkpoint, map_location=device, weights_only=False)
     dimension = int(payload["dimension"])
-    model = DetectionSubspace(dimension, architecture=payload["architecture"]).to(device)
+    model = DetectionSubspace(dimension, architecture=payload["architecture"],
+        learned_gradient_transport=payload.get("learned_gradient_transport", False)).to(device)
     model.load_state_dict(payload["state_dict"], strict=True)
     model.eval()
     rows = []

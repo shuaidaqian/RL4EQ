@@ -242,6 +242,58 @@ def test_v8_manifest_enables_surrogate_gradient_only_for_offline_outer_training(
     assert candidate["heldout_confirmation"] is False
 
 
+def test_v9_transport_is_spd_bounded_and_identity_initialized_update_is_unchanged():
+    observation = fixture_observation()
+    settings = DeterministicSettings(proximal_weight=0., surrogate_gate_gradient=True)
+    origin = torch.zeros(4)
+    initial = torch.tensor([.01, -.01, .005, 0.])
+    baseline = DetectionSubspace(4)
+    transported = DetectionSubspace(4, learned_gradient_transport=True)
+    transported.load_state_dict(baseline.state_dict(), strict=False)
+    torch.testing.assert_close(transported.gradient_transport_matrix(), torch.eye(4), atol=0, rtol=0)
+    no_transport = update_subspace(baseline, observation, initial, origin, settings)
+    identity_transport = update_subspace(transported, observation, initial, origin, settings)
+    torch.testing.assert_close(identity_transport[0], no_transport[0], atol=0, rtol=0)
+    torch.testing.assert_close(identity_transport[1], no_transport[1], atol=0, rtol=0)
+
+    with torch.no_grad():
+        transported.gradient_transport_raw[1, 0] = 1.2
+        transported.gradient_transport_raw[2, 0] = -1.0
+        transported.gradient_transport_raw.diagonal().copy_(torch.tensor([.7, -.4, .2, -.8]))
+    matrix = transported.gradient_transport_matrix()
+    eigenvalues = torch.linalg.eigvalsh(matrix)
+    assert torch.isfinite(matrix).all()
+    assert torch.all(eigenvalues > 0)
+    assert float(matrix.detach().abs().max()) < 2.
+    assert float(torch.linalg.cond(matrix).detach()) < 20.
+    altered = update_subspace(transported, observation, initial, origin, settings)
+    assert not torch.equal(altered[0], no_transport[0])
+
+
+def test_v9_outer_adaptation_loss_has_finite_nonzero_transport_gradient():
+    observation = fixture_observation()
+    model = DetectionSubspace(4, learned_gradient_transport=True)
+    data_mask = ~(observation.adapt_mask | observation.validation_mask)
+    row = dict(observation=observation,
+        offline=dict(data_mask=data_mask, bits=torch.randint(0, 2, (40,), dtype=torch.bool)))
+    session = dict(frames=[row, copy.deepcopy(row)])
+    settings = replace(DeterministicSettings(surrogate_gate_gradient=True),
+                       gradient_transport_regularization=0.)
+    loss = sequence_loss(model, session, settings, 1, adapt=True, create_graph=True)
+    gradient, = torch.autograd.grad(loss, model.gradient_transport_raw, allow_unused=False)
+    assert torch.isfinite(gradient).all()
+    assert float(gradient.norm()) > 0.
+
+
+def test_v9_manifest_keeps_fixed_channel_and_enables_only_learned_transport():
+    spec = read_manifest("configs/audits/detection_subspace_long_v9_gradient_transport_v1.json")
+    assert spec["learned_gradient_transport"] is True
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+    assert spec["config"] == "configs/eme_long_memory_v2_shared_pilot_memory_rl.json"
+    assert spec["snrs_db"] == [0, 5, 10, 15]
+
+
 def test_dense_memory_origin_reset_equals_physical_branch():
     from tests.test_adaptability_audit import _fixture
     from training.deterministic_adaptation import DeterministicMemoryAdapter

@@ -31,11 +31,12 @@ def pilot_loss(logits, observation, role, *, temperature=1.0):
 
 
 def coefficient_update(base, basis, observation, initial, origin, settings: DeterministicSettings, *,
-                       adapt_history=None, create_graph=False):
+                       adapt_history=None, create_graph=False, gradient_transport=None):
     """每帧重置Adam；内循环可联合最近多帧Adapt，验证只用当前帧。"""
     if not create_graph:
         base, basis, origin = base.detach(), basis.detach(), origin.detach()
         initial = initial.detach().clone().requires_grad_(True)
+        gradient_transport = gradient_transport.detach() if gradient_transport is not None else None
     history = adapt_history or [(base, basis, observation)]
     if not history or history[-1][2] is not observation:
         raise ValueError("Adapt历史必须非空且以当前帧Pilot观测结束。")
@@ -59,8 +60,13 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         gradient = gradient * (1. / (gradient_norm + 1e-6)).clamp(max=1.)
         first = .9 * first + .1 * gradient
         second = .999 * second + .001 * gradient.square()
-        current = current - settings.learning_rate * (first / (1 - .9**step)) / (
+        adam_delta = -settings.learning_rate * (first / (1 - .9**step)) / (
             (second / (1 - .999**step)).clamp_min(1e-24).sqrt() + 1e-8)
+        if gradient_transport is not None:
+            if gradient_transport.shape != (current.numel(), current.numel()):
+                raise ValueError("梯度传输矩阵维数与在线系数不一致。")
+            adam_delta = gradient_transport @ adam_delta
+        current = current + adam_delta
         current = project(project(current, initial, settings.step_radius), origin, settings.total_radius)
         losses.append(float(loss.detach()))
         if not create_graph:
@@ -117,6 +123,9 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         delta_norm=float((current - initial).detach().norm()),
         retained_total_norm=float((retained - origin).detach().norm()),
         parameter_count=current.numel(), data_labels_used_for_control=False,
+        gradient_transport_enabled=gradient_transport is not None,
+        gradient_transport_condition=(float(torch.linalg.cond(gradient_transport.detach()))
+                                      if gradient_transport is not None else 1.0),
         optimizer_reset_each_frame=True, uses_rl=False)
     if not create_graph:
         current, retained = current.detach(), retained.detach()
@@ -129,4 +138,5 @@ def update_subspace(model, observation, initial, origin, settings, *, adapt_hist
     if adapt_history is not None:
         history = [(item.base_logits, model.basis(item), item) for item in adapt_history]
     return coefficient_update(observation.base_logits, basis, observation, initial, origin,
-                              settings, adapt_history=history, create_graph=create_graph)
+                              settings, adapt_history=history, create_graph=create_graph,
+                              gradient_transport=model.gradient_transport_matrix())
