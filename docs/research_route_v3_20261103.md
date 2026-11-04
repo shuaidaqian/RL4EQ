@@ -4,7 +4,7 @@
 
 用户随后明确“不要改我的信道配置”，并重申本文件第 8 节的 R0–R6 顺序。当前研发直接使用已有 116 符号长回波配置，取消将新增短/中记忆 profile 作为 R1/R2 前置工作的建议。神经结构、训练目标与在线更新可以调整，信道生成与观测资源协议保持不变；R4/R5 涉及的新信道条件需另行明确范围。这一补充优先于本版早先的机制场景建议。
 
-截至 2026-11-04，R2 已完成 v9 梯度传输、v10 上下文更新器及 v11 平滑误码外层目标开发消融。v11 在0dB出现每开发会话约1 bit的小变化，但5dB退化、10/15dB无变化，且只使用重复开发seed，不能据此确认。详情见[v9](results/detection_subspace_long_v9_gradient_transport_v1_20261104/README.md)、[v10](results/detection_subspace_long_v10_context_update_v1_20261104/README.md)和[v11](results/detection_subspace_long_v11_smooth_ber_outer_v1_20261104/README.md)结果。下一步聚焦在线动作风险门控：离线训练风险估计器，线上仅用合法验证Pilot统计决定是否保留候选；先用隔离开发选择/评估会话查验误收与误拒，不使用在线Data控制，也不改信道或观测资源。
+截至 2026-11-04，R2 已完成 v9梯度传输、v10上下文更新器、v11平滑误码外层目标和v12 Pilot-only风险门控开发消融。v12风险模型在选择角色上有一定排序信息，但评估角色中没有带来BER变化，且误拒有益候选；详情见[v9](results/detection_subspace_long_v9_gradient_transport_v1_20261104/README.md)、[v10](results/detection_subspace_long_v10_context_update_v1_20261104/README.md)、[v11](results/detection_subspace_long_v11_smooth_ber_outer_v1_20261104/README.md)与[v12](results/pilot_validation_risk_gate_v1_20261104/README.md)。核心目标未达成。下一步只读检验风险分数对原硬门控拒绝候选的离线排序，判断是否值得另做Pilot-only替代门控；不使用本轮评估Data调阈值，不改信道或观测资源。
 
 本版由用户2026-11-03明确要求采纳所提供分析而制定，取代旧“唯一Level B、必须离散RL、四SNR逐配置超越传统、后期优势扩大”的联合目标。用户随后确认主要应用条件尚未确定，先做开发审计；之后明确主要SNR区间沿用此前0/5/10/15 dB四点，全部保留为确认报告的主要运行点且不得按开发结果删选。目标误码/吞吐、允许退化界限和EME频段/带宽仍须正式确认前冻结。
 

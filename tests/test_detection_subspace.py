@@ -12,6 +12,7 @@ from agent.detection_subspace import DetectionSubspace, PilotObservation, captur
 from evaluation.adaptability_audit import deployable_frame
 from evaluation.subspace_development import outer_data_loss, read_manifest, sequence_loss
 from training.deterministic_adaptation import DeterministicSettings
+from training.pilot_risk_gate import FEATURE_NAMES, PilotRiskRegressor, validation_risk_features
 from training.subspace_adaptation import coefficient_update, pilot_loss, project, update_subspace
 
 
@@ -372,6 +373,61 @@ def test_v11_manifest_keeps_protocol_and_fixes_outer_surrogate_temperature():
     assert spec["heldout_confirmation"] is False
     assert spec["config"] == "configs/eme_long_memory_v2_shared_pilot_memory_rl.json"
     assert spec["snrs_db"] == [0, 5, 10, 15]
+
+
+def test_pilot_risk_features_and_regressor_use_fixed_pilot_only_schema():
+    observation = PilotObservation(
+        base_logits=torch.zeros(4), features=torch.zeros(4, 7), logit_scale=torch.ones(1, 1),
+        adapt_mask=torch.tensor([True, True, False, False]),
+        adapt_labels=torch.tensor([1., 1., 0., 0.]),
+        validation_mask=torch.tensor([False, False, True, True]),
+        validation_labels=torch.tensor([0., 0., 1., 0.]))
+    before, after = torch.tensor([0., 0., -.2, .1]), torch.tensor([0., 0., .2, .2])
+    features = validation_risk_features(before, after, observation, .02, .1)
+    assert features.shape == (len(FEATURE_NAMES),)
+    assert torch.isfinite(features).all()
+    x = torch.stack([features, features + .1, features - .1, features + .2])
+    y = torch.tensor([.1, .2, 0., .3])
+    model = PilotRiskRegressor.fit(x, y, ridge=.1)
+    restored = PilotRiskRegressor.from_dict(model.to_dict())
+    torch.testing.assert_close(model.predict(x), restored.predict(x))
+    with pytest.raises(ValueError):
+        PilotRiskRegressor.fit(x[:, :-1], y)
+
+
+def test_pilot_risk_gate_only_adds_a_rejection_after_existing_hard_gate():
+    observation = PilotObservation(
+        base_logits=torch.zeros(4), features=torch.zeros(4, 7), logit_scale=torch.ones(1, 1),
+        adapt_mask=torch.tensor([True, True, False, False]),
+        adapt_labels=torch.ones(4),
+        validation_mask=torch.tensor([False, False, True, True]),
+        validation_labels=torch.ones(4))
+    basis = torch.ones(4, 1)
+    settings = DeterministicSettings(steps=1, learning_rate=.02, proximal_weight=0.,
+        reset_to_origin_on_validation=False, origin_retention_decay=1.)
+    origin = torch.zeros(1)
+    candidate, hard_retained, hard_metrics = coefficient_update(
+        observation.base_logits, basis, observation, origin, origin, settings)
+    assert hard_metrics["accepted"] is True
+    gated_candidate, gated_retained, gated_metrics = coefficient_update(
+        observation.base_logits, basis, observation, origin, origin, settings,
+        validation_risk_gate=lambda features: features.new_tensor(-1.))
+    torch.testing.assert_close(gated_candidate, candidate)
+    assert gated_metrics["candidate_accepted"] is True
+    assert gated_metrics["validation_risk_gate_rejected"] is True
+    assert gated_metrics["accepted"] is False
+    torch.testing.assert_close(gated_retained, origin)
+    torch.testing.assert_close(hard_retained, candidate)
+
+
+def test_pilot_risk_manifest_fixes_base_checkpoint_split_and_threshold():
+    import json
+    spec = json.loads(open("configs/audits/pilot_validation_risk_gate_v1.json", encoding="utf-8").read())
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+    assert spec["risk_gate"]["threshold"] == 0.
+    assert spec["risk_gate"]["ridge"] == .1
+    assert spec["risk_gate"]["feature_names"] == list(FEATURE_NAMES)
 
 
 def test_dense_memory_origin_reset_equals_physical_branch():

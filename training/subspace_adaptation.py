@@ -8,6 +8,7 @@ import torch
 from torch.nn import functional as F
 
 from training.deterministic_adaptation import DeterministicSettings
+from training.pilot_risk_gate import validation_risk_features
 
 
 def project(vector, center, radius):
@@ -32,7 +33,8 @@ def pilot_loss(logits, observation, role, *, temperature=1.0):
 
 def coefficient_update(base, basis, observation, initial, origin, settings: DeterministicSettings, *,
                        adapt_history=None, create_graph=False, gradient_transport=None,
-                       context_update=None):
+                       context_update=None, validation_risk_gate=None,
+                       risk_gate_threshold=0.0):
     """每帧重置Adam；内循环可联合最近多帧Adapt，验证只用当前帧。"""
     if not create_graph:
         base, basis, origin = base.detach(), basis.detach(), origin.detach()
@@ -125,6 +127,24 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
             retained = (retained + (origin - retained).detach()
                         if create_graph and settings.surrogate_gate_gradient else origin)
             accepted = False
+    risk_features = risk_prediction = None
+    risk_rejected = False
+    if validation_risk_gate is not None:
+        risk_proposal = current
+        if settings.origin_retention_decay < 1:
+            risk_proposal = origin + settings.origin_retention_decay * (current - origin)
+        risk_proposal_logits = base + basis @ risk_proposal
+        risk_features = validation_risk_features(before_logits, risk_proposal_logits, observation,
+            (risk_proposal - initial).detach().norm(), gradient_norm.detach())
+        raw_risk_prediction = float(validation_risk_gate(risk_features).detach())
+        risk_prediction = raw_risk_prediction if math.isfinite(raw_risk_prediction) else None
+        risk_rejected = bool(accepted and (risk_prediction is None
+            or risk_prediction <= risk_gate_threshold))
+        if risk_rejected:
+            retained = initial
+            retained_logits = before_logits
+            retained_loss, retained_ber = before_loss, before_ber
+            accepted = False
     metrics = dict(accepted=accepted, adapt_losses=losses, gradient_norm=float(gradient_norm.detach()),
         candidate_accepted=candidate_accepted, reset_to_origin=reset_to_origin,
         validation_loss_before=before_loss, validation_loss_candidate=candidate_loss,
@@ -139,13 +159,19 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         gradient_transport_condition=(float(torch.linalg.cond(gradient_transport.detach()))
                                       if gradient_transport is not None else 1.0),
         context_update_enabled=context_update is not None,
+        validation_risk_gate_enabled=validation_risk_gate is not None,
+        validation_risk_gate_prediction=risk_prediction,
+        validation_risk_gate_rejected=risk_rejected,
+        validation_risk_features=(risk_features.detach().cpu().tolist()
+            if risk_features is not None else None),
         optimizer_reset_each_frame=True, uses_rl=False)
     if not create_graph:
         current, retained = current.detach(), retained.detach()
     return current, retained, metrics
 
 
-def update_subspace(model, observation, initial, origin, settings, *, adapt_history=None, create_graph=False):
+def update_subspace(model, observation, initial, origin, settings, *, adapt_history=None,
+                    create_graph=False, validation_risk_gate=None, risk_gate_threshold=0.0):
     basis = model.basis(observation)
     history = None
     if adapt_history is not None:
@@ -154,4 +180,6 @@ def update_subspace(model, observation, initial, origin, settings, *, adapt_hist
                               settings, adapt_history=history, create_graph=create_graph,
                               gradient_transport=model.gradient_transport_matrix(),
                               context_update=(model.context_update_delta
-                                  if model.learned_context_update and model.use_context_update else None))
+                                  if model.learned_context_update and model.use_context_update else None),
+                              validation_risk_gate=validation_risk_gate,
+                              risk_gate_threshold=risk_gate_threshold)
