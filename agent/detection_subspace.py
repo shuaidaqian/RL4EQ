@@ -27,7 +27,8 @@ class DetectionSubspace(nn.Module):
     """离线学习非线性残差基，在线仅更新实数系数；不存储物理 tap。"""
 
     def __init__(self, dimension: int, architecture: str = "pointwise_mlp_v1",
-                 learned_gradient_transport: bool = False):
+                 learned_gradient_transport: bool = False,
+                 learned_context_update: bool = False):
         super().__init__()
         if dimension not in {2, 4, 8}:
             raise ValueError("检测子空间只允许预先指定的2/4/8维。")
@@ -36,6 +37,8 @@ class DetectionSubspace(nn.Module):
         self.dimension = dimension
         self.architecture = architecture
         self.learned_gradient_transport = bool(learned_gradient_transport)
+        self.learned_context_update = bool(learned_context_update)
+        self.use_context_update = self.learned_context_update
         if architecture == "temporal_conv_v1":
             self.basis_network = nn.Sequential(
                 nn.Conv1d(7, 16, kernel_size=5, padding=2), nn.GELU(),
@@ -47,6 +50,12 @@ class DetectionSubspace(nn.Module):
         if self.learned_gradient_transport:
             # 单位阵初始化时与原始增量完全一致；下三角因子保证映射对称正定。
             self.gradient_transport_raw = nn.Parameter(torch.zeros(dimension, dimension))
+        if self.learned_context_update:
+            # 输入Adapt梯度方向、历史分歧和梯度尺度；零输出初始化保留原Adam首步。
+            self.context_update_network = nn.Sequential(
+                nn.Linear(2 * dimension + 1, 16), nn.Tanh(), nn.Linear(16, dimension))
+            nn.init.zeros_(self.context_update_network[-1].weight)
+            nn.init.zeros_(self.context_update_network[-1].bias)
 
     def gradient_transport_matrix(self):
         """返回有界对称正定的低维梯度传输矩阵；关闭时返回None。"""
@@ -58,6 +67,18 @@ class DetectionSubspace(nn.Module):
         diagonal = torch.exp(0.5 * torch.tanh(torch.diagonal(raw)))
         factor = strict_lower + torch.diag(diagonal)
         return factor @ factor.transpose(-1, -2)
+
+    def context_update_delta(self, history_gradients, learning_rate):
+        """仅由Adapt梯度及历史统计产生有界低维增量，不读取验证或Data标签。"""
+        if not self.learned_context_update or not self.use_context_update:
+            return None
+        gradients = torch.stack(history_gradients)
+        mean = gradients.mean(dim=0)
+        scale = mean.norm().clamp_min(1e-12)
+        disagreement = (gradients - mean).square().mean(dim=0).clamp_min(1e-12).sqrt() / scale
+        log_scale = torch.log10(scale).clamp(-12., 2.) / 12.
+        features = torch.cat((mean / scale, disagreement, log_scale.reshape(1)))
+        return 0.5 * learning_rate * torch.tanh(self.context_update_network(features))
 
     def basis(self, observation: PilotObservation):
         if self.architecture == "temporal_conv_v1":

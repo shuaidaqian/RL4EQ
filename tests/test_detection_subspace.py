@@ -294,6 +294,61 @@ def test_v9_manifest_keeps_fixed_channel_and_enables_only_learned_transport():
     assert spec["snrs_db"] == [0, 5, 10, 15]
 
 
+def test_context_update_zero_initialization_matches_adam_and_uses_only_adapt_history():
+    observation = fixture_observation()
+    previous = replace(observation, adapt_labels=1-observation.adapt_labels)
+    baseline = DetectionSubspace(4)
+    contextual = DetectionSubspace(4, learned_context_update=True)
+    contextual.load_state_dict(baseline.state_dict(), strict=False)
+    contextual.use_context_update = True
+    settings = DeterministicSettings(proximal_weight=0., surrogate_gate_gradient=True)
+    origin = torch.zeros(4)
+    history = [previous, observation]
+    ordinary = update_subspace(baseline, observation, origin, origin, settings,
+                               adapt_history=history)
+    zero_initialized = update_subspace(contextual, observation, origin, origin, settings,
+                                       adapt_history=history)
+    torch.testing.assert_close(zero_initialized[0], ordinary[0], atol=0, rtol=0)
+    assert zero_initialized[2]["context_update_enabled"] is True
+
+    changed_validation = replace(observation,
+        validation_labels=1-observation.validation_labels)
+    alternate = update_subspace(contextual, changed_validation, origin, origin, settings,
+        adapt_history=[previous, changed_validation])
+    torch.testing.assert_close(alternate[0], zero_initialized[0], atol=0, rtol=0)
+    with torch.no_grad():
+        contextual.context_update_network[-1].weight[0, 0] = 1.
+    changed_adapt = update_subspace(contextual, observation, origin, origin, settings,
+        adapt_history=history)
+    assert not torch.equal(changed_adapt[0], zero_initialized[0])
+
+
+def test_context_update_outer_data_loss_trains_nonlinear_rule():
+    observation = fixture_observation()
+    model = DetectionSubspace(4, learned_context_update=True)
+    data_mask = ~(observation.adapt_mask | observation.validation_mask)
+    row = dict(observation=observation,
+        offline=dict(data_mask=data_mask, bits=torch.randint(0, 2, (40,), dtype=torch.bool)))
+    session = dict(frames=[row, copy.deepcopy(row)], inner_history_frames=1)
+    settings = replace(DeterministicSettings(surrogate_gate_gradient=True),
+                       gradient_transport_regularization=0.)
+    loss = sequence_loss(model, session, settings, 1, adapt=True, create_graph=True)
+    gradient, = torch.autograd.grad(loss, model.context_update_network[-1].weight,
+                                   allow_unused=False)
+    assert torch.isfinite(gradient).all()
+    assert float(gradient.norm()) > 0.
+
+
+def test_v10_manifest_keeps_protocol_and_enables_context_update_only():
+    spec = read_manifest("configs/audits/detection_subspace_long_v10_context_update_v1.json")
+    assert spec["learned_context_update"] is True
+    assert spec["learned_gradient_transport"] is False
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+    assert spec["config"] == "configs/eme_long_memory_v2_shared_pilot_memory_rl.json"
+    assert spec["snrs_db"] == [0, 5, 10, 15]
+
+
 def test_dense_memory_origin_reset_equals_physical_branch():
     from tests.test_adaptability_audit import _fixture
     from training.deterministic_adaptation import DeterministicMemoryAdapter

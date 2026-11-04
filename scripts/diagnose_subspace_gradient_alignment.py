@@ -87,7 +87,9 @@ def analyze_sessions(sessions: list[dict], trajectory_rows: list[dict], checkpoi
     payload = torch.load(checkpoint, map_location=device, weights_only=False)
     dimension = int(payload["dimension"])
     model = DetectionSubspace(dimension, architecture=payload["architecture"],
-        learned_gradient_transport=payload.get("learned_gradient_transport", False)).to(device)
+        learned_gradient_transport=payload.get("learned_gradient_transport", False),
+        learned_context_update=payload.get("learned_context_update", False)).to(device)
+    model.use_context_update = payload.get("use_context_update", model.learned_context_update)
     model.load_state_dict(payload["state_dict"], strict=True)
     model.eval()
     rows = []

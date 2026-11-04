@@ -31,7 +31,8 @@ def pilot_loss(logits, observation, role, *, temperature=1.0):
 
 
 def coefficient_update(base, basis, observation, initial, origin, settings: DeterministicSettings, *,
-                       adapt_history=None, create_graph=False, gradient_transport=None):
+                       adapt_history=None, create_graph=False, gradient_transport=None,
+                       context_update=None):
     """每帧重置Adam；内循环可联合最近多帧Adapt，验证只用当前帧。"""
     if not create_graph:
         base, basis, origin = base.detach(), basis.detach(), origin.detach()
@@ -52,7 +53,14 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
                         for item_base, item_basis, item_observation in history]
         loss = torch.stack(frame_losses).mean()
         loss = loss + settings.proximal_weight * (current - initial).square().sum()
-        gradient, = torch.autograd.grad(loss, current, create_graph=create_graph)
+        if context_update is None:
+            gradient, = torch.autograd.grad(loss, current, create_graph=create_graph)
+            history_gradients = None
+        else:
+            history_gradients = [torch.autograd.grad(frame_loss, current,
+                create_graph=create_graph)[0] for frame_loss in frame_losses]
+            gradient = torch.stack(history_gradients).mean(dim=0)
+            gradient = gradient + 2 * settings.proximal_weight * (current - initial)
         if not bool(torch.isfinite(loss)) or not bool(torch.isfinite(gradient).all()):
             raise FloatingPointError("子空间目标或梯度非有限，停止开发运行。")
         gradient_norm = gradient.norm()
@@ -66,6 +74,10 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
             if gradient_transport.shape != (current.numel(), current.numel()):
                 raise ValueError("梯度传输矩阵维数与在线系数不一致。")
             adam_delta = gradient_transport @ adam_delta
+        if context_update is not None:
+            adam_delta = adam_delta + context_update(history_gradients, settings.learning_rate)
+        if not bool(torch.isfinite(adam_delta).all()):
+            raise FloatingPointError("Pilot在线系数增量非有限，停止开发运行。")
         current = current + adam_delta
         current = project(project(current, initial, settings.step_radius), origin, settings.total_radius)
         losses.append(float(loss.detach()))
@@ -126,6 +138,7 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         gradient_transport_enabled=gradient_transport is not None,
         gradient_transport_condition=(float(torch.linalg.cond(gradient_transport.detach()))
                                       if gradient_transport is not None else 1.0),
+        context_update_enabled=context_update is not None,
         optimizer_reset_each_frame=True, uses_rl=False)
     if not create_graph:
         current, retained = current.detach(), retained.detach()
@@ -139,4 +152,6 @@ def update_subspace(model, observation, initial, origin, settings, *, adapt_hist
         history = [(item.base_logits, model.basis(item), item) for item in adapt_history]
     return coefficient_update(observation.base_logits, basis, observation, initial, origin,
                               settings, adapt_history=history, create_graph=create_graph,
-                              gradient_transport=model.gradient_transport_matrix())
+                              gradient_transport=model.gradient_transport_matrix(),
+                              context_update=(model.context_update_delta
+                                  if model.learned_context_update and model.use_context_update else None))

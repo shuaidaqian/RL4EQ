@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -64,6 +64,13 @@ def read_manifest(path):
     if not train["checkpoint_steps"] or any(step < 1 or step > train["outer_steps"] for step in train["checkpoint_steps"]):
         raise ValueError("checkpoint选择步数超出训练预算。")
     DeterministicSettings(**spec["update"])
+    if spec.get("schema_version") == "fixed-channel-subspace-development-v10":
+        policy = spec.get("context_update_policy", {})
+        if (spec.get("learned_context_update") is not True
+                or spec.get("learned_gradient_transport") is not False
+                or policy.get("enabled") is not True
+                or spec["inner_history_frames"] != 8):
+            raise ValueError("v10必须只启用固定8帧历史的上下文更新器。")
     return spec
 
 
@@ -142,12 +149,13 @@ def capture_sessions(spec, role, device, *, dense_diagnostic=False):
 
 
 def make_subspace(dimension, seed, device, architecture="pointwise_mlp_v1", *,
-                  learned_gradient_transport=False):
+                  learned_gradient_transport=False, learned_context_update=False):
     # 初始化隔离于环境的专用RNG；候选共享预先固定种子，不能按收益重抽。
     with torch.random.fork_rng(devices=[]):
         torch.manual_seed(seed)
         return DetectionSubspace(dimension, architecture=architecture,
-            learned_gradient_transport=learned_gradient_transport).to(device)
+            learned_gradient_transport=learned_gradient_transport,
+            learned_context_update=learned_context_update).to(device)
 
 
 def inspect_candidates(spec, sessions, device):
@@ -155,7 +163,8 @@ def inspect_candidates(spec, sessions, device):
     for dimension in spec["dimensions"]:
         model = make_subspace(dimension, spec["initialization_seed"], device,
             spec.get("architecture", "pointwise_mlp_v1"),
-            learned_gradient_transport=spec.get("learned_gradient_transport", False))
+            learned_gradient_transport=spec.get("learned_gradient_transport", False),
+            learned_context_update=spec.get("learned_context_update", False))
         for session in sessions:
             for row in session["frames"]:
                 if row["identity"]["frame"] not in spec["geometry_frames"]:
@@ -192,7 +201,8 @@ def reachability_smoke(spec, sessions, dimension, device):
     """独立副本上的普通监督作用检查，只证明表示可训练，不证明在线泛化。"""
     model = make_subspace(dimension, spec["initialization_seed"], device,
         spec.get("architecture", "pointwise_mlp_v1"),
-        learned_gradient_transport=spec.get("learned_gradient_transport", False))
+        learned_gradient_transport=spec.get("learned_gradient_transport", False),
+        learned_context_update=spec.get("learned_context_update", False))
     rows = [session["frames"][0] for session in sessions if session["seed"] == spec["data_roles"]["inspection"]["seeds"][0]]
     optimizer = torch.optim.AdamW(model.parameters(), lr=spec["training"]["outer_learning_rate"], weight_decay=0.)
     initial_state = copy.deepcopy(model.state_dict())
@@ -204,7 +214,7 @@ def reachability_smoke(spec, sessions, dimension, device):
         loss = torch.stack([data_loss(model.logits(row["observation"]),row) for row in rows]).mean()
         loss.backward()
         missing_or_nonfinite = [name for name, parameter in model.named_parameters()
-            if name != "gradient_transport_raw" and
+            if name != "gradient_transport_raw" and not name.startswith("context_update_network.") and
             (parameter.grad is None or not bool(torch.isfinite(parameter.grad).all()))]
         if not bool(torch.isfinite(loss)) or missing_or_nonfinite:
             raise FloatingPointError("普通监督作用检查的损失或梯度非有限。")
@@ -381,7 +391,9 @@ def run_training(manifest_path, inspection_dir, output_dir, device="cpu"):
     for name in ("A_supervised", "B_post_adapt"):
         model = make_subspace(dimension, spec["initialization_seed"], device,
             spec.get("architecture", "pointwise_mlp_v1"),
-            learned_gradient_transport=spec.get("learned_gradient_transport", False))
+            learned_gradient_transport=spec.get("learned_gradient_transport", False),
+            learned_context_update=spec.get("learned_context_update", False))
+        model.use_context_update = name == "B_post_adapt"
         optimizer = torch.optim.AdamW(model.parameters(), lr=training_settings["outer_learning_rate"], weight_decay=0.)
         best, best_state, best_step = float("inf"), None, None
         tick = time.perf_counter()
@@ -413,6 +425,8 @@ def run_training(manifest_path, inspection_dir, output_dir, device="cpu"):
         path = target / (name + ".pt")
         torch.save(dict(state_dict=best_state, dimension=dimension, architecture=model.architecture,
             learned_gradient_transport=model.learned_gradient_transport,
+            learned_context_update=model.learned_context_update,
+            use_context_update=model.use_context_update,
             training=name, selected_step=best_step,
             selection_loss=best, manifest_sha256=sha256(manifest_path),
             source_checkpoint_sha256=spec["checkpoint_sha256"]), path)
