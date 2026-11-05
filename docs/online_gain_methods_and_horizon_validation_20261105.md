@@ -46,3 +46,9 @@ g[s,b] = BER_frozen[s,b] - BER_online[s,b]
 3. 持久 Bayesian/RLS Pilot 更新：Adapt Pilot 的逐符号残差和 Jacobian 递推更新参数后验；跨帧保留均值/协方差，固定遗忘/过程噪声由训练、选择角色确定，留出验证 Pilot 只守门。
 
 先以每个 SNR 12 个开发会话、每会话128帧作机制筛查，全部四点报告；这只是开发样本，不是正式确认。只有当后验分支相对 Frozen 有正增益、末窗优于首窗，并且相对单帧 GN 显示正交互时，才用全新会话延长到1024/2048帧检查趋势。若 Pilot-only Bayesian 仍不能增长，再单独试过去帧伪标签分支；不把伪标签与 Bayesian 更新一次性混成一个方法。阈值/超参数只能在训练/选择角色冻结，评估 Data 不能反向选算法。
+
+## 强离线 checkpoint 上的在线复核
+
+2026-11-05已将现有 Pilot residual-RLS 接到有验证指纹的 `eme_bce_all_32_20260905_pilot256` 强离线模型上。8帧机制烟测发现原双窗 Reward 门控未提交任何更新；只改为单个 Reward BCE 窗口、继续保留硬错误不增护栏后，独立3-session×32帧开发筛查在5 dB出现初步正向窗口趋势，但全程平均增益仍为负，0 dB有害更新。64帧新session复核没有重现5 dB增长：0/5 dB整体退化、10 dB仅接近量化噪声的正点估计、15 dB BER不变，趋势区间没有支持收益增长。详细逐帧结果分别见[32帧开发筛查](results/strong_offline_rls_onewindow_32f_dev_20261105/README.md)与[64帧开发复核](results/strong_offline_rls_onewindow_64f_dev_20261105/README.md)。
+
+因此暂停继续扩增该启发式 RLS/单窗变体，不以关闭硬错误守门或降低阈值制造更新率。下一路线回到离线内外循环：离线阶段训练表示/初始化，使合法 Adapt Pilot 更新后可泛化到未来 Data；在线只执行已匹配的低维确定性更新和留出 Reward 验收。第一步需明确当前 `pilot_transfer` 训练器能否复现 residual-RLS 的同一内循环；若不能，新增匹配的内循环，而不是直接拿现有 `phase_trend` 更新器冒充相同方法。之后再对强 checkpoint 做 Frozen、原启发式 RLS、离线适配初始化三臂同轨迹比较，并检验更长会话的分窗趋势。
