@@ -26,6 +26,8 @@ python pretrain.py --config configs/eme_long_memory_v2.json --stage all --steps 
 
 这是**重构的复现命令**；元数据不能确认当时是否显式指定 GPU、AMP 和随机种子。内部 checkpoint 验证每个 SNR 只有1帧（共4帧，平均 Data BER 6.58%），因此强基线结论主要由下述独立主矩阵支持，而不是由这4帧验证集单独支撑。
 
+当前复现链仍不完整：checkpoint 没保存原始源码 revision、Python/PyTorch/CUDA 环境、完整优化器超参数及显式随机种子；在这些信息恢复前，上述命令不能称为严格复现。不要用当前 checkout 的默认值推定历史运行值。
+
 ## 主矩阵与 BER
 
 结果来自 `logs/eme_pilot256_bandit_pilotsparse_main_60f_3s_final/`，同一 Level B 长回波 profile、116符号最大时延、1200秒相干时间、零 acquisition 空档、`cfo_phase_tiny`；0/5/10/15 dB，每点3个独立 seed、每个 seed 连续60帧。12种方法共8640条逐帧记录。传统对照使用合法 Pilot 驱动的 CFO/相位补偿 LMMSE-FIR 与 DFE-RLS，均为非神经、非RL接收机。
@@ -40,6 +42,8 @@ python pretrain.py --config configs/eme_long_memory_v2.json --stage all --steps 
 该离线表不把同一矩阵的 Online 接收机总 BER 并入神经 PEFT 增益；Online 分支还包含物理状态跟踪、Bandit 调度等流程，而该矩阵中没有有效接受的 PEFT 更新。在线研究要证明的是在同源 Frozen 基础上额外的、可归因的神经参数更新收益。
 
 这里的 `Frozen Offline NN` 冻结神经权重，但仍按公平协议使用当前帧 Pilot 形成推理条件；传统接收机也使用合法 Pilot 和其校准的 CFO/相位补偿。因此这里的准确表述是“离线训练的神经均衡器在公平 Pilot 条件下优于本矩阵中的传统均衡器”，不应说成完全不使用当前 Pilot 的接收机。3个 seed 的方向一致，但统计单位仍是独立信道会话；每个 SNR 仅3个 seed，不能把180帧当作180个独立样本来夸大显著性。
+
+逐 seed 主矩阵、每臂错误数及来源文件指纹见机器快照。现有展示的四个 SNR 聚合 BER 已足以说明该开发矩阵中的方向一致性；每 SNR 只有3个独立会话，结论不替代更大样本的正式统计检验。
 
 ## 资产、版本与复现限制
 
