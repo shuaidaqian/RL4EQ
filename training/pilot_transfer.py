@@ -703,12 +703,35 @@ class PilotTransferTrainer:
         self.model.eval()
         base_parameters = []
         self.rank1_basis_raw = None
+        self.rank1_basis_source = None
         if self.trajectory_update_rule == "rank1_gn":
             head = dict(self.model.peft.named_group_parameters({"head"}))
             dimension = sum(parameter.numel() for parameter in head.values())
-            generator = torch.Generator(device=self.device).manual_seed(
-                int(self.settings.get("trajectory_rank1_basis_seed", self.settings.get("seed", 31000))))
-            initial_basis = torch.randn(dimension, generator=generator, device=self.device)
+            basis_path_value = self.settings.get("trajectory_rank1_basis_init_path")
+            if basis_path_value:
+                basis_path = Path(basis_path_value)
+                if not basis_path.is_absolute():
+                    basis_path = Path(__file__).resolve().parents[1] / basis_path
+                basis_payload = json.loads(basis_path.read_text(encoding="utf-8"))
+                initial_values = basis_payload.get("basis", basis_payload) if isinstance(basis_payload, dict) else basis_payload
+                initial_basis = torch.as_tensor(initial_values, dtype=torch.float32, device=self.device).reshape(-1)
+                if (initial_basis.numel() != dimension or not torch.isfinite(initial_basis).all()
+                        or float(initial_basis.norm()) <= 1e-12):
+                    raise ValueError("外部rank-1 basis必须是维度匹配的非零有限向量。")
+                self.rank1_basis_source = {
+                    "type": "external_pilot_fisher_initialization",
+                    "path": str(basis_path.resolve()),
+                    "sha256": hashlib.sha256(basis_path.read_bytes()).hexdigest(),
+                    "basis_seed": basis_payload.get("basis_seed") if isinstance(basis_payload, dict) else None,
+                }
+            else:
+                generator = torch.Generator(device=self.device).manual_seed(
+                    int(self.settings.get("trajectory_rank1_basis_seed", self.settings.get("seed", 31000))))
+                initial_basis = torch.randn(dimension, generator=generator, device=self.device)
+                self.rank1_basis_source = {
+                    "type": "seeded_unit_gaussian_trainable_initialization",
+                    "seed": int(self.settings.get("trajectory_rank1_basis_seed", self.settings.get("seed", 31000))),
+                }
             initial_basis = initial_basis / initial_basis.norm().clamp_min(1e-12)
             self.rank1_basis_raw = nn.Parameter(initial_basis)
         outer_groups = self.settings.get("outer_groups")
@@ -792,15 +815,18 @@ class PilotTransferTrainer:
             frames=history_frames + self.post_target_frame_offsets[-1] + 1,
             state_split="offline_train", device=self.device,
         )
+        historical_adapt_contexts = []
         for frame in frames[:history_frames]:
+            context = make_context(frame, cir, cfo, tail, snr)
+            if self.inner_history_frames > 1:
+                from training.shared_pilot_state import adapt_only_history_context
+                historical_adapt_contexts.append(
+                    adapt_only_history_context(frame, context.condition, context.tail))
             if bool(frame.adapt_mask[-tail.numel():].any()):
-                context = make_context(frame, cir, cfo, tail, snr)
                 tail = next_pilot_tail(self.model, context, alpha=float(self.config.get("tail_update_alpha", 0.5)))
         context = make_context(frames[history_frames], cir, cfo, tail, snr)
         if self.inner_history_frames > 1:
-            from training.shared_pilot_state import adapt_only_history_context
-            past = tuple(adapt_only_history_context(frame, make_context(frame, cir, cfo, tail, snr).condition, tail)
-                         for frame in frames[max(0, history_frames-self.inner_history_frames+1):history_frames])
+            past = tuple(historical_adapt_contexts[-(self.inner_history_frames - 1):])
             context = replace(context, offline_adapt_contexts=past)
         if len(self.post_target_frame_offsets) > 1:
             # 未来条件只允许由各自 acquisition/Adapt 生成，不沿用隐藏发送符号。
@@ -1013,10 +1039,9 @@ class PilotTransferTrainer:
             "trajectory_rank1_basis": (self.normalized_rank1_basis().detach().cpu().tolist()
                                        if self.rank1_basis_raw is not None else None),
             "trajectory_rank1_basis_source": ({
-                "type": "seeded_unit_gaussian_trainable_initialization",
-                "seed": int(self.settings.get("trajectory_rank1_basis_seed", self.settings.get("seed", 31000))),
+                **self.rank1_basis_source,
                 "base_checkpoint_sha256": (self.source_checkpoint or {}).get("sha256"),
-                "status": "learned_basis_in_training; basis and source are embedded in checkpoint metrics; evaluator basis loading is pending",
+                "status": "learned_basis_in_training; basis and source are embedded in checkpoint metrics and supported by the evaluator",
             } if self.rank1_basis_raw is not None else None),
             "offline_sample_cache_hits": self.sample_cache_hits,
             "offline_sample_cache_misses": self.sample_cache_misses,

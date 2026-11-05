@@ -2,6 +2,7 @@
 """验证真实在线更新一致性、隐藏信息隔离和离线外层梯度。"""
 
 from dataclasses import replace
+import json
 
 import pytest
 import torch
@@ -274,6 +275,29 @@ def test_rank1_gn_trainer_optimizes_only_normalized_basis(monkeypatch, tmp_path)
     trainer.save(tmp_path, metrics)
     payload = torch.load(tmp_path / "model_best.pt", map_location="cpu", weights_only=False)
     assert payload["metrics"]["trajectory_rank1_basis"] == metrics["trajectory_rank1_basis"]
+
+
+def test_rank1_gn_trainer_loads_external_fisher_basis(tmp_path):
+    """固定Fisher候选方向能作外层basis初始值并记录来源指纹。"""
+    model, _ = _fixture()
+    dimension = sum(value.numel() for _, value in model.peft.named_group_parameters({"head"}))
+    source = tmp_path / "pilot_fisher.json"
+    source.write_text(json.dumps({"basis": [1.0] + [0.0] * (dimension - 1), "basis_seed": 123}), encoding="utf-8")
+    settings = {
+        "inner_learning_rate": 0.1, "inner_steps": 1, "max_delta_norm": 0.05,
+        "inner_objective": "bce", "inner_groups": ["head"],
+        "inner_receiver_input": "adapt_only", "reward_receiver_input": "pilot_only",
+        "post_target_frame_offsets": [0, 1], "trajectory_update_rule": "rank1_gn",
+        "trajectory_rank1_basis_init_path": str(source),
+    }
+    config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "main_snrs": [10], "pilot_transfer": settings}
+    trainer = PilotTransferTrainer(config, "cpu", objective="trajectory")
+    expected = torch.zeros(dimension)
+    expected[0] = 1.0
+    torch.testing.assert_close(trainer.normalized_rank1_basis().cpu(), expected)
+    assert trainer.rank1_basis_source["type"] == "external_pilot_fisher_initialization"
+    assert trainer.rank1_basis_source["basis_seed"] == 123
 
 
 @pytest.mark.parametrize("group", ["head", "adapter_lora_head", "phase"])

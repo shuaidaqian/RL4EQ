@@ -1,0 +1,153 @@
+{
+  "stage": "pilot_transfer",
+  "objective": "baseline",
+  "linear_operator_backend": "direct",
+  "attention_backend": "math",
+  "source_checkpoint": {
+    "path": "D:\\Research\\RL4EQ\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt",
+    "sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4"
+  },
+  "history": [
+    {
+      "step": 1,
+      "seed": 76000,
+      "snr_db": 0.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "961897e1fb0560723f54ec6e0ce5772c00dbbf3667d8b464fc3b00c57971e8b3",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.4605339467525482,
+      "base_bce": 0.4605339467525482,
+      "data_bce_before": 0.4571129083633423,
+      "data_bce_after": 0.45695021748542786,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 18,
+        "diffuse_energy_ratio": 0.24262875318527222,
+        "cfo_cycles_per_symbol": -0.00042965203448945,
+        "phase_noise_std": 0.0005124599550700702,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.4524100422859192
+      ],
+      "delta_norm": 0.008062006905674934
+    },
+    {
+      "step": 2,
+      "seed": 76001,
+      "snr_db": 5.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "355d954fba4edf340c6027bbb74b6f9b1219d7f740d0d9bfdb21417e036bbbb3",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.16833025217056274,
+      "base_bce": 0.16833025217056274,
+      "data_bce_before": 0.16919264197349548,
+      "data_bce_after": 0.16916869580745697,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 14,
+        "diffuse_energy_ratio": 0.24607212841510773,
+        "cfo_cycles_per_symbol": -0.0002860489696660275,
+        "phase_noise_std": 0.0005409989041667487,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.159742534160614
+      ],
+      "delta_norm": 0.0080619091168046
+    }
+  ],
+  "initialized_modules": [],
+  "outer_trainable_parameter_count": 65,
+  "elapsed_seconds": 13.030999999959022,
+  "inner_uses_data_labels": false,
+  "receiver_lookahead_len": 0,
+  "inner_uses_data_waveform": false,
+  "inner_receiver_input": "adapt_only",
+  "inner_history_frames": 1,
+  "reward_receiver_input": "pilot_only",
+  "inner_task": "full_frame",
+  "reward_task": "full_frame",
+  "outer_uses_offline_data_labels": true,
+  "post_adapt_data_objective_enabled": false,
+  "post_target_frame_offsets": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "trajectory_soft_gate_rule": "hard_guard_or",
+  "trajectory_persist_optimizer_state": false,
+  "trajectory_update_rule": "adam",
+  "trajectory_rank1_damping": 0.01,
+  "trajectory_rank1_step_scale": 1.0,
+  "trajectory_rank1_basis": null,
+  "trajectory_rank1_basis_source": null,
+  "offline_sample_cache_hits": 0,
+  "offline_sample_cache_misses": 0,
+  "offline_base_loss": "bce_all",
+  "reward_pilot_used_for_post_adapt_loss": false,
+  "checkpoint_selection": "fixed_training_budget_no_test_selection",
+  "settings": {
+    "objective": "post_adapt",
+    "seed": 76000,
+    "history_frames": 1,
+    "outer_learning_rate": 0.001,
+    "inner_learning_rate": 0.001,
+    "inner_steps": 1,
+    "max_delta_norm": 0.05,
+    "base_weight": 1,
+    "post_weight": 1,
+    "post_target_frame_offsets": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "inner_groups": [
+      "head"
+    ],
+    "trajectory_trend_temperature": 0.01,
+    "trajectory_trend_weight": 1.0,
+    "trajectory_soft_gate_bce_temperature": 0.01,
+    "trajectory_soft_gate_ber_temperature": 0.02,
+    "reward_objective": "bce",
+    "inner_objective": "bce",
+    "inner_receiver_input": "adapt_only",
+    "reward_receiver_input": "pilot_only",
+    "trajectory_update_rule": "adam",
+    "trajectory_soft_gate_rule": "hard_guard_or",
+    "outer_groups": [
+      "head"
+    ],
+    "trajectory_persist_optimizer_state": false
+  }
+}

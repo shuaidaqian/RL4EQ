@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from torch.nn.attention import SDPBackend, sdpa_kernel
 from torch.nn import functional as F
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +20,11 @@ if str(ROOT) not in sys.path:
 
 from evaluation.pilot_transfer import _load_branch, paired_interval
 from scripts.diagnose_head_fisher import head_fisher
-from training.pilot_transfer import context_logits, differentiable_adapt, make_context, make_episode, next_pilot_tail
+from training.pilot_transfer import (
+    context_logits, differentiable_adapt, make_context, make_episode, next_pilot_tail,
+    rank1_gauss_newton_adapt,
+)
+from training.shared_pilot_state import adapt_only_history_context
 from training.rank1_online import damped_rank1_gauss_newton_candidate
 from training.windowed_discrete_ppo import should_accept_reward_guard
 
@@ -153,14 +158,21 @@ def _rank1_gauss_newton_candidate(model, context, parameters, names, basis, sett
     return _unflatten_group(parameters, names, candidate_vector), diagnostics
 
 
-def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, basis):
+def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, basis, warmup_frames=0):
     names = [name for name, _ in model.peft.named_group_parameters({"head"})]
     initial = {name: value.detach().clone() for name, value in model.named_parameters()}
     origin = {name: initial[name].clone() for name in names}
     active = {name: origin[name].clone() for name in names}
+    active_rank1_coefficient = torch.zeros((), device=basis.device, dtype=basis.dtype)
     tail = initial_tail.detach().clone()
+    adapt_history = []
+    for frame in frames[:warmup_frames]:
+        warmup_context = make_context(frame, cir, cfo, tail, snr)
+        tail = next_pilot_tail(model, warmup_context, alpha=float(config_tail_alpha(settings)), parameters=initial)
+        adapt_history.append(adapt_only_history_context(frame, warmup_context.condition, warmup_context.tail))
     rows = []
-    for frame in frames:
+    history_count = 8 if branch == "fisher_rank1_trajectory_gn_h8" else 1
+    for frame in frames[warmup_frames:]:
         context = make_context(frame, cir, cfo, tail, snr)
         params_before = dict(initial)
         params_before.update(active)
@@ -171,8 +183,26 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
         reward_loss_before = reward_loss_after = None
         if branch != "frozen":
             candidate = dict(params_before)
-            if branch in {"fisher_rank1", "fisher_rank1_gn"}:
-                if branch == "fisher_rank1_gn":
+            if branch in {"fisher_rank1", "fisher_rank1_gn", "fisher_rank1_trajectory_gn",
+                          "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"}:
+                if branch in {"fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"}:
+                    update_history = (adapt_history[-(history_count - 1):] if history_count > 1 else []) + [context]
+                    fast, candidate_alpha, gn_diagnostics = rank1_gauss_newton_adapt(
+                        model, update_history, parameters=initial, names=names, basis=basis,
+                        coefficient=active_rank1_coefficient, steps=int(settings["inner_steps"]),
+                        learning_rate=float(settings.get("trajectory_rank1_step_scale", 1.0)),
+                        damping=float(settings.get("trajectory_rank1_damping", 0.01)),
+                        max_step_norm=float(settings["max_delta_norm"]),
+                        max_total_norm=float(settings["max_delta_norm"]), create_graph=False,
+                    )
+                    gn_diagnostics = {
+                        key: (float(value.detach().cpu()) if isinstance(value, torch.Tensor) else value)
+                        for key, value in gn_diagnostics.items()
+                    }
+                    update_norm = float((candidate_alpha - active_rank1_coefficient).detach().abs())
+                    adapt_losses = []
+                    candidate.update({name: value.detach() for name, value in fast.items() if name in names})
+                elif branch == "fisher_rank1_gn":
                     fast, gn_diagnostics = _rank1_gauss_newton_candidate(
                         model, context, params_before, names, basis, settings)
                     update_norm = gn_diagnostics["raw_step_norm"]
@@ -216,6 +246,8 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
                     _flatten_group(params_before, names)).norm()))
             if accepted:
                 active = {name: candidate[name].detach().clone() for name in names}
+                if branch in {"fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"}:
+                    active_rank1_coefficient = candidate_alpha.detach().clone()
             params_committed = dict(initial)
             params_committed.update(active)
         else:
@@ -230,12 +262,22 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
             "reward_ber_before": reward_before, "reward_ber_candidate": reward_after,
             "reward_bce_before": reward_loss_before, "reward_bce_candidate": reward_loss_after,
             "delta_norm": update_norm, "projected_delta_norm": projected_norm,
-            "adapt_losses": adapt_losses if branch in {"fisher_rank1", "fisher_rank1_gn"} else update.get("adapt_losses", []) if branch != "frozen" else [],
-            "rank1_gn_diagnostics": gn_diagnostics if branch == "fisher_rank1_gn" else None,
+            "adapt_losses": adapt_losses if branch in {
+                "fisher_rank1", "fisher_rank1_gn", "fisher_rank1_trajectory_gn",
+                "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"
+            } else update.get("adapt_losses", []) if branch not in {"frozen"} else [],
+            "rank1_gn_diagnostics": gn_diagnostics if branch in {
+                "fisher_rank1_gn", "fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"
+            } else None,
+            "rank1_coefficient": float(active_rank1_coefficient.detach()) if branch in {
+                "fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"
+            } else None,
             "ber_frozen": frozen_ber, "ber_online": online_ber,
             "data_labels_used_for_control": False,
         })
         tail = next_pilot_tail(model, context, alpha=float(config_tail_alpha(settings)), parameters=params_committed)
+        adapt_history.append(adapt_only_history_context(frame, context.condition, context.tail))
+        adapt_history = adapt_history[-7:]
     return rows
 
 
@@ -243,7 +285,8 @@ def config_tail_alpha(settings):
     return float(settings.get("tail_alpha", 0.5))
 
 
-def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, output):
+def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, output,
+        basis_checkpoint=None, branches=None):
     target = Path(output)
     if target.exists():
         raise ValueError("输出文件已存在，请指定新路径。")
@@ -253,23 +296,73 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
         raise ValueError("开发原型只允许固定Level B长回波、前缀Pilot=256和四个指定SNR。")
     if frames < 1 or not evaluation_seeds or len(set(evaluation_seeds)) != len(evaluation_seeds):
         raise ValueError("评估帧数或seed非法。")
-    model, basis, basis_info = estimate_shared_basis(config, checkpoint, device, basis_seed)
+    branch_names = list(branches) if branches is not None else [
+        "frozen", "full_head_adam", "fisher_rank1", "fisher_rank1_gn",
+    ] + (["fisher_rank1_trajectory_gn", "meta_rank1_gn"] if basis_checkpoint is not None else [])
+    if "frozen" not in branch_names or len(set(branch_names)) != len(branch_names):
+        raise ValueError("branch列表必须包含唯一的frozen基线。")
+    allowed_branches = {"frozen", "full_head_adam", "fisher_rank1", "fisher_rank1_gn",
+                        "fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"}
+    if set(branch_names) - allowed_branches:
+        raise ValueError("branch列表含有未知方法。")
+    if basis_checkpoint is None and "meta_rank1_gn" in branch_names:
+        raise ValueError("meta_rank1_gn分支需要--basis-checkpoint。")
+    need_fisher = basis_checkpoint is None or "fisher_rank1_trajectory_gn" in branch_names
+    if need_fisher:
+        model, fisher_basis, basis_info = estimate_shared_basis(config, checkpoint, device, basis_seed)
+    else:
+        model, _ = _load_branch(Path(checkpoint), config, device)
+        fisher_basis, basis_info = None, None
     payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
     training_seeds = {row["seed"] for row in payload.get("metrics", {}).get("history", []) if "seed" in row}
-    if training_seeds.intersection(evaluation_seeds) or basis_seed in evaluation_seeds or basis_seed in training_seeds:
+    basis_payload = None
+    basis_training_seeds = set()
+    if basis_checkpoint is not None:
+        basis_path = Path(basis_checkpoint)
+        basis_payload = torch.load(basis_path, map_location="cpu", weights_only=False)
+        basis_metrics = basis_payload.get("metrics", {})
+        if basis_metrics.get("trajectory_update_rule") != "rank1_gn":
+            raise ValueError("basis checkpoint必须来自trajectory_update_rule=rank1_gn训练。")
+        basis_source = basis_metrics.get("trajectory_rank1_basis_source", {})
+        if basis_source.get("base_checkpoint_sha256") != hashlib.sha256(Path(checkpoint).read_bytes()).hexdigest():
+            raise ValueError("learned basis与在线评估使用的强离线checkpoint来源不一致。")
+        learned_basis = basis_metrics.get("trajectory_rank1_basis")
+        if not isinstance(learned_basis, list) or not learned_basis:
+            raise ValueError("训练checkpoint缺少trajectory_rank1_basis。")
+        basis = torch.as_tensor(learned_basis, dtype=next(model.parameters()).dtype, device=device)
+        norm = basis.norm()
+        if not torch.isfinite(norm) or float(norm) <= 1e-12:
+            raise ValueError("learned rank-1 basis必须为非零有限向量。")
+        basis = (basis / norm).detach()
+        learned_basis = basis
+        basis_training_seeds = {row["seed"] for row in basis_metrics.get("history", []) if "seed" in row}
+        basis_info = {
+            "basis_source": "offline_trajectory_learned_rank1_gn",
+            "basis_checkpoint": str(basis_path.resolve()),
+            "basis_checkpoint_sha256": hashlib.sha256(basis_path.read_bytes()).hexdigest(),
+            "source_basis_metadata": basis_source,
+            "basis_norm": float(norm),
+        }
+    else:
+        basis = fisher_basis
+    if (training_seeds.intersection(evaluation_seeds) or basis_training_seeds.intersection(evaluation_seeds)
+            or basis_seed in evaluation_seeds or basis_seed in training_seeds):
         raise ValueError("Pilot方向训练seed、离线checkpoint训练seed与评估seed必须隔离。")
     settings = config["pilot_transfer"]
+    warmup_frames = 7 if "fisher_rank1_trajectory_gn_h8" in branch_names else 0
     all_rows = []
     for snr in config["main_snrs"]:
         for seed in evaluation_seeds:
             env, cir, cfo, tail, received = make_episode(
-                config, model, seed=seed, snr=snr, frames=frames,
+                config, model, seed=seed, snr=snr, frames=frames + warmup_frames,
                 state_split="offline_train", device=device)
             branches = {}
-            for branch in ("frozen", "full_head_adam", "fisher_rank1", "fisher_rank1_gn"):
+            for branch in branch_names:
                 branch_model, _ = _load_branch(Path(checkpoint), config, device)
-                rows = _run_branch(branch_model, received, cir, cfo, tail, snr,
-                                   settings, branch, basis)
+                branch_basis = (fisher_basis if branch == "fisher_rank1_trajectory_gn" else basis)
+                with sdpa_kernel(SDPBackend.MATH):
+                    rows = _run_branch(branch_model, received, cir, cfo, tail, snr,
+                                       settings, branch, branch_basis, warmup_frames=warmup_frames)
                 branches[branch] = rows
             for index in range(frames):
                 frozen_independent = branches["frozen"][index]["ber_online"]
@@ -286,7 +379,9 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
     window = max(1, frames // 4)
     summary = []
     for snr in config["main_snrs"]:
-        for branch in ("full_head_adam", "fisher_rank1", "fisher_rank1_gn"):
+        for branch in branch_names:
+            if branch == "frozen":
+                continue
             rows = [r for r in all_rows if r["snr_db"] == snr and r["branch"] == branch]
             per_seed = []
             for seed in evaluation_seeds:
@@ -312,10 +407,15 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
         "rank1_update_module_sha256": hashlib.sha256(
             (ROOT / "training" / "rank1_online.py").read_bytes()).hexdigest(),
         "basis": basis.detach().cpu().tolist(), "basis_info": basis_info,
+        "fisher_basis": (fisher_basis.detach().cpu().tolist() if fisher_basis is not None else None),
+        "basis_checkpoint": None if basis_checkpoint is None else str(Path(basis_checkpoint).resolve()),
+        "basis_checkpoint_sha256": (None if basis_checkpoint is None else
+                                     hashlib.sha256(Path(basis_checkpoint).read_bytes()).hexdigest()),
         "basis_seed": basis_seed, "evaluation_seeds": evaluation_seeds,
         "frames": frames, "window_frames": window,
+        "warmup_frames": warmup_frames,
         "snrs_db": list(config["main_snrs"]), "data_labels_used_for_control": False,
-        "methods": ["frozen", "full_head_adam", "fisher_rank1", "fisher_rank1_gn"],
+        "methods": branch_names,
         "per_snr": summary, "rows": all_rows,
     }
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -333,12 +433,16 @@ def main():
     parser.add_argument("--frames", type=int, default=16)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--output", required=True)
+    parser.add_argument("--basis-checkpoint")
+    parser.add_argument("--branches", help="逗号分隔分支，必须包含frozen")
     args = parser.parse_args()
     if args.num_seeds < 1:
         parser.error("num-seeds必须为正数。")
     run(json.loads(Path(args.config).read_text(encoding="utf-8")), args.pretrained,
         basis_seed=args.basis_seed, evaluation_seeds=list(range(args.seed_start, args.seed_start + args.num_seeds)),
-        frames=args.frames, device=args.device, output=args.output)
+        frames=args.frames, device=args.device, output=args.output,
+        basis_checkpoint=args.basis_checkpoint,
+        branches=None if args.branches is None else args.branches.split(","))
 
 
 if __name__ == "__main__":
