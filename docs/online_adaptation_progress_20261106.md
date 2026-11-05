@@ -32,7 +32,9 @@
 
 因此不扩大当前4帧趋势损失配置，也不进入正式确认。随后对两个已训练 checkpoint 做了逐帧单步事后梯度诊断，细节见[全 head 梯度方向诊断](results/full_head_trajectory_dev8_v1_20261106/head_gradient_alignment_diagnostic.md)：0/5 dB Adapt/Data余弦约0.75/0.65且候选连续Data BCE下降，说明更新方向并非完全错误；但0 dB存在Reward接受后的Data有害候选，BER收益不稳定。10/15 dB余弦接近零、更新极少且Data变化很小，说明高SNR缺少有效更新信号。诊断每点仅2个session，且逐帧候选从起点重建，没有复现跨帧参数累计，所以只用于机制筛查。
 
-下一步需要把当前评估轨迹逐帧记录扩充为动作后Data BCE（仅事后评分），并将Reward BCE/BER变化与Data BCE/BER变化配对，定位低SNR的门控失配和高SNR的低可辨识/低灵敏度。随后只选一个修复：先测试基于连续Reward统计量的安全滞回门控，或近期Adapt Pilot固定加权重放，不能同时改目标和更新器。每个候选仍与匹配普通监督续训和同源Frozen比较；所有在线控制只读Adapt/Reward Pilot，Data只用于离线外层训练和事后评分。趋势损失只是训练目标，不是趋势证据；统计单位仍为独立session，不能将帧/bit当作独立样本。
+之后已为评估轨迹加入动作后的Data BCE（仅事后评分），并在相同checkpoint和session上重跑。0/5 dB的BCE总体收益约为8.0e-4/2.2e-4，后窗继续变好；但0 dB BER仍可退化，说明连续损失收益没有自动转化为硬判决错误减少。Trajectory和普通续训的BCE曲线几乎一样，尚无专属在线能力证据。详见阶段结果中的“同一累计轨迹的连续 Data BCE 复核”。
+
+下一步只改Reward验收的时间聚合：固定Adapt候选、更新步长和参数范围，对比当前帧32个Reward Pilot与预先固定的历史Reward窗口聚合验收，检验是否减少低SNR有害提交并提升Data BER。高SNR暂不把无误码差异解释为成功；同时报告更新激活率和连续损失。窗口长度必须预先指定并讨论时变信道下的过时风险。Data只用于离线外层训练和事后评分，不能参与窗口选择、接受、回滚或超参数挑选。
 
 ## 复现命令
 

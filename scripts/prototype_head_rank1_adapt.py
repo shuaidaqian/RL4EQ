@@ -79,6 +79,23 @@ def _guard_metrics(logits, frame):
     return float(ber.detach()), float(loss.detach())
 
 
+def _posthoc_data_metrics(logits_frozen, logits_online, frame):
+    """候选和门控完成后计算Data评分，不得回流在线控制。"""
+    mask = frame.data_mask.bool()
+    labels = frame.bits.float()
+    frozen_bce = F.binary_cross_entropy_with_logits(logits_frozen[mask].float(), labels[mask])
+    online_bce = F.binary_cross_entropy_with_logits(logits_online[mask].float(), labels[mask])
+    frozen_ber = ((logits_frozen[mask] >= 0) != labels[mask].bool()).float().mean()
+    online_ber = ((logits_online[mask] >= 0) != labels[mask].bool()).float().mean()
+    return {
+        "ber_frozen": float(frozen_ber.detach()),
+        "ber_online": float(online_ber.detach()),
+        "data_bce_frozen": float(frozen_bce.detach()),
+        "data_bce_online": float(online_bce.detach()),
+        "data_bce_gain": float((frozen_bce - online_bce).detach()),
+    }
+
+
 def _flatten_group(values, names):
     return torch.cat([values[name].reshape(-1) for name in names])
 
@@ -254,9 +271,7 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
             params_committed = initial
         # 候选及守门完成后才读取Data标签作事后评分。
         online_logits = context_logits(model, context, params_committed)
-        mask = frame.data_mask
-        frozen_ber = float(((frozen_logits[mask] >= 0) != frame.bits[mask]).float().mean())
-        online_ber = float(((online_logits[mask] >= 0) != frame.bits[mask]).float().mean())
+        data_scores = _posthoc_data_metrics(frozen_logits, online_logits, frame)
         rows.append({
             "frame_index": int(frame.frame_index), "accepted": accepted,
             "reward_ber_before": reward_before, "reward_ber_candidate": reward_after,
@@ -272,8 +287,9 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
             "rank1_coefficient": float(active_rank1_coefficient.detach()) if branch in {
                 "fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"
             } else None,
-            "ber_frozen": frozen_ber, "ber_online": online_ber,
+            **data_scores,
             "data_labels_used_for_control": False,
+            "data_bce_used_for_control": False,
         })
         tail = next_pilot_tail(model, context, alpha=float(config_tail_alpha(settings)), parameters=params_committed)
         adapt_history.append(adapt_only_history_context(frame, context.condition, context.tail))
