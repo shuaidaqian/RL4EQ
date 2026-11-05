@@ -1,0 +1,273 @@
+{
+  "role": "development_numerical_audit",
+  "core_confirmed": false,
+  "confirmation_ready": false,
+  "matched_offline_training": false,
+  "interpretation_limit": "仅审计v22表示/checkpoint上的确定性Pilot候选更新数值稳定性与开发Data行为；不能证明匹配离线训练收益，也不是独立确认。",
+  "audit_manifest_sha256": "a6405a83b94fc34b7af771fb81f8bcf6b065e74d68a346fe10770942ebd9806f",
+  "parent_manifest_sha256": "eb8e156389a6fa782f816746047df35be3b259cad4cc57362e70d6cf2ec5bec0",
+  "fixed_update": {
+    "optimizer": "damped_gauss_newton_fisher",
+    "damping": 0.01,
+    "proximal_weight": 0.1,
+    "adapt_logit_temperature": 2.0,
+    "step_radius": 0.15,
+    "total_radius": 0.8,
+    "max_backtracks": 8,
+    "validation_min_improvement": 1e-05,
+    "validation_ber_must_not_increase": true,
+    "origin_retention_decay": 0.5,
+    "reset_to_origin_on_validation": true
+  },
+  "source_sha256": {
+    "training/pilot_gauss_newton.py": "f1c94a3512466c9be2e7ef348b25d7c7f81b81e44362b8c31928350a042dcb13",
+    "scripts/audit_context_gauss_newton.py": "89db674dc7c20e526b7672369d154d1c2f6c3017cbec2e4e24ff4a19f319c092",
+    "agent/detection_subspace.py": "e06aec52b08bece065be70af4d1ce779e9d2d097a2e2f37d949235e8fab7c82f",
+    "evaluation/subspace_development.py": "08995aeb2ec2f07f7a2a4fa45fef825067fc6dc57595e563830880863fcebf64"
+  },
+  "inputs": {
+    "audit_manifest": {
+      "path": "configs\\audits\\detection_subspace_long_v23_gauss_newton_numerical_v1.json",
+      "sha256": "a6405a83b94fc34b7af771fb81f8bcf6b065e74d68a346fe10770942ebd9806f"
+    },
+    "parent_manifest": {
+      "path": "C:\\Users\\SDQ\\.codex\\worktrees\\online-peft-research\\RL4EQ\\configs\\audits\\detection_subspace_long_v22_pilot_context_history1_crossseed_v1.json",
+      "sha256": "eb8e156389a6fa782f816746047df35be3b259cad4cc57362e70d6cf2ec5bec0"
+    },
+    "feature_cache": {
+      "path": "logs\\detection_subspace_training_v22_history1_crossseed_v1_20261105\\evaluation_features.pt",
+      "sha256": "78582fb33a2de86b069f939cdf7c0ef2f112b3ce727b8a852f4e5dc70d98cc93"
+    },
+    "A_checkpoint": {
+      "path": "logs\\detection_subspace_training_v22_history1_crossseed_v1_20261105\\A_supervised.pt",
+      "sha256": "5824bc9621fbc83b7790d67c18ee42422a673a3785b178df35fba1bf8ace87fe"
+    },
+    "B_checkpoint": {
+      "path": "logs\\detection_subspace_training_v22_history1_crossseed_v1_20261105\\B_post_adapt.pt",
+      "sha256": "3c900a726be6d58ad172356b26968af1d159898f5cfe49ccbbc2483973d71daf"
+    }
+  },
+  "snrs_db": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "evaluation_seeds": [
+    121400,
+    121401,
+    121402
+  ],
+  "records": 768,
+  "per_snr": [
+    {
+      "snr_db": 0,
+      "arms": {
+        "A_supervised": {
+          "ber_frozen": 0.15894911508075893,
+          "ber_online": 0.15897624171338975,
+          "gain": {
+            "mean": -2.7126632630825043e-05,
+            "ci95": [
+              -8.548487259906695e-05,
+              3.123160733741686e-05
+            ],
+            "seeds": 3
+          },
+          "per_seed_gain": {
+            "121400": -4.0689948946237564e-05,
+            "121401": -4.0689948946237564e-05,
+            "121402": 0.0
+          },
+          "candidate_accepted": 41,
+          "accepted": 35,
+          "reset_to_origin": 9,
+          "finite_jacobian_fraction": 1.0,
+          "full_rank_fraction": 1.0,
+          "mean_fisher_condition": 1.0059474085768063
+        },
+        "B_post_adapt": {
+          "ber_frozen": 0.15894911508075893,
+          "ber_online": 0.15897624171338975,
+          "gain": {
+            "mean": -2.7126632630825043e-05,
+            "ci95": [
+              -8.548487259906695e-05,
+              3.123160733741686e-05
+            ],
+            "seeds": 3
+          },
+          "per_seed_gain": {
+            "121400": -4.0689948946237564e-05,
+            "121401": -4.0689948946237564e-05,
+            "121402": 0.0
+          },
+          "candidate_accepted": 42,
+          "accepted": 39,
+          "reset_to_origin": 8,
+          "finite_jacobian_fraction": 1.0,
+          "full_rank_fraction": 1.0,
+          "mean_fisher_condition": 1.005812868475914
+        }
+      },
+      "gain_interaction_B_minus_A": 0.0
+    },
+    {
+      "snr_db": 5,
+      "arms": {
+        "A_supervised": {
+          "ber_frozen": 0.026448568338916328,
+          "ber_online": 0.026448568338916328,
+          "gain": {
+            "mean": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "seeds": 3
+          },
+          "per_seed_gain": {
+            "121400": 0.0,
+            "121401": 0.0,
+            "121402": 0.0
+          },
+          "candidate_accepted": 49,
+          "accepted": 42,
+          "reset_to_origin": 8,
+          "finite_jacobian_fraction": 1.0,
+          "full_rank_fraction": 1.0,
+          "mean_fisher_condition": 1.0205925206343334
+        },
+        "B_post_adapt": {
+          "ber_frozen": 0.026448568338916328,
+          "ber_online": 0.026462131694036845,
+          "gain": {
+            "mean": -1.3563355120519796e-05,
+            "ci95": [
+              -7.192176205366245e-05,
+              4.479505181262286e-05
+            ],
+            "seeds": 3
+          },
+          "per_seed_gain": {
+            "121400": 0.0,
+            "121401": -4.069006536155939e-05,
+            "121402": 0.0
+          },
+          "candidate_accepted": 47,
+          "accepted": 41,
+          "reset_to_origin": 9,
+          "finite_jacobian_fraction": 1.0,
+          "full_rank_fraction": 1.0,
+          "mean_fisher_condition": 1.0201352474590142
+        }
+      },
+      "gain_interaction_B_minus_A": -1.3563355120519796e-05
+    },
+    {
+      "snr_db": 10,
+      "arms": {
+        "A_supervised": {
+          "ber_frozen": 0.0018581814656499773,
+          "ber_online": 0.0018581814656499773,
+          "gain": {
+            "mean": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "seeds": 3
+          },
+          "per_seed_gain": {
+            "121400": 0.0,
+            "121401": 0.0,
+            "121402": 0.0
+          },
+          "candidate_accepted": 9,
+          "accepted": 7,
+          "reset_to_origin": 1,
+          "finite_jacobian_fraction": 1.0,
+          "full_rank_fraction": 1.0,
+          "mean_fisher_condition": 1.007137684772412
+        },
+        "B_post_adapt": {
+          "ber_frozen": 0.0018581814656499773,
+          "ber_online": 0.0018581814656499773,
+          "gain": {
+            "mean": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "seeds": 3
+          },
+          "per_seed_gain": {
+            "121400": 0.0,
+            "121401": 0.0,
+            "121402": 0.0
+          },
+          "candidate_accepted": 9,
+          "accepted": 7,
+          "reset_to_origin": 1,
+          "finite_jacobian_fraction": 1.0,
+          "full_rank_fraction": 1.0,
+          "mean_fisher_condition": 1.0070042784015338
+        }
+      },
+      "gain_interaction_B_minus_A": 0.0
+    },
+    {
+      "snr_db": 15,
+      "arms": {
+        "A_supervised": {
+          "ber_frozen": 8.138021075865254e-05,
+          "ber_online": 8.138021075865254e-05,
+          "gain": {
+            "mean": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "seeds": 3
+          },
+          "per_seed_gain": {
+            "121400": 0.0,
+            "121401": 0.0,
+            "121402": 0.0
+          },
+          "candidate_accepted": 0,
+          "accepted": 0,
+          "reset_to_origin": 0,
+          "finite_jacobian_fraction": 1.0,
+          "full_rank_fraction": 1.0,
+          "mean_fisher_condition": 1.0002496776481469
+        },
+        "B_post_adapt": {
+          "ber_frozen": 8.138021075865254e-05,
+          "ber_online": 8.138021075865254e-05,
+          "gain": {
+            "mean": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "seeds": 3
+          },
+          "per_seed_gain": {
+            "121400": 0.0,
+            "121401": 0.0,
+            "121402": 0.0
+          },
+          "candidate_accepted": 0,
+          "accepted": 0,
+          "reset_to_origin": 0,
+          "finite_jacobian_fraction": 1.0,
+          "full_rank_fraction": 1.0,
+          "mean_fisher_condition": 1.0002476026614506
+        }
+      },
+      "gain_interaction_B_minus_A": 0.0
+    }
+  ],
+  "frame_metrics_sha256": "8b3acbe8a6cdd0652a6c4394339f6392b3cc8ade33570fb2871c221a8a7793fd"
+}

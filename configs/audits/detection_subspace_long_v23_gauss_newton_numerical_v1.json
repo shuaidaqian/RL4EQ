@@ -1,0 +1,26 @@
+{
+  "schema_version": "fixed-channel-context-gauss-newton-numerical-audit-v1",
+  "role": "development_numerical_audit",
+  "parent_manifest": "configs/audits/detection_subspace_long_v22_pilot_context_history1_crossseed_v1.json",
+  "parent_evaluation_seeds": [121400, 121401, 121402],
+  "snrs_db": [0, 5, 10, 15],
+  "channel_changes": false,
+  "heldout_confirmation": false,
+  "online_data_labels_used": false,
+  "dimension": 2,
+  "architecture": "pilot_context_mlp_v1",
+  "update": {
+    "optimizer": "damped_gauss_newton_fisher",
+    "damping": 0.01,
+    "proximal_weight": 0.1,
+    "adapt_logit_temperature": 2.0,
+    "step_radius": 0.15,
+    "total_radius": 0.8,
+    "max_backtracks": 8,
+    "validation_min_improvement": 0.00001,
+    "validation_ber_must_not_increase": true,
+    "origin_retention_decay": 0.5,
+    "reset_to_origin_on_validation": true
+  },
+  "interpretation": "仅审计v22表示/checkpoint上的确定性Pilot候选更新数值稳定性与开发Data行为；不能证明匹配离线训练收益，也不是独立确认。"
+}

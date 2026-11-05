@@ -1,0 +1,102 @@
+# -*- coding: utf-8 -*-
+"""合法Adapt Pilot驱动的低维阻尼Gauss–Newton候选更新。"""
+
+from __future__ import annotations
+
+import math
+
+import torch
+import torch.nn.functional as F
+
+from training.subspace_adaptation import project
+
+
+def damped_gauss_newton_candidate(model, observation, current, origin, *, damping=1e-2,
+                                  proximal_weight=0.1, temperature=1.0,
+                                  step_radius=0.15, total_radius=0.8,
+                                  max_backtracks=8):
+    """仅用当前Adapt Pilot构造Fisher曲率，返回有界候选和数值诊断。
+
+    验证Pilot不参与此函数；调用方须在候选形成后独立执行验证门控。
+    """
+    values = (damping, proximal_weight, temperature, step_radius, total_radius)
+    if not all(math.isfinite(float(value)) for value in values):
+        raise ValueError("Gauss–Newton参数必须是有限数。")
+    if damping <= 0 or proximal_weight < 0 or temperature <= 0 or step_radius <= 0 or total_radius <= 0:
+        raise ValueError("阻尼、温度和信赖域半径必须为正，近端系数不得为负。")
+    if max_backtracks < 0 or max_backtracks > 32:
+        raise ValueError("回溯次数必须在0到32之间。")
+
+    mask = observation.adapt_mask.bool()
+    if not bool(mask.any()):
+        raise ValueError("缺少合法Adapt Pilot。")
+    labels = observation.adapt_labels[mask].to(dtype=current.dtype)
+    start = current.detach().clone()
+    anchor = origin.detach().to(device=start.device, dtype=start.dtype)
+
+    def adapt_objective(coefficients):
+        scaled = model.logits(observation, coefficients)[mask] / temperature
+        pilot_bce = F.binary_cross_entropy_with_logits(scaled, labels)
+        proximal = proximal_weight * (coefficients - anchor).square().sum()
+        return pilot_bce + proximal
+
+    with torch.enable_grad():
+        variable = start.detach().requires_grad_(True)
+        scaled_logits = model.logits(observation, variable)[mask] / temperature
+        probabilities = torch.sigmoid(scaled_logits.detach())
+        jacobian = torch.autograd.functional.jacobian(
+            lambda coefficients: model.logits(observation, coefficients)[mask] / temperature,
+            variable, create_graph=False, vectorize=True)
+        count = max(int(mask.sum()), 1)
+        gradient = jacobian.transpose(0, 1) @ (probabilities - labels) / count
+        gradient = gradient + 2 * proximal_weight * (variable.detach() - anchor)
+        curvature_weights = (probabilities * (1 - probabilities)).clamp_min(1e-8)
+        fisher = jacobian.transpose(0, 1) @ (curvature_weights.unsqueeze(1) * jacobian) / count
+        identity = torch.eye(start.numel(), device=start.device, dtype=start.dtype)
+        system = fisher + (damping + 2 * proximal_weight) * identity
+        candidate_step = torch.linalg.solve(system, -gradient)
+
+    if not (torch.isfinite(jacobian).all() and torch.isfinite(system).all()
+            and torch.isfinite(candidate_step).all()):
+        raise FloatingPointError("Pilot Jacobian或阻尼Gauss–Newton解出现非有限值。")
+
+    candidate_step = candidate_step * (step_radius / candidate_step.norm().clamp_min(1e-12)).clamp(max=1.)
+    candidate = project(project(start + candidate_step, start, step_radius), anchor, total_radius)
+    before = float(adapt_objective(start).detach())
+    accepted = False
+    used_backtracks = 0
+    for backtrack in range(max_backtracks + 1):
+        trial = project(project(start + candidate_step, start, step_radius), anchor, total_radius)
+        after = float(adapt_objective(trial).detach())
+        if math.isfinite(after) and after <= before:
+            candidate, accepted, used_backtracks = trial.detach(), True, backtrack
+            break
+        candidate_step = candidate_step * 0.5
+        used_backtracks = backtrack + 1
+    if not accepted:
+        candidate = start
+
+    singular_values = torch.linalg.svdvals(jacobian.detach())
+    tolerance = (singular_values.max() * max(jacobian.shape) * torch.finfo(singular_values.dtype).eps
+                 if singular_values.numel() else torch.tensor(0., device=start.device))
+    rank = int((singular_values > tolerance).sum()) if singular_values.numel() else 0
+    raw_condition = (float(singular_values.max() / singular_values.min())
+        if singular_values.numel() and float(singular_values.min()) > 0 else math.inf)
+    return candidate, dict(
+        accepted_by_adapt_backtracking=accepted,
+        adapt_objective_before=before,
+        adapt_objective_candidate=float(adapt_objective(candidate).detach()),
+        jacobian_rank=rank,
+        jacobian_rows=int(jacobian.shape[0]),
+        parameter_dimension=int(jacobian.shape[1]),
+        jacobian_condition=raw_condition if math.isfinite(raw_condition) else None,
+        fisher_condition=float(torch.linalg.cond(system.detach())),
+        damping=float(damping),
+        backtracks=used_backtracks,
+        proposed_step_norm=float(candidate_step.norm()),
+        applied_step_norm=float((candidate - start).norm()),
+        total_origin_norm=float((candidate - anchor).norm()),
+        adapt_only=True,
+        validation_used_for_candidate=False,
+        data_used_for_candidate=False,
+    )

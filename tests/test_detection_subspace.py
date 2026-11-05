@@ -14,6 +14,7 @@ from evaluation.subspace_development import (frozen_error_conditioned_loss, oute
     evaluate_subspaces, paired_online_gain_loss, read_manifest, sequence_loss)
 from training.deterministic_adaptation import DeterministicSettings
 from training.pilot_risk_gate import FEATURE_NAMES, PilotRiskRegressor, validation_risk_features
+from training.pilot_gauss_newton import damped_gauss_newton_candidate
 from training.subspace_adaptation import coefficient_update, pilot_loss, project, update_subspace
 from scripts.diagnose_subspace_data_oracle import projected_data_oracle
 
@@ -486,6 +487,31 @@ def test_evaluation_scores_nonlinear_model_forward_instead_of_linear_basis(monke
     assert rows[0]["ber_frozen"] == 1.
     assert rows[0]["ber_online"] == 0.
     assert summary[0]["arms"]["A_supervised"]["gain"]["mean"] == 1.
+
+
+def test_damped_gauss_newton_uses_only_adapt_pilot_and_respects_trust_regions():
+    torch.manual_seed(77)
+    observation = fixture_observation()
+    model = DetectionSubspace(2, architecture="pilot_context_mlp_v1")
+    origin = torch.zeros(2)
+    candidate, metrics = damped_gauss_newton_candidate(model, observation, origin, origin,
+        damping=.01, proximal_weight=.1, temperature=2., step_radius=.15, total_radius=.8)
+
+    assert metrics["accepted_by_adapt_backtracking"]
+    assert metrics["adapt_objective_candidate"] <= metrics["adapt_objective_before"]
+    assert metrics["jacobian_rank"] == 2
+    assert metrics["fisher_condition"] < 2.
+    assert metrics["applied_step_norm"] <= .15 + 1e-7
+    assert metrics["total_origin_norm"] <= .8 + 1e-7
+    assert metrics["adapt_only"] and not metrics["validation_used_for_candidate"]
+    assert not metrics["data_used_for_candidate"]
+
+    changed_validation = PilotObservation(observation.base_logits, observation.features,
+        observation.logit_scale, observation.adapt_mask, observation.adapt_labels,
+        observation.validation_mask, ~observation.validation_labels.bool())
+    same_candidate, _ = damped_gauss_newton_candidate(model, changed_validation, origin, origin,
+        damping=.01, proximal_weight=.1, temperature=2., step_radius=.15, total_radius=.8)
+    torch.testing.assert_close(candidate, same_candidate, atol=0, rtol=0)
 
 
 def test_smooth_ber_outer_objective_is_differentiable_and_tracks_signed_margin():
