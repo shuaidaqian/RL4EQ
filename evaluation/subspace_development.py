@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11", "fixed-channel-subspace-development-v12", "fixed-channel-subspace-development-v13", "fixed-channel-subspace-development-v14", "fixed-channel-subspace-development-v15", "fixed-channel-subspace-development-v16"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11", "fixed-channel-subspace-development-v12", "fixed-channel-subspace-development-v13", "fixed-channel-subspace-development-v14", "fixed-channel-subspace-development-v15", "fixed-channel-subspace-development-v16", "fixed-channel-subspace-development-v17"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -97,6 +97,11 @@ def read_manifest(path):
     if spec.get("schema_version") == "fixed-channel-subspace-development-v16":
         if spec.get("training", {}).get("outer_objective") != "frozen_error_conditioned":
             raise ValueError("v16只允许沿用Frozen错误条件化外层目标比较新增可辨识维数。")
+    if spec.get("schema_version") == "fixed-channel-subspace-development-v17":
+        if (spec.get("training", {}).get("outer_objective") != "frozen_error_conditioned"
+                or spec.get("learned_gradient_transport") is not True
+                or spec.get("learned_context_update") is not True):
+            raise ValueError("v17仅允许在v16更新器上增加离线学习的梯度传输矩阵。")
     return spec
 
 

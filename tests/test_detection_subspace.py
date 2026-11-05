@@ -383,6 +383,15 @@ def test_v16_manifest_keeps_dimension_screen_tied_to_error_conditioned_training(
     assert spec["channel_changes"] is False
 
 
+def test_v17_manifest_only_adds_learned_gradient_transport_to_v16_update():
+    spec = read_manifest("configs/audits/detection_subspace_long_v17_dim12_gradient_transport_v1.json")
+    assert spec["learned_gradient_transport"] is True
+    assert spec["learned_context_update"] is True
+    assert spec["training"]["outer_objective"] == "frozen_error_conditioned"
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+
+
 def test_smooth_ber_outer_objective_is_differentiable_and_tracks_signed_margin():
     bits = torch.tensor([True, False])
     row = dict(offline=dict(data_mask=torch.tensor([True, True]), bits=bits))
