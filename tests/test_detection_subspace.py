@@ -15,6 +15,7 @@ from evaluation.subspace_development import (frozen_error_conditioned_loss, oute
 from training.deterministic_adaptation import DeterministicSettings
 from training.pilot_risk_gate import FEATURE_NAMES, PilotRiskRegressor, validation_risk_features
 from training.subspace_adaptation import coefficient_update, pilot_loss, project, update_subspace
+from scripts.diagnose_subspace_data_oracle import projected_data_oracle
 
 
 def fixture_observation():
@@ -39,6 +40,16 @@ def test_zero_coefficients_preserve_source_and_jacobian_matches_finite_differenc
     assert basis[~(observation.adapt_mask | observation.validation_mask)].norm() > 0
     assert {field.name for field in fields(observation)} == {
         "base_logits","features","logit_scale","adapt_mask","adapt_labels","validation_mask","validation_labels"}
+
+
+def test_read_only_data_oracle_improves_a_reachable_toy_boundary_within_radius():
+    basis = torch.eye(2)
+    base = torch.tensor([-0.2, 0.2])
+    labels = torch.tensor([1., 0.])
+    coeff, loss = projected_data_oracle(basis, base, labels, radius=0.5, steps=80)
+    assert coeff.norm() <= 0.5 + 1e-6
+    assert loss < torch.nn.functional.binary_cross_entropy_with_logits(base, labels).item()
+    assert ((base + basis @ coeff > 0) == (labels > 0.5)).all()
 
 
 @pytest.mark.parametrize("architecture", ["pointwise_mlp_v1", "temporal_conv_v1"])
