@@ -13,7 +13,7 @@ from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from env.frame_structure import FrameConfig, FrameGenerator
 from training.pilot_transfer import (
     PilotTransferTrainer, TransferContext, context_logits, differentiable_adapt,
-    differentiable_online_trajectory, next_pilot_tail, task_context,
+    differentiable_online_trajectory, next_pilot_tail, rank1_gauss_newton_adapt, task_context,
 )
 from training.windowed_discrete_ppo import _apply_adapt_peft_update
 
@@ -187,6 +187,93 @@ def test_trajectory_commits_adam_moments_only_with_accepted_parameter_state(monk
     gradient, = torch.autograd.grad(stats["online_data_loss"],
                                     model.online_phase_trend_adapter.state_to_phase_cfo.weight)
     assert torch.isfinite(gradient).all()
+
+
+def test_rank1_gn_trajectory_basis_is_differentiable_across_two_frames(monkeypatch):
+    """两帧Adapt-only rank-1 GN候选可反传到basis外层参数。"""
+    import training.windowed_discrete_ppo as online_guard
+
+    model, first = _fixture()
+    contexts = [replace(first, frame=replace(first.frame, frame_index=index)) for index in (0, 1)]
+    monkeypatch.setattr(online_guard, "should_accept_reward_guard", lambda **kwargs: True)
+    head = dict(model.peft.named_group_parameters({"head"}))
+    dimension = sum(value.numel() for value in head.values())
+    basis = torch.nn.Parameter(torch.linspace(-1, 1, dimension))
+    with sdpa_kernel(SDPBackend.MATH):
+        result, stats = differentiable_online_trajectory(
+            model, contexts, learning_rate=0.1, steps=1, max_delta_norm=0.05,
+            create_graph=True, groups={"head"}, objective="bce",
+            receiver_input="adapt_only", reward_receiver_input="pilot",
+            reward_task="full_frame", reward_objective="bce", snr_db=10,
+            update_rule="rank1_gn", rank1_basis=basis, rank1_damping=0.1,
+        )
+    gradient, = torch.autograd.grad(stats["online_data_loss"], basis)
+    assert torch.isfinite(gradient).all()
+    assert gradient.abs().sum() > 0
+    assert all(row["update_rule"] == "rank1_gn" for row in stats["steps"])
+    assert all(row["reward_hard_accepted"] for row in stats["steps"])
+    assert any(not torch.equal(result[name], dict(model.named_parameters())[name]) for name in head)
+    final_delta = torch.cat([(result[name] - dict(model.named_parameters())[name]).reshape(-1) for name in head])
+    assert torch.linalg.vector_norm(final_delta) <= 0.050001
+    assert all(row["cumulative_delta_norm"] <= 0.050001 for row in stats["steps"])
+
+
+def test_rank1_gn_hard_rejection_does_not_commit_parameters(monkeypatch):
+    """Reward硬拒绝时两帧前向都回滚rank-1神经参数。"""
+    import training.windowed_discrete_ppo as online_guard
+
+    model, first = _fixture()
+    contexts = [replace(first, frame=replace(first.frame, frame_index=index)) for index in (0, 1)]
+    monkeypatch.setattr(online_guard, "should_accept_reward_guard", lambda **kwargs: False)
+    head = dict(model.peft.named_group_parameters({"head"}))
+    initial = {name: value.detach().clone() for name, value in head.items()}
+    basis = torch.nn.Parameter(torch.linspace(-1, 1, sum(value.numel() for value in head.values())))
+    with sdpa_kernel(SDPBackend.MATH):
+        result, stats = differentiable_online_trajectory(
+            model, contexts, learning_rate=0.1, steps=1, max_delta_norm=0.05,
+            create_graph=True, groups={"head"}, objective="bce",
+            receiver_input="adapt_only", reward_receiver_input="pilot",
+            reward_task="full_frame", reward_objective="bce", snr_db=10,
+            update_rule="rank1_gn", rank1_basis=basis, rank1_damping=0.1,
+        )
+    for name, value in initial.items():
+        torch.testing.assert_close(result[name], value, rtol=0, atol=0)
+    assert all(not row["reward_hard_accepted"] for row in stats["steps"])
+    assert all(row["rank1_coefficient"] == 0.0 for row in stats["steps"])
+
+
+def test_rank1_gn_trainer_optimizes_only_normalized_basis(monkeypatch, tmp_path):
+    """rank1_gn trajectory冻结checkpoint网络，仅把basis交给外层优化器。"""
+    model, first = _fixture()
+    second = replace(first, frame=replace(first.frame, frame_index=first.frame.frame_index + 1))
+    settings = {
+        "inner_learning_rate": 0.1, "inner_steps": 1, "max_delta_norm": 0.05,
+        "inner_objective": "bce", "inner_groups": ["head"],
+        "inner_receiver_input": "adapt_only", "reward_receiver_input": "pilot_only",
+        "post_target_frame_offsets": [0, 1], "trajectory_update_rule": "rank1_gn",
+        "trajectory_rank1_basis_seed": 19,
+    }
+    config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "main_snrs": [10], "pilot_transfer": settings}
+    trainer = PilotTransferTrainer(config, "cpu", objective="trajectory")
+    trainer.model.load_state_dict(model.state_dict())
+    frozen = {name: value.detach().clone() for name, value in trainer.model.named_parameters()}
+    initial_basis = trainer.rank1_basis_raw.detach().clone()
+    assert len(trainer.optimizer.param_groups[0]["params"]) == 1
+    assert trainer.optimizer.param_groups[0]["params"][0] is trainer.rank1_basis_raw
+    assert all(not parameter.requires_grad for parameter in trainer.model.parameters())
+    monkeypatch.setattr(trainer, "_sample", lambda: (replace(first, offline_post_contexts=(second,)), {}, 10, 80001))
+    metrics = trainer.train(1)
+    assert not torch.equal(trainer.rank1_basis_raw.detach(), initial_basis)
+    assert torch.isfinite(trainer.normalized_rank1_basis()).all()
+    assert metrics["trajectory_update_rule"] == "rank1_gn"
+    assert len(metrics["trajectory_rank1_basis"]) == initial_basis.numel()
+    assert metrics["trajectory_rank1_basis_source"]["type"] == "seeded_unit_gaussian_trainable_initialization"
+    for name, value in trainer.model.named_parameters():
+        torch.testing.assert_close(value, frozen[name], rtol=0, atol=0)
+    trainer.save(tmp_path, metrics)
+    payload = torch.load(tmp_path / "model_best.pt", map_location="cpu", weights_only=False)
+    assert payload["metrics"]["trajectory_rank1_basis"] == metrics["trajectory_rank1_basis"]
 
 
 @pytest.mark.parametrize("group", ["head", "adapter_lora_head", "phase"])
