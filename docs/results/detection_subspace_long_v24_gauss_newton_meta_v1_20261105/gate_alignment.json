@@ -1,0 +1,118 @@
+{
+  "role": "read_only_posthoc_alignment_diagnostic",
+  "online_control_used_data_labels": false,
+  "interpretation": "Data BER只在所有候选、守门和回退完成后评分；此统计不修改任何更新或门控动作。",
+  "source_metrics_path": "logs\\detection_subspace_training_v24_gauss_newton_meta_v2_20261105\\frame_metrics.jsonl",
+  "source_metrics_sha256": "7334a0b693a1f87fb9f671075d4689bc6101a0b8425a64df104dbba8491e6cd7",
+  "records": 768,
+  "per_snr": [
+    {
+      "snr_db": 0,
+      "arms": {
+        "A_supervised": {
+          "frames": 96,
+          "candidate_accepted": 34,
+          "accepted": 27,
+          "reset_to_origin": 7,
+          "accepted_data_ber_improved": 1,
+          "accepted_data_ber_unchanged": 24,
+          "accepted_data_ber_worsened": 2,
+          "accepted_fraction_without_data_ber_improvement": 0.9629629629629629,
+          "mean_accepted_validation_loss_reduction": 6.946866159085874e-05
+        },
+        "B_post_adapt": {
+          "frames": 96,
+          "candidate_accepted": 36,
+          "accepted": 28,
+          "reset_to_origin": 8,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 27,
+          "accepted_data_ber_worsened": 1,
+          "accepted_fraction_without_data_ber_improvement": 1.0,
+          "mean_accepted_validation_loss_reduction": 7.001842771257673e-05
+        }
+      }
+    },
+    {
+      "snr_db": 5,
+      "arms": {
+        "A_supervised": {
+          "frames": 96,
+          "candidate_accepted": 44,
+          "accepted": 32,
+          "reset_to_origin": 9,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 32,
+          "accepted_data_ber_worsened": 0,
+          "accepted_fraction_without_data_ber_improvement": 1.0,
+          "mean_accepted_validation_loss_reduction": 6.19670026935637e-05
+        },
+        "B_post_adapt": {
+          "frames": 96,
+          "candidate_accepted": 40,
+          "accepted": 31,
+          "reset_to_origin": 12,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 31,
+          "accepted_data_ber_worsened": 0,
+          "accepted_fraction_without_data_ber_improvement": 1.0,
+          "mean_accepted_validation_loss_reduction": 6.763721185345804e-05
+        }
+      }
+    },
+    {
+      "snr_db": 10,
+      "arms": {
+        "A_supervised": {
+          "frames": 96,
+          "candidate_accepted": 3,
+          "accepted": 2,
+          "reset_to_origin": 0,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 2,
+          "accepted_data_ber_worsened": 0,
+          "accepted_fraction_without_data_ber_improvement": 1.0,
+          "mean_accepted_validation_loss_reduction": 5.3578056395053864e-05
+        },
+        "B_post_adapt": {
+          "frames": 96,
+          "candidate_accepted": 3,
+          "accepted": 2,
+          "reset_to_origin": 0,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 2,
+          "accepted_data_ber_worsened": 0,
+          "accepted_fraction_without_data_ber_improvement": 1.0,
+          "mean_accepted_validation_loss_reduction": 5.564000457525253e-05
+        }
+      }
+    },
+    {
+      "snr_db": 15,
+      "arms": {
+        "A_supervised": {
+          "frames": 96,
+          "candidate_accepted": 0,
+          "accepted": 0,
+          "reset_to_origin": 0,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 0,
+          "accepted_data_ber_worsened": 0,
+          "accepted_fraction_without_data_ber_improvement": null,
+          "mean_accepted_validation_loss_reduction": 0.0
+        },
+        "B_post_adapt": {
+          "frames": 96,
+          "candidate_accepted": 0,
+          "accepted": 0,
+          "reset_to_origin": 0,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 0,
+          "accepted_data_ber_worsened": 0,
+          "accepted_fraction_without_data_ber_improvement": null,
+          "mean_accepted_validation_loss_reduction": 0.0
+        }
+      }
+    }
+  ]
+}

@@ -197,6 +197,12 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
 def update_subspace(model, observation, initial, origin, settings, *, adapt_history=None,
                     create_graph=False, validation_risk_gate=None, risk_gate_threshold=0.0,
                     validation_risk_gate_mode="filter"):
+    if settings.inner_optimizer == "damped_gauss_newton":
+        if model.learned_gradient_transport or model.learned_context_update:
+            raise ValueError("阻尼Gauss–Newton对照不叠加其他学习型更新器。")
+        from training.pilot_gauss_newton import update_subspace_gauss_newton
+        return update_subspace_gauss_newton(model, observation, initial, origin, settings,
+            adapt_history=adapt_history, create_graph=create_graph)
     basis = model.basis(observation)
     history = None
     if adapt_history is not None:

@@ -438,6 +438,15 @@ def test_v22_manifest_uses_fixed_v21_mechanism_on_new_development_seeds_only():
     assert spec["heldout_confirmation"] is False
 
 
+def test_v24_manifest_matches_differentiable_gauss_newton_and_is_development_only():
+    spec = read_manifest("configs/audits/detection_subspace_long_v24_gauss_newton_meta_v1.json")
+    assert spec["update"]["inner_optimizer"] == "damped_gauss_newton"
+    assert spec["learned_context_update"] is False
+    assert spec["data_roles"]["evaluation"]["seeds"] == [121500, 121501, 121502]
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+
+
 def test_pilot_context_adapter_is_zero_at_origin_and_jacobian_matches_finite_difference():
     observation = fixture_observation()
     model = DetectionSubspace(4, architecture="pilot_context_mlp_v1")
@@ -512,6 +521,23 @@ def test_damped_gauss_newton_uses_only_adapt_pilot_and_respects_trust_regions():
     same_candidate, _ = damped_gauss_newton_candidate(model, changed_validation, origin, origin,
         damping=.01, proximal_weight=.1, temperature=2., step_radius=.15, total_radius=.8)
     torch.testing.assert_close(candidate, same_candidate, atol=0, rtol=0)
+
+
+def test_damped_gauss_newton_inner_loop_is_differentiable_for_meta_training():
+    torch.manual_seed(91)
+    observation = fixture_observation()
+    model = DetectionSubspace(2, architecture="pilot_context_mlp_v1")
+    settings = DeterministicSettings(inner_optimizer="damped_gauss_newton",
+        gn_damping=.01, gn_max_backtracks=8, surrogate_gate_gradient=True)
+    origin = model.coefficients.detach().clone()
+    _, retained, metrics = update_subspace(model, observation, model.coefficients, origin,
+        settings, adapt_history=[observation], create_graph=True)
+
+    outer_loss = model.logits(observation, retained).square().mean()
+    gradient, = torch.autograd.grad(outer_loss, model.context_output.weight)
+    assert torch.isfinite(gradient).all()
+    assert metrics["data_labels_used_for_control"] is False
+    assert metrics["validation_used_for_candidate"] is False
 
 
 def test_smooth_ber_outer_objective_is_differentiable_and_tracks_signed_margin():
