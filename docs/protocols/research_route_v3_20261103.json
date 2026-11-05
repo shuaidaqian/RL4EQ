@@ -39,7 +39,12 @@
   "confirmation_ready": false,
   "formal_confirmation": {
     "primary_operating_range": "沿用此前0/5/10/15 dB四个SNR，全部保留为确认报告的主要运行点；不据开发结果挑选或删点",
-    "primary_effect_metric_and_threshold": null,
+    "primary_effect_metric_and_threshold": {
+      "research_hypothesis": "在线神经微调必须优于同源、同物理状态跟踪的离线预训练冻结网络；仅证明不退化不构成核心成功",
+      "candidate_metric": "四个主要SNR等权平均绝对BER改善 mean(BER_frozen - BER_online)",
+      "success_direction": "大于0且预注册优越性检验通过",
+      "status": "候选统计定义待正式冻结；置信水平、会话级估计和多重比较方法待注册"
+    },
     "noninferiority_margins": {
       "comparison": "在线微调相对同源、同物理状态跟踪的离线预训练冻结网络",
       "metric": "各SNR配对Data绝对BER差 online_minus_frozen",
