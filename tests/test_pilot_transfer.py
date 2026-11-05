@@ -12,7 +12,8 @@ from agent.cir_estimator import condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from env.frame_structure import FrameConfig, FrameGenerator
 from training.pilot_transfer import (
-    PilotTransferTrainer, TransferContext, context_logits, differentiable_adapt, next_pilot_tail, task_context,
+    PilotTransferTrainer, TransferContext, context_logits, differentiable_adapt,
+    differentiable_online_trajectory, next_pilot_tail, task_context,
 )
 from training.windowed_discrete_ppo import _apply_adapt_peft_update
 
@@ -67,6 +68,53 @@ def test_inner_update_ignores_reward_data_labels_and_waveforms():
     )[0] for item in (context, poisoned)]
     for name in results[0]:
         torch.testing.assert_close(results[0][name], results[1][name], rtol=0, atol=0)
+
+
+def test_online_trajectory_keeps_data_labels_out_of_state_transition():
+    """Data 标签仅评分多帧外层目标，不能改变候选、门控或持久参数。"""
+    model, first = _fixture()
+    contexts = [
+        replace(first, frame=replace(first.frame, frame_index=index))
+        for index in (0, 1, 2, 3)
+    ]
+    poisoned = []
+    for context in contexts:
+        frame = context.frame
+        bits = frame.bits.clone()
+        bits[frame.data_mask] = ~bits[frame.data_mask]
+        poisoned.append(replace(context, frame=replace(frame, bits=bits)))
+
+    def run(items):
+        with sdpa_kernel(SDPBackend.MATH):
+            return differentiable_online_trajectory(
+                model, items, learning_rate=0.001, steps=1, max_delta_norm=0.05,
+                create_graph=False, groups={"phase_trend"}, objective="bce",
+                receiver_input="adapt_only", reward_receiver_input="pilot",
+                reward_task="full_frame", reward_objective="bce", snr_db=10,
+            )
+
+    result, stats = run(contexts)
+    poisoned_result, poisoned_stats = run(poisoned)
+    names = [name for name, _ in model.peft.named_group_parameters({"phase_trend"})]
+    for name in names:
+        torch.testing.assert_close(result[name], poisoned_result[name], rtol=0, atol=0)
+    assert [item["reward_hard_accepted"] for item in stats["steps"]] == [
+        item["reward_hard_accepted"] for item in poisoned_stats["steps"]
+    ]
+    assert all(not item["data_labels_used_for_transition"] for item in stats["steps"])
+    assert torch.isfinite(stats["trend_loss"])
+
+
+def test_online_trajectory_requires_contiguous_frames():
+    model, context = _fixture()
+    contexts = [context, replace(context, frame=replace(context.frame, frame_index=2))]
+    with pytest.raises(ValueError, match="连续帧"):
+        differentiable_online_trajectory(
+            model, contexts, learning_rate=0.001, steps=1, max_delta_norm=0.05,
+            create_graph=False, groups={"phase_trend"}, objective="bce",
+            receiver_input="adapt_only", reward_receiver_input="pilot",
+            reward_task="full_frame", reward_objective="bce", snr_db=10,
+        )
 
 
 @pytest.mark.parametrize("group", ["head", "adapter_lora_head", "phase"])

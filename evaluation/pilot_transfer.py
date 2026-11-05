@@ -290,7 +290,12 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                         rows.append(row)
                         handle.write(json.dumps(row, ensure_ascii=False) + "\n")
                         handle.flush()
-                        tail = next_pilot_tail(model, context, alpha=float(config.get("tail_update_alpha", 0.5)))
+                        # Soft-tail（若 Pilot 布局覆盖帧尾）必须由已提交的神经状态递推；
+                        # 非持久 Frozen 协议继续使用离线初始参数。
+                        tail_parameters = active if persistent else initial
+                        tail = next_pilot_tail(model, context,
+                            alpha=float(config.get("tail_update_alpha", 0.5)),
+                            parameters=tail_parameters)
                         if inner_history_frames > 1:
                             adapt_history.append(adapt_only_history_context(frame, context.condition, context.tail))
                             adapt_history = adapt_history[-(inner_history_frames-1):]

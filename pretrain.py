@@ -19,7 +19,7 @@ def main() -> None:
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--resume", default=None)
     parser.add_argument("--save-dir", default="pretrained")
-    parser.add_argument("--transfer-objective", choices=["baseline", "post_adapt"], default=None)
+    parser.add_argument("--transfer-objective", choices=["baseline", "post_adapt", "trajectory"], default=None)
     parser.add_argument("--device", choices=["cpu", "cuda"], default=None)
     parser.add_argument("--subspace-manifest", default=None, help="固定信道子空间的开发训练清单。")
     parser.add_argument("--inspection-dir", default=None, help="已通过几何检查的子空间审计目录。")

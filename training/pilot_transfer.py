@@ -45,6 +45,8 @@ class TransferContext:
     offline_post_contexts: tuple["TransferContext", ...] = ()
     # 仅用于离线复现共同状态内循环；不把历史 Data/Reward 标签带入更新。
     offline_adapt_contexts: tuple["TransferContext", ...] = ()
+    # 当前接收上下文使用的 acquisition CFO 估计；不含仿真真实 CFO。
+    cfo: float = 0.0
 
 
 def receiver_inputs(settings):
@@ -321,21 +323,155 @@ def make_context(frame, cir, cfo, tail, snr):
     view = _adapt_receiver_view(frame)
     phase = estimate_phase_residual_vector(view, cir, tail, blocks=4, cfo_hint=cfo)
     condition = condition_from_cir(cir, float(snr), cfo_residual=cfo, phase_features=phase)
-    return TransferContext(frame, condition, tail.detach())
+    return TransferContext(frame, condition, tail.detach(), cfo=float(cfo))
 
 
-def next_pilot_tail(model, context, *, alpha):
+def next_pilot_tail(model, context, *, alpha, parameters=None):
     """历史递推只观察 Adapt Pilot，与正式 PPO 的信息边界一致。"""
 
     visible = context.frame.adapt_mask[-context.tail.numel():].bool()
     if not bool(visible.any()):
         return context.tail.detach().clone()
     with torch.no_grad():
-        logits = context_logits(model, context, visible="adapt")
+        logits = context_logits(model, context, parameters, visible="adapt")
         values = torch.tanh(logits[-context.tail.numel():] / 2.0)
         detected = torch.complex(values, torch.zeros_like(values))
         updated = (1.0 - alpha) * context.tail + alpha * detected
         return torch.where(visible, updated, context.tail).detach()
+
+
+def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
+                                     max_delta_norm, create_graph, groups,
+                                     objective, receiver_input, reward_receiver_input,
+                                     reward_task, reward_objective, snr_db,
+                                     inner_task="full_frame", tail_alpha=0.5,
+                                     trend_temperature=0.01,
+                                     soft_gate_bce_temperature=0.01,
+                                     soft_gate_ber_temperature=0.02):
+    """按在线顺序展开多帧Adapt更新、Reward守门、参数和soft-tail持久状态。"""
+
+    if len(contexts) < 2:
+        raise ValueError("持续轨迹训练至少需要两个连续数据帧。")
+    if any(contexts[index + 1].frame.frame_index != contexts[index].frame.frame_index + 1
+           for index in range(len(contexts) - 1)):
+        raise ValueError("持续轨迹上下文必须来自连续帧，才能计算帧龄趋势。")
+    reference_cir = contexts[0].condition.complex_cir.detach()
+    reference_cfo = float(contexts[0].cfo)
+    if any(not torch.equal(item.condition.complex_cir.detach(), reference_cir)
+           or float(item.cfo) != reference_cfo for item in contexts[1:]):
+        raise ValueError("持续轨迹必须共享同一会话的 acquisition CIR 与 CFO 估计。")
+    if reward_objective != "bce":
+        raise ValueError("持续轨迹内循环首版仅支持pilot BCE Reward守门。")
+    if min(trend_temperature, soft_gate_bce_temperature, soft_gate_ber_temperature) <= 0:
+        raise ValueError("持续轨迹训练的平滑温度必须为正数。")
+    if not 0.0 <= tail_alpha <= 1.0:
+        raise ValueError("soft-tail 更新系数必须位于[0, 1]。")
+    selected_groups = set(groups)
+    named = dict(model.named_parameters())
+    names = [name for name, _ in model.peft.named_group_parameters(selected_groups)]
+    if not names:
+        raise ValueError("持续轨迹指定的PEFT参数组为空。")
+    origin = {name: named[name] for name in names}
+    fast = dict(named)
+    cir = reference_cir
+    cfo = reference_cfo
+    tail = contexts[0].tail.detach()
+    base_all_losses, frozen_data_losses, online_data_losses = [], [], []
+    step_records = []
+    from training.windowed_discrete_ppo import should_accept_reward_guard
+
+    for index, raw_context in enumerate(contexts):
+        context = make_context(raw_context.frame, cir, cfo, tail, float(snr_db))
+        frame = context.frame
+        frozen_logits = context_logits(model, context, named)
+        base_all_losses.append(F.binary_cross_entropy_with_logits(
+            frozen_logits.float(), frame.bits.float()))
+        frozen_data_losses.append(F.binary_cross_entropy_with_logits(
+            frozen_logits[frame.data_mask].float(), frame.bits[frame.data_mask].float()))
+
+        before = fast
+        inner_context, score_start = task_context(context, inner_task, role="adapt")
+        candidate, update = differentiable_adapt(
+            model, [inner_context], learning_rate=learning_rate, steps=steps,
+            max_delta_norm=max_delta_norm, create_graph=create_graph,
+            initial_parameters=before, groups=selected_groups,
+            objective=objective, receiver_input=receiver_input, score_start=score_start)
+        step_delta = torch.sqrt(sum((candidate[name] - before[name]).float().square().sum()
+                                    for name in names) + 1e-24)
+        cumulative = torch.sqrt(sum((candidate[name] - origin[name]).float().square().sum()
+                                    for name in names) + 1e-24)
+        total_scale = (max_delta_norm / cumulative).clamp(max=1.0)
+        for name in names:
+            candidate[name] = origin[name] + (candidate[name] - origin[name]) * total_scale
+        step_delta = torch.sqrt(sum((candidate[name] - before[name]).float().square().sum()
+                                    for name in names) + 1e-24)
+
+        reward_context, _ = task_context(context, reward_task, role="reward")
+        reward_visible = "full_rx" if reward_receiver_input == "full_rx" else "pilot"
+        logits_before = context_logits(model, reward_context, before, visible=reward_visible)
+        logits_candidate = context_logits(model, reward_context, candidate, visible=reward_visible)
+        reward_frame = reward_context.frame
+        reward_view = reward_frame.receiver_view()
+        reward_mask = reward_frame.reward_mask.bool()
+        reward_labels = (reward_view.reward_symbols.real > 0).to(logits_before.dtype)
+        loss_before = F.binary_cross_entropy_with_logits(logits_before[reward_mask].float(),
+                                                          reward_labels[reward_mask].float())
+        loss_candidate = F.binary_cross_entropy_with_logits(logits_candidate[reward_mask].float(),
+                                                             reward_labels[reward_mask].float())
+        ber_before = (((logits_before[reward_mask] >= 0) != reward_labels[reward_mask].bool())
+                      .float().mean())
+        ber_candidate = (((logits_candidate[reward_mask] >= 0) != reward_labels[reward_mask].bool())
+                         .float().mean())
+        hard_accept = bool(should_accept_reward_guard(
+            reward_loss_before=float(loss_before.detach().cpu()),
+            reward_loss_after=float(loss_candidate.detach().cpu()),
+            reward_ber_before=float(ber_before.detach().cpu()),
+            reward_ber_after=float(ber_candidate.detach().cpu()),
+            allow_loss_only=True, peft_delta_norm=float(step_delta.detach().cpu())))
+
+        signed = 2.0 * reward_labels[reward_mask] - 1.0
+        soft_error_before = torch.sigmoid(-signed * logits_before[reward_mask] / soft_gate_ber_temperature).mean()
+        soft_error_candidate = torch.sigmoid(-signed * logits_candidate[reward_mask] / soft_gate_ber_temperature).mean()
+        soft_accept = torch.sigmoid((loss_before - loss_candidate - 0.005 * step_delta)
+                                    / soft_gate_bce_temperature) * torch.sigmoid(
+                                        (soft_error_before - soft_error_candidate) / soft_gate_ber_temperature)
+        gate = soft_accept + (1.0 if hard_accept else 0.0) - soft_accept.detach()
+        fast = dict(before)
+        for name in names:
+            fast[name] = before[name] + gate * (candidate[name] - before[name])
+
+        online_logits = context_logits(model, context, fast)
+        online_data_losses.append(F.binary_cross_entropy_with_logits(
+            online_logits[frame.data_mask].float(), frame.bits[frame.data_mask].float()))
+        tail = next_pilot_tail(model, context, alpha=tail_alpha, parameters=fast)
+        step_records.append({
+            "frame_index": int(frame.frame_index), "reward_hard_accepted": hard_accept,
+            "reward_loss_before": float(loss_before.detach().cpu()),
+            "reward_loss_candidate": float(loss_candidate.detach().cpu()),
+            "reward_ber_before": float(ber_before.detach().cpu()),
+            "reward_ber_candidate": float(ber_candidate.detach().cpu()),
+            "step_delta_norm": float(step_delta.detach().clamp(max=max_delta_norm).cpu()),
+            "cumulative_delta_norm": float(cumulative.detach().clamp(max=max_delta_norm).cpu()),
+            "adapt_delta_norm": update["delta_norm"],
+            "data_labels_used_for_transition": False,
+        })
+
+    frozen_data = torch.stack(frozen_data_losses)
+    online_data = torch.stack(online_data_losses)
+    gains = frozen_data - online_data
+    split = max(1, len(gains) // 2)
+    trend_delta = gains[-split:].mean() - gains[:split].mean()
+    trend_loss = trend_temperature * F.softplus(-trend_delta / trend_temperature)
+    return fast, {
+        "base_all_loss": torch.stack(base_all_losses).mean(),
+        "frozen_data_loss": frozen_data.mean(),
+        "online_data_loss": online_data.mean(),
+        "frozen_data_windows": [frozen_data[:split].mean(), frozen_data[-split:].mean()],
+        "online_data_windows": [online_data[:split].mean(), online_data[-split:].mean()],
+        "gain_windows": [gains[:split].mean(), gains[-split:].mean()],
+        "trend_delta": trend_delta, "trend_loss": trend_loss,
+        "steps": step_records,
+    }
 
 
 class PilotTransferTrainer:
@@ -359,8 +495,12 @@ class PilotTransferTrainer:
         if self.settings.get("inner_objective") == "channel_state_shared_map" and self.inner_task != "full_frame":
             raise ValueError("共同状态内循环要求完整帧的合法 Adapt 方程。")
         self.objective = objective or self.settings.get("objective", "post_adapt")
-        if self.objective not in {"baseline", "post_adapt"}:
-            raise ValueError("训练目标必须为 baseline 或 post_adapt。")
+        if self.objective not in {"baseline", "post_adapt", "trajectory"}:
+            raise ValueError("训练目标必须为 baseline、post_adapt 或 trajectory。")
+        if self.objective == "trajectory" and (
+                len(self.post_target_frame_offsets) < 2
+                or self.post_target_frame_offsets != list(range(len(self.post_target_frame_offsets)))):
+            raise ValueError("trajectory 目标要求连续帧偏移 [0, 1, ..., T-1]，且至少两帧。")
         if config.get("pilot_layout") != "prefix" or config.get("main_level") != "B":
             raise ValueError("适配训练只支持 Level B 前缀 Pilot。")
         if config.get("offline_state_split") != "offline_train":
@@ -546,26 +686,55 @@ class PilotTransferTrainer:
                                         target_frame.bits[target_frame.data_mask].float()))
                 base_loss, before_data = torch.stack(base_terms).mean(), torch.stack(before_terms).mean()
                 inner_context, score_start = task_context(context, self.inner_task, role="adapt")
-                fast, update = differentiable_adapt(
-                    self.model, list(context.offline_adapt_contexts) + [inner_context], learning_rate=float(self.settings["inner_learning_rate"]),
-                    steps=int(self.settings["inner_steps"]), max_delta_norm=float(self.settings["max_delta_norm"]),
-                    create_graph=self.objective == "post_adapt",
-                    groups=self.settings.get("inner_groups", ["phase_trend"]),
-                    objective=self.settings.get("inner_objective", "pilot_signal_reconstruction"),
-                    receiver_input=self.inner_receiver_input,
-                    score_start=score_start,
-                )
-                post_terms = []
-                for target_context in targets:
-                    after_logits = context_logits(self.model, target_context, fast)
-                    target_frame = target_context.frame
-                    post_terms.append(F.binary_cross_entropy_with_logits(after_logits[target_frame.data_mask].float(),
-                                      target_frame.bits[target_frame.data_mask].float()))
-                post_loss = torch.stack(post_terms).mean()
-                loss = base_loss if self.objective == "baseline" else (
-                    float(self.settings.get("base_weight", 1.0)) * base_loss
-                    + float(self.settings.get("post_weight", 1.0)) * post_loss
-                )
+                trajectory_stats = None
+                if self.objective == "trajectory":
+                    fast, trajectory_stats = differentiable_online_trajectory(
+                        self.model, targets,
+                        learning_rate=float(self.settings["inner_learning_rate"]),
+                        steps=int(self.settings["inner_steps"]),
+                        max_delta_norm=float(self.settings["max_delta_norm"]),
+                        create_graph=True,
+                        groups=self.settings.get("inner_groups", ["phase_trend"]),
+                        objective=self.settings.get("inner_objective", "pilot_signal_reconstruction"),
+                        receiver_input=self.inner_receiver_input,
+                        reward_receiver_input=self.reward_receiver_input,
+                        reward_task=self.reward_task,
+                        reward_objective=self.settings.get("reward_objective", "bce"),
+                        snr_db=snr,
+                        inner_task=self.inner_task,
+                        tail_alpha=float(self.config.get("tail_update_alpha", 0.5)),
+                        trend_temperature=float(self.settings.get("trajectory_trend_temperature", 0.01)),
+                        soft_gate_bce_temperature=float(self.settings.get("trajectory_soft_gate_bce_temperature", 0.01)),
+                        soft_gate_ber_temperature=float(self.settings.get("trajectory_soft_gate_ber_temperature", 0.02)),
+                    )
+                    post_loss = trajectory_stats["online_data_loss"]
+                    loss = (float(self.settings.get("base_weight", 1.0)) * base_loss
+                            + float(self.settings.get("post_weight", 1.0)) * post_loss
+                            + float(self.settings.get("trajectory_trend_weight", 1.0))
+                            * trajectory_stats["trend_loss"])
+                    update = {"adapt_losses": [], "delta_norm": max(
+                        item["cumulative_delta_norm"] for item in trajectory_stats["steps"])}
+                else:
+                    fast, update = differentiable_adapt(
+                        self.model, list(context.offline_adapt_contexts) + [inner_context], learning_rate=float(self.settings["inner_learning_rate"]),
+                        steps=int(self.settings["inner_steps"]), max_delta_norm=float(self.settings["max_delta_norm"]),
+                        create_graph=self.objective == "post_adapt",
+                        groups=self.settings.get("inner_groups", ["phase_trend"]),
+                        objective=self.settings.get("inner_objective", "pilot_signal_reconstruction"),
+                        receiver_input=self.inner_receiver_input,
+                        score_start=score_start,
+                    )
+                    post_terms = []
+                    for target_context in targets:
+                        after_logits = context_logits(self.model, target_context, fast)
+                        target_frame = target_context.frame
+                        post_terms.append(F.binary_cross_entropy_with_logits(after_logits[target_frame.data_mask].float(),
+                                          target_frame.bits[target_frame.data_mask].float()))
+                    post_loss = torch.stack(post_terms).mean()
+                    loss = base_loss if self.objective == "baseline" else (
+                        float(self.settings.get("base_weight", 1.0)) * base_loss
+                        + float(self.settings.get("post_weight", 1.0)) * post_loss
+                    )
                 if not bool(torch.isfinite(loss)):
                     raise FloatingPointError("离线外层损失不是有限值，停止训练，避免导出损坏 checkpoint。")
                 (loss / (batch_size * accumulation_steps)).backward()
@@ -586,6 +755,15 @@ class PilotTransferTrainer:
                     "data_bce_before": float(before_data.detach().cpu()), "data_bce_after": float(post_loss.detach().cpu()),
                     "channel_state": channel_state, **update,
                 })
+                if trajectory_stats is not None:
+                    self.history[-1].update(
+                        trajectory_trend_delta=float(trajectory_stats["trend_delta"].detach().cpu()),
+                        trajectory_trend_loss=float(trajectory_stats["trend_loss"].detach().cpu()),
+                        trajectory_frozen_data_windows=[float(item.detach().cpu()) for item in trajectory_stats["frozen_data_windows"]],
+                        trajectory_online_data_windows=[float(item.detach().cpu()) for item in trajectory_stats["online_data_windows"]],
+                        trajectory_gain_windows=[float(item.detach().cpu()) for item in trajectory_stats["gain_windows"]],
+                        trajectory_steps=trajectory_stats["steps"],
+                    )
             torch.nn.utils.clip_grad_norm_(self.optimizer.param_groups[0]["params"], 1.0, error_if_nonfinite=True)
             self.optimizer.step()
             print(json.dumps({"objective": self.objective, **{k: self.history[-1][k] for k in (
@@ -608,7 +786,7 @@ class PilotTransferTrainer:
             "reward_receiver_input": self.reward_receiver_input,
             "inner_task": self.inner_task, "reward_task": self.reward_task,
             "outer_uses_offline_data_labels": True,
-            "post_adapt_data_objective_enabled": self.objective == "post_adapt",
+            "post_adapt_data_objective_enabled": self.objective in {"post_adapt", "trajectory"},
             "post_target_frame_offsets": self.post_target_frame_offsets,
             "offline_sample_cache_hits": self.sample_cache_hits,
             "offline_sample_cache_misses": self.sample_cache_misses,

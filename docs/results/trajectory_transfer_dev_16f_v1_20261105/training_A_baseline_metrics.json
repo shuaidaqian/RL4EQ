@@ -1,0 +1,733 @@
+{
+  "stage": "pilot_transfer",
+  "objective": "baseline",
+  "linear_operator_backend": "direct",
+  "attention_backend": "math",
+  "source_checkpoint": {
+    "path": "D:\\Research\\RL4EQ\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt",
+    "sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4"
+  },
+  "history": [
+    {
+      "step": 1,
+      "seed": 31000,
+      "snr_db": 0.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "0af224df5d74c4e51f4584dd023fa00f60a7497b79719e641194c998bd76f1cc",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.44442233443260193,
+      "base_bce": 0.44442233443260193,
+      "data_bce_before": 0.4449284076690674,
+      "data_bce_after": 0.45040011405944824,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 16,
+        "diffuse_energy_ratio": 0.24427327513694763,
+        "cfo_cycles_per_symbol": -0.0003410548065403695,
+        "phase_noise_std": 0.0005595529253245813,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        1.1731092929840088,
+        1.1720750331878662,
+        1.171061396598816,
+        1.1700692176818848,
+        1.1690984964370728
+      ],
+      "delta_norm": 0.01764332875609398
+    },
+    {
+      "step": 2,
+      "seed": 31001,
+      "snr_db": 5.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "c1b071da7dea5263248af5368286de146a1c585259b4c4a87adac5b61df4b40b",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.12208133935928345,
+      "base_bce": 0.12208133935928345,
+      "data_bce_before": 0.1194840595126152,
+      "data_bce_after": 0.11751504987478256,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 13,
+        "diffuse_energy_ratio": 0.20735503733158112,
+        "cfo_cycles_per_symbol": -0.0002299213970328112,
+        "phase_noise_std": 0.00020529841589178672,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.3844432532787323,
+        0.38439568877220154,
+        0.38436999917030334,
+        0.384360134601593,
+        0.38435640931129456
+      ],
+      "delta_norm": 0.012004447169601917
+    },
+    {
+      "step": 3,
+      "seed": 31002,
+      "snr_db": 10.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "506beee8234415737994a82f360432174c4804b3f34aca24475f6fd7f93fec6a",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.01298031397163868,
+      "base_bce": 0.01298031397163868,
+      "data_bce_before": 0.010727237910032272,
+      "data_bce_after": 0.009587869048118591,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 16,
+        "diffuse_energy_ratio": 0.26184698939323425,
+        "cfo_cycles_per_symbol": -0.00033160794205944856,
+        "phase_noise_std": 0.00024182607104255877,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.19004878401756287,
+        0.18994693458080292,
+        0.18987016379833221,
+        0.1898181140422821,
+        0.18978923559188843
+      ],
+      "delta_norm": 0.016457460820674896
+    },
+    {
+      "step": 4,
+      "seed": 31003,
+      "snr_db": 15.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "1323f75f63ea531c558345ad2153a7fa33d496139d4b01d98f1958258617ab83",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.014757860451936722,
+      "base_bce": 0.014757860451936722,
+      "data_bce_before": 0.00298161618411541,
+      "data_bce_after": 0.00390661833807826,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 17,
+        "diffuse_energy_ratio": 0.24588006734848022,
+        "cfo_cycles_per_symbol": 0.0005884165124812884,
+        "phase_noise_std": 0.000411590743338822,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.13120600581169128,
+        0.13112910091876984,
+        0.13107697665691376,
+        0.13104818761348724,
+        0.131038099527359
+      ],
+      "delta_norm": 0.014889722689986229
+    },
+    {
+      "step": 5,
+      "seed": 31004,
+      "snr_db": 0.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "65d5042c365adbd17647c32483731aa75f737297c6427d2eac4d819bcff08db9",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.4780993163585663,
+      "base_bce": 0.4780993163585663,
+      "data_bce_before": 0.47679847478866577,
+      "data_bce_after": 0.4792974293231964,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 18,
+        "diffuse_energy_ratio": 0.21208545565605164,
+        "cfo_cycles_per_symbol": 0.0005427498105805795,
+        "phase_noise_std": 0.00036750088427018734,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        1.2299487590789795,
+        1.2291030883789062,
+        1.2282805442810059,
+        1.2274813652038574,
+        1.2267059087753296
+      ],
+      "delta_norm": 0.017628217115998268
+    },
+    {
+      "step": 6,
+      "seed": 31005,
+      "snr_db": 5.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "d2356e8949a837fb395e35668decdf84fb90b5e4c2f14b734fea05545d34b342",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.14911788702011108,
+      "base_bce": 0.14911788702011108,
+      "data_bce_before": 0.14953243732452393,
+      "data_bce_after": 0.14412331581115723,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 18,
+        "diffuse_energy_ratio": 0.2797749638557434,
+        "cfo_cycles_per_symbol": 0.000528166776983223,
+        "phase_noise_std": 0.0003705182889855027,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.4589858651161194,
+        0.4586070477962494,
+        0.45825400948524475,
+        0.45792704820632935,
+        0.4576265215873718
+      ],
+      "delta_norm": 0.017536502331495285
+    },
+    {
+      "step": 7,
+      "seed": 31006,
+      "snr_db": 10.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "daeda15a5f8c4eb700ac13b7176fc89ca5e09b21c6b46391d1b779c72de16079",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.014970237389206886,
+      "base_bce": 0.014970237389206886,
+      "data_bce_before": 0.008576275780797005,
+      "data_bce_after": 0.008781935088336468,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 15,
+        "diffuse_energy_ratio": 0.2172502875328064,
+        "cfo_cycles_per_symbol": -0.0002107405231779678,
+        "phase_noise_std": 0.0005127497016004814,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.20788954198360443,
+        0.20783144235610962,
+        0.20777751505374908,
+        0.20772771537303925,
+        0.20768184959888458
+      ],
+      "delta_norm": 0.017387811094522476
+    },
+    {
+      "step": 8,
+      "seed": 31007,
+      "snr_db": 15.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "10dd82378e19af47c33387c127cf030084c0abe8baa7990ab89c322aa9e9672f",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.008966149762272835,
+      "base_bce": 0.008966149762272835,
+      "data_bce_before": 0.0043763453140854836,
+      "data_bce_after": 0.004428939428180456,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 18,
+        "diffuse_energy_ratio": 0.2444494217634201,
+        "cfo_cycles_per_symbol": 0.00035976515197267176,
+        "phase_noise_std": 0.0004915665591309726,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.14374135434627533,
+        0.14370521903038025,
+        0.14367324113845825,
+        0.14364531636238098,
+        0.1436210572719574
+      ],
+      "delta_norm": 0.017170893028378487
+    },
+    {
+      "step": 9,
+      "seed": 31008,
+      "snr_db": 0.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "618a4365a072b4563579b127415a6c8107fd533efe4bf52d8177bc54e694f503",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.5890704393386841,
+      "base_bce": 0.5890704393386841,
+      "data_bce_before": 0.5944792628288269,
+      "data_bce_after": 0.5838509798049927,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 12,
+        "diffuse_energy_ratio": 0.2768464982509613,
+        "cfo_cycles_per_symbol": -0.0003775505312773393,
+        "phase_noise_std": 0.0003188646206552316,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        4.0947089195251465,
+        4.088803768157959,
+        4.082885265350342,
+        4.076954364776611,
+        4.071011543273926
+      ],
+      "delta_norm": 0.017676621675491333
+    },
+    {
+      "step": 10,
+      "seed": 31009,
+      "snr_db": 5.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "f5c3bf10f2017ca8ec9207cf97d2fb6e12251f5f94fe01de1b77dd9f0ff5be31",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.13580846786499023,
+      "base_bce": 0.13580846786499023,
+      "data_bce_before": 0.13380929827690125,
+      "data_bce_after": 0.13437621295452118,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 13,
+        "diffuse_energy_ratio": 0.20481005311012268,
+        "cfo_cycles_per_symbol": -0.00041961473610945205,
+        "phase_noise_std": 0.00020427778519170863,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.4440517723560333,
+        0.44393089413642883,
+        0.44381389021873474,
+        0.4437008202075958,
+        0.443591833114624
+      ],
+      "delta_norm": 0.01746303401887417
+    },
+    {
+      "step": 11,
+      "seed": 31010,
+      "snr_db": 10.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "6da2db3ed20b5c6e1383fcb55524d7438b7a2115b506e34887184f7f55930708",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.051049716770648956,
+      "base_bce": 0.051049716770648956,
+      "data_bce_before": 0.04174284264445305,
+      "data_bce_after": 0.042929671704769135,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 13,
+        "diffuse_energy_ratio": 0.22910280525684357,
+        "cfo_cycles_per_symbol": 0.00044106530353533904,
+        "phase_noise_std": 0.00034701073555267,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.2129925638437271,
+        0.2129177451133728,
+        0.21287204325199127,
+        0.21285077929496765,
+        0.2128422111272812
+      ],
+      "delta_norm": 0.014515774324536324
+    },
+    {
+      "step": 12,
+      "seed": 31011,
+      "snr_db": 15.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "7f2a0fe8b4fcf463eb8581cd99fe24eff020751f1f19820dc3030118d2c1273f",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.011760931462049484,
+      "base_bce": 0.011760931462049484,
+      "data_bce_before": 0.00047853990690782666,
+      "data_bce_after": 0.00027007184689864516,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 18,
+        "diffuse_energy_ratio": 0.20726126432418823,
+        "cfo_cycles_per_symbol": 0.00044406833973592563,
+        "phase_noise_std": 0.0003756908370730203,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.11582747846841812,
+        0.11576499044895172,
+        0.11570806801319122,
+        0.11565603315830231,
+        0.11560723930597305
+      ],
+      "delta_norm": 0.016416260972619057
+    },
+    {
+      "step": 13,
+      "seed": 31012,
+      "snr_db": 0.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "644ed1e788ba6ebf4f473b34681c7f27ac8c0b94a780376e978bd39227044cef",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.462461918592453,
+      "base_bce": 0.462461918592453,
+      "data_bce_before": 0.4617045223712921,
+      "data_bce_after": 0.4670875072479248,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 14,
+        "diffuse_energy_ratio": 0.22552931308746338,
+        "cfo_cycles_per_symbol": 0.0005088834884948515,
+        "phase_noise_std": 0.00043033057102036975,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        1.2602686882019043,
+        1.2596888542175293,
+        1.2591301202774048,
+        1.2585928440093994,
+        1.2580771446228027
+      ],
+      "delta_norm": 0.017610415816307068
+    },
+    {
+      "step": 14,
+      "seed": 31013,
+      "snr_db": 5.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "c1c609c355ed3f5a6f7cb7ced709c09a55f5f3a66b379a36489c12de108e7568",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.141587495803833,
+      "base_bce": 0.141587495803833,
+      "data_bce_before": 0.138664111495018,
+      "data_bce_after": 0.145875483751297,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 14,
+        "diffuse_energy_ratio": 0.27924519777297974,
+        "cfo_cycles_per_symbol": -0.0005204074385927244,
+        "phase_noise_std": 0.00036256661018706075,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.43131113052368164,
+        0.4310785233974457,
+        0.43086934089660645,
+        0.4306838810443878,
+        0.43052220344543457
+      ],
+      "delta_norm": 0.01739414781332016
+    },
+    {
+      "step": 15,
+      "seed": 31014,
+      "snr_db": 10.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "2fac504ddd647b6a680da08ba58639623fb9a3dc9f5a67dd37ad5cf870893716",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.03562875837087631,
+      "base_bce": 0.03562875837087631,
+      "data_bce_before": 0.025382736697793007,
+      "data_bce_after": 0.03027089685201645,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 15,
+        "diffuse_energy_ratio": 0.27588868141174316,
+        "cfo_cycles_per_symbol": -0.0005143375938332326,
+        "phase_noise_std": 0.00022881653035265322,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.23402290046215057,
+        0.2339058518409729,
+        0.23380781710147858,
+        0.23372890055179596,
+        0.23366877436637878
+      ],
+      "delta_norm": 0.017079949378967285
+    },
+    {
+      "step": 16,
+      "seed": 31015,
+      "snr_db": 15.0,
+      "frame_index": 1,
+      "post_target_frame_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "inner_adapt_frame_indices": [
+        1
+      ],
+      "inner_history_adapt_rx_sha256": [],
+      "offline_sample_cache_key": null,
+      "offline_sample_input_sha256": "661c1e35c619aed672ab07d93fb03f70736c26e42bb8e51b1424c9dd4f8ed586",
+      "lookahead_len": 0,
+      "offline_sample_lookahead_sha256": null,
+      "loss": 0.020565439015626907,
+      "base_bce": 0.020565439015626907,
+      "data_bce_before": 0.012822110205888748,
+      "data_bce_after": 0.012830827385187149,
+      "channel_state": {
+        "state_split": "offline_train",
+        "profile_name": "eme_long_memory_v2",
+        "strong_path_count": 13,
+        "diffuse_energy_ratio": 0.20843707025051117,
+        "cfo_cycles_per_symbol": -0.0005430661698010542,
+        "phase_noise_std": 0.0004355002117021429,
+        "coherence_time_seconds": 1200.0,
+        "acquisition_to_data_gap_seconds": 0.0
+      },
+      "adapt_losses": [
+        0.12733371555805206,
+        0.12730352580547333,
+        0.12729652225971222,
+        0.12729611992835999,
+        0.12729088962078094
+      ],
+      "delta_norm": 0.01128085982054472
+    }
+  ],
+  "initialized_modules": [],
+  "outer_trainable_parameter_count": 189350,
+  "elapsed_seconds": 112.67200000002049,
+  "inner_uses_data_labels": false,
+  "receiver_lookahead_len": 0,
+  "inner_uses_data_waveform": false,
+  "inner_receiver_input": "adapt_only",
+  "inner_history_frames": 1,
+  "reward_receiver_input": "pilot_only",
+  "inner_task": "full_frame",
+  "reward_task": "full_frame",
+  "outer_uses_offline_data_labels": true,
+  "post_adapt_data_objective_enabled": false,
+  "post_target_frame_offsets": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "offline_sample_cache_hits": 0,
+  "offline_sample_cache_misses": 0,
+  "offline_base_loss": "bce_all",
+  "reward_pilot_used_for_post_adapt_loss": false,
+  "checkpoint_selection": "fixed_training_budget_no_test_selection",
+  "settings": {
+    "objective": "post_adapt",
+    "seed": 31000,
+    "history_frames": 1,
+    "outer_learning_rate": 1e-05,
+    "inner_learning_rate": 0.0025,
+    "inner_steps": 5,
+    "max_delta_norm": 0.05,
+    "base_weight": 1,
+    "post_weight": 1,
+    "post_target_frame_offsets": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "inner_groups": [
+      "phase_trend"
+    ],
+    "trajectory_trend_temperature": 0.01,
+    "trajectory_trend_weight": 1,
+    "trajectory_soft_gate_bce_temperature": 0.01,
+    "trajectory_soft_gate_ber_temperature": 0.02,
+    "reward_objective": "bce"
+  }
+}
