@@ -1,0 +1,131 @@
+{
+  "schema_version": "fixed-channel-subspace-development-v14",
+  "role": "development",
+  "config": "configs/eme_long_memory_v2_shared_pilot_memory_rl.json",
+  "config_sha256": "535c1ce48a3ed194c0efc90b4d55afad371179d4d1b8415a3ba57ed40da6d149",
+  "checkpoint": "pretrained/cross_frame_memory_control64_20261103/model_best.pt",
+  "checkpoint_sha256": "11e58a5d94801ae613ec8f7a55679ed2304e0864535c7b0468b316827e2bec51",
+  "snrs_db": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "dimensions": [
+    2,
+    4,
+    8,
+    16
+  ],
+  "initialization_seed": 121009,
+  "architecture": "temporal_conv_v1",
+  "learned_gradient_transport": false,
+  "inner_history_frames": 8,
+  "maximum_condition_number": 100,
+  "geometry_frames": [
+    0,
+    7
+  ],
+  "reachability_smoke_steps": 8,
+  "update": {
+    "learning_rate": 0.02,
+    "steps": 3,
+    "step_radius": 0.15,
+    "total_radius": 0.8,
+    "proximal_weight": 0.1,
+    "min_validation_improvement": 1e-05,
+    "reset_to_origin_on_validation": true,
+    "origin_retention_decay": 0.5,
+    "adapt_logit_temperature": 2.0,
+    "surrogate_gate_gradient": true
+  },
+  "data_roles": {
+    "inspection": {
+      "seeds": [
+        121000,
+        121001
+      ],
+      "frames": 8
+    },
+    "training": {
+      "seeds": [
+        121100,
+        121101,
+        121102,
+        121103
+      ],
+      "frames": 9
+    },
+    "selection": {
+      "seeds": [
+        121200,
+        121201
+      ],
+      "frames": 9
+    },
+    "evaluation": {
+      "seeds": [
+        121300,
+        121301,
+        121302
+      ],
+      "frames": 32
+    }
+  },
+  "training": {
+    "outer_steps": 64,
+    "outer_learning_rate": 0.001,
+    "checkpoint_steps": [
+      16,
+      32,
+      48,
+      64
+    ],
+    "sequence_update_frames": 8,
+    "outer_target_offsets": [
+      0,
+      1
+    ],
+    "checkpoint_selection": "A/B统一选择四SNR与选择会话上的Frozen平滑BER加Frozen错判掩码条件化的Online平滑误码目标",
+    "trainable_scope": "本清单只运行固定候选几何/信息矩阵审计和监督作用烟测，不训练四臂、不选择正式模型",
+    "budget_comparison": "唯一变化为加入16维候选；其他结构、信道、Pilot、检查帧、seed与几何条件不变",
+    "outer_objective": "frozen_error_conditioned",
+    "smooth_ber_temperature": 1.0,
+    "paired_gain_rule": "每个当前/下一帧目标分别计算同一平滑BER的Frozen和Online损失，目标为Lfrozen + Lonline + softplus(Lonline-Lfrozen)；仅离线使用Data标签",
+    "frozen_error_rule": "离线按同一样本Frozen logit与Data标签确定错判/正确掩码；Online平滑误码损失对两组等权平均；额外保留Frozen全样本平滑误码锚点"
+  },
+  "stopping_rule": "固定预算；几何无合格维数则不训练；任意非有限数、信息隔离、源指纹或协议失败立即停止并归档；不按收益追加seed或改变信道",
+  "scope": "仅扩展在线神经子空间信息几何审计至16维候选；使用固定长回波、原Adapt/验证资源、检查帧与开发seed；不运行四臂训练或正式确认",
+  "heldout_confirmation": false,
+  "channel_changes": false,
+  "reset_policy": {
+    "enabled": true,
+    "rule": "动作后比较当前保留值与离线初始系数；验证Pilot损失严格改善且硬BER不升时回退初始系数；不读取Data",
+    "origin": "每个会话的离线checkpoint初始化系数"
+  },
+  "retention_decay_policy": {
+    "enabled": true,
+    "factor": 0.5,
+    "rule": "守门通过后将候选系数向离线初始系数线性收缩一半，再用验证Pilot执行最终守门"
+  },
+  "adapt_temperature_policy": {
+    "enabled": true,
+    "temperature": 2.0,
+    "rule": "仅Adapt Pilot BCE logits除以统一温度2.0；四个SNR共用，不改变验证Pilot或Data指标"
+  },
+  "learned_context_update": true,
+  "context_update_policy": {
+    "enabled": true,
+    "architecture": "每个系数更新步输入17维特征：8维Adapt历史平均梯度单位方向、8维逐维历史梯度离散度/平均梯度范数、1维log10平均梯度范数裁剪归一化；MLP为17-16-8，Tanh激活，末层零初始化",
+    "history": "最近8帧合法Adapt Pilot；单帧时离散度为零；不输入验证Pilot标签、Data标签或仿真隐藏真值",
+    "output": "将MLP输出经tanh后乘0.5倍固定基础学习率，作为Adam系数增量的有界残差；再应用既有局部与累计半径投影和验证Pilot硬门控",
+    "training_signal": "B臂仅经展开内循环Adapt梯度与当前/下一帧离线Data外层损失学习；拒绝分支沿用已有离线直通梯度近似，线上前向门控不变",
+    "online_signal": "仅消费已收到的Adapt Pilot产生的梯度及其历史统计；验证Pilot只负责原有动作后守门；Data标签不进入可部署接口"
+  },
+  "outer_objective_policy": {
+    "name": "audit_only_no_training",
+    "temperature": 1.0,
+    "definition": "Frozen全样本smooth-BER + Online Frozen-error与Frozen-correct两组smooth-BER等权平均；分组只在离线外层读取Data标签",
+    "selection": "仅按预定Jacobian满列秩、条件数和有限梯度门槛筛选；通过后仍不自动启动训练"
+  }
+}

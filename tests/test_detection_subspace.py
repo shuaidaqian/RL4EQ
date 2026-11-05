@@ -25,7 +25,7 @@ def fixture_observation():
         mask, torch.randint(0, 2, (40,)).float(), validation, torch.randint(0, 2, (40,)).float())
 
 
-@pytest.mark.parametrize("dimension", [2,4,8])
+@pytest.mark.parametrize("dimension", [2,4,8,10,12,14,16])
 def test_zero_coefficients_preserve_source_and_jacobian_matches_finite_difference(dimension):
     observation = fixture_observation()
     model = DetectionSubspace(dimension)
@@ -349,6 +349,27 @@ def test_v10_manifest_keeps_protocol_and_enables_context_update_only():
     assert spec["heldout_confirmation"] is False
     assert spec["config"] == "configs/eme_long_memory_v2_shared_pilot_memory_rl.json"
     assert spec["snrs_db"] == [0, 5, 10, 15]
+
+
+def test_v14_dimension_audit_manifest_adds_only_sixteen_dimension_candidate():
+    spec = read_manifest("configs/audits/detection_subspace_long_v14_dimension16_audit_v1.json")
+    assert spec["dimensions"] == [2, 4, 8, 16]
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+
+
+def test_dimension_sweep_manifest_preserves_fixed_channel_and_candidate_order():
+    spec = read_manifest("configs/audits/detection_subspace_dimension_sweep_v1.json")
+    assert spec["dimensions"] == [2, 4, 8, 10, 12, 14, 16]
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+
+
+def test_v16_manifest_keeps_dimension_screen_tied_to_error_conditioned_training():
+    spec = read_manifest("configs/audits/detection_subspace_long_v16_dim12_frozen_error_v1.json")
+    assert spec["dimensions"] == [2, 4, 8, 10, 12, 14, 16]
+    assert spec["training"]["outer_objective"] == "frozen_error_conditioned"
+    assert spec["channel_changes"] is False
 
 
 def test_smooth_ber_outer_objective_is_differentiable_and_tracks_signed_margin():

@@ -38,13 +38,14 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11", "fixed-channel-subspace-development-v12", "fixed-channel-subspace-development-v13"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11", "fixed-channel-subspace-development-v12", "fixed-channel-subspace-development-v13", "fixed-channel-subspace-development-v14", "fixed-channel-subspace-development-v15", "fixed-channel-subspace-development-v16"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
             raise ValueError("来源配置或checkpoint指纹不符。")
-    if spec["snrs_db"] != [0, 5, 10, 15] or spec["dimensions"] != [2, 4, 8]:
-        raise ValueError("开发清单必须完整列出四SNR与三个维数候选。")
+    allowed_dimensions = ([2, 4, 8], [2, 4, 8, 16], [2, 4, 8, 10, 12, 14, 16])
+    if spec["snrs_db"] != [0, 5, 10, 15] or spec["dimensions"] not in allowed_dimensions:
+        raise ValueError("开发清单必须完整列出四SNR及已登记的递增维数候选。")
     all_seeds = [seed for role in spec["data_roles"].values() for seed in role["seeds"]]
     if len(set(all_seeds)) != len(all_seeds):
         raise ValueError("审计、训练、选择和评估seed必须隔离。")
@@ -93,6 +94,9 @@ def read_manifest(path):
                 or training.get("outer_objective") != "frozen_error_conditioned"
                 or training.get("smooth_ber_temperature") != 1.0):
             raise ValueError("v13只允许T=1的Frozen错误条件化Online外层目标。")
+    if spec.get("schema_version") == "fixed-channel-subspace-development-v16":
+        if spec.get("training", {}).get("outer_objective") != "frozen_error_conditioned":
+            raise ValueError("v16只允许沿用Frozen错误条件化外层目标比较新增可辨识维数。")
     return spec
 
 

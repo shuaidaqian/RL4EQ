@@ -30,8 +30,8 @@ class DetectionSubspace(nn.Module):
                  learned_gradient_transport: bool = False,
                  learned_context_update: bool = False):
         super().__init__()
-        if dimension not in {2, 4, 8}:
-            raise ValueError("检测子空间只允许预先指定的2/4/8维。")
+        if dimension not in {2, 4, 8, 10, 12, 14, 16}:
+            raise ValueError("检测子空间只允许预先指定的2/4/8/10/12/14/16维。")
         if architecture not in {"pointwise_mlp_v1", "temporal_conv_v1"}:
             raise ValueError("检测子空间基网络结构未登记。")
         self.dimension = dimension
