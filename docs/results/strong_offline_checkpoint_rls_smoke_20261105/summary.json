@@ -1,0 +1,112 @@
+{
+  "schema_version": "continual-ppo-compare-v2",
+  "methods": [
+    "Frozen Offline NN",
+    "Pilot-Driven Online Adaptation"
+  ],
+  "primary_summary_method": "Pilot-Driven Online Adaptation",
+  "main_level": "B",
+  "level_c_separate": true,
+  "per_config": [
+    {
+      "level": "B",
+      "delay": 116,
+      "snr_db": 5.0,
+      "mean_ber_data": 0.06412760633975267,
+      "count": 8
+    }
+  ],
+  "generalization": {
+    "count": 0,
+    "mean_ber_data": NaN
+  },
+  "per_method": {
+    "Frozen Offline NN": {
+      "per_config": [
+        {
+          "level": "B",
+          "delay": 116,
+          "snr_db": 5.0,
+          "mean_ber_data": 0.06412760633975267,
+          "count": 8
+        }
+      ],
+      "generalization": {
+        "count": 0,
+        "mean_ber_data": NaN
+      }
+    },
+    "Pilot-Driven Online Adaptation": {
+      "per_config": [
+        {
+          "level": "B",
+          "delay": 116,
+          "snr_db": 5.0,
+          "mean_ber_data": 0.06412760633975267,
+          "count": 8
+        }
+      ],
+      "generalization": {
+        "count": 0,
+        "mean_ber_data": NaN
+      }
+    }
+  },
+  "bootstrap": {
+    "mean": 0.06412760633975267,
+    "low": 0.06412760633975267,
+    "high": 0.06412760633975267,
+    "std": 0.0,
+    "repetitions": 200,
+    "block_length": 8,
+    "resampling_order": [
+      "seed",
+      "contiguous_frame_block"
+    ]
+  },
+  "effective_channel": {
+    "profile_name": "eme_long_memory_v2",
+    "level": "B",
+    "max_delay": 116,
+    "sample_rate_hz": 10000.0,
+    "symbol_rate_hz": 10000.0,
+    "frame_len": 1024,
+    "max_delay_seconds": 0.0116,
+    "coherence_time_seconds": 1200.0,
+    "acquisition_to_data_gap_seconds": 0.0,
+    "rho_frame": 0.999914670307452,
+    "strong_path_count": [
+      12,
+      18
+    ],
+    "diffuse_energy_ratio": [
+      0.2,
+      0.28
+    ],
+    "include_anomalous_scatterer": false,
+    "impairment_profile": "cfo_phase_tiny",
+    "pilot_layout": "prefix",
+    "pilot_total": 256,
+    "reward_pilot_total": 32,
+    "adapt_pilot_total": 224,
+    "state_split": "offline_train"
+  },
+  "impairment_profile": "cfo_phase_tiny",
+  "state_split": "offline_train",
+  "aggregation_role": "main",
+  "diagnostic_only": false,
+  "main_aggregation_allowed": true,
+  "lookahead_len": 0,
+  "lookahead_protocol_version": "none",
+  "rl_channel_state_history_frames": 1,
+  "online_condition_source": "pilot_cir_phase",
+  "online_scheduler": "fixed",
+  "profile_prior": {
+    "residual_cfo_limit": 0.0012,
+    "acquisition_cfo_limit": 0.004
+  },
+  "traditional_calibration": null,
+  "forbidden": {
+    "data_label_upper_bound_method_present": false
+  }
+}
