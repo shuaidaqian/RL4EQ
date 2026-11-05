@@ -1,0 +1,357 @@
+{
+  "schema_version": "strong-offline-rls-onewindow-32f-development-v1",
+  "role": "development_mechanism_screen",
+  "core_confirmed": false,
+  "checkpoint_sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4",
+  "config_sha256": "f3952864d26025b9ec5cfc6ea6008080435a7c4e5747881b410eb3d141aebfa5",
+  "seeds": [
+    45100,
+    45101,
+    45102
+  ],
+  "frames_per_session_snr": 32,
+  "snrs_db": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "window_frames": 8,
+  "pilot_total": 256,
+  "adapt_pilot": 224,
+  "reward_pilot": 32,
+  "online_method": "pilot_supervised_residual_rls",
+  "reward_windows": 1,
+  "hard_error_guard": "Reward硬错误数不增加",
+  "data_used_for_control": false,
+  "matched_waveform_and_state": true,
+  "records": 768,
+  "frame_metrics_sha256": "4e55cb03badc7a5680c511b51e039008804226019869b71ae8e2db93d43e8fa1",
+  "per_snr": [
+    {
+      "snr_db": 0.0,
+      "overall_gain": {
+        "mean": -0.0030924479166666665,
+        "ci95": [
+          -0.016398177386755648,
+          0.010213281553422316
+        ],
+        "sessions": 3
+      },
+      "slope_gain_per_frame": {
+        "mean": -0.0003770616371184588,
+        "ci95": [
+          -0.0019994269193298916,
+          0.001245303645092974
+        ],
+        "sessions": 3
+      },
+      "late_minus_early_gain": {
+        "mean": -0.008897569651405016,
+        "ci95": [
+          -0.047180721999684365,
+          0.029385582696874336
+        ],
+        "sessions": 3
+      },
+      "sessions": [
+        {
+          "seed": 45100,
+          "ber_frozen": 0.23803711729124188,
+          "ber_online": 0.23803711729124188,
+          "gain_frozen_minus_online": 0.0,
+          "window_gains_8f": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slope_gain_per_frame": 0.0,
+          "late_minus_early_gain": 0.0,
+          "adaptation_candidates_accepted": 19,
+          "peft_updates_applied": 0,
+          "hard_ber_vetoes": 12
+        },
+        {
+          "seed": 45101,
+          "ber_frozen": 0.2356770895421505,
+          "ber_online": 0.2356770895421505,
+          "gain_frozen_minus_online": 0.0,
+          "window_gains_8f": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slope_gain_per_frame": 0.0,
+          "late_minus_early_gain": 0.0,
+          "adaptation_candidates_accepted": 20,
+          "peft_updates_applied": 0,
+          "hard_ber_vetoes": 10
+        },
+        {
+          "seed": 45102,
+          "ber_frozen": 0.17903646267950535,
+          "ber_online": 0.18831380642950535,
+          "gain_frozen_minus_online": -0.00927734375,
+          "window_gains_8f": [
+            0.0,
+            0.0,
+            -0.01041666604578495,
+            -0.02669270895421505
+          ],
+          "slope_gain_per_frame": -0.0011311849113553763,
+          "late_minus_early_gain": -0.02669270895421505,
+          "adaptation_candidates_accepted": 17,
+          "peft_updates_applied": 1,
+          "hard_ber_vetoes": 11
+        }
+      ]
+    },
+    {
+      "snr_db": 5.0,
+      "overall_gain": {
+        "mean": -0.0002577038831077516,
+        "ci95": [
+          -0.004981856303961319,
+          0.004466448537745815
+        ],
+        "sessions": 3
+      },
+      "slope_gain_per_frame": {
+        "mean": 0.00014038085646461695,
+        "ci95": [
+          1.4031116000769444e-05,
+          0.00026673059692846446
+        ],
+        "sessions": 3
+      },
+      "late_minus_early_gain": {
+        "mean": 0.003906249844779571,
+        "ci95": [
+          0.0004517457579854521,
+          0.00736075393157369
+        ],
+        "sessions": 3
+      },
+      "sessions": [
+        {
+          "seed": 45100,
+          "ber_frozen": 0.0366617850959301,
+          "ber_online": 0.039021810865961015,
+          "gain_frozen_minus_online": -0.0023600257700309157,
+          "window_gains_8f": [
+            -0.0040690102614462376,
+            -0.0017903640400618315,
+            -0.001953125,
+            -0.001627603778615594
+          ],
+          "slope_gain_per_frame": 8.951823110692199e-05,
+          "late_minus_early_gain": 0.0024414064828306437,
+          "adaptation_candidates_accepted": 10,
+          "peft_updates_applied": 4,
+          "hard_ber_vetoes": 3
+        },
+        {
+          "seed": 45101,
+          "ber_frozen": 0.03564453264698386,
+          "ber_online": 0.03540039208019152,
+          "gain_frozen_minus_online": 0.0002441405667923391,
+          "window_gains_8f": [
+            -0.0032552084885537624,
+            0.0013020834885537624,
+            0.0009765634313225746,
+            0.0019531238358467817
+          ],
+          "slope_gain_per_frame": 0.00019124346144963058,
+          "late_minus_early_gain": 0.005208332324400544,
+          "adaptation_candidates_accepted": 11,
+          "peft_updates_applied": 4,
+          "hard_ber_vetoes": 1
+        },
+        {
+          "seed": 45102,
+          "ber_frozen": 0.03873698029201478,
+          "ber_online": 0.037394206738099456,
+          "gain_frozen_minus_online": 0.0013427735539153218,
+          "window_gains_8f": [
+            -0.0016276040114462376,
+            0.002766926772892475,
+            0.0017903647385537624,
+            0.0024414067156612873
+          ],
+          "slope_gain_per_frame": 0.00014038087683729828,
+          "late_minus_early_gain": 0.004069010727107525,
+          "adaptation_candidates_accepted": 12,
+          "peft_updates_applied": 3,
+          "hard_ber_vetoes": 1
+        }
+      ]
+    },
+    {
+      "snr_db": 10.0,
+      "overall_gain": {
+        "mean": 0.00012207031735063842,
+        "ci95": [
+          -0.0001453617252974058,
+          0.0003895023599986827
+        ],
+        "sessions": 3
+      },
+      "slope_gain_per_frame": {
+        "mean": -2.0345050870673727e-06,
+        "ci95": [
+          -1.078827786675846e-05,
+          6.719267692623713e-06
+        ],
+        "sessions": 3
+      },
+      "late_minus_early_gain": {
+        "mean": 0.0,
+        "ci95": [
+          -0.0007003016658456862,
+          0.0007003016658456862
+        ],
+        "sessions": 3
+      },
+      "sessions": [
+        {
+          "seed": 45100,
+          "ber_frozen": 0.0031331380960182287,
+          "ber_online": 0.0030924479724490084,
+          "gain_frozen_minus_online": 4.0690123569220304e-05,
+          "window_gains_8f": [
+            -0.0001627603778615594,
+            0.00032552084303461015,
+            0.0003255208721384406,
+            -0.00032552084303461015
+          ],
+          "slope_gain_per_frame": -6.103517080191522e-06,
+          "late_minus_early_gain": -0.00016276046517305076,
+          "adaptation_candidates_accepted": 14,
+          "peft_updates_applied": 6,
+          "hard_ber_vetoes": 0
+        },
+        {
+          "seed": 45101,
+          "ber_frozen": 0.0021972656686557457,
+          "ber_online": 0.002115885457897093,
+          "gain_frozen_minus_online": 8.138021075865254e-05,
+          "window_gains_8f": [
+            0.00016276042151730508,
+            -0.0001627604360692203,
+            0.0003255208575865254,
+            0.0
+          ],
+          "slope_gain_per_frame": 3.637978801257087e-13,
+          "late_minus_early_gain": -0.00016276042151730508,
+          "adaptation_candidates_accepted": 16,
+          "peft_updates_applied": 8,
+          "hard_ber_vetoes": 1
+        },
+        {
+          "seed": 45102,
+          "ber_frozen": 0.004069010505190818,
+          "ber_online": 0.0038248698874667753,
+          "gain_frozen_minus_online": 0.00024414061772404239,
+          "window_gains_8f": [
+            0.0001627603342058137,
+            0.000651041729724966,
+            -0.0003255208139307797,
+            0.00048828122089616954
+          ],
+          "slope_gain_per_frame": 1.455191524329176e-12,
+          "late_minus_early_gain": 0.00032552088669035584,
+          "adaptation_candidates_accepted": 12,
+          "peft_updates_applied": 6,
+          "hard_ber_vetoes": 0
+        }
+      ]
+    },
+    {
+      "snr_db": 15.0,
+      "overall_gain": {
+        "mean": -1.3563369672435025e-05,
+        "ci95": [
+          -0.0001679653581083961,
+          0.00014083861876352608
+        ],
+        "sessions": 3
+      },
+      "slope_gain_per_frame": {
+        "mean": -2.034505450865254e-06,
+        "ci95": [
+          -7.088497391989634e-06,
+          3.0194864902591256e-06
+        ],
+        "sessions": 3
+      },
+      "late_minus_early_gain": {
+        "mean": -5.42534786897401e-05,
+        "ci95": [
+          -0.0002876873568696618,
+          0.00017918039949018163
+        ],
+        "sessions": 3
+      },
+      "sessions": [
+        {
+          "seed": 45100,
+          "ber_frozen": 0.00032552084303461015,
+          "ber_online": 0.00032552084303461015,
+          "gain_frozen_minus_online": 0.0,
+          "window_gains_8f": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slope_gain_per_frame": 0.0,
+          "late_minus_early_gain": 0.0,
+          "adaptation_candidates_accepted": 17,
+          "peft_updates_applied": 10,
+          "hard_ber_vetoes": 0
+        },
+        {
+          "seed": 45101,
+          "ber_frozen": 0.000610351580689894,
+          "ber_online": 0.0005696614753105678,
+          "gain_frozen_minus_online": 4.069010537932627e-05,
+          "window_gains_8f": [
+            0.0,
+            0.00016276042151730508,
+            0.0,
+            0.0
+          ],
+          "slope_gain_per_frame": -2.034505268966313e-06,
+          "late_minus_early_gain": 0.0,
+          "adaptation_candidates_accepted": 17,
+          "peft_updates_applied": 6,
+          "hard_ber_vetoes": 0
+        },
+        {
+          "seed": 45102,
+          "ber_frozen": 0.0009358724200865254,
+          "ber_online": 0.0010172526344831567,
+          "gain_frozen_minus_online": -8.138021439663135e-05,
+          "window_gains_8f": [
+            0.0,
+            -0.00016276042151730508,
+            0.0,
+            -0.0001627604360692203
+          ],
+          "slope_gain_per_frame": -4.069011083629449e-06,
+          "late_minus_early_gain": -0.0001627604360692203,
+          "adaptation_candidates_accepted": 14,
+          "peft_updates_applied": 6,
+          "hard_ber_vetoes": 0
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "3个开发会话仅用于机制筛查，不是独立确认。",
+    "只对每会话32帧做四个8帧窗口，不足以确认长期增长。",
+    "one-window门控从先前同seed的Pilot-only烟测方向提出；Data只在候选动作与守门之后评分，结果不用于调参。"
+  ]
+}
