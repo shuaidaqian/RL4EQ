@@ -11,7 +11,7 @@ import torch
 from agent.detection_subspace import DetectionSubspace, PilotObservation, capture_observation
 from evaluation.adaptability_audit import deployable_frame
 from evaluation.subspace_development import (frozen_error_conditioned_loss, outer_data_loss,
-    paired_online_gain_loss, read_manifest, sequence_loss)
+    evaluate_subspaces, paired_online_gain_loss, read_manifest, sequence_loss)
 from training.deterministic_adaptation import DeterministicSettings
 from training.pilot_risk_gate import FEATURE_NAMES, PilotRiskRegressor, validation_risk_features
 from training.subspace_adaptation import coefficient_update, pilot_loss, project, update_subspace
@@ -453,6 +453,39 @@ def test_pilot_context_adapter_is_zero_at_origin_and_jacobian_matches_finite_dif
         - model.logits(observation, context - epsilon * direction)) / (2 * epsilon)
     jacobian_product = model.basis(observation, context) @ direction
     torch.testing.assert_close(finite_difference, jacobian_product, atol=2e-4, rtol=2e-3)
+
+
+def test_evaluation_scores_nonlinear_model_forward_instead_of_linear_basis(monkeypatch):
+    class NonlinearFixture:
+        coefficients = torch.zeros(1)
+
+        def logits(self, observation, coefficients=None):
+            coefficients = self.coefficients if coefficients is None else coefficients
+            return observation.base_logits + 2 * coefficients[0]
+
+        def basis(self, observation):
+            # 故意与真实前向不同，确保评估不再调用局部线性基近似。
+            return torch.zeros((observation.base_logits.numel(), 1))
+
+    def fixed_update(model, observation, current, origin, settings, *, adapt_history):
+        candidate = torch.ones_like(origin)
+        return candidate, candidate, dict(accepted=True, candidate_accepted=True,
+            reset_to_origin=False)
+
+    monkeypatch.setattr("evaluation.subspace_development.update_subspace", fixed_update)
+    observation = type("Observation", (), {"base_logits": torch.tensor([-1., -1.])})()
+    row = dict(seed=1, snr_db=0, identity=dict(seed=1, snr_db=0),
+        offline=dict(data_mask=torch.tensor([True, True]),
+        bits=torch.tensor([True, True])), observation=observation, physical_ms=0.)
+    sessions = [dict(seed=1, snr_db=0, inner_history_frames=1, frames=[row])]
+
+    rows, summary = evaluate_subspaces({"A_supervised": NonlinearFixture(),
+        "B_post_adapt": NonlinearFixture()}, sessions,
+        DeterministicSettings(), "cpu")
+
+    assert rows[0]["ber_frozen"] == 1.
+    assert rows[0]["ber_online"] == 0.
+    assert summary[0]["arms"]["A_supervised"]["gain"]["mean"] == 1.
 
 
 def test_smooth_ber_outer_objective_is_differentiable_and_tracks_signed_margin():

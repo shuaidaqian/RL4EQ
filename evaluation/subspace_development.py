@@ -439,9 +439,8 @@ def evaluate_subspaces(models, sessions, settings, device):
                 synchronize(device)
                 tick = time.perf_counter()
                 with torch.no_grad():
-                    basis = model.basis(observation)
-                    frozen = observation.base_logits + basis @ origin
-                    before = observation.base_logits + basis @ current
+                    frozen = model.logits(observation, origin)
+                    before = model.logits(observation, current)
                 synchronize(device)
                 frozen_ms = 1000 * (time.perf_counter() - tick)
                 tick = time.perf_counter()
@@ -450,8 +449,8 @@ def evaluate_subspaces(models, sessions, settings, device):
                 synchronize(device)
                 update_ms = 1000 * (time.perf_counter() - tick)
                 with torch.no_grad():
-                    candidate_logits = observation.base_logits + basis @ candidate
-                    retained_logits = observation.base_logits + basis @ retained
+                    candidate_logits = model.logits(observation, candidate)
+                    retained_logits = model.logits(observation, retained)
                 # 所有分支控制完成后才作Data评分。
                 rows.append(dict(**row["identity"], training=name, **control,
                     ber_source=ber(observation.base_logits, row["offline"]),
