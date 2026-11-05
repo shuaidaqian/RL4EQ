@@ -447,6 +447,16 @@ def test_v24_manifest_matches_differentiable_gauss_newton_and_is_development_onl
     assert spec["heldout_confirmation"] is False
 
 
+def test_v25_manifest_changes_only_the_outer_objective_after_v24():
+    spec = read_manifest("configs/audits/detection_subspace_long_v25_gauss_newton_online_gain_v1.json")
+    assert spec["update"]["inner_optimizer"] == "damped_gauss_newton"
+    assert spec["training"]["outer_objective"] == "online_gain"
+    assert spec["learned_context_update"] is False
+    assert spec["data_roles"]["evaluation"]["seeds"] == [121600, 121601, 121602]
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+
+
 def test_pilot_context_adapter_is_zero_at_origin_and_jacobian_matches_finite_difference():
     observation = fixture_observation()
     model = DetectionSubspace(4, architecture="pilot_context_mlp_v1")

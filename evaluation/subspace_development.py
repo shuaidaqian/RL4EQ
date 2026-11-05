@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11", "fixed-channel-subspace-development-v12", "fixed-channel-subspace-development-v13", "fixed-channel-subspace-development-v14", "fixed-channel-subspace-development-v15", "fixed-channel-subspace-development-v16", "fixed-channel-subspace-development-v17", "fixed-channel-subspace-development-v18", "fixed-channel-subspace-development-v19", "fixed-channel-subspace-development-v20", "fixed-channel-subspace-development-v21", "fixed-channel-subspace-development-v22", "fixed-channel-subspace-development-v24"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11", "fixed-channel-subspace-development-v12", "fixed-channel-subspace-development-v13", "fixed-channel-subspace-development-v14", "fixed-channel-subspace-development-v15", "fixed-channel-subspace-development-v16", "fixed-channel-subspace-development-v17", "fixed-channel-subspace-development-v18", "fixed-channel-subspace-development-v19", "fixed-channel-subspace-development-v20", "fixed-channel-subspace-development-v21", "fixed-channel-subspace-development-v22", "fixed-channel-subspace-development-v24", "fixed-channel-subspace-development-v25"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -144,6 +144,17 @@ def read_manifest(path):
                 or spec.get("training", {}).get("outer_objective") != "frozen_error_conditioned"
                 or spec.get("data_roles", {}).get("evaluation", {}).get("seeds") != [121500, 121501, 121502]):
             raise ValueError("v24必须使用单帧Pilot上下文、固定阻尼GN内循环及独立开发seed。")
+    if spec.get("schema_version") == "fixed-channel-subspace-development-v25":
+        if (spec.get("architecture") != "pilot_context_mlp_v1"
+                or spec.get("learned_gradient_transport") is not False
+                or spec.get("learned_context_update") is not False
+                or spec.get("inner_history_frames") != 1
+                or spec["update"].get("inner_optimizer") != "damped_gauss_newton"
+                or spec["update"].get("gn_damping") != 0.01
+                or spec.get("training", {}).get("outer_objective") != "online_gain"
+                or spec.get("training", {}).get("smooth_ber_temperature") != 1.0
+                or spec.get("data_roles", {}).get("evaluation", {}).get("seeds") != [121600, 121601, 121602]):
+            raise ValueError("v25只允许在GN内循环匹配条件下测试配对Online增益外层目标和固定新开发seed。")
     return spec
 
 

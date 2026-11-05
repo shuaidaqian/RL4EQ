@@ -1,0 +1,118 @@
+{
+  "role": "read_only_posthoc_alignment_diagnostic",
+  "online_control_used_data_labels": false,
+  "interpretation": "Data BER只在所有候选、守门和回退完成后评分；此统计不修改任何更新或门控动作。",
+  "source_metrics_path": "logs\\detection_subspace_training_v25_gauss_newton_online_gain_v1_20261105\\frame_metrics.jsonl",
+  "source_metrics_sha256": "f44fd8a3b4b300ecc494c08b3977bfd68929da1612f3f0ea89ecf99dedf07e0e",
+  "records": 768,
+  "per_snr": [
+    {
+      "snr_db": 0,
+      "arms": {
+        "A_supervised": {
+          "frames": 96,
+          "candidate_accepted": 42,
+          "accepted": 30,
+          "reset_to_origin": 20,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 29,
+          "accepted_data_ber_worsened": 1,
+          "accepted_fraction_without_data_ber_improvement": 1.0,
+          "mean_accepted_validation_loss_reduction": 6.494273742039999e-05
+        },
+        "B_post_adapt": {
+          "frames": 96,
+          "candidate_accepted": 44,
+          "accepted": 28,
+          "reset_to_origin": 20,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 27,
+          "accepted_data_ber_worsened": 1,
+          "accepted_fraction_without_data_ber_improvement": 1.0,
+          "mean_accepted_validation_loss_reduction": 5.986701164926801e-05
+        }
+      }
+    },
+    {
+      "snr_db": 5,
+      "arms": {
+        "A_supervised": {
+          "frames": 96,
+          "candidate_accepted": 40,
+          "accepted": 26,
+          "reset_to_origin": 16,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 26,
+          "accepted_data_ber_worsened": 0,
+          "accepted_fraction_without_data_ber_improvement": 1.0,
+          "mean_accepted_validation_loss_reduction": 7.217714133170935e-05
+        },
+        "B_post_adapt": {
+          "frames": 96,
+          "candidate_accepted": 40,
+          "accepted": 25,
+          "reset_to_origin": 16,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 24,
+          "accepted_data_ber_worsened": 1,
+          "accepted_fraction_without_data_ber_improvement": 1.0,
+          "mean_accepted_validation_loss_reduction": 5.4932497441768646e-05
+        }
+      }
+    },
+    {
+      "snr_db": 10,
+      "arms": {
+        "A_supervised": {
+          "frames": 96,
+          "candidate_accepted": 3,
+          "accepted": 2,
+          "reset_to_origin": 1,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 2,
+          "accepted_data_ber_worsened": 0,
+          "accepted_fraction_without_data_ber_improvement": 1.0,
+          "mean_accepted_validation_loss_reduction": 5.554140079766512e-05
+        },
+        "B_post_adapt": {
+          "frames": 96,
+          "candidate_accepted": 4,
+          "accepted": 1,
+          "reset_to_origin": 1,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 1,
+          "accepted_data_ber_worsened": 0,
+          "accepted_fraction_without_data_ber_improvement": 1.0,
+          "mean_accepted_validation_loss_reduction": 7.815472781658173e-05
+        }
+      }
+    },
+    {
+      "snr_db": 15,
+      "arms": {
+        "A_supervised": {
+          "frames": 96,
+          "candidate_accepted": 0,
+          "accepted": 0,
+          "reset_to_origin": 0,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 0,
+          "accepted_data_ber_worsened": 0,
+          "accepted_fraction_without_data_ber_improvement": null,
+          "mean_accepted_validation_loss_reduction": 0.0
+        },
+        "B_post_adapt": {
+          "frames": 96,
+          "candidate_accepted": 0,
+          "accepted": 0,
+          "reset_to_origin": 0,
+          "accepted_data_ber_improved": 0,
+          "accepted_data_ber_unchanged": 0,
+          "accepted_data_ber_worsened": 0,
+          "accepted_fraction_without_data_ber_improvement": null,
+          "mean_accepted_validation_loss_reduction": 0.0
+        }
+      }
+    }
+  ]
+}
