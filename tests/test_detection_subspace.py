@@ -52,7 +52,7 @@ def test_read_only_data_oracle_improves_a_reachable_toy_boundary_within_radius()
     assert ((base + basis @ coeff > 0) == (labels > 0.5)).all()
 
 
-@pytest.mark.parametrize("architecture", ["pointwise_mlp_v1", "temporal_conv_v1", "temporal_dilated_127_v1", "temporal_dilated_residual_127_v1"])
+@pytest.mark.parametrize("architecture", ["pointwise_mlp_v1", "temporal_conv_v1", "temporal_dilated_127_v1", "temporal_dilated_residual_127_v1", "pilot_context_mlp_v1"])
 def test_subspace_architectures_preserve_shape_and_zero_coefficient_identity(architecture):
     observation = fixture_observation()
     model = DetectionSubspace(4, architecture=architecture)
@@ -408,6 +408,33 @@ def test_v19_manifest_uses_residual_dilations_and_keeps_fixed_channel():
     assert spec["training"]["outer_objective"] == "frozen_error_conditioned"
     assert spec["channel_changes"] is False
     assert spec["heldout_confirmation"] is False
+
+
+def test_v20_manifest_is_context_conditioned_and_preserves_label_boundary():
+    spec = read_manifest("configs/audits/detection_subspace_long_v20_pilot_context_adapter_v1.json")
+    assert spec["architecture"] == "pilot_context_mlp_v1"
+    assert spec["learned_context_update"] is True
+    assert spec["learned_gradient_transport"] is False
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+
+
+def test_pilot_context_adapter_is_zero_at_origin_and_jacobian_matches_finite_difference():
+    observation = fixture_observation()
+    model = DetectionSubspace(4, architecture="pilot_context_mlp_v1")
+    origin = torch.zeros(4)
+    torch.testing.assert_close(model.logits(observation, origin), observation.base_logits, atol=0, rtol=0)
+    direction = torch.tensor([0.4, -0.2, 0.3, -0.1])
+    epsilon = 1e-3
+    finite_difference = (model.logits(observation, epsilon * direction)
+        - model.logits(observation, -epsilon * direction)) / (2 * epsilon)
+    jacobian_product = model.basis(observation) @ direction
+    torch.testing.assert_close(finite_difference, jacobian_product, atol=2e-4, rtol=2e-3)
+    context = torch.tensor([0.03, -0.02, 0.01, 0.04])
+    finite_difference = (model.logits(observation, context + epsilon * direction)
+        - model.logits(observation, context - epsilon * direction)) / (2 * epsilon)
+    jacobian_product = model.basis(observation, context) @ direction
+    torch.testing.assert_close(finite_difference, jacobian_product, atol=2e-4, rtol=2e-3)
 
 
 def test_smooth_ber_outer_objective_is_differentiable_and_tracks_signed_margin():

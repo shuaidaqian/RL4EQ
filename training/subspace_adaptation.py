@@ -34,7 +34,8 @@ def pilot_loss(logits, observation, role, *, temperature=1.0):
 def coefficient_update(base, basis, observation, initial, origin, settings: DeterministicSettings, *,
                        adapt_history=None, create_graph=False, gradient_transport=None,
                        context_update=None, validation_risk_gate=None,
-                       risk_gate_threshold=0.0, validation_risk_gate_mode="filter"):
+                       risk_gate_threshold=0.0, validation_risk_gate_mode="filter",
+                       logits_fn=None):
     """每帧重置Adam；内循环可联合最近多帧Adapt，验证只用当前帧。"""
     if not create_graph:
         base, basis, origin = base.detach(), basis.detach(), origin.detach()
@@ -47,10 +48,15 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         history = [(item_base.detach(), item_basis.detach(), item_observation)
                    for item_base, item_basis, item_observation in history]
     current = initial
+    def apply_logits(item_base, item_basis, item_observation, coefficients):
+        if logits_fn is not None:
+            return logits_fn(item_observation, coefficients)
+        return item_base + item_basis @ coefficients
+
     first, second = torch.zeros_like(current), torch.zeros_like(current)
     losses = []
     for step in range(1, settings.steps + 1):
-        frame_losses = [pilot_loss(item_base + item_basis @ current, item_observation, "adapt",
+        frame_losses = [pilot_loss(apply_logits(item_base, item_basis, item_observation, current), item_observation, "adapt",
                           temperature=settings.adapt_logit_temperature)
                         for item_base, item_basis, item_observation in history]
         loss = torch.stack(frame_losses).mean()
@@ -86,7 +92,9 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         if not create_graph:
             current = current.detach().requires_grad_(True)
     before_logits, candidate_logits, origin_logits = (
-        base + basis @ initial, base + basis @ current, base + basis @ origin)
+        apply_logits(base, basis, observation, initial),
+        apply_logits(base, basis, observation, current),
+        apply_logits(base, basis, observation, origin))
     mask, labels = observation.validation_mask, observation.validation_labels.bool()
     before_loss = float(pilot_loss(before_logits, observation, "validation").detach())
     candidate_loss = float(pilot_loss(candidate_logits, observation, "validation").detach())
@@ -100,7 +108,7 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
     retained = current if accepted else initial
     if accepted and settings.origin_retention_decay < 1:
         retained = origin + settings.origin_retention_decay * (retained - origin)
-    retained_logits = base + basis @ retained
+    retained_logits = apply_logits(base, basis, observation, retained)
     retained_loss = float(pilot_loss(retained_logits, observation, "validation").detach())
     retained_ber = float(((retained_logits.detach()[mask] >= 0) != labels[mask]).float().mean())
     accepted = bool(accepted and math.isfinite(retained_loss)
@@ -135,7 +143,7 @@ def coefficient_update(base, basis, observation, initial, origin, settings: Dete
         risk_proposal = current
         if settings.origin_retention_decay < 1:
             risk_proposal = origin + settings.origin_retention_decay * (current - origin)
-        risk_proposal_logits = base + basis @ risk_proposal
+        risk_proposal_logits = apply_logits(base, basis, observation, risk_proposal)
         risk_features = validation_risk_features(before_logits, risk_proposal_logits, observation,
             (risk_proposal - initial).detach().norm(), gradient_norm.detach())
         raw_risk_prediction = float(validation_risk_gate(risk_features).detach())
@@ -198,6 +206,7 @@ def update_subspace(model, observation, initial, origin, settings, *, adapt_hist
                               gradient_transport=model.gradient_transport_matrix(),
                               context_update=(model.context_update_delta
                                   if model.learned_context_update and model.use_context_update else None),
+                              logits_fn=(model.logits if model.architecture == "pilot_context_mlp_v1" else None),
                               validation_risk_gate=validation_risk_gate,
                               risk_gate_threshold=risk_gate_threshold,
                               validation_risk_gate_mode=validation_risk_gate_mode)

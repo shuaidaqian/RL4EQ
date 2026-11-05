@@ -118,15 +118,15 @@ def analyze(manifest_path: Path, feature_cache: Path, checkpoint: Path,
             history = (history + [observation])[-int(session.get("inner_history_frames", 8)):]
             candidate, retained, control = update_subspace(model, observation, current,
                 origin, settings, adapt_history=history)
-            basis = model.basis(observation).detach()
+            basis = model.basis(observation, current).detach()
             data = frame["offline"]
             mask = data["data_mask"].to(basis.device)
             labels = data["bits"].to(basis.device)[mask].float()
             signs = labels.mul(2.).sub(1.)
-            frozen_logits = observation.base_logits.detach().to(basis.device)[mask] + basis[mask] @ origin
-            before_logits = observation.base_logits.detach().to(basis.device)[mask] + basis[mask] @ current
-            candidate_logits = observation.base_logits.detach().to(basis.device)[mask] + basis[mask] @ candidate
-            retained_logits = observation.base_logits.detach().to(basis.device)[mask] + basis[mask] @ retained
+            frozen_logits = model.logits(observation, origin).detach().to(basis.device)[mask]
+            before_logits = model.logits(observation, current).detach().to(basis.device)[mask]
+            candidate_logits = model.logits(observation, candidate).detach().to(basis.device)[mask]
+            retained_logits = model.logits(observation, retained).detach().to(basis.device)[mask]
             before_margin = signs * before_logits
             candidate_margin = signs * candidate_logits
             frozen_errors = int(((signs * frozen_logits) <= 0).sum())
@@ -137,7 +137,7 @@ def analyze(manifest_path: Path, feature_cache: Path, checkpoint: Path,
             required_norm = (-before_margin).clamp_min(0) / row_norm
             current_errors = int(before_error_mask.sum())
             delta = candidate.detach() - current.detach()
-            signed_change = signs * (basis[mask] @ delta)
+            signed_change = signs * (candidate_logits - before_logits)
             local_radius = float(settings.step_radius)
             frame_rows.append({
                 "snr_db": int(session["snr_db"]), "seed": int(session["seed"]),

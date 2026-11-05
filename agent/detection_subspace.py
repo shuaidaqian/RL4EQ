@@ -60,14 +60,18 @@ class DetectionSubspace(nn.Module):
         if dimension not in {2, 4, 8, 10, 12, 14, 16}:
             raise ValueError("检测子空间只允许预先指定的2/4/8/10/12/14/16维。")
         if architecture not in {"pointwise_mlp_v1", "temporal_conv_v1", "temporal_dilated_127_v1",
-                                "temporal_dilated_residual_127_v1"}:
+                                "temporal_dilated_residual_127_v1", "pilot_context_mlp_v1"}:
             raise ValueError("检测子空间基网络结构未登记。")
         self.dimension = dimension
         self.architecture = architecture
         self.learned_gradient_transport = bool(learned_gradient_transport)
         self.learned_context_update = bool(learned_context_update)
         self.use_context_update = self.learned_context_update
-        if architecture == "temporal_conv_v1":
+        if architecture == "pilot_context_mlp_v1":
+            self.context_feature = nn.Sequential(nn.Linear(7, 32), nn.Tanh())
+            self.context_projection = nn.Linear(dimension, 32, bias=False)
+            self.context_output = nn.Linear(32, 1, bias=False)
+        elif architecture == "temporal_conv_v1":
             self.basis_network = nn.Sequential(
                 nn.Conv1d(7, 16, kernel_size=5, padding=2), nn.GELU(),
                 nn.Conv1d(16, dimension, kernel_size=1), nn.Tanh())
@@ -119,7 +123,13 @@ class DetectionSubspace(nn.Module):
         features = torch.cat((mean / scale, disagreement, log_scale.reshape(1)))
         return 0.5 * learning_rate * torch.tanh(self.context_update_network(features))
 
-    def basis(self, observation: PilotObservation):
+    def basis(self, observation: PilotObservation, coefficients=None):
+        if self.architecture == "pilot_context_mlp_v1":
+            hidden = self.context_feature(observation.features)
+            context = self.coefficients if coefficients is None else coefficients
+            local_slope = 1. - torch.tanh(hidden + self.context_projection(context)).square()
+            basis = (local_slope * self.context_output.weight) @ self.context_projection.weight
+            return basis * observation.logit_scale / math.sqrt(self.dimension)
         if self.architecture in {"temporal_conv_v1", "temporal_dilated_127_v1",
                                  "temporal_dilated_residual_127_v1"}:
             features = observation.features.transpose(0, 1).unsqueeze(0)
@@ -130,6 +140,12 @@ class DetectionSubspace(nn.Module):
 
     def logits(self, observation: PilotObservation, coefficients=None):
         coefficients = self.coefficients if coefficients is None else coefficients
+        if self.architecture == "pilot_context_mlp_v1":
+            hidden = self.context_feature(observation.features)
+            modulated = torch.tanh(hidden + self.context_projection(coefficients)) - torch.tanh(hidden)
+            residual = (modulated @ self.context_output.weight.transpose(0, 1)).squeeze(-1)
+            residual = residual * observation.logit_scale.reshape(-1) / math.sqrt(self.dimension)
+            return observation.base_logits + residual
         return observation.base_logits + self.basis(observation) @ coefficients
 
 
