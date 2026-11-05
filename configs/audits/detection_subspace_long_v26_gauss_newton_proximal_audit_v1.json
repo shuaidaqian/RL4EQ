@@ -1,0 +1,35 @@
+{
+  "schema_version": "fixed-channel-context-gauss-newton-scale-audit-v1",
+  "role": "development_single_factor_update_scale_audit",
+  "parent_manifest": "configs/audits/detection_subspace_long_v25_gauss_newton_online_gain_v1.json",
+  "parent_evaluation_seeds": [
+    121600,
+    121601,
+    121602
+  ],
+  "snrs_db": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "channel_changes": false,
+  "heldout_confirmation": false,
+  "online_data_labels_used": false,
+  "dimension": 2,
+  "architecture": "pilot_context_mlp_v1",
+  "update": {
+    "optimizer": "damped_gauss_newton_fisher",
+    "damping": 0.01,
+    "proximal_weight": 0.01,
+    "adapt_logit_temperature": 2.0,
+    "step_radius": 0.15,
+    "total_radius": 0.8,
+    "max_backtracks": 8,
+    "validation_min_improvement": 1e-05,
+    "validation_ber_must_not_increase": true,
+    "origin_retention_decay": 0.5,
+    "reset_to_origin_on_validation": true
+  },
+  "interpretation": "只将v25固定更新的近端权重从0.1改为0.01，在相同表示/checkpoint、缓存、信道资源及验证门控下审计更新幅度；不是训练实验或独立确认。"
+}
