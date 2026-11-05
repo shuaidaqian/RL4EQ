@@ -23,6 +23,33 @@ class PilotObservation:
     validation_labels: torch.Tensor
 
 
+class _DilatedResidualBlock(nn.Module):
+    """以残差旁路保留局部可辨方向，同时扩展时间感受野。"""
+
+    def __init__(self, channels: int, dilation: int):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv1d(channels, channels, kernel_size=3, padding=dilation, dilation=dilation),
+            nn.GELU(), nn.Conv1d(channels, channels, kernel_size=1))
+
+    def forward(self, value):
+        return value + 0.1 * self.conv(value)
+
+
+class _TemporalDilatedResidualBasis(nn.Module):
+    """输出127符号感受野的逐位置神经基。"""
+
+    def __init__(self, dimension: int):
+        super().__init__()
+        self.input = nn.Conv1d(7, 16, kernel_size=1)
+        self.blocks = nn.Sequential(*[
+            _DilatedResidualBlock(16, dilation) for dilation in (1, 2, 4, 8, 16, 32)])
+        self.output = nn.Sequential(nn.Conv1d(16, dimension, kernel_size=1), nn.Tanh())
+
+    def forward(self, features):
+        return self.output(self.blocks(self.input(features)))
+
+
 class DetectionSubspace(nn.Module):
     """离线学习非线性残差基，在线仅更新实数系数；不存储物理 tap。"""
 
@@ -32,7 +59,8 @@ class DetectionSubspace(nn.Module):
         super().__init__()
         if dimension not in {2, 4, 8, 10, 12, 14, 16}:
             raise ValueError("检测子空间只允许预先指定的2/4/8/10/12/14/16维。")
-        if architecture not in {"pointwise_mlp_v1", "temporal_conv_v1"}:
+        if architecture not in {"pointwise_mlp_v1", "temporal_conv_v1", "temporal_dilated_127_v1",
+                                "temporal_dilated_residual_127_v1"}:
             raise ValueError("检测子空间基网络结构未登记。")
         self.dimension = dimension
         self.architecture = architecture
@@ -43,6 +71,17 @@ class DetectionSubspace(nn.Module):
             self.basis_network = nn.Sequential(
                 nn.Conv1d(7, 16, kernel_size=5, padding=2), nn.GELU(),
                 nn.Conv1d(16, dimension, kernel_size=1), nn.Tanh())
+        elif architecture == "temporal_dilated_127_v1":
+            layers = []
+            channels = 7
+            for dilation in (1, 2, 4, 8, 16, 32):
+                layers.extend((nn.Conv1d(channels, 16, kernel_size=3,
+                    padding=dilation, dilation=dilation), nn.GELU()))
+                channels = 16
+            layers.extend((nn.Conv1d(16, dimension, kernel_size=1), nn.Tanh()))
+            self.basis_network = nn.Sequential(*layers)
+        elif architecture == "temporal_dilated_residual_127_v1":
+            self.basis_network = _TemporalDilatedResidualBasis(dimension)
         else:
             self.basis_network = nn.Sequential(nn.Linear(7, 16), nn.Tanh(), nn.Linear(16, dimension), nn.Tanh())
         # 零系数精确保留来源网络；普通监督首步先学习系数，随后表示也可获得梯度。
@@ -81,7 +120,8 @@ class DetectionSubspace(nn.Module):
         return 0.5 * learning_rate * torch.tanh(self.context_update_network(features))
 
     def basis(self, observation: PilotObservation):
-        if self.architecture == "temporal_conv_v1":
+        if self.architecture in {"temporal_conv_v1", "temporal_dilated_127_v1",
+                                 "temporal_dilated_residual_127_v1"}:
             features = observation.features.transpose(0, 1).unsqueeze(0)
             basis = self.basis_network(features).squeeze(0).transpose(0, 1)
         else:

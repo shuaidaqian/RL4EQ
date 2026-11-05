@@ -52,7 +52,7 @@ def test_read_only_data_oracle_improves_a_reachable_toy_boundary_within_radius()
     assert ((base + basis @ coeff > 0) == (labels > 0.5)).all()
 
 
-@pytest.mark.parametrize("architecture", ["pointwise_mlp_v1", "temporal_conv_v1"])
+@pytest.mark.parametrize("architecture", ["pointwise_mlp_v1", "temporal_conv_v1", "temporal_dilated_127_v1", "temporal_dilated_residual_127_v1"])
 def test_subspace_architectures_preserve_shape_and_zero_coefficient_identity(architecture):
     observation = fixture_observation()
     model = DetectionSubspace(4, architecture=architecture)
@@ -387,6 +387,24 @@ def test_v17_manifest_only_adds_learned_gradient_transport_to_v16_update():
     spec = read_manifest("configs/audits/detection_subspace_long_v17_dim12_gradient_transport_v1.json")
     assert spec["learned_gradient_transport"] is True
     assert spec["learned_context_update"] is True
+    assert spec["training"]["outer_objective"] == "frozen_error_conditioned"
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+
+
+def test_v18_manifest_changes_only_temporal_receptive_field():
+    spec = read_manifest("configs/audits/detection_subspace_long_v18_dilated127_v1.json")
+    assert spec["architecture"] == "temporal_dilated_127_v1"
+    assert spec["learned_gradient_transport"] is False
+    assert spec["learned_context_update"] is True
+    assert spec["training"]["outer_objective"] == "frozen_error_conditioned"
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+
+
+def test_v19_manifest_uses_residual_dilations_and_keeps_fixed_channel():
+    spec = read_manifest("configs/audits/detection_subspace_long_v19_dilated127_residual_v1.json")
+    assert spec["architecture"] == "temporal_dilated_residual_127_v1"
     assert spec["training"]["outer_objective"] == "frozen_error_conditioned"
     assert spec["channel_changes"] is False
     assert spec["heldout_confirmation"] is False
