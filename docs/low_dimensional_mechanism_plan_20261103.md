@@ -46,3 +46,11 @@
 第七轮只读温度筛查与温度2匹配训练已完成，详见[温度筛查](results/detection_subspace_long_v6_temperature_sweep_v1_20261103/README.md)和[第七轮归档](results/detection_subspace_long_v7_adapt_temperature2_v1_20261104/README.md)。统一温度2提升四SNR Adapt/Data梯度对齐，但B臂在线 BER 增量仍小且配对区间跨零；10/15 dB候选接受极少。当前R2瓶颈收敛到验证Pilot守门对Data变化代理弱，以及跨帧保留状态的有效更新频率，不进入R3。下一项应只改变一个基于合法验证Pilot的动作后风险统计量，并先用已有开发轨迹作只读候选分析；不得以Data标签校准在线阈值或扩大同类seed矩阵。
 
 后续配对验证与跨帧暂存反事实见[第七轮门控诊断](results/detection_subspace_v7_gate_diagnostics_20261104/README.md)。逐符号区块不确定性门控不是可靠改进，跨帧累积也未解决中高SNR更新不足；隔离Data可达性显示当前8维基仍有可改进方向。因此停止阈值微调，下一项转为检验离线外循环能否在严格线上前向门控不变时，通过拒绝分支的直通反向梯度学到更有效的在线表示。其前向参数轨迹必须与线上规则一致，训练代理、在线部署和数据标签角色需分别记录。
+
+## 2026-11-05 技术主线续记
+
+用户再次明确核心目标是在线神经微调优于同源离线Frozen；未形成正增益前不进入正式确认。v13风险门控分支停止。第十四轮只将离线外层改为Frozen/Online配对收益目标，结果见[配对增益实验](results/detection_subspace_paired_online_gain_v1_20261105/README.md)：四SNR没有一致、可重复的BER增益。难符号损失只读梯度筛查见[Adapt目标诊断](results/detection_subspace_adapt_loss_alignment_v1_20261105/README.md)：hard mining/focal没有全SNR梯度方向优势，15 dB Adapt梯度极小。
+
+v14后的离线只读Data边界可达性已完成，见[配对增益实验归档](results/detection_subspace_paired_online_gain_v1_20261105/README.md)中的分析文件。每SNR三个既有开发seed显示，8维当前基在0.15单步半径内理论可翻转的错误位比例低于5%；即使用3步的0.45位移上界，四点约为1.8/5.7/18.0/22.0%。合法Pilot候选实际翻转错误仅4/1/0/0，并且增加一些错误位边距、同时减少另一些边距。该诊断指向表示作用范围和Pilot方向两项限制，Data只作离线事后诊断。
+
+下一项单因素尝试离线Frozen错误条件化Online外层目标：依据Frozen的Data错判掩码训练适配轨迹纠正原错判并守住正确位间隔，在线输入与更新规则不读取Data。仍用固定信道和既有开发seed，不开始独立确认；若此目标没有在线正增益，再评估扩展神经子空间维度/作用位置，而不继续微调门控。

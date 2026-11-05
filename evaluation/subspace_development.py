@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11", "fixed-channel-subspace-development-v12"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -79,6 +79,13 @@ def read_manifest(path):
                 or not isinstance(temperature, (int, float))
                 or not np.isfinite(temperature) or temperature <= 0):
             raise ValueError("v11只允许固定正温度的平滑BER外层目标。")
+    if spec.get("schema_version") == "fixed-channel-subspace-development-v12":
+        training = spec.get("training", {})
+        if (spec.get("learned_context_update") is not True
+                or spec.get("learned_gradient_transport") is not False
+                or training.get("outer_objective") != "online_gain"
+                or training.get("smooth_ber_temperature") != 1.0):
+            raise ValueError("v12只允许固定T=1平滑BER下的配对在线增益外层目标。")
     return spec
 
 
@@ -292,6 +299,12 @@ def outer_data_loss(logits, row, objective="bce", smooth_ber_temperature=1.0):
     return torch.sigmoid(-labels * logits[mask] / smooth_ber_temperature).mean()
 
 
+def paired_online_gain_loss(frozen_loss, online_loss):
+    """离线配对目标：同时降低Frozen和Online误差，并额外惩罚Online落后。"""
+    gap = online_loss - frozen_loss
+    return frozen_loss + online_loss + torch.nn.functional.softplus(gap)
+
+
 def sequence_loss(model, session, settings, update_frames, *, adapt, create_graph,
                   outer_objective="bce", smooth_ber_temperature=1.0):
     """联合最近合法Adapt历史更新；当前帧守门后评分当前和下一帧Data。"""
@@ -308,8 +321,15 @@ def sequence_loss(model, session, settings, update_frames, *, adapt, create_grap
                 settings, adapt_history=history, create_graph=create_graph)
         for offset in (0, 1):
             target = session["frames"][index + offset]
-            losses.append(outer_data_loss(model.logits(target["observation"], current), target,
-                outer_objective, smooth_ber_temperature))
+            online_loss = outer_data_loss(model.logits(target["observation"], current), target,
+                "smooth_ber" if outer_objective == "online_gain" else outer_objective,
+                smooth_ber_temperature)
+            if outer_objective == "online_gain":
+                frozen_loss = outer_data_loss(model.logits(target["observation"], origin), target,
+                    "smooth_ber", smooth_ber_temperature)
+                losses.append(paired_online_gain_loss(frozen_loss, online_loss))
+            else:
+                losses.append(online_loss)
     outer = torch.stack(losses).mean()
     if model.learned_gradient_transport and settings.gradient_transport_regularization > 0:
         transport = model.gradient_transport_matrix()

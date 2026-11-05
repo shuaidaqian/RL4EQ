@@ -10,7 +10,7 @@ import torch
 
 from agent.detection_subspace import DetectionSubspace, PilotObservation, capture_observation
 from evaluation.adaptability_audit import deployable_frame
-from evaluation.subspace_development import outer_data_loss, read_manifest, sequence_loss
+from evaluation.subspace_development import outer_data_loss, paired_online_gain_loss, read_manifest, sequence_loss
 from training.deterministic_adaptation import DeterministicSettings
 from training.pilot_risk_gate import FEATURE_NAMES, PilotRiskRegressor, validation_risk_features
 from training.subspace_adaptation import coefficient_update, pilot_loss, project, update_subspace
@@ -362,6 +362,19 @@ def test_smooth_ber_outer_objective_is_differentiable_and_tracks_signed_margin()
     assert gradient[0] < 0 and gradient[1] > 0
     with pytest.raises(ValueError):
         outer_data_loss(logits, row, "smooth_ber", 0.)
+
+
+def test_paired_online_gain_objective_keeps_frozen_quality_and_pushes_online_below_it():
+    frozen = torch.tensor(.2, requires_grad=True)
+    online = torch.tensor(.2, requires_grad=True)
+    loss = paired_online_gain_loss(frozen, online)
+    grad_frozen, grad_online = torch.autograd.grad(loss, (frozen, online))
+    torch.testing.assert_close(grad_frozen, torch.tensor(.5))
+    torch.testing.assert_close(grad_online, torch.tensor(1.5))
+
+    spec = read_manifest("configs/audits/detection_subspace_long_v12_paired_online_gain_v1.json")
+    assert spec["training"]["outer_objective"] == "online_gain"
+    assert spec["training"]["smooth_ber_temperature"] == 1.0
 
 
 def test_v11_manifest_keeps_protocol_and_fixes_outer_surrogate_temperature():
