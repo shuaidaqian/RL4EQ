@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11", "fixed-channel-subspace-development-v12"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11", "fixed-channel-subspace-development-v12", "fixed-channel-subspace-development-v13"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -86,6 +86,13 @@ def read_manifest(path):
                 or training.get("outer_objective") != "online_gain"
                 or training.get("smooth_ber_temperature") != 1.0):
             raise ValueError("v12只允许固定T=1平滑BER下的配对在线增益外层目标。")
+    if spec.get("schema_version") == "fixed-channel-subspace-development-v13":
+        training = spec.get("training", {})
+        if (spec.get("learned_context_update") is not True
+                or spec.get("learned_gradient_transport") is not False
+                or training.get("outer_objective") != "frozen_error_conditioned"
+                or training.get("smooth_ber_temperature") != 1.0):
+            raise ValueError("v13只允许T=1的Frozen错误条件化Online外层目标。")
     return spec
 
 
@@ -305,6 +312,27 @@ def paired_online_gain_loss(frozen_loss, online_loss):
     return frozen_loss + online_loss + torch.nn.functional.softplus(gap)
 
 
+def frozen_error_conditioned_loss(frozen_logits, online_logits, row, smooth_ber_temperature=1.0):
+    """离线按Frozen错判分桶，平衡纠错与维持正确位边距。"""
+    if not np.isfinite(smooth_ber_temperature) or smooth_ber_temperature <= 0:
+        raise ValueError("平滑BER温度必须为正有限数。")
+    offline = row["offline"]
+    mask = offline["data_mask"]
+    labels = offline["bits"][mask].float().mul(2).sub(1)
+    frozen_margin = labels * frozen_logits[mask]
+    online_margin = labels * online_logits[mask]
+    frozen_error = frozen_margin.detach() <= 0
+    online_per_symbol = torch.sigmoid(-online_margin / smooth_ber_temperature)
+    if bool(frozen_error.any()) and bool((~frozen_error).any()):
+        error_loss = online_per_symbol[frozen_error].mean()
+        correct_loss = online_per_symbol[~frozen_error].mean()
+        online_loss = .5 * (error_loss + correct_loss)
+    else:
+        online_loss = online_per_symbol.mean()
+    frozen_loss = torch.sigmoid(-frozen_margin / smooth_ber_temperature).mean()
+    return frozen_loss + online_loss
+
+
 def sequence_loss(model, session, settings, update_frames, *, adapt, create_graph,
                   outer_objective="bce", smooth_ber_temperature=1.0):
     """联合最近合法Adapt历史更新；当前帧守门后评分当前和下一帧Data。"""
@@ -322,12 +350,18 @@ def sequence_loss(model, session, settings, update_frames, *, adapt, create_grap
         for offset in (0, 1):
             target = session["frames"][index + offset]
             online_loss = outer_data_loss(model.logits(target["observation"], current), target,
-                "smooth_ber" if outer_objective == "online_gain" else outer_objective,
+                "smooth_ber" if outer_objective in {"online_gain", "frozen_error_conditioned"}
+                else outer_objective,
                 smooth_ber_temperature)
             if outer_objective == "online_gain":
                 frozen_loss = outer_data_loss(model.logits(target["observation"], origin), target,
                     "smooth_ber", smooth_ber_temperature)
                 losses.append(paired_online_gain_loss(frozen_loss, online_loss))
+            elif outer_objective == "frozen_error_conditioned":
+                frozen_logits = model.logits(target["observation"], origin)
+                online_logits = model.logits(target["observation"], current)
+                losses.append(frozen_error_conditioned_loss(frozen_logits, online_logits,
+                    target, smooth_ber_temperature))
             else:
                 losses.append(online_loss)
     outer = torch.stack(losses).mean()

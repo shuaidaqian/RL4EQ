@@ -53,4 +53,4 @@
 
 v14后的离线只读Data边界可达性已完成，见[配对增益实验归档](results/detection_subspace_paired_online_gain_v1_20261105/README.md)中的分析文件。每SNR三个既有开发seed显示，8维当前基在0.15单步半径内理论可翻转的错误位比例低于5%；即使用3步的0.45位移上界，四点约为1.8/5.7/18.0/22.0%。合法Pilot候选实际翻转错误仅4/1/0/0，并且增加一些错误位边距、同时减少另一些边距。该诊断指向表示作用范围和Pilot方向两项限制，Data只作离线事后诊断。
 
-下一项单因素尝试离线Frozen错误条件化Online外层目标：依据Frozen的Data错判掩码训练适配轨迹纠正原错判并守住正确位间隔，在线输入与更新规则不读取Data。仍用固定信道和既有开发seed，不开始独立确认；若此目标没有在线正增益，再评估扩展神经子空间维度/作用位置，而不继续微调门控。
+离线Frozen错误条件化Online外层目标已在[第十五轮结果](results/detection_subspace_frozen_error_outer_v1_20261105/README.md)完成，但四SNR Online与Frozen BER完全相同。下一步先审计16维候选子空间的Pilot Jacobian秩、条件数、跨帧稳定性和Data输出作用；只有合法Adapt资源能辨认新增方向时才训练。不得因维度增大自动宣称改进，信道与Pilot协议不变，正式确认不启动。

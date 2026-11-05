@@ -10,7 +10,8 @@ import torch
 
 from agent.detection_subspace import DetectionSubspace, PilotObservation, capture_observation
 from evaluation.adaptability_audit import deployable_frame
-from evaluation.subspace_development import outer_data_loss, paired_online_gain_loss, read_manifest, sequence_loss
+from evaluation.subspace_development import (frozen_error_conditioned_loss, outer_data_loss,
+    paired_online_gain_loss, read_manifest, sequence_loss)
 from training.deterministic_adaptation import DeterministicSettings
 from training.pilot_risk_gate import FEATURE_NAMES, PilotRiskRegressor, validation_risk_features
 from training.subspace_adaptation import coefficient_update, pilot_loss, project, update_subspace
@@ -375,6 +376,24 @@ def test_paired_online_gain_objective_keeps_frozen_quality_and_pushes_online_bel
     spec = read_manifest("configs/audits/detection_subspace_long_v12_paired_online_gain_v1.json")
     assert spec["training"]["outer_objective"] == "online_gain"
     assert spec["training"]["smooth_ber_temperature"] == 1.0
+
+
+def test_frozen_error_conditioned_objective_rewards_correcting_frozen_errors():
+    bits = torch.tensor([1., 1., 0., 1.])
+    row = dict(offline=dict(data_mask=torch.ones(4, dtype=torch.bool), bits=bits))
+    frozen = torch.tensor([-.5, 2., -2., 1.])
+    unchanged = frozen.clone().requires_grad_(True)
+    corrected = torch.tensor([.5, 2., -2., 1.], requires_grad=True)
+    unchanged_loss = frozen_error_conditioned_loss(frozen, unchanged, row)
+    corrected_loss = frozen_error_conditioned_loss(frozen, corrected, row)
+    assert corrected_loss < unchanged_loss
+    gradient, = torch.autograd.grad(unchanged_loss, unchanged)
+    assert gradient[0] < 0
+    assert gradient[1] < 0
+    assert gradient[2] > 0
+
+    spec = read_manifest("configs/audits/detection_subspace_long_v13_frozen_error_outer_v1.json")
+    assert spec["training"]["outer_objective"] == "frozen_error_conditioned"
 
 
 def test_v11_manifest_keeps_protocol_and_fixes_outer_surrogate_temperature():
