@@ -40,7 +40,12 @@
   "formal_confirmation": {
     "primary_operating_range": "沿用此前0/5/10/15 dB四个SNR，全部保留为确认报告的主要运行点；不据开发结果挑选或删点",
     "primary_effect_metric_and_threshold": null,
-    "noninferiority_margins": null,
+    "noninferiority_margins": {
+      "comparison": "在线微调相对同源、同物理状态跟踪的离线预训练冻结网络",
+      "metric": "各SNR配对Data绝对BER差 online_minus_frozen",
+      "maximum_allowed_degradation": 0.0,
+      "status": "用户已明确在线微调不得比离线冻结网络差；具体单侧置信界、多重比较校正与样本量待预注册"
+    },
     "trajectory_and_drift_protocol": null,
     "steady_state_and_recovery_definitions": null,
     "independent_seed_manifest": null,
