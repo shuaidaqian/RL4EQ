@@ -259,6 +259,18 @@ def main() -> None:
     parser.add_argument("--pretrained", default="pretrained/model_best.pt")
     parser.add_argument("--transfer-checkpoint", default=None, help="四臂机制实验的更新后泛化 checkpoint；pretrained 为普通监督分支。")
     parser.add_argument("--transfer-persistent", action="store_true", help="四臂机制实验中累计保留通过 Reward 验收的 PEFT 参数。")
+    parser.add_argument("--transfer-baseline-optimizer-state", choices=["reset", "persistent"], default="reset",
+                        help="四臂基线分支的在线Adam动量状态模式。")
+    parser.add_argument("--transfer-post-optimizer-state", choices=["reset", "persistent"], default="reset",
+                        help="四臂更新后分支的在线Adam动量状态模式。")
+    parser.add_argument("--transfer-baseline-total-delta-norm", type=float, default=None,
+                        help="四臂基线分支的累计PEFT位移半径；默认使用配置值。")
+    parser.add_argument("--transfer-post-total-delta-norm", type=float, default=None,
+                        help="四臂更新后分支的累计PEFT位移半径；默认使用配置值。")
+    parser.add_argument("--transfer-baseline-inner-history-frames", type=int, default=None,
+                        help="四臂基线分支每次更新使用的最近Adapt Pilot帧数。")
+    parser.add_argument("--transfer-post-inner-history-frames", type=int, default=None,
+                        help="四臂更新后分支每次更新使用的最近Adapt Pilot帧数。")
     parser.add_argument("--traditional-calibration", default=None, help="显式加载已冻结的传统 FIR/DFE/FDE 校准协议。")
     parser.add_argument("--policy", default="logs/online/policy.pt")
     parser.add_argument("--method-group", choices=["traditional", "proposed", "diagnostic", "main", "all"], default=None)
@@ -431,6 +443,12 @@ def main() -> None:
             seeds=list(range(args.seed_start, args.seed_start + args.num_seeds)), snrs=args.snrs,
             frames=args.frames, device=args.device, output_dir=args.output_dir,
             state_split=args.state_split or "heldout_edge", persistent=args.transfer_persistent,
+            baseline_optimizer_state=args.transfer_baseline_optimizer_state,
+            post_optimizer_state=args.transfer_post_optimizer_state,
+            baseline_total_delta_norm=args.transfer_baseline_total_delta_norm,
+            post_total_delta_norm=args.transfer_post_total_delta_norm,
+            baseline_inner_history_frames=args.transfer_baseline_inner_history_frames,
+            post_inner_history_frames=args.transfer_post_inner_history_frames,
         )
         return
     traditional_calibration = (

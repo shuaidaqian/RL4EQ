@@ -91,6 +91,7 @@ def test_online_trajectory_keeps_data_labels_out_of_state_transition():
                 create_graph=False, groups={"phase_trend"}, objective="bce",
                 receiver_input="adapt_only", reward_receiver_input="pilot",
                 reward_task="full_frame", reward_objective="bce", snr_db=10,
+                history_frames=3,
             )
 
     result, stats = run(contexts)
@@ -102,6 +103,9 @@ def test_online_trajectory_keeps_data_labels_out_of_state_transition():
         item["reward_hard_accepted"] for item in poisoned_stats["steps"]
     ]
     assert all(not item["data_labels_used_for_transition"] for item in stats["steps"])
+    assert [item["adapt_history_frame_indices"] for item in stats["steps"]] == [
+        [0], [0, 1], [0, 1, 2], [1, 2, 3]
+    ]
     assert torch.isfinite(stats["trend_loss"])
 
 
@@ -115,6 +119,74 @@ def test_online_trajectory_requires_contiguous_frames():
             receiver_input="adapt_only", reward_receiver_input="pilot",
             reward_task="full_frame", reward_objective="bce", snr_db=10,
         )
+
+
+def test_online_trajectory_or_surrogate_does_not_override_hard_rejection(monkeypatch):
+    """OR 代理只影响离线梯度，直通前向仍严格服从 Reward 硬拒绝。"""
+    import training.windowed_discrete_ppo as online_guard
+
+    model, first = _fixture()
+    contexts = [replace(first, frame=replace(first.frame, frame_index=index)) for index in (0, 1)]
+    monkeypatch.setattr(online_guard, "should_accept_reward_guard", lambda **kwargs: False)
+    initial = {name: value.detach().clone()
+               for name, value in model.peft.named_group_parameters({"phase_trend"})}
+    with sdpa_kernel(SDPBackend.MATH):
+        result, stats = differentiable_online_trajectory(
+            model, contexts, learning_rate=0.001, steps=1, max_delta_norm=0.05,
+            create_graph=False, groups={"phase_trend"}, objective="bce",
+            receiver_input="adapt_only", reward_receiver_input="pilot",
+            reward_task="full_frame", reward_objective="bce", snr_db=10,
+            soft_gate_rule="hard_guard_or", persist_optimizer_state=True,
+        )
+    for name, value in initial.items():
+        torch.testing.assert_close(result[name], value, rtol=0, atol=0)
+    assert all(not row["reward_hard_accepted"] for row in stats["steps"])
+    assert all(row["soft_gate_rule"] == "hard_guard_or" for row in stats["steps"])
+    assert all(row["optimizer_state_steps"] == 0 for row in stats["steps"])
+
+
+def test_differentiable_adapt_can_carry_adam_moments_across_frames():
+    """Adam的一、二阶状态与参数状态使用相同的跨帧时间轴。"""
+    model, first = _fixture()
+    phase_rotation = torch.tensor(complex(torch.cos(torch.tensor(0.17)), torch.sin(torch.tensor(0.17))),
+                                  dtype=first.frame.rx_symbols.dtype)
+    second = replace(first, frame=replace(first.frame, frame_index=first.frame.frame_index + 1,
+                                           rx_symbols=first.frame.rx_symbols * phase_rotation))
+    _, first_update = differentiable_adapt(
+        model, [first], learning_rate=0.001, steps=2, max_delta_norm=0.05,
+        groups={"phase_trend"}, objective="bce", optimizer_state=None,
+        return_optimizer_state=True,
+    )
+    _, carried_update = differentiable_adapt(
+        model, [second], learning_rate=0.001, steps=2, max_delta_norm=0.05,
+        groups={"phase_trend"}, objective="bce", optimizer_state=first_update["_optimizer_state"],
+        return_optimizer_state=True,
+    )
+    assert first_update["_optimizer_state"]["steps"] == 2
+    assert carried_update["_optimizer_state"]["steps"] == 4
+    assert all(torch.isfinite(value).all() for value in carried_update["_optimizer_state"]["moments"].values())
+    assert all(torch.isfinite(value).all() for value in carried_update["_optimizer_state"]["variances"].values())
+
+
+def test_trajectory_commits_adam_moments_only_with_accepted_parameter_state(monkeypatch):
+    """Reward接受时动量步数随帧递增，拒绝测试覆盖原子回滚。"""
+    import training.windowed_discrete_ppo as online_guard
+
+    model, first = _fixture()
+    contexts = [replace(first, frame=replace(first.frame, frame_index=index)) for index in (0, 1)]
+    monkeypatch.setattr(online_guard, "should_accept_reward_guard", lambda **kwargs: True)
+    with sdpa_kernel(SDPBackend.MATH):
+        _, stats = differentiable_online_trajectory(
+            model, contexts, learning_rate=0.001, steps=2, max_delta_norm=0.05,
+            create_graph=True, groups={"phase_trend"}, objective="bce",
+            receiver_input="adapt_only", reward_receiver_input="pilot",
+            reward_task="full_frame", reward_objective="bce", snr_db=10,
+            persist_optimizer_state=True,
+        )
+    assert [row["optimizer_state_steps"] for row in stats["steps"]] == [2, 4]
+    gradient, = torch.autograd.grad(stats["online_data_loss"],
+                                    model.online_phase_trend_adapter.state_to_phase_cfo.weight)
+    assert torch.isfinite(gradient).all()
 
 
 @pytest.mark.parametrize("group", ["head", "adapter_lora_head", "phase"])
@@ -276,6 +348,42 @@ def test_four_arm_summary_uses_seed_means_and_reports_interaction():
     assert result["post_vs_baseline_online_gain"]["mean"] == pytest.approx(0.02)
 
 
+def test_four_arm_evaluation_allows_separate_cumulative_peft_radii(tmp_path, monkeypatch):
+    """半径消融只改累计投影，不覆盖每帧内循环半径。"""
+    import json
+    from types import SimpleNamespace
+    import evaluation.pilot_transfer as evaluation
+
+    model, context = _fixture()
+    config = {"model": model.config.to_dict(), "pilot_layout": "prefix", "main_level": "B",
+              "offline_state_split": "offline_train", "pilot_transfer": {
+                  "inner_learning_rate": 0.0025, "inner_steps": 1, "max_delta_norm": 0.05,
+              }}
+    trainer = PilotTransferTrainer(config, "cpu")
+    trainer.model.load_state_dict(model.state_dict())
+    trainer.save(tmp_path, {"history": []})
+    checkpoint = tmp_path / "model_best.pt"
+    frame = context.frame
+
+    def episode(*args, frames, **kwargs):
+        return (SimpleNamespace(state_metadata=lambda: {}), context.condition.complex_cir.reshape(-1),
+                0, context.tail, [replace(frame, frame_index=index) for index in range(frames)])
+
+    monkeypatch.setattr(evaluation, "make_episode", episode)
+    monkeypatch.setattr(evaluation, "make_context", lambda current, *args: replace(context, frame=current))
+    output = tmp_path / "radius"
+    summary = evaluation.run_transfer_comparison(
+        config, baseline_checkpoint=checkpoint, post_checkpoint=checkpoint,
+        seeds=[41011], snrs=[5], frames=2, device="cpu", output_dir=output,
+        persistent=True, baseline_total_delta_norm=0.05, post_total_delta_norm=0.1,
+    )
+    rows = [json.loads(line) for line in (output / "frame_metrics.jsonl").read_text().splitlines()]
+    assert summary["manifest"]["total_delta_norms"] == {"baseline": 0.05, "post_adapt": 0.1}
+    assert {row["max_total_delta_norm"] for row in rows if row["branch"] == "baseline"} == {0.05}
+    assert {row["max_total_delta_norm"] for row in rows if row["branch"] == "post_adapt"} == {0.1}
+    assert all(row["episode_delta_norm_online"] <= row["max_total_delta_norm"] + 1e-6 for row in rows)
+
+
 @pytest.mark.parametrize("full_rx,prefix,persistent", [(False, False, False), (True, False, False), (True, True, False), (True, True, True)])
 @pytest.mark.parametrize("burn_in", [0, 7])
 @pytest.mark.parametrize("state_split", ["heldout_edge", "offline_train"])
@@ -425,6 +533,24 @@ def test_four_arm_evaluation_rejects_training_receiver_protocol_mismatch(tmp_pat
         evaluation.run_transfer_comparison(config, baseline_checkpoint=tmp_path / "old.pt",
             post_checkpoint=tmp_path / "old.pt", seeds=[60001], snrs=[10], frames=1,
             device="cpu", output_dir=tmp_path / "result")
+
+
+def test_four_arm_evaluation_rejects_trajectory_optimizer_state_mismatch(tmp_path, monkeypatch):
+    """轨迹 checkpoint 的训练 Adam 状态模式必须与评估模式一致。"""
+    import evaluation.pilot_transfer as evaluation
+
+    model, _ = _fixture()
+    settings = {"inner_learning_rate": 0.0025, "inner_steps": 1, "max_delta_norm": 0.05,
+                "trajectory_persist_optimizer_state": True}
+    config = {"pilot_transfer": settings}
+    monkeypatch.setattr(evaluation, "_load_branch", lambda *args: (
+        model, {"metrics": {"stage": "pilot_transfer", "settings": settings}}))
+    with pytest.raises(ValueError, match="Adam 状态模式与评估分支不匹配"):
+        evaluation.run_transfer_comparison(
+            config, baseline_checkpoint=tmp_path / "old.pt", post_checkpoint=tmp_path / "old.pt",
+            seeds=[60002], snrs=[10], frames=1, device="cpu", output_dir=tmp_path / "result",
+            persistent=True, baseline_optimizer_state="reset", post_optimizer_state="persistent",
+        )
 
 
 @pytest.mark.parametrize("identity_update", [False, True])

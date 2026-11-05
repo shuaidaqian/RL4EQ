@@ -33,8 +33,8 @@ def run_diagnostic(config, checkpoint, seeds, frames, device, output, *, groups=
         raise ValueError("诊断输出已存在，请指定新路径。")
     settings = config["pilot_transfer"]
     groups = list(groups if groups is not None else settings.get("inner_groups", ["head"]))
-    if groups not in [["head"], ["phase"]] or settings.get("inner_objective") != "bce":
-        raise ValueError("此诊断只支持现有 head 或神经相位校正参数组的 BCE 更新。")
+    if groups not in [["head"], ["phase"], ["phase_trend"]] or settings.get("inner_objective") != "bce":
+        raise ValueError("此诊断仅支持 head、phase 或 phase_trend 单组的 Adapt BCE 更新。")
     if score_start < 0:
         raise ValueError("Pilot 评分起点不能为负。")
     model, _ = _load_branch(Path(checkpoint), config, device)
@@ -70,15 +70,23 @@ def run_diagnostic(config, checkpoint, seeds, frames, device, output, *, groups=
                 )
                 # 此后才读取 Data 标签；得到的梯度只写入诊断文件，禁止用于动作选择。
                 pilot_loss = _AdaptObjective(model, score_start=score_start, objective="bce")(context)
-                pilot_grad = torch.cat([g.flatten() for g in torch.autograd.grad(
-                    pilot_loss, [p for _, p in selected],
-                )])
+                pilot_gradients = torch.autograd.grad(
+                    pilot_loss, [p for _, p in selected], allow_unused=True,
+                )
+                pilot_grad = torch.cat([
+                    (torch.zeros_like(parameter) if gradient is None else gradient).flatten()
+                    for (_, parameter), gradient in zip(selected, pilot_gradients)
+                ])
                 before = context_logits(model, context)
                 mask = frame.data_mask
                 data_loss = F.binary_cross_entropy_with_logits(before[mask], frame.bits[mask].float())
-                data_grad = torch.cat([g.flatten() for g in torch.autograd.grad(
-                    data_loss, [p for _, p in selected],
-                )])
+                data_gradients = torch.autograd.grad(
+                    data_loss, [p for _, p in selected], allow_unused=True,
+                )
+                data_grad = torch.cat([
+                    (torch.zeros_like(parameter) if gradient is None else gradient).flatten()
+                    for (_, parameter), gradient in zip(selected, data_gradients)
+                ])
                 delta = torch.cat([(fast[name] - parameter).detach().flatten() for name, parameter in selected])
                 cosine = F.cosine_similarity(pilot_grad, data_grad, dim=0, eps=1e-12)
                 with torch.no_grad():
@@ -148,7 +156,7 @@ def main():
     parser.add_argument("--frames", type=int, default=4)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--output", required=True)
-    parser.add_argument("--groups", nargs="+", choices=["head", "phase"], default=None)
+    parser.add_argument("--groups", nargs="+", choices=["head", "phase", "phase_trend"], default=None)
     parser.add_argument("--score-start", type=int, default=0)
     args = parser.parse_args()
     if args.frames < 1 or args.num_seeds < 1:

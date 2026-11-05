@@ -220,7 +220,8 @@ class _AdaptObjective(nn.Module):
 
 def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_norm,
                          create_graph=False, initial_parameters=None, score_start=0,
-                         groups=None, objective="pilot_signal_reconstruction", receiver_input="adapt_only"):
+                         groups=None, objective="pilot_signal_reconstruction", receiver_input="adapt_only",
+                         optimizer_state=None, return_optimizer_state=False):
     """复现 AdamW、梯度裁剪和投影，损失不读取 Reward/Data 标签。
 
     外层训练保留更新算子的计算图；在线/诊断关闭高阶图。未使用的状态映射
@@ -258,7 +259,10 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
         if not fast[name].requires_grad:
             fast[name] = fast[name].detach().clone().requires_grad_(True)
     before = {name: fast[name] for name in names}
-    moments, variances = {}, {}
+    optimizer_state = optimizer_state or {}
+    step_offset = int(optimizer_state.get("steps", 0))
+    moments = {name: value for name, value in optimizer_state.get("moments", {}).items()}
+    variances = {name: value for name, value in optimizer_state.get("variances", {}).items()}
     if objective == "channel_state_shared_map":
         from training.shared_pilot_state import SharedNeuralPilotObjective
         if selected_groups != {"channel_state_memory"}:
@@ -285,8 +289,9 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
             grad = grad * clip
             moments[name] = 0.9 * moments.get(name, torch.zeros_like(grad)) + 0.1 * grad
             variances[name] = 0.999 * variances.get(name, torch.zeros_like(grad)) + 0.001 * grad.square()
-            corrected_mean = moments[name] / (1.0 - 0.9 ** step)
-            corrected_variance = variances[name] / (1.0 - 0.999 ** step)
+            optimizer_step = step_offset + step
+            corrected_mean = moments[name] / (1.0 - 0.9 ** optimizer_step)
+            corrected_variance = variances[name] / (1.0 - 0.999 ** optimizer_step)
             # 避免零方差点的高阶导数出现 0 * inf；不影响浮点精度下的 AdamW 一致性。
             denominator = corrected_variance.clamp_min(1e-24).sqrt() + 1e-8
             fast[name] = fast[name] * (1.0 - learning_rate * 0.01) - learning_rate * corrected_mean / denominator
@@ -295,7 +300,17 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
     scale = (max_delta_norm / norm).clamp(max=1.0)
     for name in names:
         fast[name] = before[name] + scale * (fast[name] - before[name])
-    return fast, {"adapt_losses": losses, "delta_norm": float(norm.detach().clamp(max=max_delta_norm).cpu())}
+    result = {
+        "adapt_losses": losses,
+        "delta_norm": float(norm.detach().clamp(max=max_delta_norm).cpu()),
+    }
+    if return_optimizer_state:
+        result["_optimizer_state"] = {
+            "steps": step_offset + int(steps),
+            "moments": moments,
+            "variances": variances,
+        }
+    return fast, result
 
 
 def make_episode(config, model, *, seed, snr, frames, state_split, device):
@@ -345,6 +360,9 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
                                      objective, receiver_input, reward_receiver_input,
                                      reward_task, reward_objective, snr_db,
                                      inner_task="full_frame", tail_alpha=0.5,
+                                     soft_gate_rule="conservative_and",
+                                     persist_optimizer_state=False,
+                                     history_frames=1, initial_history=(),
                                      trend_temperature=0.01,
                                      soft_gate_bce_temperature=0.01,
                                      soft_gate_ber_temperature=0.02):
@@ -362,10 +380,14 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
         raise ValueError("持续轨迹必须共享同一会话的 acquisition CIR 与 CFO 估计。")
     if reward_objective != "bce":
         raise ValueError("持续轨迹内循环首版仅支持pilot BCE Reward守门。")
+    if soft_gate_rule not in {"conservative_and", "hard_guard_or"}:
+        raise ValueError("不支持的持续轨迹门控梯度代理。")
     if min(trend_temperature, soft_gate_bce_temperature, soft_gate_ber_temperature) <= 0:
         raise ValueError("持续轨迹训练的平滑温度必须为正数。")
     if not 0.0 <= tail_alpha <= 1.0:
         raise ValueError("soft-tail 更新系数必须位于[0, 1]。")
+    if int(history_frames) < 1:
+        raise ValueError("Adapt历史长度必须为正整数。")
     selected_groups = set(groups)
     named = dict(model.named_parameters())
     names = [name for name, _ in model.peft.named_group_parameters(selected_groups)]
@@ -376,6 +398,19 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
     cir = reference_cir
     cfo = reference_cfo
     tail = contexts[0].tail.detach()
+    active_optimizer_state = None
+    history = list(initial_history)[-(int(history_frames) - 1):] if int(history_frames) > 1 else []
+    if len(history) > int(history_frames) - 1:
+        raise ValueError("初始Adapt历史长度超过配置窗口。")
+    if history:
+        history_contexts = history + [contexts[0]]
+        if (history[-1].frame.frame_index + 1 != contexts[0].frame.frame_index
+                or any(history_contexts[index + 1].frame.frame_index != history_contexts[index].frame.frame_index + 1
+                       for index in range(len(history_contexts) - 1))):
+            raise ValueError("初始Adapt历史必须连续并紧邻持续轨迹起点。")
+        if any(not torch.equal(item.condition.complex_cir.detach(), reference_cir)
+               or float(item.cfo) != reference_cfo for item in history):
+            raise ValueError("初始Adapt历史必须来自同一acquisition CIR/CFO会话。")
     base_all_losses, frozen_data_losses, online_data_losses = [], [], []
     step_records = []
     from training.windowed_discrete_ppo import should_accept_reward_guard
@@ -391,11 +426,15 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
 
         before = fast
         inner_context, score_start = task_context(context, inner_task, role="adapt")
+        update_contexts = [task_context(item, inner_task, role="adapt")[0] for item in history] + [inner_context]
         candidate, update = differentiable_adapt(
-            model, [inner_context], learning_rate=learning_rate, steps=steps,
+            model, update_contexts, learning_rate=learning_rate, steps=steps,
             max_delta_norm=max_delta_norm, create_graph=create_graph,
             initial_parameters=before, groups=selected_groups,
-            objective=objective, receiver_input=receiver_input, score_start=score_start)
+            objective=objective, receiver_input=receiver_input, score_start=score_start,
+            optimizer_state=active_optimizer_state if persist_optimizer_state else None,
+            return_optimizer_state=persist_optimizer_state)
+        candidate_optimizer_state = update.pop("_optimizer_state", None)
         step_delta = torch.sqrt(sum((candidate[name] - before[name]).float().square().sum()
                                     for name in names) + 1e-24)
         cumulative = torch.sqrt(sum((candidate[name] - origin[name]).float().square().sum()
@@ -432,18 +471,44 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
         signed = 2.0 * reward_labels[reward_mask] - 1.0
         soft_error_before = torch.sigmoid(-signed * logits_before[reward_mask] / soft_gate_ber_temperature).mean()
         soft_error_candidate = torch.sigmoid(-signed * logits_candidate[reward_mask] / soft_gate_ber_temperature).mean()
-        soft_accept = torch.sigmoid((loss_before - loss_candidate - 0.005 * step_delta)
-                                    / soft_gate_bce_temperature) * torch.sigmoid(
-                                        (soft_error_before - soft_error_candidate) / soft_gate_ber_temperature)
+        soft_bce_accept = torch.sigmoid((loss_before - loss_candidate - 0.005 * step_delta)
+                                        / soft_gate_bce_temperature)
+        soft_ber_delta = soft_error_before - soft_error_candidate
+        soft_ber_accept = torch.sigmoid(soft_ber_delta / soft_gate_ber_temperature)
+        if soft_gate_rule == "conservative_and":
+            # 首轮保守代理：只在两种平滑反馈都支持更新时传梯度。
+            soft_accept = soft_bce_accept * soft_ber_accept
+        else:
+            # 线上规则是 BER 改善，或 BER 持平时 BCE 改善；用软 BER 平局概率近似第二分支。
+            soft_ber_tie = torch.exp(-soft_ber_delta.abs() / soft_gate_ber_temperature)
+            soft_accept = soft_ber_accept + (1.0 - soft_ber_accept) * soft_ber_tie * soft_bce_accept
         gate = soft_accept + (1.0 if hard_accept else 0.0) - soft_accept.detach()
         fast = dict(before)
         for name in names:
             fast[name] = before[name] + gate * (candidate[name] - before[name])
+        if persist_optimizer_state:
+            previous_moments = {} if active_optimizer_state is None else active_optimizer_state["moments"]
+            previous_variances = {} if active_optimizer_state is None else active_optimizer_state["variances"]
+            active_optimizer_state = {
+                "steps": ((0 if active_optimizer_state is None else active_optimizer_state["steps"])
+                          + (int(steps) if hard_accept else 0)),
+                "moments": {}, "variances": {},
+            }
+            for name, value in candidate_optimizer_state["moments"].items():
+                old = previous_moments.get(name, torch.zeros_like(value))
+                active_optimizer_state["moments"][name] = old + gate * (value - old)
+            for name, value in candidate_optimizer_state["variances"].items():
+                old = previous_variances.get(name, torch.zeros_like(value))
+                active_optimizer_state["variances"][name] = old + gate * (value - old)
 
         online_logits = context_logits(model, context, fast)
         online_data_losses.append(F.binary_cross_entropy_with_logits(
             online_logits[frame.data_mask].float(), frame.bits[frame.data_mask].float()))
         tail = next_pilot_tail(model, context, alpha=tail_alpha, parameters=fast)
+        if int(history_frames) > 1:
+            from training.shared_pilot_state import adapt_only_history_context
+            history.append(adapt_only_history_context(frame, context.condition, context.tail))
+            history = history[-(int(history_frames) - 1):]
         step_records.append({
             "frame_index": int(frame.frame_index), "reward_hard_accepted": hard_accept,
             "reward_loss_before": float(loss_before.detach().cpu()),
@@ -453,6 +518,10 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
             "step_delta_norm": float(step_delta.detach().clamp(max=max_delta_norm).cpu()),
             "cumulative_delta_norm": float(cumulative.detach().clamp(max=max_delta_norm).cpu()),
             "adapt_delta_norm": update["delta_norm"],
+            "adapt_history_frame_indices": [item.frame.frame_index for item in update_contexts],
+            "soft_gate_accept_probability": float(soft_accept.detach().cpu()),
+            "soft_gate_rule": soft_gate_rule,
+            "optimizer_state_steps": 0 if active_optimizer_state is None else active_optimizer_state["steps"],
             "data_labels_used_for_transition": False,
         })
 
@@ -488,9 +557,8 @@ class PilotTransferTrainer:
         self.post_target_frame_offsets = offsets
         self.inner_receiver_input, self.reward_receiver_input = receiver_inputs(self.settings)
         self.inner_history_frames = int(self.settings.get("inner_history_frames", 1))
-        if self.inner_history_frames < 1 or (self.inner_history_frames > 1 and
-            self.settings.get("inner_objective") != "channel_state_shared_map"):
-            raise ValueError("多帧离线内循环要求共同神经状态目标和正历史长度。")
+        if self.inner_history_frames < 1:
+            raise ValueError("离线Adapt历史长度必须为正整数。")
         self.inner_task, self.reward_task = receiver_tasks(self.settings)
         if self.settings.get("inner_objective") == "channel_state_shared_map" and self.inner_task != "full_frame":
             raise ValueError("共同状态内循环要求完整帧的合法 Adapt 方程。")
@@ -501,6 +569,8 @@ class PilotTransferTrainer:
                 len(self.post_target_frame_offsets) < 2
                 or self.post_target_frame_offsets != list(range(len(self.post_target_frame_offsets)))):
             raise ValueError("trajectory 目标要求连续帧偏移 [0, 1, ..., T-1]，且至少两帧。")
+        if self.settings.get("trajectory_persist_optimizer_state", False) and self.objective != "trajectory":
+            raise ValueError("跨帧优化器状态只允许用于 trajectory 外层目标。")
         if config.get("pilot_layout") != "prefix" or config.get("main_level") != "B":
             raise ValueError("适配训练只支持 Level B 前缀 Pilot。")
         if config.get("offline_state_split") != "offline_train":
@@ -703,6 +773,10 @@ class PilotTransferTrainer:
                         snr_db=snr,
                         inner_task=self.inner_task,
                         tail_alpha=float(self.config.get("tail_update_alpha", 0.5)),
+                        soft_gate_rule=self.settings.get("trajectory_soft_gate_rule", "conservative_and"),
+                        persist_optimizer_state=bool(self.settings.get("trajectory_persist_optimizer_state", False)),
+                        history_frames=self.inner_history_frames,
+                        initial_history=context.offline_adapt_contexts,
                         trend_temperature=float(self.settings.get("trajectory_trend_temperature", 0.01)),
                         soft_gate_bce_temperature=float(self.settings.get("trajectory_soft_gate_bce_temperature", 0.01)),
                         soft_gate_ber_temperature=float(self.settings.get("trajectory_soft_gate_ber_temperature", 0.02)),
@@ -788,6 +862,8 @@ class PilotTransferTrainer:
             "outer_uses_offline_data_labels": True,
             "post_adapt_data_objective_enabled": self.objective in {"post_adapt", "trajectory"},
             "post_target_frame_offsets": self.post_target_frame_offsets,
+            "trajectory_soft_gate_rule": self.settings.get("trajectory_soft_gate_rule", "conservative_and"),
+            "trajectory_persist_optimizer_state": bool(self.settings.get("trajectory_persist_optimizer_state", False)),
             "offline_sample_cache_hits": self.sample_cache_hits,
             "offline_sample_cache_misses": self.sample_cache_misses,
             "offline_base_loss": "bce_all",

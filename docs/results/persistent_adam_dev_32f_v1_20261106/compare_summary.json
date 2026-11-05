@@ -1,0 +1,554 @@
+{
+  "manifest": {
+    "schema_version": "pilot-transfer-four-arm-v1",
+    "diagnostic_only": true,
+    "linear_operator_backend": "direct",
+    "main_aggregation_allowed": false,
+    "state_split": "offline_train",
+    "seeds": [
+      47500,
+      47501,
+      47502
+    ],
+    "snrs": [
+      0.0,
+      5.0,
+      10.0,
+      15.0
+    ],
+    "frames": 32,
+    "evaluation_history_frames": 0,
+    "receiver_lookahead_len": 0,
+    "persistent": true,
+    "config": {
+      "schema_version": "eme-long-memory-config-v2",
+      "channel_profile": "eme_long_memory_v2",
+      "profile_name": "eme_long_memory_v2",
+      "profile_frozen_before_proposed": true,
+      "frozen_candidate_id": "LM-B1",
+      "traditional_only_calibration": true,
+      "traditional_only_calibration_summary": "logs/eme_long_memory_v2_traditional_calibration_2026-08-28_fresh/summary.json",
+      "traditional_only_calibration_frames_per_seed": 20,
+      "traditional_only_calibration_status": "阶段性冻结；正式论文统计需无并发重跑至少 60 帧",
+      "proposed_results_used_for_freeze": false,
+      "semantics": "independent EME-inspired long-memory channel class constrained by published lunar radar delay-power envelopes",
+      "source_basis": [
+        "10.6028/jres.069d.195",
+        "10.1109/wescon.1958.1150219"
+      ],
+      "level": "B",
+      "main_level": "B",
+      "aggregation_role": "diagnostic",
+      "max_delay_seconds": 0.0116,
+      "sample_rate_hz": 10000,
+      "symbol_rate_hz": 10000,
+      "samples_per_symbol": 1,
+      "frame_len": 1024,
+      "frame_duration_seconds": 0.1024,
+      "max_delay": 116,
+      "main_delays": [
+        116
+      ],
+      "main_snrs": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_main": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "snrs_pressure": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "pilot_layout": "prefix",
+      "pilot_total": 256,
+      "reward_pilot_total": 32,
+      "pilot_sweep_totals": [
+        64,
+        96,
+        128,
+        160,
+        256
+      ],
+      "strong_path_count": [
+        12,
+        24
+      ],
+      "diffuse_energy_ratio": [
+        0.2,
+        0.35
+      ],
+      "coherence_time_seconds": 1200,
+      "acquisition_to_data_gap_seconds": 0,
+      "rho_frame": 0.999914670307452,
+      "rho": 0.999914670307452,
+      "include_anomalous_scatterer": false,
+      "eme_physical_fields_passthrough": "implemented",
+      "impairment_profile": "cfo_phase_tiny",
+      "residual_cfo_limit": 0.0012,
+      "acquisition_cfo_limit": 0.004,
+      "traditional_methods": [
+        "CFO+DD-Phase LMMSE-FIR",
+        "CFO+DD-Phase DFE-RLS",
+        "SC-FDE-MMSE"
+      ],
+      "optional_impairments": {
+        "cfo": true,
+        "phase_perturbation": true,
+        "nonlinearity": false,
+        "coding": false,
+        "higher_order_modulation": false
+      },
+      "model_validation_sequence_state": true,
+      "training_tail_mode": "online_soft",
+      "tail_update_alpha": 0.5,
+      "online_adaptation_groups": [
+        "phase"
+      ],
+      "online_adaptation_algorithm": "rls",
+      "online_rls_forgetting_factor": 0.995,
+      "online_rls_ridge": 10,
+      "online_rls_warmup_symbols": 116,
+      "online_rls_target_logit": 2,
+      "online_rls_max_total_delta_norm": 0.5,
+      "online_rls_condition_source": "pilot_cir_phase",
+      "online_condition_source": "pilot_cir_phase",
+      "online_adaptation_learning_rate": 0.0004,
+      "online_adaptation_steps": 1,
+      "online_adaptation_max_delta_norm": 1,
+      "online_adaptation_proximal_weight": 0.1,
+      "online_hard_example_weighting": false,
+      "online_hard_example_temperature": 0.5,
+      "online_adaptation_freeze_below_snr_db": 5,
+      "online_adaptation_min_reward_improvement": 0.0005,
+      "online_bandit_action_cost": 1e-06,
+      "online_reward_windows": 2,
+      "online_cross_frame_rollback_tolerance": 1e-05,
+      "online_phase_tracking_smoothing": 0.5,
+      "online_phase_tracking_min_confidence": 0.5,
+      "online_phase_tracking_cfo_limit": 0.0012,
+      "online_adaptation_candidates": [
+        {
+          "name": "lora_conservative",
+          "groups": [
+            "phase"
+          ],
+          "learning_rate_scale": 0.5,
+          "steps": 1,
+          "max_delta_scale": 0.5
+        }
+      ],
+      "offline_state_split": "offline_train",
+      "offline_loss": "bce_all",
+      "online_state_splits": {
+        "offline_train": {
+          "strong_path_count": [
+            12,
+            18
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.28
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0006
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0006
+          ]
+        },
+        "heldout_edge": {
+          "strong_path_count": [
+            19,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.29,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0006,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0006,
+            0.0008
+          ]
+        },
+        "drift": {
+          "strong_path_count": [
+            12,
+            24
+          ],
+          "diffuse_energy_ratio": [
+            0.2,
+            0.35
+          ],
+          "cfo_abs_range": [
+            0.0002,
+            0.0008
+          ],
+          "phase_noise_std_range": [
+            0.0002,
+            0.0008
+          ]
+        }
+      },
+      "model": {
+        "frame_len": 1024,
+        "max_delay": 116,
+        "iterations": 4,
+        "d_model": 64,
+        "num_heads": 4,
+        "adapter_rank": 8,
+        "lora_rank": 8,
+        "conditioner_uses_cir_summary": true,
+        "pilot_conditioned": true,
+        "enable_phase_correction_branch": true,
+        "phase_correction_segments": 4,
+        "phase_correction_initial_scale": 1,
+        "analytic_logit_skip_scale": 0,
+        "physics_warm_start_iterations": 8,
+        "physics_warm_start_scale": 1,
+        "neural_residual_scale": 0.1
+      },
+      "experiment_note": "多帧持久Adapt轨迹离线训练开发配置；不修改信道与Pilot协议，非正式确认。",
+      "diagnostic_only": true,
+      "main_aggregation_allowed": false,
+      "rl_action_names": [
+        "identity",
+        "peft_phase_signal_moderate",
+        "rollback_identity"
+      ],
+      "rl_peft_max_episode_delta_norm": 0.05,
+      "online_ppo_learning_rate": 0.001,
+      "online_ppo_pilot_state_embedding": false,
+      "ppo_window_size": 8,
+      "pilot_transfer": {
+        "objective": "post_adapt",
+        "seed": 31000,
+        "history_frames": 1,
+        "outer_learning_rate": 1e-05,
+        "inner_learning_rate": 0.0025,
+        "inner_steps": 5,
+        "max_delta_norm": 0.05,
+        "base_weight": 1,
+        "post_weight": 1,
+        "post_target_frame_offsets": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "inner_groups": [
+          "phase_trend"
+        ],
+        "trajectory_trend_temperature": 0.01,
+        "trajectory_trend_weight": 1,
+        "trajectory_soft_gate_bce_temperature": 0.01,
+        "trajectory_soft_gate_ber_temperature": 0.02,
+        "reward_objective": "bce"
+      }
+    },
+    "checkpoints": {
+      "baseline": {
+        "path": "D:\\Research\\RL4EQ\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt",
+        "sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4",
+        "training_objective": null
+      },
+      "post_adapt": {
+        "path": "D:\\Research\\RL4EQ\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt",
+        "sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4",
+        "training_objective": null
+      }
+    },
+    "optimizer_state_modes": {
+      "baseline": "reset",
+      "post_adapt": "persistent"
+    },
+    "inner_receiver_input": "adapt_only",
+    "reward_receiver_input": "pilot_only",
+    "inner_task": "full_frame",
+    "reward_task": "full_frame",
+    "reward_objective": "bce"
+  },
+  "per_snr": [
+    {
+      "snr_db": 0.0,
+      "baseline": {
+        "ber_frozen": 0.20845541000987092,
+        "ber_online": 0.20998807065188885,
+        "gain": {
+          "mean": -0.0015326606420179207,
+          "ci95": [
+            -0.003838371393232405,
+            0.0007730501091965634
+          ],
+          "seeds": 3
+        },
+        "late_minus_early_gain": {
+          "mean": 0.005034724871317545,
+          "ci95": [
+            -0.012069721374779388,
+            0.02213917111741448
+          ],
+          "seeds": 3
+        },
+        "positive_seeds": 0,
+        "accepted": 69,
+        "frames": 96,
+        "harmful_acceptances": 18
+      },
+      "post_adapt": {
+        "ber_frozen": 0.20845541000987092,
+        "ber_online": 0.21297201157237092,
+        "gain": {
+          "mean": -0.0045166015625,
+          "ci95": [
+            -0.04100684164095331,
+            0.03197363851595331
+          ],
+          "seeds": 3
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0022569462656974793,
+          "ci95": [
+            -0.03153808756102102,
+            0.03605198009241598
+          ],
+          "seeds": 3
+        },
+        "positive_seeds": 1,
+        "accepted": 51,
+        "frames": 96,
+        "harmful_acceptances": 10
+      },
+      "adaptation_gain_interaction": {
+        "mean": -0.002983940920482079,
+        "ci95": [
+          -0.04146925941633498,
+          0.03550137757537083
+        ],
+        "seeds": 3
+      },
+      "post_vs_baseline_online_gain": {
+        "mean": -0.002983940920482079,
+        "ci95": [
+          -0.04146925941633498,
+          0.03550137757537083
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 5.0,
+      "baseline": {
+        "ber_frozen": 0.06861708092037588,
+        "ber_online": 0.0638563388492912,
+        "gain": {
+          "mean": 0.004760742071084678,
+          "ci95": [
+            -0.0027945944518478387,
+            0.012316078594017194
+          ],
+          "seeds": 3
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0023437509934107464,
+          "ci95": [
+            -0.00300061299000684,
+            0.007688114976828333
+          ],
+          "seeds": 3
+        },
+        "positive_seeds": 3,
+        "accepted": 54,
+        "frames": 96,
+        "harmful_acceptances": 18
+      },
+      "post_adapt": {
+        "ber_frozen": 0.06861708092037588,
+        "ber_online": 0.06434461978885035,
+        "gain": {
+          "mean": 0.004272461131525536,
+          "ci95": [
+            -0.002803126267902534,
+            0.011348048530953607
+          ],
+          "seeds": 3
+        },
+        "late_minus_early_gain": {
+          "mean": -0.0010416656732559204,
+          "ci95": [
+            -0.005283741673377791,
+            0.00320041032686595
+          ],
+          "seeds": 3
+        },
+        "positive_seeds": 3,
+        "accepted": 42,
+        "frames": 96,
+        "harmful_acceptances": 13
+      },
+      "adaptation_gain_interaction": {
+        "mean": -0.0004882809395591418,
+        "ci95": [
+          -0.0015816263456126147,
+          0.000605064466494331
+        ],
+        "seeds": 3
+      },
+      "post_vs_baseline_online_gain": {
+        "mean": -0.0004882809395591418,
+        "ci95": [
+          -0.0015816263456126147,
+          0.000605064466494331
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 10.0,
+      "baseline": {
+        "ber_frozen": 0.013142903997504618,
+        "ber_online": 0.011406792807974853,
+        "gain": {
+          "mean": 0.0017361111895297654,
+          "ci95": [
+            0.0006743719287803562,
+            0.0027978504502791744
+          ],
+          "seeds": 3
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0006510417132327954,
+          "ci95": [
+            -0.0018752258129952795,
+            0.0031773092394608705
+          ],
+          "seeds": 3
+        },
+        "positive_seeds": 3,
+        "accepted": 47,
+        "frames": 96,
+        "harmful_acceptances": 9
+      },
+      "post_adapt": {
+        "ber_frozen": 0.013142903997504618,
+        "ber_online": 0.011284722520940704,
+        "gain": {
+          "mean": 0.0018581814765639137,
+          "ci95": [
+            0.0011410606206343336,
+            0.002575302332493494
+          ],
+          "seeds": 3
+        },
+        "late_minus_early_gain": {
+          "mean": 0.0006076388720733424,
+          "ci95": [
+            -0.0016642374849144812,
+            0.0028795152290611663
+          ],
+          "seeds": 3
+        },
+        "positive_seeds": 3,
+        "accepted": 49,
+        "frames": 96,
+        "harmful_acceptances": 4
+      },
+      "adaptation_gain_interaction": {
+        "mean": 0.00012207028703414835,
+        "ci95": [
+          -0.00024237828232725377,
+          0.00048651885639555047
+        ],
+        "seeds": 3
+      },
+      "post_vs_baseline_online_gain": {
+        "mean": 0.00012207028703414835,
+        "ci95": [
+          -0.00024237828232725377,
+          0.00048651885639555047
+        ],
+        "seeds": 3
+      }
+    },
+    {
+      "snr_db": 15.0,
+      "baseline": {
+        "ber_frozen": 0.002482096417224966,
+        "ber_online": 0.002007378527196124,
+        "gain": {
+          "mean": 0.0004747178900288418,
+          "ci95": [
+            -0.00027035310024128736,
+            0.001219788880298971
+          ],
+          "seeds": 3
+        },
+        "late_minus_early_gain": {
+          "mean": 0.000217013864312321,
+          "ci95": [
+            -0.000277072381935181,
+            0.000711100110559823
+          ],
+          "seeds": 3
+        },
+        "positive_seeds": 3,
+        "accepted": 36,
+        "frames": 96,
+        "harmful_acceptances": 5
+      },
+      "post_adapt": {
+        "ber_frozen": 0.002482096417224966,
+        "ber_online": 0.0020073785296214433,
+        "gain": {
+          "mean": 0.00047471788760352257,
+          "ci95": [
+            -0.0002565115624642604,
+            0.0012059473376713056
+          ],
+          "seeds": 3
+        },
+        "late_minus_early_gain": {
+          "mean": 0.00013020831781129042,
+          "ci95": [
+            -0.0004300329814722813,
+            0.0006904496170948622
+          ],
+          "seeds": 3
+        },
+        "positive_seeds": 3,
+        "accepted": 31,
+        "frames": 96,
+        "harmful_acceptances": 0
+      },
+      "adaptation_gain_interaction": {
+        "mean": -2.4253192047278085e-12,
+        "ci95": [
+          -0.00020215965295857294,
+          0.00020215964810793455
+        ],
+        "seeds": 3
+      },
+      "post_vs_baseline_online_gain": {
+        "mean": -2.4253192047278085e-12,
+        "ci95": [
+          -0.00020215965295857294,
+          0.00020215964810793455
+        ],
+        "seeds": 3
+      }
+    }
+  ]
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 from collections import defaultdict
 from pathlib import Path
@@ -103,21 +104,41 @@ def _load_branch(path, config, device):
 
 def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, seeds,
                             snrs, frames, device, output_dir, state_split="heldout_edge",
-                            persistent=False):
+                            persistent=False, baseline_optimizer_state="reset",
+                            post_optimizer_state="reset", baseline_total_delta_norm=None,
+                            post_total_delta_norm=None, baseline_inner_history_frames=None,
+                            post_inner_history_frames=None):
     """先完成当前帧 Pilot 验收，再首次计算 Data 指标。"""
 
     if frames < 1 or not seeds or len(set(seeds)) != len(seeds) or state_split not in {"offline_train", "heldout_edge"}:
         raise ValueError("离线Pilot-transfer机制实验需要正帧数、独立seed，并使用offline_train或既有heldout_edge。")
     settings = config["pilot_transfer"]
+    optimizer_modes = {"baseline": baseline_optimizer_state, "post_adapt": post_optimizer_state}
+    base_total_radius = float(settings.get("max_total_delta_norm", settings.get("max_delta_norm", 0.05)))
+    total_radii = {
+        "baseline": base_total_radius if baseline_total_delta_norm is None else float(baseline_total_delta_norm),
+        "post_adapt": base_total_radius if post_total_delta_norm is None else float(post_total_delta_norm),
+    }
+    if any(not math.isfinite(value) or value <= 0 for value in total_radii.values()):
+        raise ValueError("跨帧累计PEFT位移半径必须为正有限数。")
+    if any(value not in {"reset", "persistent"} for value in optimizer_modes.values()):
+        raise ValueError("在线优化器状态模式必须为 reset 或 persistent。")
+    if not persistent and any(value == "persistent" for value in optimizer_modes.values()):
+        raise ValueError("跨帧持久优化器状态要求同时开启持久PEFT参数。")
     history_frames = settings.get("evaluation_history_frames", 0)
     if type(history_frames) is not int or history_frames < 0:
         raise ValueError("机制评估历史帧数必须为非负整数。")
     inner_input, reward_input = receiver_inputs(settings)
     inner_task, reward_task = receiver_tasks(settings)
-    inner_history_frames = int(settings.get("inner_history_frames", 1))
-    if inner_history_frames < 1 or (inner_history_frames > 1 and
-        (settings.get("inner_objective") != "channel_state_shared_map" or inner_task != "full_frame")):
-        raise ValueError("多帧四臂检查要求共同状态目标和完整帧 Adapt 方程。")
+    configured_history = int(settings.get("inner_history_frames", 1))
+    history_lengths = {
+        "baseline": configured_history if baseline_inner_history_frames is None else int(baseline_inner_history_frames),
+        "post_adapt": configured_history if post_inner_history_frames is None else int(post_inner_history_frames),
+    }
+    if any(value < 1 for value in history_lengths.values()):
+        raise ValueError("在线Adapt历史长度必须为正整数。")
+    if settings.get("inner_objective") == "channel_state_shared_map" and inner_task != "full_frame":
+        raise ValueError("共同状态目标要求完整帧 Adapt 方程。")
     reward_objective = settings.get("reward_objective", "bce")
     if reward_objective not in {"bce", "channel_state_signal"}:
         raise ValueError("不支持的 Reward 验收目标。")
@@ -138,6 +159,9 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 "evaluation_history_frames": history_frames,
                 "receiver_lookahead_len": int(config.get("receiver_lookahead_len", 0)),
                 "persistent": persistent, "config": config, "checkpoints": {},
+                "optimizer_state_modes": optimizer_modes,
+                "total_delta_norms": total_radii,
+                "inner_history_frames": history_lengths,
                 "inner_receiver_input": inner_input, "reward_receiver_input": reward_input,
                 "inner_task": inner_task, "reward_task": reward_task, "reward_objective": reward_objective}
     rows = []
@@ -158,8 +182,13 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 raise ValueError("四臂实验的训练与在线接收任务不匹配。")
             if metrics.get("stage") == "pilot_transfer" and metrics.get("settings", {}).get("reward_objective", "bce") != reward_objective:
                 raise ValueError("四臂实验的训练与在线 Reward 目标不匹配。")
-            if metrics.get("stage") == "pilot_transfer" and int(metrics.get("settings", {}).get("inner_history_frames", 1)) != inner_history_frames:
+            if metrics.get("stage") == "pilot_transfer" and int(metrics.get("settings", {}).get("inner_history_frames", 1)) != history_lengths[branch]:
                 raise ValueError("四臂实验的训练与在线 Adapt 历史范围不匹配。")
+            training_settings = metrics.get("settings", {})
+            if metrics.get("stage") == "pilot_transfer" and "trajectory_persist_optimizer_state" in training_settings:
+                trained_mode = "persistent" if training_settings["trajectory_persist_optimizer_state"] else "reset"
+                if optimizer_modes[branch] != trained_mode:
+                    raise ValueError("持续轨迹 checkpoint 的 Adam 状态模式与评估分支不匹配。")
             signature = {
                 "source_sha256": (metrics.get("source_checkpoint") or {}).get("sha256"),
                 "receiver_lookahead_len": int(metrics.get("receiver_lookahead_len", 0)),
@@ -181,6 +210,7 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                 "training_objective": payload.get("metrics", {}).get("objective")}
             for snr in snrs:
                 for seed in seeds:
+                    inner_history_frames = history_lengths[branch]
                     env, cir, cfo, tail, episode_frames = make_episode(
                         config, model, seed=seed, snr=snr, frames=history_frames + frames,
                         state_split=state_split, device="cpu",
@@ -203,6 +233,7 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                         settings.get("inner_groups", ["phase_trend"]),
                     )}
                     active = dict(initial)
+                    active_optimizer_state = None
                     for index, frame in enumerate(episode_frames):
                         fingerprint = hashlib.sha256(frame.rx_symbols.detach().cpu().numpy().tobytes()).hexdigest()
                         future_rx = frame.lookahead_rx_symbols
@@ -220,7 +251,9 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                                                           for name, value in initial.items())).detach().cpu())
                         inner_context, score_start = task_context(context, inner_task, role="adapt")
                         reward_context, _ = task_context(context, reward_task, role="reward")
-                        inner_contexts = adapt_history + [inner_context]
+                        history_contexts = [task_context(item, inner_task, role="adapt")[0]
+                                            for item in adapt_history]
+                        inner_contexts = history_contexts + [inner_context]
                         candidate, update = differentiable_adapt(
                             model, inner_contexts, learning_rate=float(settings["inner_learning_rate"]),
                             steps=int(settings["inner_steps"]), max_delta_norm=float(settings["max_delta_norm"]),
@@ -229,10 +262,15 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                             objective=settings.get("inner_objective", "pilot_signal_reconstruction"),
                             receiver_input=inner_input,
                             score_start=score_start,
+                            optimizer_state=(active_optimizer_state
+                                if optimizer_modes[branch] == "persistent" else None),
+                            return_optimizer_state=optimizer_modes[branch] == "persistent",
                         )
+                        candidate_optimizer_state = update.pop("_optimizer_state", None)
                         # 与主配置一致地约束相对离线参数起点的累计偏移。
                         delta = torch.sqrt(sum((candidate[name] - value).square().sum() for name, value in initial.items()) + 1e-24)
-                        scale = (float(settings["max_delta_norm"]) / delta).clamp(max=1.0)
+                        total_radius = total_radii[branch]
+                        scale = (total_radius / delta).clamp(max=1.0)
                         for name, value in initial.items():
                             candidate[name] = value + (candidate[name] - value) * scale
                         step_norm = float(torch.sqrt(sum((candidate[name] - before[name]).square().sum() for name in initial)).detach().cpu())
@@ -253,6 +291,12 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                                 allow_loss_only=True, peft_delta_norm=step_norm,
                             )
                             active = {name: (candidate[name] if accepted else before[name]).detach() for name in initial}
+                            if optimizer_modes[branch] == "persistent" and accepted:
+                                active_optimizer_state = {
+                                    "steps": candidate_optimizer_state["steps"],
+                                    "moments": {name: value.detach() for name, value in candidate_optimizer_state["moments"].items()},
+                                    "variances": {name: value.detach() for name, value in candidate_optimizer_state["variances"].items()},
+                                }
                             # 所有更新与验收都已结束；Data 仅用于事后仿真评估。
                             frozen_logits = context_logits(model, context, initial)
                             before_logits = context_logits(model, context, before) if persistent else frozen_logits
@@ -283,10 +327,13 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                                "data_waveform_used_for_update": update_uses_data_waveform,
                                "data_waveform_used_for_guard": guard_uses_data_waveform,
                                "inner_task": inner_task, "reward_task": reward_task, "reward_objective": reward_objective}
+                        row["optimizer_state_mode"] = optimizer_modes[branch]
+                        row["optimizer_state_steps"] = 0 if active_optimizer_state is None else active_optimizer_state["steps"]
                         row.update(episode_delta_norm_before=before_norm,
-                                   episode_delta_norm_candidate=float(delta.detach().clamp(max=float(settings["max_delta_norm"])).cpu()),
+                                   episode_delta_norm_candidate=float(delta.detach().clamp(max=total_radius).cpu()),
                                    episode_delta_norm_online=float(torch.sqrt(sum(
                                        (active[name] - value).square().sum() for name, value in initial.items())).cpu()))
+                        row["max_total_delta_norm"] = total_radius
                         rows.append(row)
                         handle.write(json.dumps(row, ensure_ascii=False) + "\n")
                         handle.flush()
