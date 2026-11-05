@@ -169,3 +169,7 @@ v17只读局部影响诊断补充：Data位置与Adapt Pilot最近约33个符号
 v18–v19长感受野尝试续：直接堆叠127符号空洞卷积仅2维满足Pilot条件数门槛，12维条件数约1.45e4，故未训练；加入0.1缩放残差旁路后最高合格维数为4，12维条件数仍约633。4维开发四臂B在线增益在0/5/10/15 dB为`+1.36e-5/-1.36e-5/0/0`，区间跨零，没有证明在线优势。结果见[第十八轮审计](results/detection_subspace_long_v18_dilated127_audit_v1_20261105/README.md)及[第十九轮实验](results/detection_subspace_long_v19_dilated127_residual_v1_20261105/README.md)。下一步不再加宽全局系数卷积基，改为研究Adapt Pilot推断的低维更新上下文与Data位置接收波形特征的条件交互；先审计上下文对不同位置输出的Pilot可辨识性，再训练。在线胜过Frozen之前继续留在R2，不启动正式确认。
 
 v20续：Pilot上下文条件化逐位置Adapter在2维Pilot可辨识上下文中产生了在线logit变化，四SNR B臂Online−Frozen改善为`-1.36e-5/+4.07e-5/-1.36e-5/0`；A臂平均点估计相同，B−A平均交互为零，全部配对区间跨零。因此尚未证明在线优势。只读错误边界诊断显示候选对约一半错误边距有利、另一半有害，Data硬判决改变仍极少。下一项用当前轨迹只读比较Adapt梯度、在线实际增量和Data oracle方向，定位SNR间方向反转；不要据此按SNR调度。之后再决定是否增加跨帧上下文平滑或改在线方向传输。详情见[第二十轮结果](results/detection_subspace_long_v20_pilot_context_adapter_v1_20261105/README.md)。
+
+第二十一轮补充：根据v20只读诊断，将Adapt历史长度从8缩短到当前帧1。四SNR B臂在线增益为`+1.36e-5/+2.71e-5/0/0`，而A臂逐点完全相同，交互均为0；新结果尚未证明元训练更新器贡献。下一步用未参与前述开发的会话复测固定v21，不按新结果调参；该复测仍属开发，不是正式确认。
+
+第二十二轮跨seed开发复测未复现v21在线改善：新seed中0 dB B臂退化约`4.07e-5`，5/10/15 dB没有变化；A臂0 dB也退化，B−A没有稳定优势。详见[第二十二轮归档](results/detection_subspace_long_v22_pilot_context_history1_crossseed_v1_20261105/README.md)。这足以停止把历史长度从8改1视为有效机制，但不构成正式统计确认。下一步转向小维数上下文的阻尼Gauss–Newton/近端Pilot更新，先做合法Pilot数值稳定和逐帧时序审计，再进行匹配离线训练；在线优于Frozen前仍不进入正式确认。

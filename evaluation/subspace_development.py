@@ -38,7 +38,7 @@ def synchronize(device):
 
 def read_manifest(path):
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11", "fixed-channel-subspace-development-v12", "fixed-channel-subspace-development-v13", "fixed-channel-subspace-development-v14", "fixed-channel-subspace-development-v15", "fixed-channel-subspace-development-v16", "fixed-channel-subspace-development-v17", "fixed-channel-subspace-development-v18", "fixed-channel-subspace-development-v19", "fixed-channel-subspace-development-v20"} or spec.get("role") != "development":
+    if spec.get("schema_version") not in {"fixed-channel-subspace-development-v1", "fixed-channel-subspace-development-v2", "fixed-channel-subspace-development-v3", "fixed-channel-subspace-development-v4", "fixed-channel-subspace-development-v5", "fixed-channel-subspace-development-v6", "fixed-channel-subspace-development-v7", "fixed-channel-subspace-development-v8", "fixed-channel-subspace-development-v9", "fixed-channel-subspace-development-v10", "fixed-channel-subspace-development-v11", "fixed-channel-subspace-development-v12", "fixed-channel-subspace-development-v13", "fixed-channel-subspace-development-v14", "fixed-channel-subspace-development-v15", "fixed-channel-subspace-development-v16", "fixed-channel-subspace-development-v17", "fixed-channel-subspace-development-v18", "fixed-channel-subspace-development-v19", "fixed-channel-subspace-development-v20", "fixed-channel-subspace-development-v21", "fixed-channel-subspace-development-v22"} or spec.get("role") != "development":
         raise ValueError("必须提供固定信道子空间开发清单。")
     for field in ("config", "checkpoint"):
         if sha256(ROOT / spec[field]) != spec[field + "_sha256"]:
@@ -119,6 +119,21 @@ def read_manifest(path):
                 or spec.get("learned_context_update") is not True
                 or spec.get("training", {}).get("outer_objective") != "frozen_error_conditioned"):
             raise ValueError("v20只允许以Pilot更新的低维上下文调制每个Data位置的接收特征。")
+    if spec.get("schema_version") == "fixed-channel-subspace-development-v21":
+        if (spec.get("architecture") != "pilot_context_mlp_v1"
+                or spec.get("learned_gradient_transport") is not False
+                or spec.get("learned_context_update") is not True
+                or spec.get("inner_history_frames") != 1
+                or spec.get("training", {}).get("outer_objective") != "frozen_error_conditioned"):
+            raise ValueError("v21只允许将v20的Adapt梯度历史缩短为当前帧。")
+    if spec.get("schema_version") == "fixed-channel-subspace-development-v22":
+        if (spec.get("architecture") != "pilot_context_mlp_v1"
+                or spec.get("learned_gradient_transport") is not False
+                or spec.get("learned_context_update") is not True
+                or spec.get("inner_history_frames") != 1
+                or spec.get("training", {}).get("outer_objective") != "frozen_error_conditioned"
+                or spec.get("data_roles", {}).get("evaluation", {}).get("seeds") != [121400, 121401, 121402]):
+            raise ValueError("v22只允许固定v21机制并在指定新开发seed上复测，不作为正式确认。")
     return spec
 
 

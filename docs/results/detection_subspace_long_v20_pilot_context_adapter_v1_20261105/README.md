@@ -19,13 +19,15 @@
 
 只读边界诊断见[`data_boundary_reachability.json`](data_boundary_reachability.json)：候选通常改善约49%–50%的当前错误边距、同时伤害相近比例的其他错误；三步局部移动上界内约2.8%/8.7%/28.6%/34.1%的错误逐符号可达。它解释了为什么软输出会变化而硬BER仍不稳定，不构成在线增益证据。
 
+只读梯度诊断见[`update_alignment.json`](update_alignment.json)。Adapt与Data梯度余弦均值在0/5/10/15 dB约为`+0.208/-0.095/+0.125/+0.091`；5 dB当前单帧Adapt梯度余弦为`+0.139`，8帧历史均值却反为`-0.095`，平均历史梯度与当前梯度余弦约`0.269`。10/15 dB实际保留系数增量与Data下降方向余弦均值约`-0.70/-0.82`；15 dB当前Adapt梯度范数约`3.36e-6`。这些Data方向只作离线诊断，不作线上控制。该结果支持下一轮仅缩短梯度历史、观察更新是否更接近当前Pilot信息。
+
 ## 结论与下一步
 
-该机制满足“更新的是神经上下文且逐位置读取已收到特征”的方法目标，也产生了非零候选变化，但没有稳定优于Frozen。下一步不按SNR调度；先用同一批开发轨迹做Adapt梯度与Data oracle方向的只读对齐分解，确认5 dB改善方向为何在0/10 dB转向或相互抵消。再决定是否对低维上下文加入跨帧平滑或离线方向传输；若继续训练，仍须四SNR完整报告，并将后续全新会话留作独立确认。
+该机制满足“更新的是神经上下文且逐位置读取已收到特征”的方法目标，也产生了非零候选变化，但没有稳定优于Frozen。诊断提示8帧平均会在5 dB把当前帧有利梯度方向反转，下一轮只将`inner_history_frames`从8改为1；不按SNR调度，其他结构、目标、数据和更新逻辑保持不变。若表现改善，再做匹配seed重复机制检验；若未改善，则进一步研究在线上下文更新映射。后续全新会话仍需保留独立确认。
 
 ## 验证与归档
 
 - v20架构、零上下文和非零上下文Jacobian中心差分定向测试：49项通过。
 - 全量测试：`950 passed in 336.90s`。
-- 本轮训练摘要、检查、清单和压缩逐帧轨迹分别见`summary.json`、`inspection.json`、`manifest.json`与`frame_metrics.jsonl.gz`。
+- 本轮训练摘要、检查、清单、压缩逐帧轨迹、错误边界和梯度对齐分别见`summary.json`、`inspection.json`、`manifest.json`、`frame_metrics.jsonl.gz`、`data_boundary_reachability.json`和`update_alignment.json`。
 - 开发结果；`core_confirmed=false`、`confirmation_ready=false`。

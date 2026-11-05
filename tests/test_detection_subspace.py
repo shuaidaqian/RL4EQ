@@ -419,6 +419,24 @@ def test_v20_manifest_is_context_conditioned_and_preserves_label_boundary():
     assert spec["heldout_confirmation"] is False
 
 
+def test_v21_manifest_only_shortens_context_adapter_history_to_current_frame():
+    spec = read_manifest("configs/audits/detection_subspace_long_v21_pilot_context_history1_v1.json")
+    assert spec["architecture"] == "pilot_context_mlp_v1"
+    assert spec["inner_history_frames"] == 1
+    assert spec["training"]["outer_objective"] == "frozen_error_conditioned"
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+
+
+def test_v22_manifest_uses_fixed_v21_mechanism_on_new_development_seeds_only():
+    spec = read_manifest("configs/audits/detection_subspace_long_v22_pilot_context_history1_crossseed_v1.json")
+    assert spec["inner_history_frames"] == 1
+    assert spec["data_roles"]["evaluation"]["seeds"] == [121400, 121401, 121402]
+    assert spec["replication_policy"]["heldout_confirmation"] is False
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+
+
 def test_pilot_context_adapter_is_zero_at_origin_and_jacobian_matches_finite_difference():
     observation = fixture_observation()
     model = DetectionSubspace(4, architecture="pilot_context_mlp_v1")

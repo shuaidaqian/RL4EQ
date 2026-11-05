@@ -114,20 +114,29 @@ def analyze_sessions(sessions: list[dict], trajectory_rows: list[dict], checkpoi
             adapt_terms = [_loss_gradient(model, observation, current, "adapt",
                              adapt_temperature=adapt_temperature)[1] for observation in history]
             adapt_gradient = torch.stack(adapt_terms).mean(dim=0)
+            current_adapt_gradient = adapt_terms[-1]
             validation_loss, validation_gradient = _loss_gradient(
                 model, frame["observation"], current, "validation")
             data_loss, data_gradient = _loss_gradient(
                 model, frame["observation"], current, "data", frame["offline"])
+            next_coefficients = torch.tensor(logged["coefficient_values"], device=device,
+                dtype=current.dtype)
+            actual_increment = next_coefficients - current.detach()
             rows.append({
                 "seed": seed,
                 "snr_db": snr,
                 "frame": int(identity["frame"]),
                 "adapt_history_frames": len(history),
                 "adapt_gradient_norm": float(adapt_gradient.norm()),
+                "current_adapt_gradient_norm": float(current_adapt_gradient.norm()),
                 "validation_gradient_norm": float(validation_gradient.norm()),
                 "data_gradient_norm": float(data_gradient.norm()),
                 "adapt_validation_cosine": _cosine(adapt_gradient, validation_gradient),
                 "adapt_data_cosine": _cosine(adapt_gradient, data_gradient),
+                "current_adapt_data_cosine": _cosine(current_adapt_gradient, data_gradient),
+                "history_current_gradient_cosine": _cosine(adapt_gradient, current_adapt_gradient),
+                "actual_update_adapt_descent_cosine": _cosine(actual_increment, -adapt_gradient),
+                "actual_update_data_descent_cosine": _cosine(actual_increment, -data_gradient),
                 "validation_data_cosine": _cosine(validation_gradient, data_gradient),
                 "validation_bce": validation_loss,
                 "offline_data_bce": data_loss,
@@ -139,8 +148,11 @@ def analyze_sessions(sessions: list[dict], trajectory_rows: list[dict], checkpoi
     for row in rows:
         session_rows[(row["snr_db"], row["seed"])].append(row)
     sessions_summary = []
-    fields = ("adapt_gradient_norm", "validation_gradient_norm", "data_gradient_norm",
-              "adapt_validation_cosine", "adapt_data_cosine", "validation_data_cosine")
+    fields = ("adapt_gradient_norm", "current_adapt_gradient_norm", "validation_gradient_norm",
+              "data_gradient_norm", "adapt_validation_cosine", "adapt_data_cosine",
+              "current_adapt_data_cosine", "history_current_gradient_cosine",
+              "actual_update_adapt_descent_cosine", "actual_update_data_descent_cosine",
+              "validation_data_cosine")
     for (snr, seed), values in sorted(session_rows.items()):
         summary = {"snr_db": snr, "seed": seed, "frames": len(values)}
         for field in fields:
