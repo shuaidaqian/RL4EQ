@@ -457,6 +457,17 @@ def test_v25_manifest_changes_only_the_outer_objective_after_v24():
     assert spec["heldout_confirmation"] is False
 
 
+def test_v27_manifest_matches_proximal001_online_gain_training_on_new_development_seeds():
+    spec = read_manifest("configs/audits/detection_subspace_long_v27_gauss_newton_online_gain_proximal001_v1.json")
+    assert spec["update"]["inner_optimizer"] == "damped_gauss_newton"
+    assert spec["update"]["proximal_weight"] == 0.01
+    assert spec["training"]["outer_objective"] == "online_gain"
+    assert spec["training"]["outer_steps"] == 64
+    assert spec["data_roles"]["evaluation"]["seeds"] == [121700, 121701, 121702]
+    assert spec["channel_changes"] is False
+    assert spec["heldout_confirmation"] is False
+
+
 def test_pilot_context_adapter_is_zero_at_origin_and_jacobian_matches_finite_difference():
     observation = fixture_observation()
     model = DetectionSubspace(4, architecture="pilot_context_mlp_v1")

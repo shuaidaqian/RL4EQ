@@ -1,0 +1,153 @@
+{
+  "schema_version": "fixed-channel-subspace-development-v27",
+  "role": "development",
+  "config": "configs/eme_long_memory_v2_shared_pilot_memory_rl.json",
+  "config_sha256": "535c1ce48a3ed194c0efc90b4d55afad371179d4d1b8415a3ba57ed40da6d149",
+  "checkpoint": "pretrained/cross_frame_memory_control64_20261103/model_best.pt",
+  "checkpoint_sha256": "11e58a5d94801ae613ec8f7a55679ed2304e0864535c7b0468b316827e2bec51",
+  "snrs_db": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "dimensions": [
+    2,
+    4,
+    8,
+    10,
+    12,
+    14,
+    16
+  ],
+  "initialization_seed": 121009,
+  "architecture": "pilot_context_mlp_v1",
+  "learned_gradient_transport": false,
+  "inner_history_frames": 1,
+  "maximum_condition_number": 100,
+  "geometry_frames": [
+    0,
+    7
+  ],
+  "reachability_smoke_steps": 8,
+  "update": {
+    "learning_rate": 0.02,
+    "steps": 3,
+    "step_radius": 0.15,
+    "total_radius": 0.8,
+    "proximal_weight": 0.01,
+    "min_validation_improvement": 1e-05,
+    "reset_to_origin_on_validation": true,
+    "origin_retention_decay": 0.5,
+    "adapt_logit_temperature": 2.0,
+    "surrogate_gate_gradient": true,
+    "inner_optimizer": "damped_gauss_newton",
+    "gn_damping": 0.01,
+    "gn_max_backtracks": 8
+  },
+  "data_roles": {
+    "inspection": {
+      "seeds": [
+        121000,
+        121001
+      ],
+      "frames": 8
+    },
+    "training": {
+      "seeds": [
+        121100,
+        121101,
+        121102,
+        121103
+      ],
+      "frames": 9
+    },
+    "selection": {
+      "seeds": [
+        121200,
+        121201
+      ],
+      "frames": 9
+    },
+    "evaluation": {
+      "seeds": [
+        121700,
+        121701,
+        121702
+      ],
+      "frames": 32
+    }
+  },
+  "training": {
+    "outer_steps": 64,
+    "outer_learning_rate": 0.001,
+    "checkpoint_steps": [
+      16,
+      32,
+      48,
+      64
+    ],
+    "sequence_update_frames": 8,
+    "outer_target_offsets": [
+      0,
+      1
+    ],
+    "checkpoint_selection": "A/B统一按选择会话四SNR的配对Frozen+Online平滑BER增益目标选择checkpoint；评估开发seed不参与训练和选择",
+    "trainable_scope": "唯一改变是近端权重固定从0.1降至0.01；A/B外层目标、GN内循环、网络、验证门控、信道/资源和训练选择预算沿用v25",
+    "budget_comparison": "A/B使用相同初始化、64步预算、训练/选择数据与prox=0.01 GN更新；A为普通监督，B为配对Online增益元训练",
+    "outer_objective": "online_gain",
+    "smooth_ber_temperature": 1.0,
+    "paired_gain_rule": "每个当前/下一帧目标分别计算同一平滑BER的Frozen和Online损失，目标为Lfrozen + Lonline + softplus(Lonline-Lfrozen)；仅离线使用Data标签"
+  },
+  "stopping_rule": "固定预算；几何无合格维数则不训练；任意非有限数、信息隔离、源指纹或协议失败立即停止并归档；不按收益追加seed或改变信道",
+  "scope": "v26只读审计显示降低GN近端权重会扩大步幅但未产生稳定在线增益；v27固定v25配对online_gain外层目标，只把proximal_weight改为0.01并匹配离线内循环训练，使用独立新开发seed121700/121701/121702，不作正式确认",
+  "heldout_confirmation": false,
+  "channel_changes": false,
+  "reset_policy": {
+    "enabled": true,
+    "rule": "动作后比较当前保留值与离线初始系数；验证Pilot损失严格改善且硬BER不升时回退初始系数；不读取Data",
+    "origin": "每个会话的离线checkpoint初始化系数"
+  },
+  "retention_decay_policy": {
+    "enabled": true,
+    "factor": 0.5,
+    "rule": "守门通过后将候选系数向离线初始系数线性收缩一半，再用验证Pilot执行最终守门"
+  },
+  "adapt_temperature_policy": {
+    "enabled": true,
+    "temperature": 2.0,
+    "rule": "仅Adapt Pilot BCE logits除以统一温度2.0；四个SNR共用，不改变验证Pilot或Data指标"
+  },
+  "learned_context_update": false,
+  "context_update_policy": {
+    "enabled": false,
+    "reason": "v24直接用固定阻尼Gauss–Newton求解，不训练额外上下文增量网络"
+  },
+  "outer_objective_policy": {
+    "name": "paired_online_gain",
+    "temperature": 1.0,
+    "definition": "对每个当前/下一帧目标使用同一smooth-BER计算Frozen与Online损失，目标为Lfrozen + Lonline + softplus(Lonline-Lfrozen)；唯一在线更新超参数差异相对v25为近端权重0.01",
+    "selection": "A/B统一用选择角色数据及四SNR配对在线增益目标选checkpoint；Data只用于离线训练与选择"
+  },
+  "contextual_adapter_policy": {
+    "enabled": true,
+    "architecture": "context_feature: 7->32 Tanh；在线context z经无偏置线性映射到32通道，与逐位置特征隐状态相加后经Tanh差分；线性输出产生逐位置logit残差；z=0时严格为来源冻结网络",
+    "online_state": "低维z即神经上下文状态，只由Adapt Pilot梯度更新；独立验证Pilot仅守门；Data标签不进入部署更新/门控/回滚",
+    "audit": "以z=0处逐位置logit对z的Jacobian，在合法Adapt Pilot行上计算信息秩与条件数，并报告对Data位置输出的作用"
+  },
+  "history_policy": {
+    "frames": 1,
+    "rule": "仅当前帧Adapt Pilot参与在线与离线内循环梯度，不改变跨帧上下文参数持久保留"
+  },
+  "replication_policy": {
+    "type": "development_single_factor_objective_comparison",
+    "evaluation_seeds": [
+      121700,
+      121701,
+      121702
+    ],
+    "selection_uses_existing_selection_seeds": true,
+    "no_threshold_or_checkpoint_changes_after_evaluation": true,
+    "heldout_confirmation": false
+  }
+}
