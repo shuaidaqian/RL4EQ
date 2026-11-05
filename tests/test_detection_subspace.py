@@ -4,6 +4,7 @@
 import copy
 from dataclasses import fields, replace
 import json
+from pathlib import Path
 
 import pytest
 import torch
@@ -466,6 +467,15 @@ def test_v27_manifest_matches_proximal001_online_gain_training_on_new_developmen
     assert spec["data_roles"]["evaluation"]["seeds"] == [121700, 121701, 121702]
     assert spec["channel_changes"] is False
     assert spec["heldout_confirmation"] is False
+
+
+def test_v27_frozen_checkpoint_replay_uses_disjoint_development_seeds():
+    from scripts.replay_subspace_checkpoints import load_replay_config
+
+    config = load_replay_config(Path("configs/audits/subspace_v27_checkpoint_replay_v1.json"))
+    assert config["evaluation_seeds"] == [121800, 121801, 121802]
+    assert config["snrs_db"] == [0, 5, 10, 15]
+    assert config["heldout_confirmation"] is False
 
 
 def test_pilot_context_adapter_is_zero_at_origin_and_jacobian_matches_finite_difference():

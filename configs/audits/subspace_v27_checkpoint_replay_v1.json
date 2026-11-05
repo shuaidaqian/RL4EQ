@@ -1,0 +1,32 @@
+{
+  "schema_version": "subspace-frozen-checkpoint-replay-v1",
+  "role": "development_replication",
+  "source_manifest": "docs/results/detection_subspace_long_v27_gauss_newton_online_gain_proximal001_v1_20261105/manifest.json",
+  "source_manifest_sha256": "65c964d5ab9705cbfd13de3c4a148faad51a8d343e143dbff1fa6069dd70179f",
+  "source_result_summary": "docs/results/detection_subspace_long_v27_gauss_newton_online_gain_proximal001_v1_20261105/summary.json",
+  "checkpoints": {
+    "A_supervised": {
+      "path": "docs/results/detection_subspace_long_v27_gauss_newton_online_gain_proximal001_v1_20261105/A_supervised.pt",
+      "sha256": "f72a4177e7637a15f13f75e34e0d4e74b987f33f489912c8de36599ed354a5aa"
+    },
+    "B_post_adapt": {
+      "path": "docs/results/detection_subspace_long_v27_gauss_newton_online_gain_proximal001_v1_20261105/B_post_adapt.pt",
+      "sha256": "4c73938f1c408a12c6cc8caf1c20986ef6ce61b07bee0c7ba18cc6a3effe4b0b"
+    }
+  },
+  "evaluation_seeds": [
+    121800,
+    121801,
+    121802
+  ],
+  "frames_per_seed_snr": 32,
+  "snrs_db": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "channel_changes": false,
+  "heldout_confirmation": false,
+  "scope": "冻结v27的A/B checkpoint，在独立开发seed复核配对在线增益；不训练、不选择checkpoint，不作正式确认。"
+}

@@ -31,6 +31,6 @@ B在0/5 dB有同向正点估计，且相对普通监督A的交互也为正；但
 
 - 768条配对开发记录，四SNR、A/B、三个开发seed完整。
 - A/B训练均64步；在线更新2个神经上下文参数，增量更新平均约93–97 ms（不含完整接收链路与物理状态跟踪）。
-- 清单、源码、checkpoint、缓存和逐帧结果指纹记录在[`summary.json`](summary.json)；训练缓存未复制进结果归档。
+- 清单、源码、checkpoint、缓存和逐帧结果指纹记录在[`summary.json`](summary.json)；为独立复核现已归档A/B checkpoint，训练特征缓存未复制。
 - 修改后的完整pytest运行结果为`957 passed in 335.62s`；新增v27清单约束测试另经定向验证`1 passed`。
 - `core_confirmed=false`、`confirmation_ready=false`；本轮不是独立确认。
