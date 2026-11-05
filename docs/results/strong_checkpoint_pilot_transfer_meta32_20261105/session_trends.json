@@ -1,0 +1,567 @@
+{
+  "schema_version": "strong-checkpoint-pilot-transfer-meta32-dev-v1",
+  "role": "development_mechanism_screen",
+  "core_confirmed": false,
+  "source_checkpoint_sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4",
+  "baseline_checkpoint_sha256": "07f3a13b5b0d20a57d10e972da94101407fb9970c118eef2d57542a9bc0deb37",
+  "post_adapt_checkpoint_sha256": "e8ea322a2279dd8b45876aebb50feefb0cd0dece38611fd7f8e27c97ebe2b71e",
+  "config_sha256": "5898fe3a9f1433743ab8ddf0e668ed7f039bfbb6d367c68ad9a530b3f8e1de73",
+  "training_objectives": [
+    "baseline",
+    "post_adapt"
+  ],
+  "training_steps_each": 32,
+  "training_seeds_start": 31000,
+  "evaluation_seeds": [
+    45400,
+    45401,
+    45402
+  ],
+  "snrs_db": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "frames_per_session": 8,
+  "state_split": "offline_train",
+  "pilot_total": 256,
+  "adapt_pilot": 224,
+  "reward_pilot": 32,
+  "persistent": true,
+  "online_adapter": "phase_trend AdamW, 5 inner steps per frame",
+  "records": 192,
+  "frame_metrics_sha256": "a4118e6edfc088b5d5313a5939d300cfb2fe5cc298d672af42db4d1eae1bf2c7",
+  "per_snr": [
+    {
+      "snr_db": 0.0,
+      "branches": {
+        "baseline": {
+          "gain": {
+            "mean": 0.003038192788759867,
+            "ci95": [
+              -0.008745017717231952,
+              0.014821403294751685
+            ],
+            "sessions": 3
+          },
+          "late_minus_early_gain": {
+            "mean": -0.007161458333333333,
+            "ci95": [
+              -0.019998187308218913,
+              0.005675270641552246
+            ],
+            "sessions": 3
+          },
+          "sessions": [
+            {
+              "seed": 45400,
+              "ber_frozen": 0.1944987028837204,
+              "ber_online": 0.1967773512005806,
+              "gain": -0.002278648316860199,
+              "window_gains_4f": [
+                0.002278648316860199,
+                -0.006835944950580597
+              ],
+              "late_minus_early_gain": -0.009114593267440796,
+              "accepted": 7,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45401,
+              "ber_frozen": 0.22672526724636555,
+              "ber_online": 0.22216797806322575,
+              "gain": 0.004557289183139801,
+              "window_gains_4f": [
+                0.010091137140989304,
+                -0.0009765587747097015
+              ],
+              "late_minus_early_gain": -0.011067695915699005,
+              "accepted": 7,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45402,
+              "ber_frozen": 0.2054036520421505,
+              "ber_online": 0.1985677145421505,
+              "gain": 0.0068359375,
+              "window_gains_4f": [
+                0.0074869804084300995,
+                0.0061848945915699005
+              ],
+              "late_minus_early_gain": -0.001302085816860199,
+              "accepted": 4,
+              "harmful_acceptances": 0
+            }
+          ]
+        },
+        "post_adapt": {
+          "gain": {
+            "mean": 0.003038192788759867,
+            "ci95": [
+              -0.008745017717231952,
+              0.014821403294751685
+            ],
+            "sessions": 3
+          },
+          "late_minus_early_gain": {
+            "mean": -0.007161458333333333,
+            "ci95": [
+              -0.019998187308218913,
+              0.005675270641552246
+            ],
+            "sessions": 3
+          },
+          "sessions": [
+            {
+              "seed": 45400,
+              "ber_frozen": 0.1944987028837204,
+              "ber_online": 0.1967773512005806,
+              "gain": -0.002278648316860199,
+              "window_gains_4f": [
+                0.002278648316860199,
+                -0.006835944950580597
+              ],
+              "late_minus_early_gain": -0.009114593267440796,
+              "accepted": 7,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45401,
+              "ber_frozen": 0.22672526724636555,
+              "ber_online": 0.22216797806322575,
+              "gain": 0.004557289183139801,
+              "window_gains_4f": [
+                0.010091137140989304,
+                -0.0009765587747097015
+              ],
+              "late_minus_early_gain": -0.011067695915699005,
+              "accepted": 7,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45402,
+              "ber_frozen": 0.2054036520421505,
+              "ber_online": 0.1985677145421505,
+              "gain": 0.0068359375,
+              "window_gains_4f": [
+                0.0074869804084300995,
+                0.0061848945915699005
+              ],
+              "late_minus_early_gain": -0.001302085816860199,
+              "accepted": 4,
+              "harmful_acceptances": 0
+            }
+          ]
+        }
+      },
+      "post_minus_baseline_gain_interaction": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "sessions": 3
+      }
+    },
+    {
+      "snr_db": 5.0,
+      "branches": {
+        "baseline": {
+          "gain": {
+            "mean": -1.5522042910257974e-10,
+            "ci95": [
+              -0.0024593793592806125,
+              0.0024593790488397545
+            ],
+            "sessions": 3
+          },
+          "late_minus_early_gain": {
+            "mean": 0.0021701383714874587,
+            "ci95": [
+              0.0009349209415462681,
+              0.0034053558014286492
+            ],
+            "sessions": 3
+          },
+          "sessions": [
+            {
+              "seed": 45400,
+              "ber_frozen": 0.04947916744276881,
+              "ber_online": 0.05013020941987634,
+              "gain": -0.0006510419771075249,
+              "window_gains_4f": [
+                -0.001953125,
+                0.0006510410457849503
+              ],
+              "late_minus_early_gain": 0.0026041660457849503,
+              "accepted": 4,
+              "harmful_acceptances": 2
+            },
+            {
+              "seed": 45401,
+              "ber_frozen": 0.03987630316987634,
+              "ber_online": 0.040364584885537624,
+              "gain": -0.0004882817156612873,
+              "window_gains_4f": [
+                -0.0013020830228924751,
+                0.0003255195915699005
+              ],
+              "late_minus_early_gain": 0.0016276026144623756,
+              "accepted": 5,
+              "harmful_acceptances": 2
+            },
+            {
+              "seed": 45402,
+              "ber_frozen": 0.05794270941987634,
+              "ber_online": 0.05680338619276881,
+              "gain": 0.0011393232271075249,
+              "window_gains_4f": [
+                0.0,
+                0.0022786464542150497
+              ],
+              "late_minus_early_gain": 0.0022786464542150497,
+              "accepted": 2,
+              "harmful_acceptances": 1
+            }
+          ]
+        },
+        "post_adapt": {
+          "gain": {
+            "mean": -1.5522042910257974e-10,
+            "ci95": [
+              -0.0024593793592806125,
+              0.0024593790488397545
+            ],
+            "sessions": 3
+          },
+          "late_minus_early_gain": {
+            "mean": 0.0021701383714874587,
+            "ci95": [
+              0.0009349209415462681,
+              0.0034053558014286492
+            ],
+            "sessions": 3
+          },
+          "sessions": [
+            {
+              "seed": 45400,
+              "ber_frozen": 0.04947916744276881,
+              "ber_online": 0.05013020941987634,
+              "gain": -0.0006510419771075249,
+              "window_gains_4f": [
+                -0.001953125,
+                0.0006510410457849503
+              ],
+              "late_minus_early_gain": 0.0026041660457849503,
+              "accepted": 4,
+              "harmful_acceptances": 2
+            },
+            {
+              "seed": 45401,
+              "ber_frozen": 0.03987630316987634,
+              "ber_online": 0.040364584885537624,
+              "gain": -0.0004882817156612873,
+              "window_gains_4f": [
+                -0.0013020830228924751,
+                0.0003255195915699005
+              ],
+              "late_minus_early_gain": 0.0016276026144623756,
+              "accepted": 5,
+              "harmful_acceptances": 1
+            },
+            {
+              "seed": 45402,
+              "ber_frozen": 0.05794270941987634,
+              "ber_online": 0.05680338619276881,
+              "gain": 0.0011393232271075249,
+              "window_gains_4f": [
+                0.0,
+                0.0022786464542150497
+              ],
+              "late_minus_early_gain": 0.0022786464542150497,
+              "accepted": 2,
+              "harmful_acceptances": 1
+            }
+          ]
+        }
+      },
+      "post_minus_baseline_gain_interaction": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "sessions": 3
+      }
+    },
+    {
+      "snr_db": 10.0,
+      "branches": {
+        "baseline": {
+          "gain": {
+            "mean": 0.0003255208139307797,
+            "ci95": [
+              -0.0003747806953853136,
+              0.0010258223232468729
+            ],
+            "sessions": 3
+          },
+          "late_minus_early_gain": {
+            "mean": -0.00043402771310259897,
+            "ci95": [
+              -0.0016692435969252678,
+              0.00080118817072007
+            ],
+            "sessions": 3
+          },
+          "sessions": [
+            {
+              "seed": 45400,
+              "ber_frozen": 0.005859375087311491,
+              "ber_online": 0.005371093837311491,
+              "gain": 0.00048828125,
+              "window_gains_4f": [
+                0.0009765625,
+                0.0
+              ],
+              "late_minus_early_gain": -0.0009765625,
+              "accepted": 1,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45401,
+              "ber_frozen": 0.0034179687936557457,
+              "ber_online": 0.0034179687936557457,
+              "gain": 0.0,
+              "window_gains_4f": [
+                0.0,
+                0.0
+              ],
+              "late_minus_early_gain": 0.0,
+              "accepted": 3,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45402,
+              "ber_frozen": 0.007649739796761423,
+              "ber_online": 0.007161458604969084,
+              "gain": 0.0004882811917923391,
+              "window_gains_4f": [
+                0.0006510415114462376,
+                0.0003255208721384406
+              ],
+              "late_minus_early_gain": -0.00032552063930779696,
+              "accepted": 3,
+              "harmful_acceptances": 0
+            }
+          ]
+        },
+        "post_adapt": {
+          "gain": {
+            "mean": 0.0003255208139307797,
+            "ci95": [
+              -0.0003747806953853136,
+              0.0010258223232468729
+            ],
+            "sessions": 3
+          },
+          "late_minus_early_gain": {
+            "mean": -0.00043402771310259897,
+            "ci95": [
+              -0.0016692435969252678,
+              0.00080118817072007
+            ],
+            "sessions": 3
+          },
+          "sessions": [
+            {
+              "seed": 45400,
+              "ber_frozen": 0.005859375087311491,
+              "ber_online": 0.005371093837311491,
+              "gain": 0.00048828125,
+              "window_gains_4f": [
+                0.0009765625,
+                0.0
+              ],
+              "late_minus_early_gain": -0.0009765625,
+              "accepted": 1,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45401,
+              "ber_frozen": 0.0034179687936557457,
+              "ber_online": 0.0034179687936557457,
+              "gain": 0.0,
+              "window_gains_4f": [
+                0.0,
+                0.0
+              ],
+              "late_minus_early_gain": 0.0,
+              "accepted": 3,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45402,
+              "ber_frozen": 0.007649739796761423,
+              "ber_online": 0.007161458604969084,
+              "gain": 0.0004882811917923391,
+              "window_gains_4f": [
+                0.0006510415114462376,
+                0.0003255208721384406
+              ],
+              "late_minus_early_gain": -0.00032552063930779696,
+              "accepted": 3,
+              "harmful_acceptances": 0
+            }
+          ]
+        }
+      },
+      "post_minus_baseline_gain_interaction": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "sessions": 3
+      }
+    },
+    {
+      "snr_db": 15.0,
+      "branches": {
+        "baseline": {
+          "gain": {
+            "mean": 5.4253473839101694e-05,
+            "ci95": [
+              -0.00017918038347020744,
+              0.00028768733114841084
+            ],
+            "sessions": 3
+          },
+          "late_minus_early_gain": {
+            "mean": 0.00010850694767820339,
+            "ci95": [
+              -0.0003583607669404149,
+              0.0005753746622968217
+            ],
+            "sessions": 3
+          },
+          "sessions": [
+            {
+              "seed": 45400,
+              "ber_frozen": 0.0008138021075865254,
+              "ber_online": 0.0008138021075865254,
+              "gain": 0.0,
+              "window_gains_4f": [
+                0.0,
+                0.0
+              ],
+              "late_minus_early_gain": 0.0,
+              "accepted": 3,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45401,
+              "ber_frozen": 0.0006510416860692203,
+              "ber_online": 0.0006510416860692203,
+              "gain": 0.0,
+              "window_gains_4f": [
+                0.0,
+                0.0
+              ],
+              "late_minus_early_gain": 0.0,
+              "accepted": 2,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45402,
+              "ber_frozen": 0.0009765625291038305,
+              "ber_online": 0.0008138021075865254,
+              "gain": 0.00016276042151730508,
+              "window_gains_4f": [
+                0.0,
+                0.00032552084303461015
+              ],
+              "late_minus_early_gain": 0.00032552084303461015,
+              "accepted": 2,
+              "harmful_acceptances": 1
+            }
+          ]
+        },
+        "post_adapt": {
+          "gain": {
+            "mean": 0.00010850694767820339,
+            "ci95": [
+              -0.0003583607669404149,
+              0.0005753746622968217
+            ],
+            "sessions": 3
+          },
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "sessions": 3
+          },
+          "sessions": [
+            {
+              "seed": 45400,
+              "ber_frozen": 0.0008138021075865254,
+              "ber_online": 0.0008138021075865254,
+              "gain": 0.0,
+              "window_gains_4f": [
+                0.0,
+                0.0
+              ],
+              "late_minus_early_gain": 0.0,
+              "accepted": 3,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45401,
+              "ber_frozen": 0.0006510416860692203,
+              "ber_online": 0.0006510416860692203,
+              "gain": 0.0,
+              "window_gains_4f": [
+                0.0,
+                0.0
+              ],
+              "late_minus_early_gain": 0.0,
+              "accepted": 2,
+              "harmful_acceptances": 0
+            },
+            {
+              "seed": 45402,
+              "ber_frozen": 0.0009765625291038305,
+              "ber_online": 0.0006510416860692203,
+              "gain": 0.00032552084303461015,
+              "window_gains_4f": [
+                0.00032552084303461015,
+                0.00032552084303461015
+              ],
+              "late_minus_early_gain": 0.0,
+              "accepted": 2,
+              "harmful_acceptances": 0
+            }
+          ]
+        }
+      },
+      "post_minus_baseline_gain_interaction": {
+        "mean": 5.4253473839101694e-05,
+        "ci95": [
+          -0.00017918038347020744,
+          0.00028768733114841084
+        ],
+        "sessions": 3
+      }
+    }
+  ],
+  "limitations": [
+    "仅3个开发session、每session8帧；不足以确认持续增长。",
+    "A/B的Frozen BER逐点相同；两者在线收益在0/5/10dB完全相同，15dB差异点估计小且区间跨零。",
+    "该更新器与此前Pilot residual-RLS不同；本实验不替代对RLS结果的描述。",
+    "Data标签只在更新、Reward验收和状态提交后事后评分。"
+  ]
+}

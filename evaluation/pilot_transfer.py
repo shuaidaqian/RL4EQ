@@ -106,8 +106,8 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                             persistent=False):
     """先完成当前帧 Pilot 验收，再首次计算 Data 指标。"""
 
-    if frames < 1 or not seeds or len(set(seeds)) != len(seeds) or state_split != "heldout_edge":
-        raise ValueError("首阶段机制实验需要正帧数、独立 seed 与 heldout_edge。")
+    if frames < 1 or not seeds or len(set(seeds)) != len(seeds) or state_split not in {"offline_train", "heldout_edge"}:
+        raise ValueError("离线Pilot-transfer机制实验需要正帧数、独立seed，并使用offline_train或既有heldout_edge。")
     settings = config["pilot_transfer"]
     history_frames = settings.get("evaluation_history_frames", 0)
     if type(history_frames) is not int or history_frames < 0:

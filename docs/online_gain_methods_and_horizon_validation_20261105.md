@@ -52,3 +52,8 @@ g[s,b] = BER_frozen[s,b] - BER_online[s,b]
 2026-11-05已将现有 Pilot residual-RLS 接到有验证指纹的 `eme_bce_all_32_20260905_pilot256` 强离线模型上。8帧机制烟测发现原双窗 Reward 门控未提交任何更新；只改为单个 Reward BCE 窗口、继续保留硬错误不增护栏后，独立3-session×32帧开发筛查在5 dB出现初步正向窗口趋势，但全程平均增益仍为负，0 dB有害更新。64帧新session复核没有重现5 dB增长：0/5 dB整体退化、10 dB仅接近量化噪声的正点估计、15 dB BER不变，趋势区间没有支持收益增长。详细逐帧结果分别见[32帧开发筛查](results/strong_offline_rls_onewindow_32f_dev_20261105/README.md)与[64帧开发复核](results/strong_offline_rls_onewindow_64f_dev_20261105/README.md)。
 
 因此暂停继续扩增该启发式 RLS/单窗变体，不以关闭硬错误守门或降低阈值制造更新率。下一路线回到离线内外循环：离线阶段训练表示/初始化，使合法 Adapt Pilot 更新后可泛化到未来 Data；在线只执行已匹配的低维确定性更新和留出 Reward 验收。第一步需明确当前 `pilot_transfer` 训练器能否复现 residual-RLS 的同一内循环；若不能，新增匹配的内循环，而不是直接拿现有 `phase_trend` 更新器冒充相同方法。之后再对强 checkpoint 做 Frozen、原启发式 RLS、离线适配初始化三臂同轨迹比较，并检验更长会话的分窗趋势。
+
+
+2026-11-05随后对强 checkpoint 做了32步匹配 `pilot_transfer` A/B：同一强模型初始化，A继续BCE_all，B优化BCE_all加单帧Pilot更新后的Data外层损失；评估使用持久 `phase_trend` AdamW PEFT。A/B Frozen BER四点完全一致，0/5/10 dB在线增益逐点一致，B−A交互为0；15 dB交互约`+5.43e-5`但区间跨零。5 dB两分窗晚窗增益高于早窗，但A/B相同且全程平均增益为零。详见[强 checkpoint 单帧 Pilot-transfer 元训练筛查](results/strong_checkpoint_pilot_transfer_meta32_20261105/README.md)。该单帧外层目标没有创造在线增益，停止扩大32步配置。
+
+实现差距因此明确：现有训练只反传一次当前帧更新后的Data目标，没有训练出连续帧更新时收益逐步积累的目标。下一项实现应在离线阶段展开一段多帧轨迹，Adapt更新后的神经参数跨帧保留，训练目标汇总多个后续Data窗口；每帧更新器、历史、半径/近端与在线时序必须完全一致，Reward Pilot仍只作独立守门。配对普通BCE继续训练A臂、轨迹级在线目标B臂，使用匹配样本和预算；先做可微性/梯度与信息边界测试，再用新session四SNR多窗口开发评估。不得把Data标签放进在线适配，也不得因本轮结果只在某SNR看起来较好而删点。

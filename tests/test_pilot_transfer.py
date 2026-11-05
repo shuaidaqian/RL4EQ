@@ -230,7 +230,8 @@ def test_four_arm_summary_uses_seed_means_and_reports_interaction():
 
 @pytest.mark.parametrize("full_rx,prefix,persistent", [(False, False, False), (True, False, False), (True, True, False), (True, True, True)])
 @pytest.mark.parametrize("burn_in", [0, 7])
-def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(tmp_path, monkeypatch, full_rx, prefix, persistent, burn_in):
+@pytest.mark.parametrize("state_split", ["heldout_edge", "offline_train"])
+def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(tmp_path, monkeypatch, full_rx, prefix, persistent, burn_in, state_split):
     """完整评估先结束 Pilot 决策；改变 Data 标签只应改变事后统计。"""
     from types import SimpleNamespace
     import evaluation.pilot_transfer as evaluation
@@ -272,7 +273,7 @@ def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(
         summary = evaluation.run_transfer_comparison(
             config, baseline_checkpoint=checkpoint, post_checkpoint=checkpoint, seeds=[41001],
             snrs=[5], frames=2, device="cpu", output_dir=directory,
-            persistent=persistent,
+            persistent=persistent, state_split=state_split,
         )
         import json
         rows = [json.loads(line) for line in (directory / "frame_metrics.jsonl").read_text().splitlines()]
@@ -280,6 +281,7 @@ def test_four_arm_evaluation_pairs_inputs_and_keeps_reward_decisions_label_free(
         assert summary["per_snr"][0]["post_vs_baseline_online_gain"]["mean"] == 0
         assert len(rows) == 4
         assert summary["manifest"]["evaluation_history_frames"] == burn_in
+        assert summary["manifest"]["state_split"] == state_split
         assert all(row["channel_frame_index"] == burn_in + row["frame"] for row in rows)
         assert all(row["data_waveform_used_online"] == (full_rx and not prefix) for row in rows)
         assert all(not row["data_labels_used_online"] for row in rows)
