@@ -21,9 +21,11 @@ A臂与v16相同，仅0 dB有`+1.36e-5`点估计，其余点为0；B−A交互�
 
 在本轮固定预算与目标下，单个全局正定矩阵没有让在线更新越过硬判决边界；它不作为有效方法保留。结合第十六轮oracle，后续重点应从“全局重标定12维梯度”转为“可由合法Pilot识别的局部影响更新”：检查各符号/时间邻域的Pilot Jacobian影响重叠，构造低维分块或局部卷积Adapter，使不同多径干扰位置可以独立修正；同时以跨帧Adapt历史稳定估计这些局部方向。先做信息秩与局部作用审计，再训练，不改变长回波信道及资源协议。在线增益未证明前不启动正式确认。
 
+随后只读Pilot→Data Jacobian局部性诊断见[`pilot_data_jacobian_locality.json`](pilot_data_jacobian_locality.json)。该协议中Data位置距Adapt Pilot至少约33个符号；33–48、49–64及65+距离区间内，Data/Pilot基行的平均绝对余弦在各SNR约为0.79–0.81，未随时间间隔明显衰减。此统计仅度量输出对共享系数的方向相似性，不含Pilot标签梯度、噪声或守门；它提示当前12维系数在远隔Data符号间产生高度相关的全局作用，与跨符号更新冲突相符。局部Adapter仍须先经合法Pilot信息秩与可观测性审计，不能直接假定有效。
+
 ## 验证与归档
 
 - 新增v17清单定向测试：`42 passed in 6.51s`。
 - 全量测试：`943 passed in 329.20s`。
-- 检查与训练摘要、固定清单和压缩逐帧轨迹分别见本目录`inspection.json`、`summary.json`、`manifest.json`、`frame_metrics.jsonl.gz`。
+- 检查与训练摘要、固定清单和压缩逐帧轨迹分别见本目录`inspection.json`、`summary.json`、`manifest.json`、`frame_metrics.jsonl.gz`；Pilot→Data Jacobian局部性见`pilot_data_jacobian_locality.json`。
 - `core_confirmed=false`、`confirmation_ready=false`；未证明在线优于Frozen。
