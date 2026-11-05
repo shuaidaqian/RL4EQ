@@ -1,0 +1,71 @@
+{
+  "grid": [
+    {
+      "forgetting_factor": 0.98,
+      "initial_covariance": 0.1,
+      "train_validation_bce": 0.12371692325781532,
+      "prescreen_accepted": 0
+    },
+    {
+      "forgetting_factor": 0.98,
+      "initial_covariance": 1.0,
+      "train_validation_bce": 0.1237148067496543,
+      "prescreen_accepted": 4
+    },
+    {
+      "forgetting_factor": 0.98,
+      "initial_covariance": 10.0,
+      "train_validation_bce": 0.12369272592137144,
+      "prescreen_accepted": 12
+    },
+    {
+      "forgetting_factor": 0.995,
+      "initial_covariance": 0.1,
+      "train_validation_bce": 0.12371692325781532,
+      "prescreen_accepted": 0
+    },
+    {
+      "forgetting_factor": 0.995,
+      "initial_covariance": 1.0,
+      "train_validation_bce": 0.12371493415975651,
+      "prescreen_accepted": 4
+    },
+    {
+      "forgetting_factor": 0.995,
+      "initial_covariance": 10.0,
+      "train_validation_bce": 0.1236941235081494,
+      "prescreen_accepted": 11
+    },
+    {
+      "forgetting_factor": 1.0,
+      "initial_covariance": 0.1,
+      "train_validation_bce": 0.12371692325781532,
+      "prescreen_accepted": 0
+    },
+    {
+      "forgetting_factor": 1.0,
+      "initial_covariance": 1.0,
+      "train_validation_bce": 0.12371497485337901,
+      "prescreen_accepted": 4
+    },
+    {
+      "forgetting_factor": 1.0,
+      "initial_covariance": 10.0,
+      "train_validation_bce": 0.12369441329189287,
+      "prescreen_accepted": 11
+    }
+  ],
+  "selected": {
+    "forgetting_factor": 0.98,
+    "initial_covariance": 10.0,
+    "train_validation_bce": 0.12369272592137144,
+    "prescreen_accepted": 12,
+    "selection_validation_bce": 0.09623967342803713,
+    "selection_accepted": 18
+  },
+  "data_labels_used": false,
+  "roles": [
+    "training",
+    "selection"
+  ]
+}

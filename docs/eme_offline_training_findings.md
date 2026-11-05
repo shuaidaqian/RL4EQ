@@ -16,8 +16,8 @@
 - checkpoint 选择依据独立验证集 Data BER，而不是整帧 BCE 或 Pilot BER；
 - 主实验固定 Level B、prefix Pilot、SNR 0/5/10/15 dB；
 - 在线阶段仍由 Adapt Pilot 更新候选 PEFT 参数，Reward Pilot 做独立验收和回滚；
-- 本文件不宣称 BCE_all 已经超过传统均衡器，正式 BER 结果必须由同一信道轨迹、
-  多 seed 的实验产生。
+- 离线模型相对传统均衡器的现有多 seed 证据与准确边界见[离线训练与基线结果总览](offline_equalizer_training_and_baseline_20261105.md)。
+- 该优势来自离线训练神经均衡器在公平 Pilot 推理条件下的整体性能；不能单独归因于 BCE_all 损失形式，也不能替代在线微调相对同源 Frozen 的因果比较。
 
 ## 配置
 
