@@ -25,4 +25,17 @@ soft-BER轨迹相对普通续训的Online−Frozen增量点估计为0 dB `+1.22e
 
 ## 产物说明
 
-本评估产物由旧版通用评估脚本生成，schema仍保留当时的rank-1历史命名，且包含辅助Fisher基信息；`full_head_adam`分支不读取该basis。脚本现已改为按实际分支需要计算并记录basis，使用通用schema v2；历史JSON保持原样以维护结果指纹，数值未受元数据问题影响。训练指标、checkpoint和配置指纹均留存在对应checkpoint目录及JSON中。
+原始`eval16.json`由旧版通用评估脚本生成，schema仍保留当时的rank-1历史命名，且包含辅助Fisher基信息；`full_head_adam`分支不读取该basis。评估器现已改为按实际分支需要计算并记录basis，采用通用schema v2；原始JSON保持原样以维护结果指纹，数值未受元数据问题影响。后续`eval32_seed76200.json`由新schema生成，不包含无关Fisher basis。训练指标、checkpoint和配置指纹均留存在对应checkpoint目录及JSON中。
+
+## 延长轨迹开发筛查：seed 76200
+
+为检验当前短窗结论是否随帧龄反转，固定两类checkpoint、全head Adam、Adapt更新和Reward门控，在同一新session `76200` 上将每臂评估长度扩至32帧，覆盖全部四个SNR。完整文件分别为本目录`eval32_seed76200.json`及普通续训目录的同名文件。两臂逐帧波形相同，按帧对齐；该单session仍然只是机制筛查，不能用于统计确认。
+
+| SNR | soft-BER Online−Frozen | soft-BER晚16帧−早16帧 | 普通续训 Online−Frozen | 普通续训晚16帧−早16帧 |
+|---:|---:|---:|---:|---:|
+| 0 dB | +2.85e-4 | -1.63e-4 | +3.26e-4 | -3.26e-4 |
+| 5 dB | 约0 | -3.26e-4 | +4.07e-5 | -3.26e-4 |
+| 10 dB | 0 | 0 | 0 | 0 |
+| 15 dB | 0 | 0 | 0 | 0 |
+
+soft-BER在0/5/10/15 dB分别接受14/10/4/6次更新；普通续训相同。0 dB点估计普通续训略高，且两臂在0和5 dB的末窗收益均低于早窗。32帧复核没有支持在线优势随帧龄增长，也没有显示soft-BER轨迹优于普通续训，故停止扩大当前全head Adam矩阵。下一个机制将固定低维神经方向，单独检验跨帧状态不确定度是否能改善可持续更新；Data标签仍不进入在线控制。

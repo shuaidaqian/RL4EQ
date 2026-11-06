@@ -40,7 +40,7 @@
 
 因此不继续扩大BCE trajectory配置。已实现离线外层平滑BER目标（固定温度0.5），其单元测试验证梯度聚焦在靠近判决边界的错误符号；线上Adapt BCE和Reward门控不变。32步soft-BER trajectory臂及同配置、同预算普通监督臂均已完成训练，并在新session 76170/76171完成四SNR、16帧配对评估。结果归档见[soft-BER trajectory](results/full_head_softber_train32_v1_20261106/README.md)；普通监督checkpoint与逐帧评估见 `results/full_head_softber_supervised_train32_v1_20261106/`。soft-BER臂相对Frozen的0 dB平均收益为`+2.85e-4`，但两个session方向相反且描述性区间极宽；5/10/15 dB没有稳定BER收益。早晚窗变化在0 dB为负，其他SNR无变化。匹配普通监督臂0 dB也有正点估计，trajectory相对普通监督的收益差很小。因此软目标没有证明可重复在线BER收益，更没有证明收益随传输帧数增加；当前结论仍是全head Adam在线更新路线未通过开发证据门槛，不进入正式确认。
 
-下一步不依据这两个session调温度、门控或半径。固定两类checkpoint和在线规则，做每个SNR至少12个独立session、每个session连续128帧的开发复核，按session而非帧/bit统计；使用固定32帧窗口，并报告1/2/4/8/16/32/64/128帧前缀累计收益、session内趋势斜率、末两窗减首两窗、trajectory相对普通监督的交互、更新/接受/有害提交与参数位移。12个session仅为开发筛查下限，不是确认样本量；若趋势有希望，再用全新session延长到1024或2048帧，并依session级变异和预定效应量设计确认。若128帧复核仍未显示稳定且随帧龄总体增长的收益，停止当前全head Adam路线，转向可持续移动的低维神经子空间或状态条件更新机制。Data标签仅用于离线外层训练和动作后评分，不进入部署更新、Reward门控或模型选择闭环；另加入标签/隐藏真值扰动测试，验证它们不改变在线动作与状态。
+之后在新session 76200 上将冻结的soft-BER trajectory与匹配普通续训两臂扩至32帧、四SNR同波形配对，结果见[32帧延长筛查](results/full_head_softber_train32_v1_20261106/README.md)。0/5 dB两臂晚窗−早窗均为负，soft-BER没有优于普通续训；高SNR没有BER变化。因此不扩展当前全head Adam的12×128矩阵。下一步固定低维神经方向，验证跨帧状态不确定度/过程噪声更新是否改善长期增益；先实现数值与信息隔离测试，再以固定更新规则做短会话机制筛查，只有出现正向候选才扩大session和帧数。Data标签只用于离线外层目标及动作后事后评分，绝不进入在线候选或Reward门控。
 
 ## 复现命令
 
