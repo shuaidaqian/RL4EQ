@@ -172,13 +172,14 @@
 | [docs/symbol_transfer_stage_20261101.md](symbol_transfer_stage_20261101.md) | 历史 | 开发记录；当前规范以 v4 为准 |
 | [docs/transfer_gradient_diagnostic_plan_20261101.md](transfer_gradient_diagnostic_plan_20261101.md) | 历史 | 开发记录；当前规范以 v4 为准 |
 
-### 结果归档（72）
+### 结果归档（73）
 
 | 文档 | 状态 | 说明 |
 |---|---|---|
 | [docs/results/adapt_replay_dev_16f_v1_20261106/README.md](results/adapt_replay_dev_16f_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/bayes_head_diag_v1_20261106/README.md](results/bayes_head_diag_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/bayesian_cir_diag_v1_20261106/README.md](results/bayesian_cir_diag_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
+| [docs/results/cir_learned_map_v1_20261106/README.md](results/cir_learned_map_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/cumulative_radius_dev_16f_v1_20261106/README.md](results/cumulative_radius_dev_16f_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/data_aided_cir_diag_v1_20261106/README.md](results/data_aided_cir_diag_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/data_aided_elbo_diag_v1_20261106/README.md](results/data_aided_elbo_diag_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |

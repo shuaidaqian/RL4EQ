@@ -6,21 +6,25 @@
 
 在 Level B `eme_long_memory_v2`（116 符号记忆、1024 符号帧、prefix Pilot=256：Adapt=224、Reward=32、0/5/10/15 dB、准静态 1200 s）上，检验：
 
+2026-11-06 用户决策后，当前确认的是**物理在线适配主张**：
+
 - **H1（核心优越性）**：四个主要 SNR 等权平均的配对 BER 改善
-  `Δ = mean_s(BER_frozen,s − BER_online,s)`
-  显著大于 0。
-- **H2（安全护栏）**：每个主要 SNR 的配对差 `δ_s = BER_online,s − BER_frozen,s` 不显著大于 0；允许退化量为 0。
-- **H3（持续增长）**：同一会话内，固定窗口的 `gain_w = BER_frozen,w − BER_online,w` 总体随帧龄增加；会话级斜率与末窗减早窗为正。
+  `Δ = mean_s(BER_frozen,s − BER_bayes,s)`
+  显著大于 0。Frozen = 同源 checkpoint + acquisition CIR + 同一 dd_soft tail；Bayes = 同一 checkpoint + 贝叶斯递归 CIR 后验。神经权重两臂冻结。
+- **H2（安全护栏）**：每个主要 SNR 的配对差 `δ_s = BER_bayes,s − BER_frozen,s` 不显著大于 0；允许退化量为 0。
+- **H3（持续增长）**：同一会话内，固定窗口的 `gain_w = BER_frozen,w − BER_bayes,w` 总体随帧龄增加；会话级斜率与末窗减早窗为正。
+
+**神经参数微调子主张（独立）**：在共享 Bayes CIR 下，Online 额外更新神经参数；其相对 Bayes Frozen 的增量另行检验，不与上述物理确认混合。
 
 统计单位是独立 session；帧、bit、窗口不得冒充独立样本。H1/H2/H3 均需完整报告四个 SNR，不按开发结果删点。
 
 ## 2. 设计
 
-- **对照**：同源 checkpoint、同物理状态跟踪（dd_soft tail、Pilot 条件 CIR/CFO/相位）、同接收窗口、同 Pilot 预算、同 acquisition 与同步补偿。
-- **Online**：S-DANSA 或冻结后的备选机制；实际神经参数变化、更新次数、参数数、计算量与延迟必须记录。
-- **会话**：每个 session 至少 128 连续帧；同一 session 内 Frozen 与 Online 使用完全相同波形、seed、信道实现与物理状态轨迹。
+- **对照**：同源 checkpoint、同一 acquisition CIR、同一 dd_soft tail 规则、同接收窗口、同 Pilot 预算、同 acquisition 与同步补偿。
+- **Bayes**：贝叶斯递归 CIR（acquisition 先验 → Pilot 后验 → Data soft 后验）；神经权重冻结；后验协方差跨帧持久。
+- **会话**：每个 session 至少 128 连续帧；同一 session 内 Frozen 与 Bayes 使用完全相同波形、seed、信道实现与 tail 规则。
 - **数据角色**：Adapt Pilot 更新；Reward Pilot 动作后门控/验收；Data 标签只用于离线外层、离线选择/校准与事后评分。在线分支不得读取 Data 标签、真实 CIR/相位/CFO。
-- **A/B 归因**：A 普通监督续训、B 适配导向训练；四臂 A-Frozen/A-Online/B-Frozen/B-Online 同数据、同预算。核心主张看 B-Online 对 B-Frozen 的增量，以及 B−A 交互；不把 B-Frozen 变强误写成在线贡献。
+- **归因**：物理主张的 A/B 是 acquisition CIR（Frozen）与 Bayes CIR（Online）；神经子主张的四臂是共享 Bayes CIR 下的 Frozen/Online × A/B 训练，同数据、同预算。不把 Bayes CIR 的物理增益写成神经参数增益。
 
 ## 3. 统计方法（候选）
 
@@ -70,9 +74,11 @@
 
 - 四 SNR 的逐 session BER、配对差、绝对/相对改善、置信界。
 - 窗口 `gain_w`、会话级斜率、末窗减早窗、稳态 BER、漂移后恢复。
-- 实际神经参数数、每帧更新次数、参数位移/累计半径、接受/拒绝/回滚次数、有害更新数。
-- 计算量、每帧延迟、内存；Frozen 与 Online 的实际计算差异。
+- CIR NMSE（Frozen/Bayes/真实 CIR oracle）、后验协方差迹/条件数、每帧使用的 Data 行数与有效权重。
+- Bayes 超参数：acquisition 先验 ridge、过程噪声 `Q`、Data 行噪声尺度；不得按真实 SNR 调度，只能用合法估计/置信度。
+- 计算量、每帧延迟、内存；Frozen 与 Bayes 的实际计算差异。
 - 标签隔离证据：在线分支未读 Data 标签/真实状态；Data 只用于离线与事后评分。
+- 神经子主张另行报告实际神经参数数、每帧更新次数、参数位移/累计半径、接受/拒绝/回滚次数。
 - 失败/异常会话、失稳、OOM、数值异常；不用计划代替未运行的结果。
 
 ## 7. 待冻结空缺
@@ -84,5 +90,7 @@
 5. 样本量最终值、独立 session 数与每 session 帧数。
 6. checkpoint 选择/冻结流程与确认集 seed 清单。
 7. 目标吞吐、物理频段/带宽与应用需求。
+8. Bayes CIR 超参数（acquisition ridge、过程噪声 `Q`、Data 行噪声尺度）与冻结流程。
+9. 物理主张与神经子主张的分离报告格式（物理 A/B 与共享 Bayes CIR 四臂）。
 
 在上述空缺填齐并由用户确认前，本文件不构成正式确认协议，不能用于宣称核心目标完成。
