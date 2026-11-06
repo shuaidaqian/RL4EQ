@@ -19,7 +19,9 @@
 | P0 结果 | [docs/results/tail_alignment_v1_20261106/README.md](results/tail_alignment_v1_20261106/README.md) | soft-tail 训练/评估对齐 |
 | 统计功效 | [docs/results/power_error_composition_20261106/README.md](results/power_error_composition_20261106/README.md) | MDE、session 数与错误构成 |
 | 方法调研 | [docs/results/method_survey_20261106/README.md](results/method_survey_20261106/README.md) | 在线适配机制与文献 |
-| 离线饱和 | docs/results/offline_saturation_20261106/README.md（待归档） | oracle 上界与饱和验证（子 agent，待归档） |
+| 离线饱和 | [docs/results/offline_saturation_20261106/README.md](results/offline_saturation_20261106/README.md) | 训练预算/宽度接近饱和；CIR 是 5/10 dB 主要残差 |
+| P1 诊断 | [docs/results/data_aided_elbo_diag_v1_20261106/README.md](results/data_aided_elbo_diag_v1_20261106/README.md) | Data 软边缘化 ELBO 方向筛查 |
+| P1 诊断 | docs/results/data_aided_cir_diag_v1_20261106/README.md（待归档） | Data-aided CIR 四模式对照（待归档） |
 | 近期机制 | [docs/results/rank1_state_filter_dev_v1_20261106/README.md](results/rank1_state_filter_dev_v1_20261106/README.md) | rank-1 状态滤波开发筛查 |
 | 近期机制 | [docs/results/full_head_softber_train32_v1_20261106/README.md](results/full_head_softber_train32_v1_20261106/README.md) | soft-BER 全 head trajectory |
 | 近期机制 | [docs/results/subspace_v27_checkpoint_replay_v1_20261105/README.md](results/subspace_v27_checkpoint_replay_v1_20261105/README.md) | v27 冻结 checkpoint 复核 |
@@ -168,12 +170,13 @@
 | [docs/symbol_transfer_stage_20261101.md](symbol_transfer_stage_20261101.md) | 历史 | 开发记录；当前规范以 v4 为准 |
 | [docs/transfer_gradient_diagnostic_plan_20261101.md](transfer_gradient_diagnostic_plan_20261101.md) | 历史 | 开发记录；当前规范以 v4 为准 |
 
-### 结果归档（67）
+### 结果归档（69）
 
 | 文档 | 状态 | 说明 |
 |---|---|---|
 | [docs/results/adapt_replay_dev_16f_v1_20261106/README.md](results/adapt_replay_dev_16f_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/cumulative_radius_dev_16f_v1_20261106/README.md](results/cumulative_radius_dev_16f_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
+| [docs/results/data_aided_elbo_diag_v1_20261106/README.md](results/data_aided_elbo_diag_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/detection_subspace_adapt_loss_alignment_v1_20261105/README.md](results/detection_subspace_adapt_loss_alignment_v1_20261105/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/detection_subspace_frozen_error_outer_v1_20261105/README.md](results/detection_subspace_frozen_error_outer_v1_20261105/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/detection_subspace_long_v10_context_update_v1_20261104/README.md](results/detection_subspace_long_v10_context_update_v1_20261104/README.md) | 结果 | 原语义；不按 v4 追认 |
@@ -220,6 +223,7 @@
 | [docs/results/head_fisher_rank1_gn_smoke_v1_20261106/README.md](results/head_fisher_rank1_gn_smoke_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/head_fisher_rank1_smoke_v1_20261106/README.md](results/head_fisher_rank1_smoke_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/method_survey_20261106/README.md](results/method_survey_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
+| [docs/results/offline_saturation_20261106/README.md](results/offline_saturation_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/parameter_group_direction_dev_v1_20261106/README.md](results/parameter_group_direction_dev_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/persistent_adam_dev_16f_v1_20261106/README.md](results/persistent_adam_dev_16f_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/persistent_adam_dev_32f_v1_20261106/README.md](results/persistent_adam_dev_32f_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |

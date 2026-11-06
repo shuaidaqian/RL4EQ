@@ -43,6 +43,7 @@
   "method_family": "S-DANSA",
   "method_components": [
     "共享物理状态：dd_soft soft-tail、Pilot 条件 CIR/CFO/相位",
+    "数据辅助 CIR/相位精化：Data 位置 soft 判决加权 LS，不读 Data 标签；与 Pilot-only/Oracle 对照",
     "低维神经状态 z_t（首轮 d=8，可选 4/16），零初始化 FiLM/LoRA 或 head 低秩基",
     "状态动力学 z_t = z_{t-1} + w_t，w_t ~ N(0,Q)，对角+低秩后验",
     "在线内循环：Adapt BCE + Data 软边缘化模型似然 + 置信度判决反馈 + Reward 硬门控 + 信赖域",
@@ -58,7 +59,7 @@
   },
   "stages": [
     {"id": "P0", "name": "soft-tail 训练/评估对齐", "status": "completed", "evidence": "docs/results/tail_alignment_v1_20261106/README.md"},
-    {"id": "P1", "name": "数据辅助机制 smoke", "status": "not_started", "design": "3-5 新 session × 32 帧 × 四 SNR；Frozen/A/B"},
+    {"id": "P1", "name": "数据辅助机制 smoke", "status": "in_progress", "design": "先做 Data-aided CIR/相位精化四模式对照（Frozen/Pilot-only/Data-aided/Oracle），再做低维神经状态修正；3-5 新 session × 16-32 帧 × 四 SNR"},
     {"id": "P2", "name": "离线元训练 A/B", "status": "not_started", "design": "同数据、同预算、四臂"},
     {"id": "P3", "name": "开发筛查", "status": "not_started", "design": "≥10 session × 128 帧；0 dB 30-35"},
     {"id": "P4", "name": "正式确认", "status": "not_started", "design": "预注册、新 session、多重比较、停止规则"}
@@ -76,7 +77,9 @@
     "tail_alignment": "completed",
     "power_analysis": "completed",
     "literature_survey": "completed",
-    "offline_saturation": "running",
+    "offline_saturation": "completed",
+    "offline_saturation_findings": "训练预算/宽度接近饱和；同帧 oracle head 在留出帧上消失；CIR 估计误差在 5/10 dB 占约 20%-33% 相对 BER",
+    "data_aided_cir_diagnostic": "running",
     "s_dansa_implementation": "not_started",
     "online_gain_over_frozen": "not_established",
     "growth_until_saturation": "not_established",
