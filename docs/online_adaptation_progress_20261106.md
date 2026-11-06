@@ -34,7 +34,9 @@
 
 之后已为评估轨迹加入动作后的Data BCE（仅事后评分），并在相同checkpoint和session上重跑。0/5 dB的BCE总体收益约为8.0e-4/2.2e-4，后窗继续变好；但0 dB BER仍可退化，说明连续损失收益没有自动转化为硬判决错误减少。Trajectory和普通续训的BCE曲线几乎一样，尚无专属在线能力证据。详见阶段结果中的“同一累计轨迹的连续 Data BCE 复核”。
 
-下一步只改Reward验收的时间聚合：固定Adapt候选、更新步长和参数范围，对比当前帧32个Reward Pilot与预先固定的历史Reward窗口聚合验收，检验是否减少低SNR有害提交并提升Data BER。高SNR暂不把无误码差异解释为成功；同时报告更新激活率和连续损失。窗口长度必须预先指定并讨论时变信道下的过时风险。Data只用于离线外层训练和事后评分，不能参与窗口选择、接受、回滚或超参数挑选。
+之后做了两项单因素在线消融。第一，最近4帧Reward Pilot聚合门控在单session 8帧早期筛查中未优于当前帧门控，0 dB有害接受更多，停止扩大该方案。第二，最近4帧Adapt Pilot梯度均值在两个新session、每SNR16帧下没有改善BER：0 dB更差，5/10/15 dB无变化，因此停止扩大简单均值重放。
+
+同时把累计参数半径0.05扩大到0.10，确认0 dB后期更新确实会受原信赖域压缩；但两session结果方向相反，5 dB仍退化，不能证明扩大半径改善BER。当前固定锚点微调的三个朴素修复（延长Reward窗口、Adapt历史均值、扩大累计半径）都没有建立收益趋势。下一步应回到离线表示学习，做更充分的多帧 trajectory 外层训练（至少32步）与同预算普通监督续训对照，再用新session评估；如果仍无可归因增益，则需要改变离线可适配参数化/更新子空间，而不是继续细调门控或半径。所有在线控制仍只读Adapt/Reward，Data只用于外层训练和动作后评分。
 
 ## 复现命令
 
@@ -49,4 +51,4 @@ python pretrain.py --config configs/eme_long_memory_v2_full_head_trajectory_dev_
 python scripts/prototype_head_rank1_adapt.py --config configs/eme_long_memory_v2_full_head_trajectory_dev_v1.json --pretrained <续训checkpoint> --basis-seed 78001 --seed-start <未见session起始seed> --num-seeds 2 --frames 16 --device cuda --branches frozen,full_head_adam --output <结果JSON>
 ```
 
-阶段修改后全仓测试为 `992 passed`；A/B归档之后还需做定向测试、diff检查和配置验证。本 worktree 尚未将阶段文件提交或推送；通过这些检查后将阶段文件提交到当前分支并推送远端 `RL4EQ`。
+阶段修改后全仓测试为 992 passed；最近算法分支和指标相关定向测试为 130 passed。本阶段新增的Reward-H4、Adapt-H4及半径2×结果尚待统一归档并提交推送；本地 cbc15fa 仍比远端领先，先前推送被远端返回 fatal error in commit_refs。

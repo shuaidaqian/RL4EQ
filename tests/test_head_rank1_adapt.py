@@ -4,7 +4,10 @@
 import torch
 from types import SimpleNamespace
 
-from scripts.prototype_head_rank1_adapt import _posthoc_data_metrics, _project_candidate
+from scripts.prototype_head_rank1_adapt import (
+    _adapt_update_contexts, _aggregate_reward_metrics, _cumulative_delta_radius,
+    _posthoc_data_metrics, _project_candidate,
+)
 
 
 def test_projected_head_candidate_stays_in_rank_one_basis_and_radius():
@@ -39,3 +42,32 @@ def test_data_metrics_are_scored_after_online_action_and_report_continuous_bce()
     assert metrics["data_bce_gain"] > 0
     assert set(metrics) == {"ber_frozen", "ber_online", "data_bce_frozen",
                             "data_bce_online", "data_bce_gain"}
+
+
+def test_reward_window_metrics_pool_pilot_counts_without_data_labels():
+    """跨帧门控按独立Reward Pilot数量加权，不受帧错误率分母差异影响。"""
+    ber, bce, count = _aggregate_reward_metrics([
+        (0.5, 0.4, 4),
+        (0.0, 0.2, 12),
+    ])
+
+    assert count == 16
+    assert ber == 0.125
+    assert abs(bce - 0.25) < 1e-7
+
+
+def test_adapt_history_uses_only_recent_contexts_and_includes_current():
+    """历史更新只使用最近窗口，并且当前Adapt帧始终纳入。"""
+    history = list(range(6))
+
+    assert _adapt_update_contexts(history, 6, 4) == [3, 4, 5, 6]
+    assert _adapt_update_contexts(history, 6, 1) == [6]
+    assert _adapt_update_contexts([], 6, 4) == [6]
+
+
+def test_radius2_branch_only_doubles_cumulative_trust_region():
+    """半径消融只改变累计边界，保留逐帧更新配置。"""
+    settings = {"max_delta_norm": 0.05}
+
+    assert _cumulative_delta_radius(settings, "full_head_adam") == 0.05
+    assert _cumulative_delta_radius(settings, "full_head_adam_radius2") == 0.10

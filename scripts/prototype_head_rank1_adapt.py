@@ -79,6 +79,46 @@ def _guard_metrics(logits, frame):
     return float(ber.detach()), float(loss.detach())
 
 
+def _aggregate_reward_metrics(values):
+    """按Pilot符号数合并独立Reward验证窗的BER与BCE。"""
+    total = sum(int(count) for _, _, count in values)
+    if total < 1:
+        raise ValueError("Reward验证窗缺少有效Pilot。")
+    ber = sum(float(error_rate) * int(count) for error_rate, _, count in values) / total
+    bce = sum(float(loss) * int(count) for _, loss, count in values) / total
+    return ber, bce, total
+
+
+def _adapt_update_contexts(history, current, window_frames):
+    """返回截至当前帧的固定长度Adapt-only更新上下文。"""
+    if window_frames < 1:
+        raise ValueError("Adapt历史窗口至少包含当前帧。")
+    past = history[-(window_frames - 1):] if window_frames > 1 else []
+    return list(past) + [current]
+
+
+def _cumulative_delta_radius(settings, branch):
+    radius = float(settings.get("max_total_delta_norm", settings["max_delta_norm"]))
+    return radius * (2.0 if branch == "full_head_adam_radius2" else 1.0)
+
+
+def _reward_window_metrics(model, contexts, parameters):
+    """仅聚合Reward Pilot标签评估同一个候选，不读取Adapt或Data标签。"""
+    per_frame = []
+    with torch.no_grad():
+        for context in contexts:
+            logits = context_logits(model, context, parameters, visible="pilot")
+            frame = context.frame
+            mask = frame.reward_mask.bool()
+            labels = (frame.receiver_view().reward_symbols.real > 0).float()
+            selected = logits[mask].float()
+            target = labels[mask].to(selected.device)
+            loss = F.binary_cross_entropy_with_logits(selected, target)
+            errors = ((selected >= 0) != target.bool()).float().sum()
+            per_frame.append((float(errors / mask.sum()), float(loss), int(mask.sum())))
+    return _aggregate_reward_metrics(per_frame)
+
+
 def _posthoc_data_metrics(logits_frozen, logits_online, frame):
     """候选和门控完成后计算Data评分，不得回流在线控制。"""
     mask = frame.data_mask.bool()
@@ -183,12 +223,17 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
     active_rank1_coefficient = torch.zeros((), device=basis.device, dtype=basis.dtype)
     tail = initial_tail.detach().clone()
     adapt_history = []
+    reward_history = []
+    history_count = 8 if branch == "fisher_rank1_trajectory_gn_h8" else 1
+    reward_window_frames = 4 if branch == "full_head_adam_reward_h4" else 1
+    adapt_window_frames = 4 if branch == "full_head_adam_adapt_h4" else 1
     for frame in frames[:warmup_frames]:
         warmup_context = make_context(frame, cir, cfo, tail, snr)
         tail = next_pilot_tail(model, warmup_context, alpha=float(config_tail_alpha(settings)), parameters=initial)
         adapt_history.append(adapt_only_history_context(frame, warmup_context.condition, warmup_context.tail))
+        reward_history.append(warmup_context)
+        reward_history = reward_history[-(reward_window_frames - 1):] if reward_window_frames > 1 else []
     rows = []
-    history_count = 8 if branch == "fisher_rank1_trajectory_gn_h8" else 1
     for frame in frames[warmup_frames:]:
         context = make_context(frame, cir, cfo, tail, snr)
         params_before = dict(initial)
@@ -234,8 +279,10 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
                     float(settings["max_delta_norm"]))
                 candidate.update({name: value.detach() for name, value in candidate_group.items()})
             else:
+                update_contexts = _adapt_update_contexts(
+                    adapt_history, context, adapt_window_frames)
                 fast, update = differentiable_adapt(
-                    model, [context], learning_rate=float(settings["inner_learning_rate"]),
+                    model, update_contexts, learning_rate=float(settings["inner_learning_rate"]),
                     steps=int(settings["inner_steps"]), max_delta_norm=float(settings["max_delta_norm"]),
                     initial_parameters=params_before, groups={"head"}, objective="bce",
                     receiver_input="adapt_only")
@@ -244,7 +291,7 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
                 candidate_vector = _flatten_group(candidate, names)
                 origin_vector = _flatten_group(origin, names)
                 delta = candidate_vector - origin_vector
-                radius = float(settings.get("max_total_delta_norm", settings["max_delta_norm"]))
+                radius = _cumulative_delta_radius(settings, branch)
                 scale = (radius / delta.norm().clamp_min(1e-12)).clamp(max=1.0)
                 projected_vector = origin_vector + delta * scale
                 projected_total = _unflatten_group(origin, names, projected_vector)
@@ -252,10 +299,14 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
                 projected_norm = float(_flatten_group(candidate, names).sub(
                     _flatten_group(params_before, names)).norm())
             with torch.no_grad():
-                before_reward_logits = context_logits(model, context, params_before, visible="pilot")
-                after_reward_logits = context_logits(model, context, candidate, visible="pilot")
-                reward_before, reward_loss_before = _guard_metrics(before_reward_logits, frame)
-                reward_after, reward_loss_after = _guard_metrics(after_reward_logits, frame)
+                past_reward_contexts = (
+                    reward_history[-(reward_window_frames - 1):] if reward_window_frames > 1 else []
+                )
+                validation_contexts = past_reward_contexts + [context]
+                reward_before, reward_loss_before, _ = _reward_window_metrics(
+                    model, validation_contexts, params_before)
+                reward_after, reward_loss_after, _ = _reward_window_metrics(
+                    model, validation_contexts, candidate)
             accepted = should_accept_reward_guard(
                 reward_loss_before=reward_loss_before, reward_loss_after=reward_loss_after,
                 reward_ber_before=reward_before, reward_ber_after=reward_after,
@@ -276,7 +327,10 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
             "frame_index": int(frame.frame_index), "accepted": accepted,
             "reward_ber_before": reward_before, "reward_ber_candidate": reward_after,
             "reward_bce_before": reward_loss_before, "reward_bce_candidate": reward_loss_after,
+            "reward_window_frames": min(reward_window_frames, len(reward_history) + 1),
+            "adapt_history_frames": min(adapt_window_frames, len(adapt_history) + 1),
             "delta_norm": update_norm, "projected_delta_norm": projected_norm,
+            "cumulative_delta_radius": _cumulative_delta_radius(settings, branch),
             "adapt_losses": adapt_losses if branch in {
                 "fisher_rank1", "fisher_rank1_gn", "fisher_rank1_trajectory_gn",
                 "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"
@@ -294,6 +348,8 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
         tail = next_pilot_tail(model, context, alpha=float(config_tail_alpha(settings)), parameters=params_committed)
         adapt_history.append(adapt_only_history_context(frame, context.condition, context.tail))
         adapt_history = adapt_history[-7:]
+        reward_history.append(context)
+        reward_history = reward_history[-(reward_window_frames - 1):] if reward_window_frames > 1 else []
     return rows
 
 
@@ -317,7 +373,9 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
     ] + (["fisher_rank1_trajectory_gn", "meta_rank1_gn"] if basis_checkpoint is not None else [])
     if "frozen" not in branch_names or len(set(branch_names)) != len(branch_names):
         raise ValueError("branch列表必须包含唯一的frozen基线。")
-    allowed_branches = {"frozen", "full_head_adam", "fisher_rank1", "fisher_rank1_gn",
+    allowed_branches = {"frozen", "full_head_adam", "full_head_adam_reward_h4",
+                        "full_head_adam_adapt_h4", "full_head_adam_radius2",
+                        "fisher_rank1", "fisher_rank1_gn",
                         "fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"}
     if set(branch_names) - allowed_branches:
         raise ValueError("branch列表含有未知方法。")
