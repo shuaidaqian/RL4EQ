@@ -220,7 +220,8 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
     initial = {name: value.detach().clone() for name, value in model.named_parameters()}
     origin = {name: initial[name].clone() for name in names}
     active = {name: origin[name].clone() for name in names}
-    active_rank1_coefficient = torch.zeros((), device=basis.device, dtype=basis.dtype)
+    active_rank1_coefficient = torch.zeros((), device=origin[names[0]].device,
+                                            dtype=origin[names[0]].dtype)
     tail = initial_tail.detach().clone()
     adapt_history = []
     reward_history = []
@@ -482,8 +483,9 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
         "checkpoint": str(Path(checkpoint).resolve()),
         "checkpoint_sha256": hashlib.sha256(Path(checkpoint).read_bytes()).hexdigest(),
         "prototype_script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "rank1_update_module_sha256": hashlib.sha256(
-            (ROOT / "training" / "rank1_online.py").read_bytes()).hexdigest(),
+        "rank1_update_module_sha256": (hashlib.sha256(
+            (ROOT / "training" / "rank1_online.py").read_bytes()).hexdigest()
+            if rank1_branches.intersection(branch_names) else None),
         "basis": (basis.detach().cpu().tolist() if basis is not None else None), "basis_info": basis_info,
         "fisher_basis": (fisher_basis.detach().cpu().tolist() if fisher_basis is not None else None),
         "basis_checkpoint": None if basis_checkpoint is None else str(Path(basis_checkpoint).resolve()),
