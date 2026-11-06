@@ -85,15 +85,24 @@
     "physical_bayes_cir_gain": "dev evidence: 5/10 dB 5/5 seeds same direction and descriptive CI excludes 0; 0 dB growing within 32 frames; 15 dB neutral",
     "neural_increment": "not_established",
     "s_dansa_implementation": "not_started",
-    "online_gain_over_frozen": "physical Bayes CIR gain established in development; neural increment not established",
-    "growth_until_saturation": "physical CIR grows/saturates at 5/10/0 dB; neural version not established",
-    "formal_confirmation": "not_started; criteria to be re-frozen for the physical claim"
+    "online_gain_over_frozen": "physical Bayes CIR confirmed (H1/H2 pass); neural increment not established",
+    "growth_until_saturation": "confirmed at 5/10/15 dB; 0 dB large gain but H3 fail; neural version not established",
+    "formal_confirmation": "physical confirmation v1 completed (100001-100010, 10x128): H1/H2 pass; H3 pass at 5/10/15 dB, fail at 0 dB"
+  },
+  "confirmation_v1_20261106": {
+    "protocol": "docs/protocols/confirmation_physical_v1_20261106.md",
+    "seeds": [100001, 100002, 100003, 100004, 100005, 100006, 100007, 100008, 100009, 100010],
+    "frames": 128,
+    "h1": {"mean": 0.011767, "se": 0.000861, "one_sided_lower95": 0.010188, "p_one_sided": 1.26e-7, "pass": true},
+    "h2": {"0": {"delta": 0.036802, "lower95": 0.030289, "holm_p": 1e-5, "neg_seeds": 0}, "5": {"delta": 0.008032, "lower95": 0.006265, "holm_p": 2e-5, "neg_seeds": 0}, "10": {"delta": 0.001971, "lower95": 0.001456, "holm_p": 6e-5, "neg_seeds": 0}, "15": {"delta": 0.000260, "lower95": 0.000149, "holm_p": 0.001, "neg_seeds": 0}, "pass": true},
+    "h3": {"5": {"slope_per_bin": 0.000410, "pass": true}, "10": {"slope_per_bin": 0.000377, "pass": true}, "15": {"slope_per_bin": 0.000064, "pass": true}, "0": {"slope_per_bin": -0.001238, "pass": false}},
+    "neural_subclaim": "not tested in confirmation"
   },
   "physical_stages": [
     {"id": "P1-phys", "name": "贝叶斯 CIR 机制筛查", "status": "completed", "evidence": "3x16 + 5x32 development"},
     {"id": "P2-phys", "name": "物理开发筛查", "status": "not_started", "design": "5/10 dB 10-15 sessions x 128 frames; 0 dB 30-35"},
     {"id": "P3-phys", "name": "物理判据冻结", "status": "not_started"},
-    {"id": "P4-phys", "name": "物理独立确认", "status": "not_started"}
+    {"id": "P4-phys", "name": "物理独立确认", "status": "completed", "evidence": "docs/results/bayesian_cir_confirmation_v1_20261106/README.md"}
   ],
   "pending_decisions": [
     "正式确认的主效应聚合、单侧/双侧检验、置信界与多重比较方法",
