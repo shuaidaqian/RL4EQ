@@ -249,7 +249,8 @@
     "rank1_state_information_scale": 1.0,
     "rank1_state_damping": 0.01,
     "rank1_state_variance_floor": 1e-08,
-    "rank1_state_step_limit": 0.005
+    "rank1_state_step_limit": 0.005,
+    "rank1_finite_difference_epsilon": 0.001
   },
   "development_audit": "fixed-channel scalar neural state-filter mechanism screen; channel and pilot fields inherited unchanged"
 }

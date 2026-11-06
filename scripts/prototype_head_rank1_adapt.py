@@ -214,6 +214,7 @@ def _rank1_gauss_newton_candidate(model, context, parameters, names, basis, sett
         adapt_labels=adapt_labels,
         damping=float(settings.get("rank1_gn_damping", 0.01)),
         max_step_norm=float(settings.get("rank1_state_step_limit", settings["max_delta_norm"])),
+        finite_difference_epsilon=float(settings.get("rank1_finite_difference_epsilon", 1e-3)),
     )
     return _unflatten_group(parameters, names, candidate_vector), diagnostics
 

@@ -8,7 +8,7 @@ from scripts.prototype_head_rank1_adapt import (
     _adapt_update_contexts, _aggregate_reward_metrics, _cumulative_delta_radius,
     _posthoc_data_metrics, _project_candidate,
 )
-from training.rank1_online import _scalar_output_jacobian, scalar_gaussian_pilot_update
+from training.rank1_online import scalar_gaussian_pilot_update
 
 
 def test_projected_head_candidate_stays_in_rank_one_basis_and_radius():
@@ -102,13 +102,3 @@ def test_scalar_gaussian_pilot_update_zero_score_keeps_mean_but_updates_uncertai
     assert posterior >= 0.02
     assert posterior < variance + 0.01
 
-
-def test_scalar_output_jacobian_chunking_matches_closed_form():
-    """分块VJP与已知输出导数逐项一致。"""
-    coefficient = torch.tensor(0.4, requires_grad=True)
-    weights = torch.arange(1, 10, dtype=torch.float32)
-    logits = weights * coefficient + coefficient.square()
-    jacobian = _scalar_output_jacobian(logits, coefficient, chunk_size=3)
-    expected = weights + 2.0 * coefficient.detach()
-
-    assert torch.allclose(jacobian, expected)

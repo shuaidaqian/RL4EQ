@@ -64,29 +64,6 @@ def scalar_gaussian_pilot_update(
     }
 
 
-def _scalar_output_jacobian(logits: torch.Tensor, coefficient: torch.Tensor,
-                            chunk_size: int = 24) -> torch.Tensor:
-    """分块计算一维系数对输出的Jacobian，控制显存峰值。"""
-
-    flat = logits.reshape(-1)
-    if flat.numel() == 0:
-        return flat.detach().clone()
-    if not isinstance(chunk_size, int) or chunk_size < 1:
-        raise ValueError("chunk_size必须是正整数。")
-    chunks = []
-    for start in range(0, flat.numel(), chunk_size):
-        stop = min(start + chunk_size, flat.numel())
-        selectors = torch.zeros(stop - start, flat.numel(), device=flat.device,
-                                dtype=flat.dtype)
-        rows = torch.arange(stop - start, device=flat.device)
-        selectors[rows, torch.arange(start, stop, device=flat.device)] = 1.0
-        gradient, = torch.autograd.grad(
-            flat, coefficient, grad_outputs=selectors, is_grads_batched=True,
-            retain_graph=stop < flat.numel(), create_graph=False)
-        chunks.append(gradient.reshape(-1))
-    return torch.cat(chunks).detach()
-
-
 def damped_rank1_gauss_newton_candidate(
     *,
     parameters: torch.Tensor,
@@ -97,6 +74,7 @@ def damped_rank1_gauss_newton_candidate(
     damping: float,
     max_step_norm: float,
     gradient_epsilon: float = 1e-12,
+    finite_difference_epsilon: float = 1e-3,
 ) -> tuple[torch.Tensor, dict[str, Any]]:
     """只依据 Adapt Pilot 构造一个 rank-1 阻尼 Gauss–Newton 候选。
 
@@ -110,8 +88,8 @@ def damped_rank1_gauss_newton_candidate(
     ``F = mean(sigmoid(logit) * (1-sigmoid(logit)) * (dlogit/dz)^2)``
     ``delta_z = -g / (F + damping)``
 
-    最后将系数步长裁剪到 ``max_step_norm``。返回的候选与诊断均为停止梯度的
-    张量/标量；该模块不构造外层元梯度。
+    方向导数以中心有限差分估计，避免长输出向量的高显存反向Jacobian。最后将
+    系数步长裁剪到 ``max_step_norm``。返回的候选与诊断均为停止梯度的张量/标量。
     """
 
     if not isinstance(parameters, torch.Tensor) or not parameters.is_floating_point():
@@ -130,6 +108,8 @@ def damped_rank1_gauss_newton_candidate(
         raise ValueError("max_step_norm 必须是正的有限数。")
     if not math_is_finite_nonnegative(gradient_epsilon):
         raise ValueError("gradient_epsilon 必须是非负有限数。")
+    if not math_is_finite_positive(finite_difference_epsilon):
+        raise ValueError("finite_difference_epsilon 必须是正的有限数。")
     if not torch.isfinite(parameters).all() or not torch.isfinite(basis).all():
         raise FloatingPointError("parameters 或 basis 含有非有限值。")
 
@@ -155,11 +135,16 @@ def damped_rank1_gauss_newton_candidate(
             raise TypeError("adapt_logits_fn 必须返回张量。")
         return logits.reshape(-1).to(device=device, dtype=work_dtype)
 
-    with torch.enable_grad():
-        coefficient = torch.zeros((), device=device, dtype=work_dtype, requires_grad=True)
+    coefficient = torch.zeros((), device=device, dtype=work_dtype)
+    epsilon = float(finite_difference_epsilon)
+    with torch.no_grad():
         logits = logits_at(coefficient)
+        logits_plus = logits_at(coefficient + epsilon)
+        logits_minus = logits_at(coefficient - epsilon)
         if logits.shape != labels.shape:
             raise ValueError("Adapt logits 与 Adapt 标签元素数量必须一致。")
+        if logits_plus.shape != labels.shape or logits_minus.shape != labels.shape:
+            raise ValueError("有限差分Adapt logits 与 Adapt 标签元素数量必须一致。")
         if adapt_mask is None:
             mask = torch.ones_like(labels, dtype=torch.bool)
         else:
@@ -178,6 +163,7 @@ def damped_rank1_gauss_newton_candidate(
                 "gradient": 0.0,
                 "fisher": 0.0,
                 "damping": float(damping),
+                "finite_difference_epsilon": epsilon,
                 "raw_step_norm": 0.0,
                 "step_norm": 0.0,
             }
@@ -187,8 +173,7 @@ def damped_rank1_gauss_newton_candidate(
         if not torch.isfinite(selected_logits).all():
             raise FloatingPointError("Adapt Pilot logits 含有非有限值。")
 
-        # 对输出分块做批量VJP，避免长Pilot向量化Jacobian造成显存峰值。
-        jacobian = _scalar_output_jacobian(logits, coefficient)
+        jacobian = (logits_plus - logits_minus) / (2.0 * epsilon)
         selected_jacobian = jacobian[mask].detach()
         probabilities = torch.sigmoid(selected_logits.detach())
         gradient = torch.mean((probabilities - selected_labels) * selected_jacobian)
@@ -221,6 +206,7 @@ def damped_rank1_gauss_newton_candidate(
         "gradient": gradient_value,
         "fisher": fisher_value,
         "damping": float(damping),
+        "finite_difference_epsilon": epsilon,
         "raw_step_norm": float(raw_norm.detach().cpu()),
         "step_norm": float(step_norm.detach().cpu()),
     }
