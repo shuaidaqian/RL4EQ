@@ -63,6 +63,25 @@ P0 全量测试在 `PYTHONUTF8=1` 下 `1001 passed`。默认 Windows GBK 环境�
 
 下一步 P1：固定 tail 协议，等离线饱和/oracle 上界子 agent 结果归档后，实现"数据辅助软似然 + 低维状态后验"的单因素机制筛查。离线饱和结果尚未返回，不能当作已完成证据。
 
+## 2026-11-06 离线饱和诊断与 P1 方向
+
+[离线饱和诊断](results/offline_saturation_20261106/README.md)已完成（新开发 seed 91001–91005）：
+
+- 训练预算/宽度接近饱和：续训 32/64 步、`iterations` 4→6、`d_model` 64→96 均无稳定改善；最大点估计约 `-1.8e-4`（5 dB，64 步）。
+- 同帧 oracle head（Data 标签，K=64）在 5/10 dB 显著（`-2.34e-3`/`-7.81e-4`），但会话内留出帧复核后基本消失（区间跨零）；持久静态 head 修正不能稳定迁移。
+- 真实 CIR 条件相对估计 CIR：5 dB `0.05283→0.04199`（`-1.08e-2`），10 dB `0.00700→0.00465`（`-2.34e-3`），相对 BER 约 20%–33%；15 dB 近似 0；0 dB 点估计 `-4.60e-2` 但 seed 方差大。
+
+因此 P1 先做合法 CIR/相位精化，而不是持久 head。[Data 软边缘化 ELBO 诊断](results/data_aided_elbo_diag_v1_20261106/README.md)（2 seed × 6 帧）显示：5/10/15 dB 的 `cos(ELBO, Data)` 约 `+0.15/+0.14/+0.24`，而 Adapt/Data 在 10/15 dB 约 `-0.05/-0.01`；但 ELBO 梯度范数在 15 dB 仅约 `9e-4`，一次固定半径步进没有稳定 BER 收益，0 dB 方向为负。ELBO 适合作为辅助项或 CIR 精化目标，不能单独替代 Pilot。
+
+新增实现：
+
+- `training/data_aided.py`：Data 位置软边缘化 ELBO；标签隔离与梯度可达性测试。
+- `training/data_aided_cir.py`：只用接收波形与模型 soft 判决的加权 LS CIR 精化；不读 Data 标签；与 Pilot-only 对照。
+- `scripts/diagnose_data_aided_elbo.py`、`scripts/diagnose_data_aided_cir.py`。
+- 定向测试 `tests/test_data_aided.py`、`tests/test_data_aided_cir.py`。
+
+四模式 CIR 诊断（Frozen / Pilot-only / Data-aided / Oracle）正在运行；结果归档后再决定是否进入低维神经状态修正。开发证据，不进入正式确认。
+
 ## 复现命令
 
 ```powershell
