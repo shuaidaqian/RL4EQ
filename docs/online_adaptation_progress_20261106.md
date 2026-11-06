@@ -82,6 +82,16 @@ P0 全量测试在 `PYTHONUTF8=1` 下 `1001 passed`。默认 Windows GBK 环境�
 
 四模式 CIR 诊断（Frozen / Pilot-only / Data-aided / Oracle）正在运行；结果归档后再决定是否进入低维神经状态修正。开发证据，不进入正式确认。
 
+## 2026-11-06 数据辅助 CIR 四模式诊断（负/中性）
+
+[四模式诊断](results/data_aided_cir_diag_v1_20261106/README.md)（3 新开发 seed × 16 帧，`dd_soft` tail）：
+
+- `data_cir`（Data soft 判决 + Pilot 相位线去旋转 + 加权正规方程）相对 Frozen：0 dB `+0.1528`（错误传播发散）、5 dB `+0.00035`（中性）、10 dB `-0.00057`（3-seed 区间跨零）、15 dB `-2.7e-5`。
+- `pilot_sparse`（Pilot + 相位补偿 + top-24 稀疏 tap）也不稳定：0/5 dB 明显退化，后段发散。
+- `oracle_cir` 真实 CIR 在 0/5/10 dB 仍更好（`-0.0343/-0.00705/-0.00109`），与离线饱和诊断一致：**CIR 头room 存在，但一次性 Data LS 没吃到**。
+- 判断：不进入 N-DACC 的简单 Kalman 版本（坏观测会被平滑，不会变好）；下一步先做同帧 ELBO head 适配，必要时再做离线学习的去偏 CIR 估计器。
+- 1-seed smoke 曾显示 data_cir 在 0/5/10 dB 改善，但 3-seed 复测不复现；再次说明单 seed/短会话不能作为机制证据。
+
 ## 复现命令
 
 ```powershell
