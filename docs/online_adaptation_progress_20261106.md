@@ -36,7 +36,9 @@
 
 之后做了两项单因素在线消融。第一，最近4帧Reward Pilot聚合门控在单session 8帧早期筛查中未优于当前帧门控，0 dB有害接受更多，停止扩大该方案。第二，最近4帧Adapt Pilot梯度均值在两个新session、每SNR16帧下没有改善BER：0 dB更差，5/10/15 dB无变化，因此停止扩大简单均值重放。
 
-同时把累计参数半径0.05扩大到0.10，确认0 dB后期更新确实会受原信赖域压缩；但两session结果方向相反，5 dB仍退化，不能证明扩大半径改善BER。当前固定锚点微调的三个朴素修复（延长Reward窗口、Adapt历史均值、扩大累计半径）都没有建立收益趋势。下一步应回到离线表示学习，做更充分的多帧 trajectory 外层训练（至少32步）与同预算普通监督续训对照，再用新session评估；如果仍无可归因增益，则需要改变离线可适配参数化/更新子空间，而不是继续细调门控或半径。所有在线控制仍只读Adapt/Reward，Data只用于外层训练和动作后评分。
+同时把累计参数半径0.05扩大到0.10，确认0 dB后期更新确实会受原信赖域压缩；但两session结果方向相反，5 dB仍退化，不能证明扩大半径改善BER。随后完成32步多帧trajectory外层训练与同预算普通监督续训对照。新session上trajectory的Frozen−Online均值收益为0/5/10/15 dB的+1.63e-4/+8.14e-5/0/0，0 dB两个session方向相反且CI很宽；普通续训0 dB点估计反而更好。两臂连续Data BCE均改善且量级相近，但BER晚−早趋势不支持增长，trajectory没有可归因的专属在线增量。结果见full_head_trajectory_train32_v1_20261106。
+
+因此不继续扩大BCE trajectory配置。已实现离线外层平滑BER目标（固定温度0.5），其单元测试验证梯度聚焦在靠近判决边界的错误符号；线上Adapt BCE和Reward门控不变。当前正在用同一来源权重训练32步soft-BER trajectory臂，并将以同配置普通监督臂作对照，随后在全新session评估。Data只用于离线外层目标和动作后评分，绝不进入在线控制。如果soft-BER目标也未带来可归因、可重复且逐窗改善的BER增益，则继续研究可适配参数化/更新子空间，不进入正式确认。
 
 ## 复现命令
 
@@ -51,4 +53,4 @@ python pretrain.py --config configs/eme_long_memory_v2_full_head_trajectory_dev_
 python scripts/prototype_head_rank1_adapt.py --config configs/eme_long_memory_v2_full_head_trajectory_dev_v1.json --pretrained <续训checkpoint> --basis-seed 78001 --seed-start <未见session起始seed> --num-seeds 2 --frames 16 --device cuda --branches frozen,full_head_adam --output <结果JSON>
 ```
 
-阶段修改后全仓测试为 992 passed；最近算法分支和指标相关定向测试为 130 passed。本阶段新增的Reward-H4、Adapt-H4及半径2×结果尚待统一归档并提交推送；本地 cbc15fa 仍比远端领先，先前推送被远端返回 fatal error in commit_refs。
+此前全仓测试为992 passed；当前soft-BER改动的定向测试为131 passed，新增边界梯度测试单独复核为1 passed。阶段提交530418b已推送至RL4EQ/codex/online-peft。本轮32步训练结果和soft-BER训练/评估完成后再归档、测试、提交并推送。

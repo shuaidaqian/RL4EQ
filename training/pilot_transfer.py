@@ -355,6 +355,19 @@ def next_pilot_tail(model, context, *, alpha, parameters=None):
         return torch.where(visible, updated, context.tail).detach()
 
 
+def _data_outer_loss(logits, frame, objective, soft_ber_temperature):
+    """计算离线外层Data目标；这些标签不得传入在线控制。"""
+    mask = frame.data_mask.bool()
+    selected_logits = logits[mask].float()
+    labels = frame.bits[mask].float()
+    if objective == "bce":
+        return F.binary_cross_entropy_with_logits(selected_logits, labels)
+    if objective == "soft_ber":
+        signed = 2.0 * labels - 1.0
+        return torch.sigmoid(-signed * selected_logits / float(soft_ber_temperature)).mean()
+    raise ValueError("trajectory_data_objective 必须为 bce 或 soft_ber。")
+
+
 def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
                                      max_delta_norm, create_graph, groups,
                                      objective, receiver_input, reward_receiver_input,
@@ -368,6 +381,7 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
                                      rank1_step_scale=1.0,
                                      history_frames=1, initial_history=(),
                                      trend_temperature=0.01,
+                                     data_objective="bce", soft_ber_temperature=0.5,
                                      soft_gate_bce_temperature=0.01,
                                      soft_gate_ber_temperature=0.02):
     """按在线顺序展开多帧Adapt更新、Reward守门、参数和soft-tail持久状态。"""
@@ -388,6 +402,8 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
         raise ValueError("不支持的持续轨迹门控梯度代理。")
     if min(trend_temperature, soft_gate_bce_temperature, soft_gate_ber_temperature) <= 0:
         raise ValueError("持续轨迹训练的平滑温度必须为正数。")
+    if data_objective not in {"bce", "soft_ber"} or soft_ber_temperature <= 0:
+        raise ValueError("trajectory Data目标必须为BCE/soft_ber，且温度必须为正数。")
     if not 0.0 <= tail_alpha <= 1.0:
         raise ValueError("soft-tail 更新系数必须位于[0, 1]。")
     if int(history_frames) < 1:
@@ -449,8 +465,8 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
         frozen_logits = context_logits(model, context, named)
         base_all_losses.append(F.binary_cross_entropy_with_logits(
             frozen_logits.float(), frame.bits.float()))
-        frozen_data_losses.append(F.binary_cross_entropy_with_logits(
-            frozen_logits[frame.data_mask].float(), frame.bits[frame.data_mask].float()))
+        frozen_data_losses.append(_data_outer_loss(
+            frozen_logits, frame, data_objective, soft_ber_temperature))
 
         inner_context, score_start = task_context(context, inner_task, role="adapt")
         update_contexts = [task_context(item, inner_task, role="adapt")[0] for item in history] + [inner_context]
@@ -549,8 +565,8 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
                 active_optimizer_state["variances"][name] = old + gate * (value - old)
 
         online_logits = context_logits(model, context, fast)
-        online_data_losses.append(F.binary_cross_entropy_with_logits(
-            online_logits[frame.data_mask].float(), frame.bits[frame.data_mask].float()))
+        online_data_losses.append(_data_outer_loss(
+            online_logits, frame, data_objective, soft_ber_temperature))
         tail = next_pilot_tail(model, context, alpha=tail_alpha, parameters=fast)
         if int(history_frames) > 1:
             from training.shared_pilot_state import adapt_only_history_context
@@ -584,6 +600,8 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
         "base_all_loss": torch.stack(base_all_losses).mean(),
         "frozen_data_loss": frozen_data.mean(),
         "online_data_loss": online_data.mean(),
+        "data_objective": data_objective,
+        "soft_ber_temperature": float(soft_ber_temperature),
         "frozen_data_windows": [frozen_data[:split].mean(), frozen_data[-split:].mean()],
         "online_data_windows": [online_data[:split].mean(), online_data[-split:].mean()],
         "gain_windows": [gains[:split].mean(), gains[-split:].mean()],
@@ -947,6 +965,8 @@ class PilotTransferTrainer:
                         history_frames=self.inner_history_frames,
                         initial_history=context.offline_adapt_contexts,
                         trend_temperature=float(self.settings.get("trajectory_trend_temperature", 0.01)),
+                        data_objective=self.settings.get("trajectory_data_objective", "bce"),
+                        soft_ber_temperature=float(self.settings.get("trajectory_soft_ber_temperature", 0.5)),
                         soft_gate_bce_temperature=float(self.settings.get("trajectory_soft_gate_bce_temperature", 0.01)),
                         soft_gate_ber_temperature=float(self.settings.get("trajectory_soft_gate_ber_temperature", 0.02)),
                     )
@@ -1034,6 +1054,8 @@ class PilotTransferTrainer:
             "trajectory_soft_gate_rule": self.settings.get("trajectory_soft_gate_rule", "conservative_and"),
             "trajectory_persist_optimizer_state": bool(self.settings.get("trajectory_persist_optimizer_state", False)),
             "trajectory_update_rule": self.trajectory_update_rule,
+            "trajectory_data_objective": self.settings.get("trajectory_data_objective", "bce"),
+            "trajectory_soft_ber_temperature": float(self.settings.get("trajectory_soft_ber_temperature", 0.5)),
             "trajectory_rank1_damping": float(self.settings.get("trajectory_rank1_damping", 0.01)),
             "trajectory_rank1_step_scale": float(self.settings.get("trajectory_rank1_step_scale", 1.0)),
             "trajectory_rank1_basis": (self.normalized_rank1_basis().detach().cpu().tolist()

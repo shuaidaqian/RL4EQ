@@ -13,7 +13,7 @@ from agent.cir_estimator import condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from env.frame_structure import FrameConfig, FrameGenerator
 from training.pilot_transfer import (
-    PilotTransferTrainer, TransferContext, context_logits, differentiable_adapt,
+    PilotTransferTrainer, TransferContext, _data_outer_loss, context_logits, differentiable_adapt,
     differentiable_online_trajectory, next_pilot_tail, rank1_gauss_newton_adapt, task_context,
 )
 from training.windowed_discrete_ppo import _apply_adapt_peft_update
@@ -34,6 +34,21 @@ def _fixture():
     phase = torch.tensor([0.2, 0.0008, 0, 0] * 4)
     condition = condition_from_cir(cir, 10, phase_features=phase)
     return model, TransferContext(frame, condition, torch.zeros(4, dtype=torch.complex64))
+
+
+def test_soft_ber_outer_loss_focuses_gradient_on_near_boundary_bits():
+    """平滑BER外层目标优先给判决边界附近的错误更大梯度。"""
+    frame = type("Frame", (), {})()
+    frame.data_mask = torch.tensor([True, True])
+    frame.bits = torch.tensor([1.0, 1.0])
+    logits = torch.tensor([5.0, -0.1], requires_grad=True)
+
+    loss = _data_outer_loss(logits, frame, "soft_ber", 0.5)
+    gradient, = torch.autograd.grad(loss, logits)
+
+    assert 0.0 < float(loss.detach()) < 0.5
+    assert gradient[0].abs() < gradient[1].abs()
+    assert gradient[1] < 0
 
 
 @pytest.mark.parametrize("steps,radius", [(1, 0.05), (5, 0.05), (5, 0.001)])
