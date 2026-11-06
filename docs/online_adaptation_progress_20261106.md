@@ -38,19 +38,21 @@
 
 同时把累计参数半径0.05扩大到0.10，确认0 dB后期更新确实会受原信赖域压缩；但两session结果方向相反，5 dB仍退化，不能证明扩大半径改善BER。随后完成32步多帧trajectory外层训练与同预算普通监督续训对照。新session上trajectory的Frozen−Online均值收益为0/5/10/15 dB的+1.63e-4/+8.14e-5/0/0，0 dB两个session方向相反且CI很宽；普通续训0 dB点估计反而更好。两臂连续Data BCE均改善且量级相近，但BER晚−早趋势不支持增长，trajectory没有可归因的专属在线增量。结果见full_head_trajectory_train32_v1_20261106。
 
-因此不继续扩大BCE trajectory配置。已实现离线外层平滑BER目标（固定温度0.5），其单元测试验证梯度聚焦在靠近判决边界的错误符号；线上Adapt BCE和Reward门控不变。当前正在用同一来源权重训练32步soft-BER trajectory臂，并将以同配置普通监督臂作对照，随后在全新session评估。Data只用于离线外层目标和动作后评分，绝不进入在线控制。如果soft-BER目标也未带来可归因、可重复且逐窗改善的BER增益，则继续研究可适配参数化/更新子空间，不进入正式确认。
+因此不继续扩大BCE trajectory配置。已实现离线外层平滑BER目标（固定温度0.5），其单元测试验证梯度聚焦在靠近判决边界的错误符号；线上Adapt BCE和Reward门控不变。32步soft-BER trajectory臂及同配置、同预算普通监督臂均已完成训练，并在新session 76170/76171完成四SNR、16帧配对评估。结果归档见[soft-BER trajectory](results/full_head_softber_train32_v1_20261106/README.md)；普通监督checkpoint与逐帧评估见 `results/full_head_softber_supervised_train32_v1_20261106/`。soft-BER臂相对Frozen的0 dB平均收益为`+2.85e-4`，但两个session方向相反且描述性区间极宽；5/10/15 dB没有稳定BER收益。早晚窗变化在0 dB为负，其他SNR无变化。匹配普通监督臂0 dB也有正点估计，trajectory相对普通监督的收益差很小。因此软目标没有证明可重复在线BER收益，更没有证明收益随传输帧数增加；当前结论仍是全head Adam在线更新路线未通过开发证据门槛，不进入正式确认。
+
+下一步不依据这两个session调温度、门控或半径。固定两类checkpoint和在线规则，做每个SNR至少12个独立session、每个session连续128帧的开发复核，按session而非帧/bit统计；使用固定32帧窗口，并报告1/2/4/8/16/32/64/128帧前缀累计收益、session内趋势斜率、末两窗减首两窗、trajectory相对普通监督的交互、更新/接受/有害提交与参数位移。12个session仅为开发筛查下限，不是确认样本量；若趋势有希望，再用全新session延长到1024或2048帧，并依session级变异和预定效应量设计确认。若128帧复核仍未显示稳定且随帧龄总体增长的收益，停止当前全head Adam路线，转向可持续移动的低维神经子空间或状态条件更新机制。Data标签仅用于离线外层训练和动作后评分，不进入部署更新、Reward门控或模型选择闭环；另加入标签/隐藏真值扰动测试，验证它们不改变在线动作与状态。
 
 ## 复现命令
 
 ```powershell
-# trajectory 外层训练
-python pretrain.py --config configs/eme_long_memory_v2_full_head_trajectory_dev_v1.json --stage pilot_transfer --steps 8 --batch-size 1 --transfer-objective trajectory --resume <离线checkpoint> --save-dir <输出目录> --device cuda
+# soft-BER trajectory 外层训练（已完成；命令示例）
+python pretrain.py --config configs/eme_long_memory_v2_full_head_trajectory_dev_v1.json --stage pilot_transfer --steps 32 --batch-size 1 --transfer-objective trajectory --trajectory-outer-loss soft_ber --trajectory-soft-ber-temperature 0.5 --resume <离线checkpoint> --save-dir <输出目录> --device cuda
 
-# 匹配的普通监督续训控制
-python pretrain.py --config configs/eme_long_memory_v2_full_head_trajectory_dev_v1.json --stage pilot_transfer --steps 8 --batch-size 1 --transfer-objective baseline --resume <同一离线checkpoint> --save-dir <输出目录> --device cuda
+# 匹配的普通监督续训控制（已完成；命令示例）
+python pretrain.py --config configs/eme_long_memory_v2_full_head_trajectory_dev_v1.json --stage pilot_transfer --steps 32 --batch-size 1 --transfer-objective baseline --resume <同一离线checkpoint> --save-dir <输出目录> --device cuda
 
 # 每个续训checkpoint的相同 Frozen/Online 评估
 python scripts/prototype_head_rank1_adapt.py --config configs/eme_long_memory_v2_full_head_trajectory_dev_v1.json --pretrained <续训checkpoint> --basis-seed 78001 --seed-start <未见session起始seed> --num-seeds 2 --frames 16 --device cuda --branches frozen,full_head_adam --output <结果JSON>
 ```
 
-此前全仓测试为992 passed；当前soft-BER改动的定向测试为131 passed，新增边界梯度测试单独复核为1 passed。阶段提交530418b已推送至RL4EQ/codex/online-peft。本轮32步训练结果和soft-BER训练/评估完成后再归档、测试、提交并推送。
+此前全仓测试为992 passed；soft-BER改动的定向测试为131 passed，新增边界梯度测试单独复核为1 passed。soft-BER阶段结果已归档；新文档和结果文件尚待本轮检查、提交并推送。

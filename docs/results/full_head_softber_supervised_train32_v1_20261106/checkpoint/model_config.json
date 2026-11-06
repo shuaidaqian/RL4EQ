@@ -1,0 +1,23 @@
+{
+  "frame_len": 1024,
+  "max_delay": 116,
+  "iterations": 4,
+  "d_model": 64,
+  "num_heads": 4,
+  "adapter_rank": 8,
+  "lora_rank": 8,
+  "conditioner_uses_cir_summary": true,
+  "enable_phase_correction_branch": true,
+  "phase_correction_segments": 4,
+  "phase_correction_initial_scale": 1,
+  "analytic_logit_skip_scale": 0,
+  "physics_warm_start_iterations": 8,
+  "physics_warm_start_scale": 1,
+  "neural_residual_scale": 0.1,
+  "pilot_conditioned": true,
+  "enable_symbol_residual_branch": false,
+  "enable_channel_state_branch": false,
+  "channel_state_rho_frame": 0.999914670307452,
+  "enable_channel_state_memory": false,
+  "channel_state_memory_output_scale": 0.25
+}

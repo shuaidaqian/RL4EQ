@@ -381,7 +381,9 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
         raise ValueError("branch列表含有未知方法。")
     if basis_checkpoint is None and "meta_rank1_gn" in branch_names:
         raise ValueError("meta_rank1_gn分支需要--basis-checkpoint。")
-    need_fisher = basis_checkpoint is None or "fisher_rank1_trajectory_gn" in branch_names
+    rank1_branches = {"fisher_rank1", "fisher_rank1_gn", "fisher_rank1_trajectory_gn",
+                      "fisher_rank1_trajectory_gn_h8"}
+    need_fisher = bool(rank1_branches.intersection(branch_names)) and basis_checkpoint is None
     if need_fisher:
         model, fisher_basis, basis_info = estimate_shared_basis(config, checkpoint, device, basis_seed)
     else:
@@ -417,10 +419,12 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
             "source_basis_metadata": basis_source,
             "basis_norm": float(norm),
         }
-    else:
+    elif basis_checkpoint is not None:
         basis = fisher_basis
+    else:
+        basis = None
     if (training_seeds.intersection(evaluation_seeds) or basis_training_seeds.intersection(evaluation_seeds)
-            or basis_seed in evaluation_seeds or basis_seed in training_seeds):
+            or (need_fisher and (basis_seed in evaluation_seeds or basis_seed in training_seeds))):
         raise ValueError("Pilot方向训练seed、离线checkpoint训练seed与评估seed必须隔离。")
     settings = config["pilot_transfer"]
     warmup_frames = 7 if "fisher_rank1_trajectory_gn_h8" in branch_names else 0
@@ -471,7 +475,7 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
                 "accepted": sum(r["accepted"] for r in rows), "candidate_count": len(rows),
                 "harmful_accepted": sum(r["accepted"] and r["ber_online"] > r["ber_frozen"] for r in rows)})
     result = {
-        "schema_version": "head-fisher-rank1-online-development-v1",
+        "schema_version": "head-online-development-v2",
         "diagnostic_only": True, "heldout_confirmation": False,
         "main_aggregation_allowed": False, "config": config,
         "config_sha256": hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest(),
@@ -480,12 +484,12 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
         "prototype_script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "rank1_update_module_sha256": hashlib.sha256(
             (ROOT / "training" / "rank1_online.py").read_bytes()).hexdigest(),
-        "basis": basis.detach().cpu().tolist(), "basis_info": basis_info,
+        "basis": (basis.detach().cpu().tolist() if basis is not None else None), "basis_info": basis_info,
         "fisher_basis": (fisher_basis.detach().cpu().tolist() if fisher_basis is not None else None),
         "basis_checkpoint": None if basis_checkpoint is None else str(Path(basis_checkpoint).resolve()),
         "basis_checkpoint_sha256": (None if basis_checkpoint is None else
                                      hashlib.sha256(Path(basis_checkpoint).read_bytes()).hexdigest()),
-        "basis_seed": basis_seed, "evaluation_seeds": evaluation_seeds,
+        "basis_seed": (basis_seed if need_fisher else None), "evaluation_seeds": evaluation_seeds,
         "frames": frames, "window_frames": window,
         "warmup_frames": warmup_frames,
         "snrs_db": list(config["main_snrs"]), "data_labels_used_for_control": False,
