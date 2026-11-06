@@ -10,6 +10,83 @@ from typing import Any
 import torch
 
 
+def scalar_gaussian_pilot_update(
+    *,
+    coefficient: torch.Tensor,
+    variance: torch.Tensor,
+    gradient: torch.Tensor | float,
+    fisher: torch.Tensor | float,
+    process_noise: float,
+    information_scale: float,
+    damping: float,
+    max_step_norm: float,
+    variance_floor: float = 1e-8,
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
+    """用一帧合法Pilot的score/Fisher更新标量神经系数高斯状态。"""
+
+    if coefficient.numel() != 1 or variance.numel() != 1:
+        raise ValueError("标量状态的系数和方差必须只有一个元素。")
+    for name, value in (("coefficient", coefficient), ("variance", variance)):
+        if not torch.isfinite(value).all():
+            raise FloatingPointError(f"{name}含有非有限值。")
+    if not math_is_finite_positive(process_noise):
+        raise ValueError("process_noise必须是正的有限数。")
+    if not math_is_finite_positive(information_scale):
+        raise ValueError("information_scale必须是正的有限数。")
+    if not math_is_finite_nonnegative(damping):
+        raise ValueError("damping必须是非负有限数。")
+    if not math_is_finite_positive(max_step_norm) or not math_is_finite_positive(variance_floor):
+        raise ValueError("max_step_norm和variance_floor必须是正的有限数。")
+
+    device, dtype = coefficient.device, coefficient.dtype
+    variance_now = variance.to(device=device, dtype=dtype).reshape(()).clamp_min(variance_floor)
+    gradient_now = torch.as_tensor(gradient, device=device, dtype=dtype).reshape(())
+    fisher_now = torch.as_tensor(fisher, device=device, dtype=dtype).reshape(())
+    if not torch.isfinite(gradient_now) or not torch.isfinite(fisher_now):
+        raise FloatingPointError("Adapt score或Fisher含有非有限值。")
+    if float(fisher_now.detach()) < 0:
+        raise ValueError("Fisher信息不能为负数。")
+
+    predicted_variance = variance_now + float(process_noise)
+    precision = predicted_variance.reciprocal() + float(information_scale) * fisher_now + float(damping)
+    posterior_variance = precision.reciprocal().clamp_min(variance_floor)
+    step = -gradient_now / precision
+    step = step.clamp(min=-float(max_step_norm), max=float(max_step_norm))
+    candidate = coefficient.to(device=device, dtype=dtype).reshape(()) + step
+    if not torch.isfinite(candidate) or not torch.isfinite(posterior_variance):
+        raise FloatingPointError("Pilot状态更新产生非有限结果。")
+    return candidate.detach(), posterior_variance.detach(), {
+        "gradient": float(gradient_now.detach().cpu()),
+        "fisher": float(fisher_now.detach().cpu()),
+        "predicted_variance": float(predicted_variance.detach().cpu()),
+        "posterior_variance": float(posterior_variance.detach().cpu()),
+        "step": float(step.detach().cpu()),
+    }
+
+
+def _scalar_output_jacobian(logits: torch.Tensor, coefficient: torch.Tensor,
+                            chunk_size: int = 24) -> torch.Tensor:
+    """分块计算一维系数对输出的Jacobian，控制显存峰值。"""
+
+    flat = logits.reshape(-1)
+    if flat.numel() == 0:
+        return flat.detach().clone()
+    if not isinstance(chunk_size, int) or chunk_size < 1:
+        raise ValueError("chunk_size必须是正整数。")
+    chunks = []
+    for start in range(0, flat.numel(), chunk_size):
+        stop = min(start + chunk_size, flat.numel())
+        selectors = torch.zeros(stop - start, flat.numel(), device=flat.device,
+                                dtype=flat.dtype)
+        rows = torch.arange(stop - start, device=flat.device)
+        selectors[rows, torch.arange(start, stop, device=flat.device)] = 1.0
+        gradient, = torch.autograd.grad(
+            flat, coefficient, grad_outputs=selectors, is_grads_batched=True,
+            retain_graph=stop < flat.numel(), create_graph=False)
+        chunks.append(gradient.reshape(-1))
+    return torch.cat(chunks).detach()
+
+
 def damped_rank1_gauss_newton_candidate(
     *,
     parameters: torch.Tensor,
@@ -110,16 +187,8 @@ def damped_rank1_gauss_newton_candidate(
         if not torch.isfinite(selected_logits).all():
             raise FloatingPointError("Adapt Pilot logits 含有非有限值。")
 
-        # Efficient SDPA 当前不支持该图的双反向 JVP；使用向量化 VJP
-        # 一次性构造标量系数对可见 Adapt logits 的方向导数。
-        jacobian = torch.autograd.functional.jacobian(
-            logits_at,
-            coefficient,
-            create_graph=False,
-            strict=False,
-            vectorize=True,
-        )
-        jacobian = jacobian.reshape(-1)
+        # 对输出分块做批量VJP，避免长Pilot向量化Jacobian造成显存峰值。
+        jacobian = _scalar_output_jacobian(logits, coefficient)
         selected_jacobian = jacobian[mask].detach()
         probabilities = torch.sigmoid(selected_logits.detach())
         gradient = torch.mean((probabilities - selected_labels) * selected_jacobian)

@@ -42,6 +42,8 @@
 
 之后在新session 76200 上将冻结的soft-BER trajectory与匹配普通续训两臂扩至32帧、四SNR同波形配对，结果见[32帧延长筛查](results/full_head_softber_train32_v1_20261106/README.md)。0/5 dB两臂晚窗−早窗均为负，soft-BER没有优于普通续训；高SNR没有BER变化。因此不扩展当前全head Adam的12×128矩阵。下一步固定低维神经方向，验证跨帧状态不确定度/过程噪声更新是否改善长期增益；先实现数值与信息隔离测试，再以固定更新规则做短会话机制筛查，只有出现正向候选才扩大session和帧数。Data标签只用于离线外层目标及动作后事后评分，绝不进入在线候选或Reward门控。
 
+低维状态滤波首轮已实现并完成四SNR烟测及同会话4帧GN配对，归档见[rank-1状态滤波筛查](results/rank1_state_filter_dev_v1_20261106/README.md)。状态均值仅在Reward接受时提交，拒绝时回滚；方差仍由合法Adapt Fisher更新。4帧中状态滤波与GN的Data BER相同，且首个候选碰到0.05累计半径、后续多数被Reward拒绝，未显示增量。为了区分过大单步候选对状态机制的遮蔽，当前只把两臂共同单步上限降到0.005做8帧新会话筛查；其余信道、Pilot、参数、Reward门控与状态超参数冻结。分块方向Jacobian在4 GiB GPU上峰值约2.6 GiB，定向8项测试通过。
+
 ## 复现命令
 
 ```powershell

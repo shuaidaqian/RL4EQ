@@ -8,6 +8,7 @@ from scripts.prototype_head_rank1_adapt import (
     _adapt_update_contexts, _aggregate_reward_metrics, _cumulative_delta_radius,
     _posthoc_data_metrics, _project_candidate,
 )
+from training.rank1_online import _scalar_output_jacobian, scalar_gaussian_pilot_update
 
 
 def test_projected_head_candidate_stays_in_rank_one_basis_and_radius():
@@ -71,3 +72,43 @@ def test_radius2_branch_only_doubles_cumulative_trust_region():
 
     assert _cumulative_delta_radius(settings, "full_head_adam") == 0.05
     assert _cumulative_delta_radius(settings, "full_head_adam_radius2") == 0.10
+
+
+def test_scalar_gaussian_pilot_update_preserves_spd_and_accumulates_adapt_information():
+    """Adapt score更新均值，Pilot Fisher收缩方差且保持正定下限。"""
+    mean = torch.tensor(0.0, dtype=torch.float64)
+    variance = torch.tensor(1.0, dtype=torch.float64)
+    candidate, posterior, diagnostics = scalar_gaussian_pilot_update(
+        coefficient=mean, variance=variance, gradient=-0.2, fisher=0.4,
+        process_noise=0.1, information_scale=1.0, damping=0.01,
+        max_step_norm=0.05, variance_floor=1e-4)
+
+    assert candidate > mean
+    assert torch.linalg.vector_norm(candidate - mean) <= 0.0500001
+    assert 0 < posterior < variance + 0.1
+    assert diagnostics["fisher"] == 0.4
+
+
+def test_scalar_gaussian_pilot_update_zero_score_keeps_mean_but_updates_uncertainty():
+    """无均值更新时仍吸收合法Adapt信息，且方差不得跌破下限。"""
+    mean = torch.tensor(-0.2)
+    variance = torch.tensor(0.3)
+    candidate, posterior, _ = scalar_gaussian_pilot_update(
+        coefficient=mean, variance=variance, gradient=0.0, fisher=2.0,
+        process_noise=0.01, information_scale=1.0, damping=0.0,
+        max_step_norm=0.05, variance_floor=0.02)
+
+    assert torch.equal(candidate, mean)
+    assert posterior >= 0.02
+    assert posterior < variance + 0.01
+
+
+def test_scalar_output_jacobian_chunking_matches_closed_form():
+    """分块VJP与已知输出导数逐项一致。"""
+    coefficient = torch.tensor(0.4, requires_grad=True)
+    weights = torch.arange(1, 10, dtype=torch.float32)
+    logits = weights * coefficient + coefficient.square()
+    jacobian = _scalar_output_jacobian(logits, coefficient, chunk_size=3)
+    expected = weights + 2.0 * coefficient.detach()
+
+    assert torch.allclose(jacobian, expected)

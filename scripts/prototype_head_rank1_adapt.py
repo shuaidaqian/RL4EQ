@@ -25,7 +25,10 @@ from training.pilot_transfer import (
     rank1_gauss_newton_adapt,
 )
 from training.shared_pilot_state import adapt_only_history_context
-from training.rank1_online import damped_rank1_gauss_newton_candidate
+from training.rank1_online import (
+    damped_rank1_gauss_newton_candidate,
+    scalar_gaussian_pilot_update,
+)
 from training.windowed_discrete_ppo import should_accept_reward_guard
 
 
@@ -210,7 +213,7 @@ def _rank1_gauss_newton_candidate(model, context, parameters, names, basis, sett
         parameters=origin, basis=basis, adapt_logits_fn=logits_for_group,
         adapt_labels=adapt_labels,
         damping=float(settings.get("rank1_gn_damping", 0.01)),
-        max_step_norm=float(settings["max_delta_norm"]),
+        max_step_norm=float(settings.get("rank1_state_step_limit", settings["max_delta_norm"])),
     )
     return _unflatten_group(parameters, names, candidate_vector), diagnostics
 
@@ -222,6 +225,9 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
     active = {name: origin[name].clone() for name in names}
     active_rank1_coefficient = torch.zeros((), device=origin[names[0]].device,
                                             dtype=origin[names[0]].dtype)
+    state_variance = torch.as_tensor(
+        float(settings.get("rank1_state_initial_variance", 100.0)),
+        device=active_rank1_coefficient.device, dtype=active_rank1_coefficient.dtype)
     tail = initial_tail.detach().clone()
     adapt_history = []
     reward_history = []
@@ -244,9 +250,11 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
         accepted, update_norm, projected_norm = False, 0.0, 0.0
         reward_before = reward_after = None
         reward_loss_before = reward_loss_after = None
+        state_update_diagnostics = None
         if branch != "frozen":
             candidate = dict(params_before)
-            if branch in {"fisher_rank1", "fisher_rank1_gn", "fisher_rank1_trajectory_gn",
+            if branch in {"fisher_rank1", "fisher_rank1_gn", "fisher_rank1_state_filter",
+                          "fisher_rank1_trajectory_gn",
                           "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"}:
                 if branch in {"fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"}:
                     update_history = (adapt_history[-(history_count - 1):] if history_count > 1 else []) + [context]
@@ -270,6 +278,28 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
                         model, context, params_before, names, basis, settings)
                     update_norm = gn_diagnostics["raw_step_norm"]
                     adapt_losses = []
+                elif branch == "fisher_rank1_state_filter":
+                    _, gn_diagnostics = _rank1_gauss_newton_candidate(
+                        model, context, params_before, names, basis, settings)
+                    candidate_alpha, variance_candidate, state_update_diagnostics = (
+                        scalar_gaussian_pilot_update(
+                            coefficient=active_rank1_coefficient,
+                            variance=state_variance,
+                            gradient=gn_diagnostics["gradient"],
+                            fisher=gn_diagnostics["fisher"],
+                            process_noise=float(settings.get("rank1_state_process_noise", 0.01)),
+                            information_scale=float(settings.get("rank1_state_information_scale", 1.0)),
+                            damping=float(settings.get("rank1_state_damping", 0.01)),
+                            max_step_norm=float(settings.get(
+                                "rank1_state_step_limit", settings["max_delta_norm"])),
+                            variance_floor=float(settings.get("rank1_state_variance_floor", 1e-8)),
+                        ))
+                    state_variance = variance_candidate
+                    proposed_vector = _flatten_group(params_before, names) + basis * (
+                        candidate_alpha - active_rank1_coefficient)
+                    fast = _unflatten_group(params_before, names, proposed_vector)
+                    update_norm = float(state_update_diagnostics["step"])
+                    adapt_losses = []
                 else:
                     fast, update_norm, adapt_losses = _rank1_adapt_candidate(
                         model, context, params_before, names, basis, settings)
@@ -279,6 +309,10 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
                     candidate, params_before, origin, names, basis,
                     float(settings["max_delta_norm"]))
                 candidate.update({name: value.detach() for name, value in candidate_group.items()})
+                if branch == "fisher_rank1_state_filter":
+                    projected_vector = _flatten_group(candidate_group, names)
+                    origin_vector = _flatten_group(origin, names)
+                    candidate_alpha = torch.dot(basis, projected_vector - origin_vector).detach()
             else:
                 update_contexts = _adapt_update_contexts(
                     adapt_history, context, adapt_window_frames)
@@ -315,7 +349,8 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
                     _flatten_group(params_before, names)).norm()))
             if accepted:
                 active = {name: candidate[name].detach().clone() for name in names}
-                if branch in {"fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"}:
+                if branch in {"fisher_rank1_state_filter", "fisher_rank1_trajectory_gn",
+                              "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"}:
                     active_rank1_coefficient = candidate_alpha.detach().clone()
             params_committed = dict(initial)
             params_committed.update(active)
@@ -333,15 +368,21 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
             "delta_norm": update_norm, "projected_delta_norm": projected_norm,
             "cumulative_delta_radius": _cumulative_delta_radius(settings, branch),
             "adapt_losses": adapt_losses if branch in {
-                "fisher_rank1", "fisher_rank1_gn", "fisher_rank1_trajectory_gn",
+                "fisher_rank1", "fisher_rank1_gn", "fisher_rank1_state_filter",
+                "fisher_rank1_trajectory_gn",
                 "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"
             } else update.get("adapt_losses", []) if branch not in {"frozen"} else [],
             "rank1_gn_diagnostics": gn_diagnostics if branch in {
-                "fisher_rank1_gn", "fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"
+                "fisher_rank1_gn", "fisher_rank1_state_filter", "fisher_rank1_trajectory_gn",
+                "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"
             } else None,
             "rank1_coefficient": float(active_rank1_coefficient.detach()) if branch in {
-                "fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"
+                "fisher_rank1_state_filter", "fisher_rank1_trajectory_gn",
+                "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"
             } else None,
+            "rank1_state_variance": (float(state_variance.detach())
+                                     if branch == "fisher_rank1_state_filter" else None),
+            "rank1_state_update": state_update_diagnostics,
             **data_scores,
             "data_labels_used_for_control": False,
             "data_bce_used_for_control": False,
@@ -376,13 +417,14 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
         raise ValueError("branch列表必须包含唯一的frozen基线。")
     allowed_branches = {"frozen", "full_head_adam", "full_head_adam_reward_h4",
                         "full_head_adam_adapt_h4", "full_head_adam_radius2",
-                        "fisher_rank1", "fisher_rank1_gn",
+                        "fisher_rank1", "fisher_rank1_gn", "fisher_rank1_state_filter",
                         "fisher_rank1_trajectory_gn", "fisher_rank1_trajectory_gn_h8", "meta_rank1_gn"}
     if set(branch_names) - allowed_branches:
         raise ValueError("branch列表含有未知方法。")
     if basis_checkpoint is None and "meta_rank1_gn" in branch_names:
         raise ValueError("meta_rank1_gn分支需要--basis-checkpoint。")
-    rank1_branches = {"fisher_rank1", "fisher_rank1_gn", "fisher_rank1_trajectory_gn",
+    rank1_branches = {"fisher_rank1", "fisher_rank1_gn", "fisher_rank1_state_filter",
+                      "fisher_rank1_trajectory_gn",
                       "fisher_rank1_trajectory_gn_h8"}
     need_fisher = bool(rank1_branches.intersection(branch_names)) and basis_checkpoint is None
     if need_fisher:
@@ -421,6 +463,8 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
             "basis_norm": float(norm),
         }
     elif basis_checkpoint is not None:
+        basis = fisher_basis
+    elif fisher_basis is not None:
         basis = fisher_basis
     else:
         basis = None
