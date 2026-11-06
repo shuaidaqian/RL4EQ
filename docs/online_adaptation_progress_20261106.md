@@ -92,6 +92,12 @@ P0 全量测试在 `PYTHONUTF8=1` 下 `1001 passed`。默认 Windows GBK 环境�
 - 判断：不进入 N-DACC 的简单 Kalman 版本（坏观测会被平滑，不会变好）；下一步先做同帧 ELBO head 适配，必要时再做离线学习的去偏 CIR 估计器。
 - 1-seed smoke 曾显示 data_cir 在 0/5/10 dB 改善，但 3-seed 复测不复现；再次说明单 seed/短会话不能作为机制证据。
 
+## 2026-11-06 简单 CIR 估计器与同帧 ELBO 的负结果
+
+- `pilot_ridge`（全 tap + Pilot 相位补偿 + ridge 向 acquisition 先验）在 1 seed × 8 帧 smoke 中全 SNR 明显退化：0 dB `18.2%→36.1%`、5 dB `3.68%→9.41%`、10 dB `0.407%→2.21%`。prefix Pilot 只有 108 个有效行、CIR 有 117 tap，`ridge=1e-2` 不足以约束欠定系统。停止该参数化。
+- 同帧 ELBO head 适配 64 步（1 seed × 2 帧）没有复现同帧 oracle 增益；1 seed 样本太小，但方向不支持"简单 ELBO 步进就能吃到 oracle"。
+- 判断：不再扩简单 LS/ridge 或单步 ELBO。下一步做**离线学习式 CIR 去偏映射**：输入 acquisition CIR、当前帧 Data LS、Data 置信度/相位特征，输出真实 CIR 残差；先用线性/低秩 map 验证 NMSE，再决定是否上小 MLP 与跨帧状态。Data 标签与真实 CIR 只用于离线训练/评分。
+
 ## 复现命令
 
 ```powershell
