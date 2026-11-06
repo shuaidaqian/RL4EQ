@@ -172,6 +172,12 @@
 | [docs/symbol_transfer_stage_20261101.md](symbol_transfer_stage_20261101.md) | 历史 | 开发记录；当前规范以 v4 为准 |
 | [docs/transfer_gradient_diagnostic_plan_20261101.md](transfer_gradient_diagnostic_plan_20261101.md) | 历史 | 开发记录；当前规范以 v4 为准 |
 
+### 协议/判据（1）
+
+| 文档 | 状态 | 说明 |
+|---|---|---|
+| [docs/protocols/confirmation_physical_v1_20261106.md](protocols/confirmation_physical_v1_20261106.md) | 历史 | 旧协议；确认前以 v4 草案为准 |
+
 ### 结果归档（73）
 
 | 文档 | 状态 | 说明 |
