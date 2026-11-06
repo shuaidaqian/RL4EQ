@@ -83,7 +83,18 @@
 - **CIR 估计误差是 5/10 dB 的主要剩余误差**：把条件 CIR 换成该帧真实 CIR 后，Frozen BER 在 5 dB `0.05283→0.04199`（`-1.08e-2`，CI `[-1.57e-2,-5.94e-3]`），10 dB `0.00700→0.00465`（`-2.34e-3`），相对 BER 约 20%–33%；15 dB 近似 0；0 dB 点估计 `-4.60e-2` 但 seed 间方差大。
 - **结论**：离线网络不是"容量/训练不足"，而是剩余误差主要来自 CIR 估计与逐帧条件；优先做合法 CIR/相位精化（Pilot-only 与 Data-aided 对照），不要把持久 head 当作主机制。若做神经 PEFT，应做逐帧条件化读出/状态修正，并用留出帧验证。
 
-### 4.5 已有失败路线（保留原结论）
+### 4.5 贝叶斯 CIR 的物理在线增益（2026-11-06，新）
+
+[贝叶斯递归 CIR 诊断](results/bayesian_cir_diag_v1_20261106/README.md)（3 新开发 seed × 16 帧）：
+
+- acquisition 帧构造 CIR 先验均值/协方差；每帧先 Adapt Pilot 后验，再 Data soft 判决后验；Data 行噪声含符号方差经 CIR 能量传播；后验协方差跨帧持久。
+- 相对 acquisition-CIR Frozen，四个 SNR 均 3/3 seed 同向为正：0 dB `+0.0297`、5 dB `+0.00697`、10 dB `+0.00185`、15 dB `+0.000027`；NMSE 在 5/10 dB 降低约 55%–57%。
+- 5/10 dB 的逐帧增益前 5 帧增长、随后在约 `0.008–0.012`（5 dB）与 `0.002–0.004`（10 dB）饱和；与用户的"随帧增长直到饱和"方向一致。
+- 5/10 dB 的 Bayes 增益已达到该 3×16 因果 oracle 真实 CIR 的水平；说明 CIR 相关 BER 头room 基本被吃掉。
+- **归因边界**：这是物理状态增益，不是神经参数微调增益。共享 Bayes CIR 后，Adapt-Pilot head 只增加约 1 个比特（[共享 head 诊断](results/bayes_head_diag_v1_20261106/README.md)），神经增量未成立。
+- 5 seed × 32 帧增长-饱和开发筛查正在运行；3×16 仍属开发，不进入确认。
+
+### 4.6 已有失败路线（保留原结论）
 
 v14–v27、rank-1 GN/状态滤波、全 head trajectory、soft-BER、持久 Adam、历史重放、半径消融、风险门控等均未建立可重复在线 BER 收益或随帧增长。它们证明"调学习率/门控/半径/历史长度/单帧小维子空间"不足以完成核心目标；不推断一般在线微调不可行。
 
@@ -93,7 +104,7 @@ v14–v27、rank-1 GN/状态滤波、全 head trajectory、soft-BER、持久 Ada
 
 ### 5.1 结构
 
-1. **共享物理状态**：`dd_soft` tail、Pilot 条件 CIR/CFO/相位。Frozen 与 Online 完全一致；Frozen 不执行无用梯度，但保留同一跟踪。
+1. **共享物理状态**：`dd_soft` tail、Pilot 条件 CIR/CFO/相位；CIR 用贝叶斯递归后验（acquisition 先验 → Pilot 后验 → Data soft 后验）。Frozen 与 Online 完全一致；Frozen 不执行无用梯度，但保留同一跟踪。
 2. **数据辅助 CIR/相位精化**：Adapt Pilot 给出 CIR 初值；Data 位置的模型 soft 判决用加权 LS 精化 CIR（只读接收波形与模型输出，不读 Data 标签）；Frozen 只用 Pilot-only CIR，Online 用 Data-aided CIR。必须与纯 Pilot CIR、Oracle 真实 CIR 和纯 RLS/Kalman 对照，单独归因物理状态与神经参数。
 3. **低维神经状态** `z_t ∈ R^d`（首轮 d=8，可 4/16）：跨帧持久；用零初始化 FiLM/LoRA 或 head 低秩基进入前向；初始严格等价 Frozen。
 3. **状态动力学**：`z_t = z_{t-1} + w_t`，`w_t ~ N(0, Q)`；后验用对角 + 低秩协方差（Lo-Fi/EKF 或自然梯度）。`Q>0` 防止后验塌缩，并提供"随帧累积后饱和"的时间尺度。
@@ -201,10 +212,12 @@ python calibrate_channel.py --help
 |统计功效与错误构成|已完成|
 |在线适配方法文献调研|已完成（机制模板，不是本问题已证）|
 |离线饱和/oracle 上界|已完成：训练预算/宽度接近饱和；CIR 估计是 5/10 dB 主要残差|
-|Data-aided CIR/ELBO 诊断|已完成首轮：简单 LS/ridge 与单步 ELBO 未形成稳定增益；学习式去偏诊断运行中|
+|Data-aided CIR/ELBO 诊断|简单 LS/ridge 失败；贝叶斯递归 CIR 在 3×16 四 SNR 3/3 seed 同向为正|
+|贝叶斯 CIR 物理增益|5/10 dB `+0.00697/+0.00185`，NMSE 降 55%–57%；5×32 增长筛查运行中|
+|共享 Bayes CIR 后的神经增量|未成立：Adapt-Pilot head 约 1 个比特|
 |S-DANSA 实现|未开始|
-|在线优于 Frozen 的可重复证据|未成立|
-|随帧增长直到饱和|未成立|
+|在线优于 Frozen 的可重复证据|物理 CIR 增益（开发）；神经增量未成立|
+|随帧增长直到饱和|物理 CIR 在 5/10 dB 出现先增长后饱和；神经版本未成立|
 |正式确认|未启动；判据未冻结|
 
 **结论：v4 只调整了当前目标、在线自由度、方法方向与证据门槛；核心研究点仍未完成。**

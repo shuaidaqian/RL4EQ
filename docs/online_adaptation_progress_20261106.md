@@ -98,6 +98,35 @@ P0 全量测试在 `PYTHONUTF8=1` 下 `1001 passed`。默认 Windows GBK 环境�
 - 同帧 ELBO head 适配 64 步（1 seed × 2 帧）没有复现同帧 oracle 增益；1 seed 样本太小，但方向不支持"简单 ELBO 步进就能吃到 oracle"。
 - 判断：不再扩简单 LS/ridge 或单步 ELBO。下一步做**离线学习式 CIR 去偏映射**：输入 acquisition CIR、当前帧 Data LS、Data 置信度/相位特征，输出真实 CIR 残差；先用线性/低秩 map 验证 NMSE，再决定是否上小 MLP 与跨帧状态。Data 标签与真实 CIR 只用于离线训练/评分。
 
+## 2026-11-06 贝叶斯递归 CIR（初步正向，待 3×16 确认）
+
+简单 LS/ridge 失败的原因是忽略先验协方差与符号可靠性。新增[training/bayesian_cir.py](../training/bayesian_cir.py)：
+
+- acquisition 帧构造归一化 CIR 先验均值与协方差；
+- 每帧先做 Adapt Pilot 后验（已知符号），再做 Data 后验（模型 soft 判决）；
+- Data 行噪声 `R_t = sigma^2 + sum_l |h_l|^2 Var_{t-l}`，低 SNR 错误符号自动降权；
+- 后验协方差跨帧持久并加过程噪声，协方差收缩对应"收益随帧增长后饱和"。
+
+1 seed × 8 帧 smoke（seed 95001）：
+
+| SNR | Frozen BER | Bayes BER | 增益 | Frozen NMSE | Bayes NMSE |
+|---:|---:|---:|---:|---:|---:|
+| 0 dB | 0.212402 | 0.214844 | −0.002441 | 0.1379 | 0.0902 |
+| 5 dB | 0.046549 | 0.042806 | **+0.003743** | 0.0488 | 0.0231 |
+| 10 dB | 0.005371 | 0.004232 | **+0.001139** | 0.0178 | 0.0091 |
+| 15 dB | 0.000326 | 0.000326 | 0 | 0.0077 | 0.0051 |
+
+这是本轮首个在 5/10 dB 同时出现正 BER 点估计与大幅 NMSE 下降的机制；0 dB 基本持平、15 dB 中性。**但仍是 1 seed × 8 帧，不能当作证据。** 3 seed × 16 帧诊断正在运行；结果归档前不进入 P2，也不宣称在线增益成立。定向测试 `tests/test_bayesian_cir.py` 4 项通过。
+
+## 2026-11-06 共享 Bayes CIR 下的 head 增量（负）
+
+[共享 Bayes head 诊断](results/bayes_head_diag_v1_20261106/README.md)（1 seed × 8 帧 smoke；Frozen 与 Online 共用 Bayes CIR、tail 与波形）：
+
+- Online 每帧用 Adapt Pilot BCE 更新 head（4 步、半径 0.05、Reward BCE 门控），Data BER 相对共享 Bayes Frozen 在 0/5 dB 只增加 `+0.000163`（1 个净比特），10/15 dB 为 0；接受帧 7/5/3/7。
+- 说明 Bayes CIR 已捕获 5/10 dB 的 CIR 相关 BER 头room；剩余的 per-frame head 修正没有稳定迁移到 Data。
+- **归因结论**：当前最强在线增益是物理状态（CIR）增益，不是神经参数微调增益。AGENTS 契约明确纯 CIR 跟踪不能单独完成核心目标，因此不能把 Bayes CIR 单独写成研究点完成。
+- 下一步：在共享 Bayes CIR 之上做学习式可靠性/噪声模型或后验不确定度条件化 FiLM；若仍无增量，需如实报告"物理在线增益成立、神经增量未成立"，并调整核心主张或结构。5 seed × 32 帧 Bayes CIR 增长-饱和筛查正在运行。
+
 ## 复现命令
 
 ```powershell

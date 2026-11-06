@@ -313,8 +313,12 @@ def differentiable_adapt(model, contexts, *, learning_rate, steps, max_delta_nor
     return fast, result
 
 
-def make_episode(config, model, *, seed, snr, frames, state_split, device):
-    """真实 Level B acquisition；禁止真实 CIR 或真实 tail 注入接收机。"""
+def make_episode(config, model, *, seed, snr, frames, state_split, device, return_acquisition=False):
+    """真实 Level B acquisition；禁止真实 CIR 或真实 tail 注入接收机。
+
+    ``return_acquisition=True`` 时额外返回 acquisition 帧，供离线贝叶斯 CIR
+    先验协方差诊断使用；默认返回值保持不变。
+    """
 
     env_config = build_comm_env_config(
         config, level="B", snr_db=float(snr), seed=int(seed),
@@ -328,10 +332,13 @@ def make_episode(config, model, *, seed, snr, frames, state_split, device):
         start.acquisition, model.config.max_delay,
         cfo_limit=float(config.get("acquisition_cfo_limit", 0.004)),
     )
-    return env, cir.to(device), float(cfo), start.initial_soft_tail.to(device), [
+    result = (env, cir.to(device), float(cfo), start.initial_soft_tail.to(device), [
         frame_to_device(env.next_frame(lookahead_len=int(config.get("receiver_lookahead_len", 0))), device)
         for _ in range(frames)
-    ]
+    ])
+    if return_acquisition:
+        return (*result, frame_to_device(start.acquisition, device))
+    return result
 
 
 def make_context(frame, cir, cfo, tail, snr):

@@ -21,7 +21,9 @@
 | 方法调研 | [docs/results/method_survey_20261106/README.md](results/method_survey_20261106/README.md) | 在线适配机制与文献 |
 | 离线饱和 | [docs/results/offline_saturation_20261106/README.md](results/offline_saturation_20261106/README.md) | 训练预算/宽度接近饱和；CIR 是 5/10 dB 主要残差 |
 | P1 诊断 | [docs/results/data_aided_elbo_diag_v1_20261106/README.md](results/data_aided_elbo_diag_v1_20261106/README.md) | Data 软边缘化 ELBO 方向筛查 |
-| P1 诊断 | [docs/results/data_aided_cir_diag_v1_20261106/README.md](results/data_aided_cir_diag_v1_20261106/README.md) | Data-aided CIR 四模式对照（待归档） |
+| P1 诊断 | [docs/results/data_aided_cir_diag_v1_20261106/README.md](results/data_aided_cir_diag_v1_20261106/README.md) | Data-aided CIR 四模式对照（负/中性） |
+| P1 结果 | [docs/results/bayesian_cir_diag_v1_20261106/README.md](results/bayesian_cir_diag_v1_20261106/README.md) | 贝叶斯递归 CIR：四 SNR 同向物理增益 |
+| P1 结果 | [docs/results/bayes_head_diag_v1_20261106/README.md](results/bayes_head_diag_v1_20261106/README.md) | 共享 Bayes CIR 后的 head 增量（负） |
 | 近期机制 | [docs/results/rank1_state_filter_dev_v1_20261106/README.md](results/rank1_state_filter_dev_v1_20261106/README.md) | rank-1 状态滤波开发筛查 |
 | 近期机制 | [docs/results/full_head_softber_train32_v1_20261106/README.md](results/full_head_softber_train32_v1_20261106/README.md) | soft-BER 全 head trajectory |
 | 近期机制 | [docs/results/subspace_v27_checkpoint_replay_v1_20261105/README.md](results/subspace_v27_checkpoint_replay_v1_20261105/README.md) | v27 冻结 checkpoint 复核 |
@@ -170,11 +172,13 @@
 | [docs/symbol_transfer_stage_20261101.md](symbol_transfer_stage_20261101.md) | 历史 | 开发记录；当前规范以 v4 为准 |
 | [docs/transfer_gradient_diagnostic_plan_20261101.md](transfer_gradient_diagnostic_plan_20261101.md) | 历史 | 开发记录；当前规范以 v4 为准 |
 
-### 结果归档（70）
+### 结果归档（72）
 
 | 文档 | 状态 | 说明 |
 |---|---|---|
 | [docs/results/adapt_replay_dev_16f_v1_20261106/README.md](results/adapt_replay_dev_16f_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
+| [docs/results/bayes_head_diag_v1_20261106/README.md](results/bayes_head_diag_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
+| [docs/results/bayesian_cir_diag_v1_20261106/README.md](results/bayesian_cir_diag_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/cumulative_radius_dev_16f_v1_20261106/README.md](results/cumulative_radius_dev_16f_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/data_aided_cir_diag_v1_20261106/README.md](results/data_aided_cir_diag_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/data_aided_elbo_diag_v1_20261106/README.md](results/data_aided_elbo_diag_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
