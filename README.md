@@ -1,100 +1,47 @@
-# RL4EQ：离线学习可适配表示，在线微调神经均衡
+# RL4EQ：离线神经均衡器 + 在线贝叶斯 CIR 适配
 
-本项目研究：**离线学习能够用少量合法在线观测快速适配的神经块均衡器，在线真正更新少量神经参数，相比具有相同物理状态跟踪的同源冻结模型获得可重复的 Data 检测增益，并维持持续跟踪。**
+本分支 `physical-bayes-cir-v1` 是物理算法快照；历史 PEFT/RL 实验在 `codex/online-peft` 与 `docs/route-v4-20261106` 分支。
 
-**当前规范（2026-11-06 起，用户已决策）**：[研究路线 v4](docs/research_route_v4_20261106.md)。核心主张调整为**离线神经均衡器 + 合法在线贝叶斯物理状态（CIR）适配**：5×32 开发筛查显示 5/10 dB 物理增益 5/5 seed 同向且描述性区间不跨零，0 dB 32 帧内仍增长，15 dB 中性。原"在线神经参数微调必须优于 Frozen"降为独立、尚未成立的子主张。v3 与全部旧结果保留原语义，见[全仓文档索引](docs/document_index_20261106.md)。EME 长回波是重要背景与迁移对象，RL 是可选调度扩展。
+## 结论（独立确认 v1）
 
-2026-11-03 用户按新的分析调整研究优先级。旧规范为 [AGENTS.md](AGENTS.md)、[研究路线 v3](docs/research_route_v3_20261103.md)和[首轮可适配性审计计划](docs/adaptability_audit_plan_20261103.md)。
+独立 seed 100001–100010，10 session × 128 帧；开发 seed 全部排除；配置/超参数/checkpoint 运行前冻结。
 
-用户随后明确**不改信道配置，按R0–R6推进**。当前R1/R2沿用已有116符号长回波配置，只调整神经结构、离线训练和合法在线更新；新增短/中记忆profile的建议已撤回。涉及信道变化的后续外推与物理标定范围另行明确。
+| SNR | Frozen BER | Bayes BER | ΔBER | 单侧 95% 下界 | Holm p |
+|---:|---:|---:|---:|---:|---:|
+| 0 dB | 0.2081 | 0.1713 | **+0.03680** | +0.03029 | 1e-5 |
+| 5 dB | 0.0479 | 0.0399 | **+0.00803** | +0.00627 | 2e-5 |
+| 10 dB | 0.00623 | 0.00426 | **+0.00197** | +0.00146 | 6e-5 |
+| 15 dB | 0.000985 | 0.000724 | **+0.000260** | +0.000149 | 0.001 |
 
-## 当前研究顺序
+- **H1**：四 SNR 等权 `+0.011767`，单侧下界 `+0.010188`，p=`1.26e-7` → 通过。
+- **H2**：四 SNR 下界均 >0，10/10 seed 无负向 → 通过。
+- **H3**：5/10/15 dB 增长通过；0 dB 斜率 `-0.001238/bin` → 不通过（增益大但早期饱和/波动）。
 
-```text
-同波形可适配性审计
-  → 可辨识的低维神经适配结构
-  → 复现在线时序的离线更新后训练
-  → 确定性神经微调与持续跟踪验证
-  → 长回波迁移、传统方法性能与成本比较
-  → 有物理标定依据的 EME 应用验证
-  → 按需研究漂移调度、bandit 或 RL
-```
+## 方法
 
-研究主张分开验证：
+- **共享物理状态**：`dd_soft` tail、Pilot 条件 CIR/CFO/相位；Frozen 与 Bayes 一致。
+- **贝叶斯递归 CIR**：acquisition 协方差先验 → Adapt Pilot 后验 → Data soft 判决后验；Data 行噪声含符号方差传播；后验协方差跨帧持久并加过程噪声。
+- **信息边界**：在线不读 Data 标签/真实 CIR/相位/CFO；Data 标签只做事后评分；Reward Pilot 只做动作后验收。
 
-|主张|需要的关键证据|是否为核心完成的必要项|
-|---|---|---|
-|在线神经微调有效|同源状态跟踪 Frozen 对照、实际神经参数变化、独立信道级增益及持续稳定性|是|
-|离线学习支持这种适配|普通监督/更新后训练四臂、相同数据与预算、独立测试|是|
-|相对传统方法有竞争力|同步与观测公平、独立校准，联合报告 BER/Pilot/计算/延迟|必须完成比较；不预设每点获胜|
-|可迁移到 EME 长回波|116 符号长记忆与完整卷积边界、独立轨迹、适用范围|应用路线要求；机制成功不能替代|
-|适用于特定真实 EME 链路|目标频段、带宽、PDP、延迟—多普勒及同步参数的来源/标定|仅提出该应用结论时要求|
-|RL 有额外价值|固定规则、简单漂移调度与 RL 的同资源归因|可选；失败不否定神经微调|
+## 文档
 
-用户已确认：主要 SNR 区间、误码/吞吐要求与目标 EME 频段/带宽尚未确定。先完成开发审计，正式确认前再冻结这些条件。开发阶段完整报告 0/5/10/15 dB，不能根据旧正结果挑选主区间。新路线的正式门槛尚未冻结，核心目标尚未完成。
+- [研究路线（物理版 v1）](docs/research_route_physical_v1_20261106.md)
+- [独立确认归档](docs/results/bayesian_cir_confirmation_v1_20261106/README.md)
+- [开发筛查归档](docs/results/bayesian_cir_diag_v1_20261106/README.md)
+- [确认协议](docs/protocols/confirmation_physical_v1_20261106.md)
+- [全仓文档索引](docs/document_index_20261106.md)
 
-长回波锚点的[首轮完整开发审计](docs/adaptability_long_anchor_stage_20261103.md)已完成1536帧和60条有效期探针：当前稠密神经记忆相对同状态跟踪Frozen的四SNR平均增量均为负、3-seed区间均跨零，尚不支持神经微调收益。下一步按[固定信道的结构与训练计划](docs/low_dimensional_mechanism_plan_20261103.md)检查低维神经参数作用与可辨识性，再做匹配序列训练，不扩大旧PPO或同配置seed矩阵。
-
-R2 的第一批固定信道检测子空间开发已完成，详见[结果归档](docs/results/detection_subspace_long_v1_20261103/README.md)：4维结构可辨识且能改变Data输出，但普通监督和匹配在线目标训练后的Online相对Frozen区间均跨零，尚未形成可靠增益。下一步按归档分支修正更新目标、验证代表性和状态有效期，不把这批开发数据当作R3确认。
-
-## 首项任务：可适配性审计
-
-固定开发配置、同一当前帧与后缀波形，比较：
-
-1. 同源权重冻结、仍逐帧使用合法 Pilot 进行条件/状态适应的网络。
-2. 合法 Pilot 驱动的结构化物理状态估计加同源冻结网络。
-3. 相同物理状态流程加固定规则神经微调。
-4. 独立离线分支中的真实 CIR/同步状态诊断，保留同样的未知 Data 边界。
-
-在原信道上用隔离诊断和模型消融区分状态误差与神经更新贡献；完整评分当前帧及后续帧，不能只报告被接受的更新。现有 `Perfect-CSI Block` 不等于上述真实状态加同源网络诊断。长回波锚点的四分支与确定性更新已接入新审计入口，详见[实现与边界](docs/deterministic_audit_implementation_20261103.md)；新结构与匹配离线训练仍待实现。具体输入、输出和分支判据见[审计计划](docs/adaptability_audit_plan_20261103.md)。
-
-## 信息与物理边界
-
-- 在线可用已收到的波形与合法 Pilot，禁止使用 Data 比特/发送符号或仿真真实状态进行控制。真实状态只在隔离离线诊断中使用。
-- 首轮保留单载波线性 BPSK、前缀 Pilot、整帧缓冲的非因果块均衡。现有长回波默认帧长1024、Adapt224/验证32，允许116样本、11.6ms接收后缀；各方法公平使用。
-- 开始一次 acquisition，此后仅每帧已有 Pilot。若后续改变布局、资源或探测协议，新建版本并做公平消融。
-- 验证 Pilot 在历史字段中名为 Reward，只用于动作后的独立验收/反馈；Data 标签只用于离线训练和事后评分。
-- Frozen 冻结网络权重，不代表完全不适应当前信道。纯状态跟踪有效不能单独证明神经参数微调有效。
-- 时延展宽与变化时间分别建模。持续跟踪要求误差受控与漂移后恢复，不要求优势单调扩大。
-- 文献包络与当前离散统计模型不是一回事。现有[EME来源清单](data/eme/reference_manifest.json)不宣称是1.296GHz精确PDP，尚不能据此提出特定链路的完整物理结论。
-
-## 已有证据及其局限
-
-旧路线的“四 SNR 逐配置超过传统、正式 RL 有额外价值、后期优势扩大”联合门槛尚未通过，本次不把旧结果改判为成功。
-
-- [跨帧接收协议](docs/cross_frame_stage_20261103.md)已接通神经、传统、离线和在线入口，补齐帧尾观测；这不自动产生适配收益。
-- [共同状态与一次先验](docs/joint_pilot_state_stage_20261103.md)验证联合后验与递推一致。5/10/15 dB 的历史 Pilot 留出预测有改善证据。
-- [共享神经状态短窗与正式RL](docs/shared_neural_pilot_stage_20261103.md)：短窗5 dB相对Frozen改善约.71615个百分点，seed级区间[.39269,1.03960]；其余点不确定。正式10 dB、3seed×128帧改善约.02136个百分点，区间仍跨零。
-- [同波形固定动作消融](docs/shared_pilot_fixed_actions_stage_20261103.md)：small/medium三seed点估计均改善，但均值与后期区间仍跨零。
-- 新路线调整前全量862项测试通过，后续定向回归有重叠。测试成功仅证明所覆盖的实现与隔离约束，不证明科研主张。
-
-原 README、AGENTS 和用户提供分析保存在[路线变更来源档案](docs/archive/route_before_v3_20261103/manifest.json)。旧计划中的“当前主线”“下一步”等文字均按各自历史时间解释，不能覆盖本版路线。
-
-## 代码入口与实现状态
-
-|入口/模块|目前能力|本版路线中的用途|
-|---|---|---|
-|`pretrain.py --stage pilot_transfer`|当前/未来外层Data、可微Pilot内循环、部分共同状态目标|可复用；低维新表示与真实序列持久训练仍待实现|
-|`online_train.py --method pilot`|历史Pilot兼容路径|不自动支持共同历史目标，不冒充新的确定性主方法|
-|`online_train.py --method audit`|长回波同波形 F/P/N/T、确定性持久微调、一次候选有效期|开发归因；版本化清单控制条件，不作为正式确认入口|
-|`online_train.py --method ppo`|旧离散安全窗口RL|保留复现，可选扩展，不是当前优先任务|
-|`compare.py`|旧方法分组、传统校准、同波形与部分协议审计|保留复现；新审计矩阵与新归因分组待实现|
-|`calibrate_channel.py`、`baseline/`|传统难度与接收机校准|新场景/接收窗口需匹配重校准|
-|`training/shared_pilot_state.py`|合法历史方程约束当前神经CIR、一次先验|机制参考；不是完整新方法|
-|`env/`|既有profile、信道状态、卷积与接收视图|保持现有信道生成行为和EME物理校验|
-
-旧 `--method-group main` 或 `main_aggregation_allowed` 只表达其原协议，不能作为新目标已验收的依据。代码支持范围与研究允许范围分开记录；新审计实现不等于完整新方法及其独立确认已完成。
-
-## 验证与复现
+## 复现
 
 ```powershell
+$env:PYTHONUTF8=1
 python -m pytest -q -p no:cacheprovider
+
+python scripts/diagnose_bayesian_cir.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 100001 100002 100003 100004 100005 100006 100007 100008 100009 100010 --frames 128 --process-noise 1e-4 --ridge 1e-2 --device cuda --output docs/results/bayesian_cir_confirmation_v1_20261106/confirmation.json
 ```
 
-本工作树未安装独立GPU虚拟环境；当前机器已有GPU Python：
+## 边界
 
-```powershell
-& 'D:\Research\RL4EQ\.venv-gpu\Scripts\python.exe' -c "import torch; print(torch.__version__, torch.cuda.is_available())"
-```
-
-需要自建环境时使用 `scripts/setup_gpu_env.ps1`。旧烟测命令见归档README；新的开发审计命令见[实现说明](docs/deterministic_audit_implementation_20261103.md)，不是正式主实验命令。
+- 神经参数微调子主张未成立，不在本快照的确认范围。
+- 0 dB 的 H3 不通过；逐帧延迟/显存未插桩。
+- 确认集只运行一次；不得重测或换 seed。
