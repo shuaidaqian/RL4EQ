@@ -125,6 +125,19 @@ v14–v27、rank-1 GN/状态滤波、全 head trajectory、soft-BER、持久 Ada
 - 若高 SNR 仍无信号：检查软似然尺度、噪声方差归一化、`Q` 与门控；必要时用多帧批训练/重放降低梯度噪声。
 - 若只有物理跟踪收益、没有神经增益：按四臂归因拆开，不能把物理跟踪改善写成神经微调成功。
 
+### 5.4 神经 CIR 状态修正（N-DACC，候选；P1 证据通过后实施）
+
+- **共享物理跟踪**：Pilot-only sparse CIR 更新（Adapt Pilot，不读 Data），Frozen 与 Online 共用。
+- **数据观测**：Data 位置 soft 判决的加权 LS 或 ELBO，给出 CIR 残差 `r_t = h_ls,t − h_pilot,t`。
+- **神经状态**：`z_t ∈ R^K`（首轮 K=8–16），`δh_t = B z_t`；`B` 由离线 CIR 误差协方差主方向初始化，并可离线元训练。在线参数是 `z_t`；`B/Q/R` 是离线学习的神经/超参数。
+- **在线更新**：Kalman 形式
+  `z_t = z_{t−1} + K_t (r_t − B z_{t−1})`，
+  `K_t = P_{t−1} B^H (B P_{t−1} B^H + R_t)^{-1}`，`P_t = (I − K_t B) P_{t−1} + Q`。
+  `R_t` 由 Data 置信度与 LS 残差估计；0 dB 数据不可靠时自动降权，不按真实 SNR 调度。
+- **四臂**：A = 固定/PCA 基 + 固定 Q/R；B = 元训练基/Q/R；每臂都有 Frozen（`δh=0`）与 Online（N-DACC）。核心看 B-Online 对 B-Frozen，以及 B−A 交互。
+- **增长机制**：`P_t` 随帧下降、`z_t` 收敛，CIR 误差下降后饱和；与"随帧增长直到饱和"的假设一致。
+- **归因边界**：必须同时报告纯 Pilot sparse、纯 Data LS（物理）、N-DACC（神经状态）三者；若 N-DACC 不优于纯 Data LS，不能把物理 LS 的收益写成神经增益。
+
 ## 6. 实施阶段
 
 |阶段|行动|必须产生的结果|退出分支|

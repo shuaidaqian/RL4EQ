@@ -27,12 +27,17 @@ def data_aided_cir_update(
     alpha: float = 0.5,
     confidence_threshold: float = 0.5,
     ridge: float = 1e-3,
+    phase0: float = 0.0,
+    cfo: float = 0.0,
 ) -> torch.Tensor:
     """用 Data 位置 soft 判决做加权 LS，返回归一化 CIR。
 
     ``logits`` 必须是当前帧完整接收波形的前向输出。函数只使用
     ``frame.rx_symbols``、``frame.data_mask`` 与 ``logits``；不读取
     ``frame.bits`` 或 Data 位置的 ``tx_symbols``。
+
+    ``phase0``/``cfo`` 来自 Adapt Pilot 的相位线估计；提供时先把接收波形
+    去旋转到与 acquisition CIR 相同的相位坐标，避免残余 CFO 被吸进 tap 增益。
     """
 
     if not 0.0 <= alpha <= 1.0:
@@ -45,6 +50,12 @@ def data_aided_cir_update(
         raise ValueError("previous_cir 长度必须为 max_delay + 1。")
     soft = torch.tanh(logits / 2.0)
     rx = frame.rx_symbols.to(device=device, dtype=torch.complex64)
+    if phase0 != 0.0 or cfo != 0.0:
+        positions = torch.arange(rx.numel(), device=device, dtype=torch.float32)
+        correction = torch.exp(
+            -1j * (float(phase0) + 2.0 * torch.pi * float(cfo) * positions)
+        ).to(torch.complex64)
+        rx = rx * correction
     data_mask = frame.data_mask.to(device=device).bool()
     positions = torch.arange(soft.numel(), device=device)
     valid = data_mask & (positions >= max_delay) & (soft.abs() >= float(confidence_threshold))
@@ -58,9 +69,11 @@ def data_aided_cir_update(
     design = torch.complex(rows, torch.zeros_like(rows)) * weights
     observation = targets * weights.squeeze(1)
     identity = torch.eye(max_delay + 1, device=device, dtype=torch.complex64)
-    augmented_design = torch.cat((design, ridge ** 0.5 * identity), dim=0)
-    augmented_target = torch.cat((observation, ridge ** 0.5 * previous), dim=0)
-    estimate = torch.linalg.lstsq(augmented_design, augmented_target).solution.to(torch.complex64)
+    # 正规方程等价于增广 LS，但只需求解 (L x L) 系统；复数 lstsq 在
+    # Windows/CUDA 上会回退到很慢的实现。
+    gram = design.conj().transpose(0, 1) @ design + ridge * identity
+    rhs = design.conj().transpose(0, 1) @ observation + ridge * previous
+    estimate = torch.linalg.solve(gram, rhs).to(torch.complex64)
     estimate = estimate / estimate.norm().clamp_min(1e-12)
     blended = (1.0 - alpha) * previous + alpha * estimate
     return blended / blended.norm().clamp_min(1e-12)

@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from agent.cir_estimator import decision_directed_cir_update
+from agent.cir_estimator import decision_directed_cir_update, pilot_sparse_cir_update
 from evaluation.pilot_transfer import _load_branch
 from training.data_aided_cir import data_aided_cir_update
 from training.pilot_transfer import context_logits, make_context, make_episode, next_pilot_tail
@@ -41,11 +41,8 @@ def _normalized_nmse(estimate: torch.Tensor, truth: torch.Tensor) -> float:
     return float((residual.abs().square().sum() / truth.abs().square().sum().clamp_min(1e-12)).real)
 
 
-def _run(model, config, seed, snr, frames, mode, alpha, threshold, device):
-    env, cir, cfo, tail, received = make_episode(
-        config, model, seed=seed, snr=snr, frames=frames,
-        state_split="offline_train", device=device,
-    )
+def _run_on_episode(model, config, episode, seed, snr, mode, alpha, threshold, device):
+    _, cir, cfo, tail, received = episode
     max_delay = int(config["max_delay"])
     rows = []
     for frame in received:
@@ -67,9 +64,17 @@ def _run(model, config, seed, snr, frames, mode, alpha, threshold, device):
         )
         if mode == "pilot_cir":
             cir = decision_directed_cir_update(frame, logits, max_delay, cir, alpha=alpha)
+        elif mode == "pilot_sparse":
+            cir = pilot_sparse_cir_update(
+                frame, cir, tail, max_paths=24, alpha=alpha, cfo_hint=float(cfo),
+            )
         elif mode == "data_cir":
+            latent = context.condition.latent_residual
+            phase0 = float(latent[0, 0].detach().cpu()) if latent is not None else 0.0
+            cfo_est = float(latent[0, 1].detach().cpu()) if latent is not None else 0.0
             cir = data_aided_cir_update(
                 frame, logits, max_delay, cir, alpha=alpha, confidence_threshold=threshold,
+                phase0=phase0, cfo=cfo_est,
             )
         elif mode == "oracle_cir":
             if truth is None:
@@ -88,7 +93,7 @@ def main() -> None:
     parser.add_argument("--frames", type=int, default=16)
     parser.add_argument("--alpha", type=float, default=0.5)
     parser.add_argument("--confidence-threshold", type=float, default=0.5)
-    parser.add_argument("--modes", nargs="+", default=["frozen", "pilot_cir", "data_cir", "oracle_cir"])
+    parser.add_argument("--modes", nargs="+", default=["frozen", "pilot_sparse", "data_cir", "oracle_cir"])
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
@@ -101,11 +106,21 @@ def main() -> None:
     result = {"config": str(Path(args.config)), "checkpoint": str(Path(args.checkpoint)),
               "seeds": args.seeds, "frames": args.frames, "alpha": args.alpha,
               "confidence_threshold": args.confidence_threshold, "rows": []}
+    # 同一 (seed, SNR) 的波形只生成一次，四个模式严格配对。
+    episodes = {
+        (seed, snr): make_episode(
+            config, model, seed=seed, snr=snr, frames=args.frames,
+            state_split="offline_train", device=device,
+        )
+        for snr in config["main_snrs"] for seed in args.seeds
+    }
     for mode in args.modes:
         for snr in config["main_snrs"]:
             for seed in args.seeds:
-                rows = _run(model, config, seed, snr, args.frames, mode, args.alpha,
-                            args.confidence_threshold, device)
+                rows = _run_on_episode(
+                    model, config, episodes[(seed, snr)], seed, snr, mode, args.alpha,
+                    args.confidence_threshold, device,
+                )
                 result["rows"].extend(rows)
                 values = [row["ber_data"] for row in rows]
                 print(f"{mode:9s} snr={snr:2d} seed={seed} "

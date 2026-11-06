@@ -45,7 +45,7 @@ def test_elbo_is_finite_nonnegative_and_label_free():
     model, context = _fixture()
     result = data_aided_elbo(model, context)
     assert torch.isfinite(result["elbo"])
-    assert float(result["elbo"]) >= 0.0
+    assert float(result["elbo"].detach()) >= 0.0
     bits = context.frame.bits.clone()
     bits[context.frame.data_mask] = ~bits[context.frame.data_mask]
     poisoned = replace(context, frame=replace(context.frame, bits=bits))
