@@ -1,0 +1,93 @@
+{
+  "schema_version": "research-route-v4",
+  "route_version": "v4",
+  "effective_date": "2026-11-06",
+  "supersedes": "docs/research_route_v3_20261103.md",
+  "superseded_documents_keep_original_semantics": true,
+  "core_goal": "离线学习可由少量合法在线观测适配的神经均衡器；在线真实更新少量神经参数；相对同源、同物理状态跟踪的 Frozen 网络获得可归因、可重复的 Data BER 增益；并证明增益随同一会话传输帧数增加而总体扩大直到饱和。",
+  "success_criteria": {
+    "primary_effect": "mean_s(BER_frozen,s - BER_online,s) > 0，按预注册统计方法显著",
+    "safety_guardrail": "每个主要 SNR 的配对差 BER_online - BER_frozen 点估计不得为正；允许退化量为 0",
+    "growth": "固定窗口 gain_w = BER_frozen,w - BER_online,w 的会话级斜率与末窗减早窗为正；允许局部回升，不要求逐帧严格单调",
+    "statistical_unit": "独立 session；帧与 bit 不得冒充独立样本",
+    "multiple_comparison": "正式确认前冻结",
+    "attribution": "同源、同物理状态跟踪、同观测/探测资源的 Frozen 对照；实际神经参数变化；A/B 四臂",
+    "scope": "EME 启发的长回波仿真；真实 EME 链路需另行标定"
+  },
+  "allowed_online_information": [
+    "已接收波形",
+    "Adapt Pilot 符号",
+    "模型自身输出与置信度",
+    "Pilot 驱动的 CIR/CFO/相位/soft-tail 估计"
+  ],
+  "forbidden_online_information": [
+    "Data 发送符号",
+    "Data 比特",
+    "仿真真实 CIR/相位/CFO",
+    "Reward Pilot 回流内循环",
+    "未来帧标签"
+  ],
+  "allowed_relaxations_20261106": [
+    "Data 位置无标签自监督/判决反馈",
+    "更多在线算力/内循环步数",
+    "更大在线参数集（Adapter/LoRA/FiLM/全 head）",
+    "跨帧会话级记忆/重放"
+  ],
+  "unchanged_constraints": [
+    "Level B eme_long_memory_v2：116 符号记忆、1024 符号帧",
+    "prefix Pilot=256（Adapt=224、Reward=32）",
+    "0/5/10/15 dB 全部报告",
+    "不改信道配置与数据划分",
+    "Frozen 与 Online 同物理状态跟踪"
+  ],
+  "method_family": "S-DANSA",
+  "method_components": [
+    "共享物理状态：dd_soft soft-tail、Pilot 条件 CIR/CFO/相位",
+    "低维神经状态 z_t（首轮 d=8，可选 4/16），零初始化 FiLM/LoRA 或 head 低秩基",
+    "状态动力学 z_t = z_{t-1} + w_t，w_t ~ N(0,Q)，对角+低秩后验",
+    "在线内循环：Adapt BCE + Data 软边缘化模型似然 + 置信度判决反馈 + Reward 硬门控 + 信赖域",
+    "离线元训练：内循环复现在线时序，外循环用 Data 标签学习状态初始化/基/Q/权重",
+    "四臂归因：A 普通监督 / B 适配导向 × Frozen / Online"
+  ],
+  "data_aided_likelihood": {
+    "formula": "E_q[||y - H s||^2] = ||y - H mu||^2 + sum_l ||h_l||^2 Var_{t-l}",
+    "mu": "tanh(z_logit / 2)",
+    "variance": "1 - mu^2",
+    "labels_used": false,
+    "note": "H 使用 Pilot 驱动估计 CIR，不使用真实 CIR；只对低维神经状态反传"
+  },
+  "stages": [
+    {"id": "P0", "name": "soft-tail 训练/评估对齐", "status": "completed", "evidence": "docs/results/tail_alignment_v1_20261106/README.md"},
+    {"id": "P1", "name": "数据辅助机制 smoke", "status": "not_started", "design": "3-5 新 session × 32 帧 × 四 SNR；Frozen/A/B"},
+    {"id": "P2", "name": "离线元训练 A/B", "status": "not_started", "design": "同数据、同预算、四臂"},
+    {"id": "P3", "name": "开发筛查", "status": "not_started", "design": "≥10 session × 128 帧；0 dB 30-35"},
+    {"id": "P4", "name": "正式确认", "status": "not_started", "design": "预注册、新 session、多重比较、停止规则"}
+  ],
+  "power_analysis": {
+    "source": "docs/results/power_error_composition_20261106/README.md",
+    "statistical_unit": "independent session",
+    "alpha": 0.05,
+    "power": 0.8,
+    "minimum_sessions_128_frames": {"0": "30-35", "5": "10-15", "10": "20-25", "15": "10-15"},
+    "pre_registrable_min_delta_ber": {"0": 0.001, "5": 0.0005, "10": 0.0002, "15": 0.0001},
+    "note": "1e-5 量级在 0/5 dB 不可判定；32 帧单 bit 分辨率约 4.07e-5"
+  },
+  "status_20261106": {
+    "tail_alignment": "completed",
+    "power_analysis": "completed",
+    "literature_survey": "completed",
+    "offline_saturation": "running",
+    "s_dansa_implementation": "not_started",
+    "online_gain_over_frozen": "not_established",
+    "growth_until_saturation": "not_established",
+    "formal_confirmation": "not_started"
+  },
+  "pending_decisions": [
+    "正式确认的主效应聚合、单侧/双侧检验、置信界与多重比较方法",
+    "每 SNR 允许退化量的统计定义（点估计 0 的检验方式）",
+    "会话/漂移/窗口长度与停时规则",
+    "checkpoint 选择与冻结流程",
+    "样本量与独立 session 数的最终值",
+    "目标吞吐与物理频段/带宽"
+  ]
+}
