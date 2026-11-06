@@ -1,0 +1,1776 @@
+{
+  "config": "configs\\eme_long_memory_v2_online_dd_tail_v1.json",
+  "checkpoint": "D:\\Research\\RL4EQ\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt",
+  "seeds": [
+    95001,
+    95002,
+    95003
+  ],
+  "frames": 16,
+  "process_noise": 0.0001,
+  "ridge": 0.01,
+  "per_snr": {
+    "0": {
+      "frozen_ber": 0.21481663081794977,
+      "bayes_ber": 0.18508572628100714,
+      "gain": 0.02973090453694263,
+      "frozen_nmse": 0.13569717952298752,
+      "bayes_nmse": 0.07268513300656125,
+      "frames": 48
+    },
+    "5": {
+      "frozen_ber": 0.052625869788850345,
+      "bayes_ber": 0.04565429858242472,
+      "gain": 0.0069715712064256224,
+      "frozen_nmse": 0.04778027707943224,
+      "bayes_nmse": 0.02062931872263258,
+      "frames": 48
+    },
+    "10": {
+      "frozen_ber": 0.00821940130845178,
+      "bayes_ber": 0.00637478320277296,
+      "gain": 0.0018446181056788191,
+      "frozen_nmse": 0.016933107599062146,
+      "bayes_nmse": 0.007635275432557323,
+      "frames": 48
+    },
+    "15": {
+      "frozen_ber": 0.0014648437936557457,
+      "bayes_ber": 0.0014377170567361948,
+      "gain": 2.7126736919550918e-05,
+      "frozen_nmse": 0.006924178201621213,
+      "bayes_nmse": 0.004016561095294305,
+      "frames": 48
+    }
+  },
+  "rows": [
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 0,
+      "frozen_ber": 0.1979166716337204,
+      "bayes_ber": 0.1979166716337204,
+      "frozen_nmse": 0.1383448230003954,
+      "bayes_nmse": 0.1383448230003954
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 1,
+      "frozen_ber": 0.1588541716337204,
+      "bayes_ber": 0.2122395932674408,
+      "frozen_nmse": 0.13896092610363908,
+      "bayes_nmse": 0.11911151265275394
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 2,
+      "frozen_ber": 0.1614583432674408,
+      "bayes_ber": 0.1471354216337204,
+      "frozen_nmse": 0.13801413607654264,
+      "bayes_nmse": 0.09742187153202557
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 3,
+      "frozen_ber": 0.1666666716337204,
+      "bayes_ber": 0.1315104216337204,
+      "frozen_nmse": 0.13771804591002523,
+      "bayes_nmse": 0.08623252726554281
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 4,
+      "frozen_ber": 0.1901041716337204,
+      "bayes_ber": 0.1875,
+      "frozen_nmse": 0.13807554178992484,
+      "bayes_nmse": 0.0779311714825338
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 5,
+      "frozen_ber": 0.1328125,
+      "bayes_ber": 0.1263020932674408,
+      "frozen_nmse": 0.13780500978006652,
+      "bayes_nmse": 0.07028340119957223
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 6,
+      "frozen_ber": 0.5286458730697632,
+      "bayes_ber": 0.58203125,
+      "frozen_nmse": 0.13695255749164684,
+      "bayes_nmse": 0.06045350900465724
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 7,
+      "frozen_ber": 0.1627604216337204,
+      "bayes_ber": 0.1341145932674408,
+      "frozen_nmse": 0.13717721365950228,
+      "bayes_nmse": 0.0715786557973881
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 8,
+      "frozen_ber": 0.1822916716337204,
+      "bayes_ber": 0.1614583432674408,
+      "frozen_nmse": 0.13648250060208644,
+      "bayes_nmse": 0.05974630252559863
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 9,
+      "frozen_ber": 0.2578125,
+      "bayes_ber": 0.1419270932674408,
+      "frozen_nmse": 0.13595367438664518,
+      "bayes_nmse": 0.05122896298493768
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 10,
+      "frozen_ber": 0.1419270932674408,
+      "bayes_ber": 0.1276041716337204,
+      "frozen_nmse": 0.13565807108341307,
+      "bayes_nmse": 0.04444295102057633
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 11,
+      "frozen_ber": 0.1861979216337204,
+      "bayes_ber": 0.3919270932674408,
+      "frozen_nmse": 0.13623387310687127,
+      "bayes_nmse": 0.041152353579716125
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 12,
+      "frozen_ber": 0.1940104216337204,
+      "bayes_ber": 0.1302083432674408,
+      "frozen_nmse": 0.13625413102547193,
+      "bayes_nmse": 0.04911168297994111
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 13,
+      "frozen_ber": 0.1458333432674408,
+      "bayes_ber": 0.1796875,
+      "frozen_nmse": 0.1364639683378434,
+      "bayes_nmse": 0.04335842863561012
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 14,
+      "frozen_ber": 0.1497395932674408,
+      "bayes_ber": 0.1315104216337204,
+      "frozen_nmse": 0.1365928586182876,
+      "bayes_nmse": 0.04141429374047441
+    },
+    {
+      "seed": 95001,
+      "snr_db": 0,
+      "frame_index": 15,
+      "frozen_ber": 0.171875,
+      "bayes_ber": 0.1354166716337204,
+      "frozen_nmse": 0.13731795022674512,
+      "bayes_nmse": 0.038068720369009414
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 0,
+      "frozen_ber": 0.2109375,
+      "bayes_ber": 0.2109375,
+      "frozen_nmse": 0.12824792454834102,
+      "bayes_nmse": 0.12824792454834102
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 1,
+      "frozen_ber": 0.4401041865348816,
+      "bayes_ber": 0.4322916865348816,
+      "frozen_nmse": 0.1278581822566432,
+      "bayes_nmse": 0.11926505417035868
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 2,
+      "frozen_ber": 0.4166666865348816,
+      "bayes_ber": 0.16796875,
+      "frozen_nmse": 0.12824509338227605,
+      "bayes_nmse": 0.14073528212115194
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 3,
+      "frozen_ber": 0.1614583432674408,
+      "bayes_ber": 0.1471354216337204,
+      "frozen_nmse": 0.12828327844821252,
+      "bayes_nmse": 0.11468875631184167
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 4,
+      "frozen_ber": 0.59375,
+      "bayes_ber": 0.3880208432674408,
+      "frozen_nmse": 0.12823317686293415,
+      "bayes_nmse": 0.09640768503801021
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 5,
+      "frozen_ber": 0.1575520932674408,
+      "bayes_ber": 0.1536458432674408,
+      "frozen_nmse": 0.1281345121071273,
+      "bayes_nmse": 0.10060654362025259
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 6,
+      "frozen_ber": 0.1575520932674408,
+      "bayes_ber": 0.1419270932674408,
+      "frozen_nmse": 0.12945750570994075,
+      "bayes_nmse": 0.08447821178956272
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 7,
+      "frozen_ber": 0.1940104216337204,
+      "bayes_ber": 0.2161458432674408,
+      "frozen_nmse": 0.129179025538777,
+      "bayes_nmse": 0.07039711339478759
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 8,
+      "frozen_ber": 0.1471354216337204,
+      "bayes_ber": 0.1263020932674408,
+      "frozen_nmse": 0.13004409470200415,
+      "bayes_nmse": 0.06844139325923587
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 9,
+      "frozen_ber": 0.21484375,
+      "bayes_ber": 0.19140625,
+      "frozen_nmse": 0.1290049132574215,
+      "bayes_nmse": 0.0604148968870944
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 10,
+      "frozen_ber": 0.1627604216337204,
+      "bayes_ber": 0.1236979216337204,
+      "frozen_nmse": 0.1302385788966627,
+      "bayes_nmse": 0.05679338403860455
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 11,
+      "frozen_ber": 0.1458333432674408,
+      "bayes_ber": 0.14453125,
+      "frozen_nmse": 0.1294187251135291,
+      "bayes_nmse": 0.05011670131802421
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 12,
+      "frozen_ber": 0.1614583432674408,
+      "bayes_ber": 0.1796875,
+      "frozen_nmse": 0.12918213583568502,
+      "bayes_nmse": 0.043150619349340114
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 13,
+      "frozen_ber": 0.1588541716337204,
+      "bayes_ber": 0.1315104216337204,
+      "frozen_nmse": 0.12973095522936612,
+      "bayes_nmse": 0.04268882161799726
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 14,
+      "frozen_ber": 0.14453125,
+      "bayes_ber": 0.13671875,
+      "frozen_nmse": 0.12951113716286292,
+      "bayes_nmse": 0.04106700085019059
+    },
+    {
+      "seed": 95002,
+      "snr_db": 0,
+      "frame_index": 15,
+      "frozen_ber": 0.1432291716337204,
+      "bayes_ber": 0.1263020932674408,
+      "frozen_nmse": 0.12972694312985728,
+      "bayes_nmse": 0.03643649732025439
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 0,
+      "frozen_ber": 0.1966145932674408,
+      "bayes_ber": 0.1966145932674408,
+      "frozen_nmse": 0.13959862160351266,
+      "bayes_nmse": 0.13959862160351266
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 1,
+      "frozen_ber": 0.1692708432674408,
+      "bayes_ber": 0.1822916716337204,
+      "frozen_nmse": 0.1398456726307443,
+      "bayes_nmse": 0.12413265894453682
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 2,
+      "frozen_ber": 0.1692708432674408,
+      "bayes_ber": 0.1666666716337204,
+      "frozen_nmse": 0.13985885676388204,
+      "bayes_nmse": 0.10137856314983441
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 3,
+      "frozen_ber": 0.3151041865348816,
+      "bayes_ber": 0.3671875,
+      "frozen_nmse": 0.13968028857910114,
+      "bayes_nmse": 0.08297290264689272
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 4,
+      "frozen_ber": 0.1549479216337204,
+      "bayes_ber": 0.1627604216337204,
+      "frozen_nmse": 0.13916468031798587,
+      "bayes_nmse": 0.0832527687039743
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 5,
+      "frozen_ber": 0.1809895932674408,
+      "bayes_ber": 0.1875,
+      "frozen_nmse": 0.1396301755585339,
+      "bayes_nmse": 0.08084406766861402
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 6,
+      "frozen_ber": 0.1705729216337204,
+      "bayes_ber": 0.1627604216337204,
+      "frozen_nmse": 0.1399207527500511,
+      "bayes_nmse": 0.07699636874505122
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 7,
+      "frozen_ber": 0.15234375,
+      "bayes_ber": 0.1575520932674408,
+      "frozen_nmse": 0.14044994933833646,
+      "bayes_nmse": 0.06819187899108203
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 8,
+      "frozen_ber": 0.2122395932674408,
+      "bayes_ber": 0.1471354216337204,
+      "frozen_nmse": 0.14026010899886374,
+      "bayes_nmse": 0.060727507875133535
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 9,
+      "frozen_ber": 0.2291666716337204,
+      "bayes_ber": 0.1471354216337204,
+      "frozen_nmse": 0.14048266454184108,
+      "bayes_nmse": 0.05738003270154952
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 10,
+      "frozen_ber": 0.8072916865348816,
+      "bayes_ber": 0.1302083432674408,
+      "frozen_nmse": 0.14076183622190552,
+      "bayes_nmse": 0.05158943877320653
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 11,
+      "frozen_ber": 0.16015625,
+      "bayes_ber": 0.1341145932674408,
+      "frozen_nmse": 0.14133131765786588,
+      "bayes_nmse": 0.04798665230214047
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 12,
+      "frozen_ber": 0.15234375,
+      "bayes_ber": 0.15234375,
+      "frozen_nmse": 0.14293626366528664,
+      "bayes_nmse": 0.0444199328377275
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 13,
+      "frozen_ber": 0.1770833432674408,
+      "bayes_ber": 0.1627604216337204,
+      "frozen_nmse": 0.1433361708240729,
+      "bayes_nmse": 0.044070916028269604
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 14,
+      "frozen_ber": 0.1510416716337204,
+      "bayes_ber": 0.1354166716337204,
+      "frozen_nmse": 0.1435380609591393,
+      "bayes_nmse": 0.04264951724159499
+    },
+    {
+      "seed": 95003,
+      "snr_db": 0,
+      "frame_index": 15,
+      "frozen_ber": 0.1731770932674408,
+      "bayes_ber": 0.1549479216337204,
+      "frozen_nmse": 0.1441677333115302,
+      "bayes_nmse": 0.03887750269603935
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 0,
+      "frozen_ber": 0.0455729179084301,
+      "bayes_ber": 0.0455729179084301,
+      "frozen_nmse": 0.048880399648345584,
+      "bayes_nmse": 0.048880399648345584
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 1,
+      "frozen_ber": 0.0481770858168602,
+      "bayes_ber": 0.0520833358168602,
+      "frozen_nmse": 0.049351317402084954,
+      "bayes_nmse": 0.032408946121727025
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 2,
+      "frozen_ber": 0.046875,
+      "bayes_ber": 0.0455729179084301,
+      "frozen_nmse": 0.04887722655715515,
+      "bayes_nmse": 0.0220284227083343
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 3,
+      "frozen_ber": 0.0494791679084301,
+      "bayes_ber": 0.0442708358168602,
+      "frozen_nmse": 0.04869493693761095,
+      "bayes_nmse": 0.01831476129534246
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 4,
+      "frozen_ber": 0.0481770858168602,
+      "bayes_ber": 0.0325520858168602,
+      "frozen_nmse": 0.04893305938382275,
+      "bayes_nmse": 0.01672501689576347
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 5,
+      "frozen_ber": 0.0390625,
+      "bayes_ber": 0.0364583358168602,
+      "frozen_nmse": 0.04885117540260712,
+      "bayes_nmse": 0.015162602134732407
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 6,
+      "frozen_ber": 0.0442708358168602,
+      "bayes_ber": 0.0403645858168602,
+      "frozen_nmse": 0.04841736852728088,
+      "bayes_nmse": 0.016062217301209554
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 7,
+      "frozen_ber": 0.05078125,
+      "bayes_ber": 0.0455729179084301,
+      "frozen_nmse": 0.048572616645398005,
+      "bayes_nmse": 0.01552999805574717
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 8,
+      "frozen_ber": 0.0494791679084301,
+      "bayes_ber": 0.0455729179084301,
+      "frozen_nmse": 0.04816540590480185,
+      "bayes_nmse": 0.015508296807570415
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 9,
+      "frozen_ber": 0.0533854179084301,
+      "bayes_ber": 0.0364583358168602,
+      "frozen_nmse": 0.048152657102187024,
+      "bayes_nmse": 0.01430948441326307
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 10,
+      "frozen_ber": 0.0416666679084301,
+      "bayes_ber": 0.0338541679084301,
+      "frozen_nmse": 0.04818736329734716,
+      "bayes_nmse": 0.014239851388361039
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 11,
+      "frozen_ber": 0.0455729179084301,
+      "bayes_ber": 0.0442708358168602,
+      "frozen_nmse": 0.048371060106683315,
+      "bayes_nmse": 0.015913799623401934
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 12,
+      "frozen_ber": 0.0403645858168602,
+      "bayes_ber": 0.0338541679084301,
+      "frozen_nmse": 0.04843234025862153,
+      "bayes_nmse": 0.015524760923377824
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 13,
+      "frozen_ber": 0.0403645858168602,
+      "bayes_ber": 0.0377604179084301,
+      "frozen_nmse": 0.048615899120871255,
+      "bayes_nmse": 0.01583254668424546
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 14,
+      "frozen_ber": 0.0442708358168602,
+      "bayes_ber": 0.0377604179084301,
+      "frozen_nmse": 0.048595135418912146,
+      "bayes_nmse": 0.013674958143262594
+    },
+    {
+      "seed": 95001,
+      "snr_db": 5,
+      "frame_index": 15,
+      "frozen_ber": 0.0481770858168602,
+      "bayes_ber": 0.0442708358168602,
+      "frozen_nmse": 0.04911057800779282,
+      "bayes_nmse": 0.01381905346285711
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 0,
+      "frozen_ber": 0.0690104216337204,
+      "bayes_ber": 0.0690104216337204,
+      "frozen_nmse": 0.04410187355470128,
+      "bayes_nmse": 0.04410187355470128
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 1,
+      "frozen_ber": 0.0364583358168602,
+      "bayes_ber": 0.0338541679084301,
+      "frozen_nmse": 0.04393577303043413,
+      "bayes_nmse": 0.030503001716346713
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 2,
+      "frozen_ber": 0.0611979179084301,
+      "bayes_ber": 0.0494791679084301,
+      "frozen_nmse": 0.044251500059092744,
+      "bayes_nmse": 0.0242128649115623
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 3,
+      "frozen_ber": 0.0651041716337204,
+      "bayes_ber": 0.0520833358168602,
+      "frozen_nmse": 0.04428783716193707,
+      "bayes_nmse": 0.019663067596318744
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 4,
+      "frozen_ber": 0.0416666679084301,
+      "bayes_ber": 0.0442708358168602,
+      "frozen_nmse": 0.04436526897281048,
+      "bayes_nmse": 0.020577501489541097
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 5,
+      "frozen_ber": 0.0481770858168602,
+      "bayes_ber": 0.0390625,
+      "frozen_nmse": 0.04438729760009196,
+      "bayes_nmse": 0.017864361278924427
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 6,
+      "frozen_ber": 0.0403645858168602,
+      "bayes_ber": 0.0416666679084301,
+      "frozen_nmse": 0.045216674527095164,
+      "bayes_nmse": 0.01753855925857801
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 7,
+      "frozen_ber": 0.0572916679084301,
+      "bayes_ber": 0.0403645858168602,
+      "frozen_nmse": 0.045229437379860286,
+      "bayes_nmse": 0.016297499921613653
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 8,
+      "frozen_ber": 0.046875,
+      "bayes_ber": 0.0455729179084301,
+      "frozen_nmse": 0.045964817371022794,
+      "bayes_nmse": 0.017298840805937365
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 9,
+      "frozen_ber": 0.0416666679084301,
+      "bayes_ber": 0.0338541679084301,
+      "frozen_nmse": 0.04525547958970026,
+      "bayes_nmse": 0.017691560423424988
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 10,
+      "frozen_ber": 0.0559895858168602,
+      "bayes_ber": 0.0364583358168602,
+      "frozen_nmse": 0.04606218050320549,
+      "bayes_nmse": 0.018477486967617016
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 11,
+      "frozen_ber": 0.0481770858168602,
+      "bayes_ber": 0.0455729179084301,
+      "frozen_nmse": 0.045709999926651514,
+      "bayes_nmse": 0.017452820014058325
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 12,
+      "frozen_ber": 0.0559895858168602,
+      "bayes_ber": 0.0442708358168602,
+      "frozen_nmse": 0.045799541994553876,
+      "bayes_nmse": 0.017438340357027047
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 13,
+      "frozen_ber": 0.0520833358168602,
+      "bayes_ber": 0.05078125,
+      "frozen_nmse": 0.046059121248029265,
+      "bayes_nmse": 0.01931344351985631
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 14,
+      "frozen_ber": 0.0481770858168602,
+      "bayes_ber": 0.0481770858168602,
+      "frozen_nmse": 0.045803345927433584,
+      "bayes_nmse": 0.020424080266768296
+    },
+    {
+      "seed": 95002,
+      "snr_db": 5,
+      "frame_index": 15,
+      "frozen_ber": 0.0546875,
+      "bayes_ber": 0.05078125,
+      "frozen_nmse": 0.04611616717177302,
+      "bayes_nmse": 0.01597403017736614
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 0,
+      "frozen_ber": 0.0651041716337204,
+      "bayes_ber": 0.0651041716337204,
+      "frozen_nmse": 0.04835840913215319,
+      "bayes_nmse": 0.04835840913215319
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 1,
+      "frozen_ber": 0.05078125,
+      "bayes_ber": 0.0442708358168602,
+      "frozen_nmse": 0.04859553110803185,
+      "bayes_nmse": 0.027957842766238004
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 2,
+      "frozen_ber": 0.0638020858168602,
+      "bayes_ber": 0.05859375,
+      "frozen_nmse": 0.04862486348335658,
+      "bayes_nmse": 0.022443029945073925
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 3,
+      "frozen_ber": 0.05859375,
+      "bayes_ber": 0.046875,
+      "frozen_nmse": 0.048505988831288545,
+      "bayes_nmse": 0.019380829781373853
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 4,
+      "frozen_ber": 0.06640625,
+      "bayes_ber": 0.0481770858168602,
+      "frozen_nmse": 0.04821504471060269,
+      "bayes_nmse": 0.01837625387599704
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 5,
+      "frozen_ber": 0.0481770858168602,
+      "bayes_ber": 0.03515625,
+      "frozen_nmse": 0.04857130069874367,
+      "bayes_nmse": 0.018476376883169898
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 6,
+      "frozen_ber": 0.0677083358168602,
+      "bayes_ber": 0.0690104216337204,
+      "frozen_nmse": 0.04873593161197475,
+      "bayes_nmse": 0.018197147770883243
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 7,
+      "frozen_ber": 0.05078125,
+      "bayes_ber": 0.0455729179084301,
+      "frozen_nmse": 0.049150840214790555,
+      "bayes_nmse": 0.01723406793862694
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 8,
+      "frozen_ber": 0.06640625,
+      "bayes_ber": 0.0455729179084301,
+      "frozen_nmse": 0.04911349010546758,
+      "bayes_nmse": 0.017495466503950695
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 9,
+      "frozen_ber": 0.0651041716337204,
+      "bayes_ber": 0.0546875,
+      "frozen_nmse": 0.04935181474779153,
+      "bayes_nmse": 0.01884432447634814
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 10,
+      "frozen_ber": 0.05078125,
+      "bayes_ber": 0.0403645858168602,
+      "frozen_nmse": 0.04948215099572815,
+      "bayes_nmse": 0.019457305348791136
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 11,
+      "frozen_ber": 0.0572916679084301,
+      "bayes_ber": 0.0520833358168602,
+      "frozen_nmse": 0.049945115418898754,
+      "bayes_nmse": 0.019353911229087195
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 12,
+      "frozen_ber": 0.06640625,
+      "bayes_ber": 0.0598958358168602,
+      "frozen_nmse": 0.05110947444731401,
+      "bayes_nmse": 0.0206301905978872
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 13,
+      "frozen_ber": 0.0677083358168602,
+      "bayes_ber": 0.05078125,
+      "frozen_nmse": 0.05140934818035812,
+      "bayes_nmse": 0.022103304182002462
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 14,
+      "frozen_ber": 0.0598958358168602,
+      "bayes_ber": 0.0390625,
+      "frozen_nmse": 0.05152239243611916,
+      "bayes_nmse": 0.022085314848661552
+    },
+    {
+      "seed": 95003,
+      "snr_db": 5,
+      "frame_index": 15,
+      "frozen_ber": 0.0625,
+      "bayes_ber": 0.0546875,
+      "frozen_nmse": 0.05200674795021274,
+      "bayes_nmse": 0.0210490755389362
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 0,
+      "frozen_ber": 0.0052083334885537624,
+      "bayes_ber": 0.0052083334885537624,
+      "frozen_nmse": 0.01764644520217717,
+      "bayes_nmse": 0.01764644520217717
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 1,
+      "frozen_ber": 0.0052083334885537624,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.01800929510897046,
+      "bayes_nmse": 0.010785542452712784
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 2,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.017839711395519847,
+      "bayes_nmse": 0.007570973581710559
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 3,
+      "frozen_ber": 0.006510416977107525,
+      "bayes_ber": 0.006510416977107525,
+      "frozen_nmse": 0.01773619827243515,
+      "bayes_nmse": 0.007695717390425725
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 4,
+      "frozen_ber": 0.0026041667442768812,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.017902419714192933,
+      "bayes_nmse": 0.007084165437669207
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 5,
+      "frozen_ber": 0.0026041667442768812,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.017937788924206978,
+      "bayes_nmse": 0.007336505001830968
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 6,
+      "frozen_ber": 0.006510416977107525,
+      "bayes_ber": 0.0052083334885537624,
+      "frozen_nmse": 0.017773002099623923,
+      "bayes_nmse": 0.008155690261997459
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 7,
+      "frozen_ber": 0.0052083334885537624,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.017873275839314053,
+      "bayes_nmse": 0.006416924382673842
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 8,
+      "frozen_ber": 0.006510416977107525,
+      "bayes_ber": 0.0052083334885537624,
+      "frozen_nmse": 0.017673393591324103,
+      "bayes_nmse": 0.007404710677253913
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 9,
+      "frozen_ber": 0.00390625,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.01799582644555371,
+      "bayes_nmse": 0.008721417380182967
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 10,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.018230881206981395,
+      "bayes_nmse": 0.007743022127448963
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 11,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.006510416977107525,
+      "frozen_nmse": 0.018161315265543192,
+      "bayes_nmse": 0.0076622957698266915
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 12,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.018242640918270953,
+      "bayes_nmse": 0.006524121476387562
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 13,
+      "frozen_ber": 0.00390625,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.018408465703318607,
+      "bayes_nmse": 0.007385505107798404
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 14,
+      "frozen_ber": 0.0078125,
+      "bayes_ber": 0.0078125,
+      "frozen_nmse": 0.01829633890113924,
+      "bayes_nmse": 0.008183375567140785
+    },
+    {
+      "seed": 95001,
+      "snr_db": 10,
+      "frame_index": 15,
+      "frozen_ber": 0.010416666977107525,
+      "bayes_ber": 0.0078125,
+      "frozen_nmse": 0.01865877141525518,
+      "bayes_nmse": 0.007594847398200486
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 0,
+      "frozen_ber": 0.01302083395421505,
+      "bayes_ber": 0.01302083395421505,
+      "frozen_nmse": 0.01458875207359252,
+      "bayes_nmse": 0.01458875207359252
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 1,
+      "frozen_ber": 0.00390625,
+      "bayes_ber": 0.0052083334885537624,
+      "frozen_nmse": 0.014567481366240384,
+      "bayes_nmse": 0.0077799260394718454
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 2,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.006510416977107525,
+      "frozen_nmse": 0.014830720090281243,
+      "bayes_nmse": 0.006876241453307056
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 3,
+      "frozen_ber": 0.0078125,
+      "bayes_ber": 0.00911458395421505,
+      "frozen_nmse": 0.01486488314920848,
+      "bayes_nmse": 0.0058890923968118215
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 4,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.015020690001158445,
+      "bayes_nmse": 0.006930007086746383
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 5,
+      "frozen_ber": 0.00390625,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.015118151185906809,
+      "bayes_nmse": 0.005821820627503368
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 6,
+      "frozen_ber": 0.006510416977107525,
+      "bayes_ber": 0.006510416977107525,
+      "frozen_nmse": 0.01561669022491489,
+      "bayes_nmse": 0.0053164735078389475
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 7,
+      "frozen_ber": 0.006510416977107525,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.015812405188739307,
+      "bayes_nmse": 0.005640452254624611
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 8,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.0078125,
+      "frozen_nmse": 0.016448154083215354,
+      "bayes_nmse": 0.005664460737649164
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 9,
+      "frozen_ber": 0.0052083334885537624,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.015963732101893818,
+      "bayes_nmse": 0.005965363148576931
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 10,
+      "frozen_ber": 0.0078125,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.016482015970750438,
+      "bayes_nmse": 0.006039726092630538
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 11,
+      "frozen_ber": 0.0078125,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.016432719745163603,
+      "bayes_nmse": 0.007092273347238345
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 12,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.006510416977107525,
+      "frozen_nmse": 0.01672519919551328,
+      "bayes_nmse": 0.006539703474222696
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 13,
+      "frozen_ber": 0.006510416977107525,
+      "bayes_ber": 0.0052083334885537624,
+      "frozen_nmse": 0.016796482116050237,
+      "bayes_nmse": 0.007059967588979709
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 14,
+      "frozen_ber": 0.0078125,
+      "bayes_ber": 0.00911458395421505,
+      "frozen_nmse": 0.016524345875331775,
+      "bayes_nmse": 0.007106566113949601
+    },
+    {
+      "seed": 95002,
+      "snr_db": 10,
+      "frame_index": 15,
+      "frozen_ber": 0.0078125,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.01689047259793612,
+      "bayes_nmse": 0.005711824041870853
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 0,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.00911458395421505,
+      "frozen_nmse": 0.015925424742103244,
+      "bayes_nmse": 0.015925424742103244
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 1,
+      "frozen_ber": 0.0052083334885537624,
+      "bayes_ber": 0.0052083334885537624,
+      "frozen_nmse": 0.01614959357185503,
+      "bayes_nmse": 0.007092833261682913
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 2,
+      "frozen_ber": 0.015625,
+      "bayes_ber": 0.01171875,
+      "frozen_nmse": 0.01618845730227447,
+      "bayes_nmse": 0.007374358583875938
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 3,
+      "frozen_ber": 0.00390625,
+      "bayes_ber": 0.0052083334885537624,
+      "frozen_nmse": 0.016111621394198628,
+      "bayes_nmse": 0.006500766775487866
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 4,
+      "frozen_ber": 0.01302083395421505,
+      "bayes_ber": 0.006510416977107525,
+      "frozen_nmse": 0.015971437445461027,
+      "bayes_nmse": 0.007030232846290524
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 5,
+      "frozen_ber": 0.00390625,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.016247830089499503,
+      "bayes_nmse": 0.007462466839854001
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 6,
+      "frozen_ber": 0.0234375,
+      "bayes_ber": 0.0182291679084301,
+      "frozen_nmse": 0.016327936497497707,
+      "bayes_nmse": 0.006582558632031833
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 7,
+      "frozen_ber": 0.010416666977107525,
+      "bayes_ber": 0.01171875,
+      "frozen_nmse": 0.016658958453103306,
+      "bayes_nmse": 0.007265117572661362
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 8,
+      "frozen_ber": 0.01171875,
+      "bayes_ber": 0.006510416977107525,
+      "frozen_nmse": 0.0167203323474325,
+      "bayes_nmse": 0.0070145937233030255
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 9,
+      "frozen_ber": 0.014322916977107525,
+      "bayes_ber": 0.01692708395421505,
+      "frozen_nmse": 0.016962463578972863,
+      "bayes_nmse": 0.006524204319183097
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 10,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.016994621594004347,
+      "bayes_nmse": 0.00804785857285476
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 11,
+      "frozen_ber": 0.01302083395421505,
+      "bayes_ber": 0.0052083334885537624,
+      "frozen_nmse": 0.017377242223128475,
+      "bayes_nmse": 0.006753542545650644
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 12,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.00911458395421505,
+      "frozen_nmse": 0.018228979859682238,
+      "bayes_nmse": 0.007029506109232884
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 13,
+      "frozen_ber": 0.014322916977107525,
+      "bayes_ber": 0.010416666977107525,
+      "frozen_nmse": 0.018456955164733252,
+      "bayes_nmse": 0.007575671084839756
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 14,
+      "frozen_ber": 0.01692708395421505,
+      "bayes_ber": 0.01302083395421505,
+      "frozen_nmse": 0.018509995056918898,
+      "bayes_nmse": 0.006663432958604751
+    },
+    {
+      "seed": 95003,
+      "snr_db": 10,
+      "frame_index": 15,
+      "frozen_ber": 0.01302083395421505,
+      "bayes_ber": 0.00911458395421505,
+      "frozen_nmse": 0.01888865046439384,
+      "bayes_nmse": 0.0077167429946429856
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 0,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.007402081833370734,
+      "bayes_nmse": 0.007402081833370734
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 1,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.007698061678738681,
+      "bayes_nmse": 0.005474517780277009
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 2,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.007704735131344352,
+      "bayes_nmse": 0.004963742041703574
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 3,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.007648439518539912,
+      "bayes_nmse": 0.004801804114610011
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 4,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.007774524920135612,
+      "bayes_nmse": 0.004388806977989124
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 5,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.007876495709198298,
+      "bayes_nmse": 0.004340341729572695
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 6,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.007867228553055328,
+      "bayes_nmse": 0.005416359691761895
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 7,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.007932637648170829,
+      "bayes_nmse": 0.003952488131846564
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 8,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.007859322834872565,
+      "bayes_nmse": 0.0040469920043200045
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 9,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.008376575495593983,
+      "bayes_nmse": 0.005687884216203713
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 10,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.008723903968197834,
+      "bayes_nmse": 0.004858812488640457
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 11,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.008507545568919712,
+      "bayes_nmse": 0.004966987966184365
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 12,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.008598580194336037,
+      "bayes_nmse": 0.004047522409615929
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 13,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.00875390044837531,
+      "bayes_nmse": 0.0051827367238654375
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 14,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.00859038874658147,
+      "bayes_nmse": 0.005305577405487181
+    },
+    {
+      "seed": 95001,
+      "snr_db": 15,
+      "frame_index": 15,
+      "frozen_ber": 0.0026041667442768812,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.008858925463258338,
+      "bayes_nmse": 0.004720568918228364
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 0,
+      "frozen_ber": 0.0052083334885537624,
+      "bayes_ber": 0.0052083334885537624,
+      "frozen_nmse": 0.005015779359916804,
+      "bayes_nmse": 0.005015779359916804
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 1,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.005078977646122252,
+      "bayes_nmse": 0.002698633631527411
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 2,
+      "frozen_ber": 0.0026041667442768812,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.0053096503113169565,
+      "bayes_nmse": 0.0030246165699528123
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 3,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.0053422470549329484,
+      "bayes_nmse": 0.0031251893500705372
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 4,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.0055424724309364745,
+      "bayes_nmse": 0.003947397179208703
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 5,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.0056830909902300525,
+      "bayes_nmse": 0.0033362240344582215
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 6,
+      "frozen_ber": 0.006510416977107525,
+      "bayes_ber": 0.006510416977107525,
+      "frozen_nmse": 0.005985260234666932,
+      "bayes_nmse": 0.0027995897429055807
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 7,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.0062859467742070125,
+      "bayes_nmse": 0.0034570402794857936
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 8,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.006858802473683963,
+      "bayes_nmse": 0.0030235751090846048
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 9,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.006509015892993695,
+      "bayes_nmse": 0.0031037227742934073
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 10,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.006855444349876387,
+      "bayes_nmse": 0.0033226465245091647
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 11,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.006982802384748758,
+      "bayes_nmse": 0.0036247136347681216
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 12,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.0073911114594715785,
+      "bayes_nmse": 0.003094712116829995
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 13,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.007352275582232817,
+      "bayes_nmse": 0.0036894010501570605
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 14,
+      "frozen_ber": 0.0026041667442768812,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.0070727143206301074,
+      "bayes_nmse": 0.0036307331961380495
+    },
+    {
+      "seed": 95002,
+      "snr_db": 15,
+      "frame_index": 15,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.007467016763211966,
+      "bayes_nmse": 0.002905177618527156
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 0,
+      "frozen_ber": 0.0026041667442768812,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.005367661117956051,
+      "bayes_nmse": 0.005367661117956051
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 1,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.005582272689280191,
+      "bayes_nmse": 0.0023903059299069176
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 2,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.005626387852945742,
+      "bayes_nmse": 0.0037876007109471487
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 3,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.0055750354091091536,
+      "bayes_nmse": 0.003460848679131595
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 4,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.005524113112766187,
+      "bayes_nmse": 0.003636415098719337
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 5,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.005751250831909811,
+      "bayes_nmse": 0.0036509195754667267
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 6,
+      "frozen_ber": 0.0052083334885537624,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.00578131020442774,
+      "bayes_nmse": 0.0032980453083314553
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 7,
+      "frozen_ber": 0.00390625,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.006060503958270472,
+      "bayes_nmse": 0.003869491525496163
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 8,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.006179247394403292,
+      "bayes_nmse": 0.003435290788376099
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 9,
+      "frozen_ber": 0.00390625,
+      "bayes_ber": 0.006510416977107525,
+      "frozen_nmse": 0.00642159374519039,
+      "bayes_nmse": 0.003379750528329082
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 10,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.006396131377496368,
+      "bayes_nmse": 0.004403682974874299
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 11,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.006728518703097628,
+      "bayes_nmse": 0.0035859881470304473
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 12,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.007390061390848398,
+      "bayes_nmse": 0.0033806877327767055
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 13,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.007574035105428208,
+      "bayes_nmse": 0.0037182637664210623
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 14,
+      "frozen_ber": 0.0026041667442768812,
+      "bayes_ber": 0.00390625,
+      "frozen_nmse": 0.0075914309006366665,
+      "bayes_nmse": 0.0034508997870435596
+    },
+    {
+      "seed": 95003,
+      "snr_db": 15,
+      "frame_index": 15,
+      "frozen_ber": 0.006510416977107525,
+      "bayes_ber": 0.0052083334885537624,
+      "frozen_nmse": 0.007905044142184259,
+      "bayes_nmse": 0.00462270429780948
+    }
+  ]
+}
