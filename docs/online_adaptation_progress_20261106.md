@@ -44,6 +44,25 @@
 
 低维状态滤波首轮已实现并完成四SNR smoke及同会话4帧GN配对，归档见[rank-1状态滤波筛查](results/rank1_state_filter_dev_v1_20261106/README.md)。状态均值仅在Reward接受时提交，拒绝时回滚；方差仍由合法Adapt Fisher更新。4帧中状态滤波与GN的Data BER相同，首个候选碰到0.05累计半径，后续多数被Reward拒绝。共同步长缩至0.005后，在新session 76205完成四SNR、8帧配对；两臂所有逐帧硬BER相同，接受数也完全相同，状态滤波没有可见增量或帧龄趋势。分块精确Jacobian曾解决显存但计算过慢，随后切换中心有限差分方向导数；线性解析对照与相关17项定向测试通过，测试GPU峰值低于2.7 GiB。固定未训练P0/Q配置没有理由继续扩大。下一步固定Pilot Fisher方向，基于已有可微rank-1 GN轨迹训练接口，离线学习跨SNR共享的状态先验方差、过程噪声和Pilot信息缩放；先验证外层梯度、Reward拒绝回滚、投影后参数/系数一致及Data/隐藏真值隔离，再决定独立session评估。在线Data标签仍只作状态更新后的事后评分。
 
+## 2026-11-06 P0：soft-tail 训练/评估对齐
+
+离线课程训练使用 `online_soft`（当前帧最后 116 个 Data 位置的模型软判决递推下一帧 tail）；评估函数 `next_pilot_tail` 只允许 Pilot 位置更新，而当前 `prefix` 布局帧尾全是 Data，因此该函数是空操作，tail 永远停在 acquisition 尾。主在线路径 `online_adaptation.py` 的 `pilot_visible_mask[-tail_len:]` 同样为空。
+
+新增 `tail_update_mode`：`pilot_only` 保留历史语义，`dd_soft` 对齐离线训练。`dd_soft` 只读取接收波形与模型自身 soft 判决，不读取 Data 发送符号或 Data 比特；Frozen 与 Online 共用同一规则。结果见[tail 对齐归档](results/tail_alignment_v1_20261106/README.md)：
+
+- 10/15 dB 的 Adapt Pilot BCE 从 `0.0282/0.0357` 降到 `0.0067/0.0003`；旧路径的 Pilot 损失主要来自错误的帧边界 tail。
+- 5 dB 的 Adapt/Data 梯度余弦从 `0.456` 升到 `0.501`；0 dB 略降（`0.749→0.721`）。
+- Frozen Data BER 在 0/5 dB 略好（`23.50%→22.69%`、`3.80%→3.70%`），10 dB 相同，15 dB 在极少数错误下略高。
+- 10/15 dB 的 Adapt/Data 余弦仍接近零或负值；tail 对齐不能替代数据辅助信号。
+
+统计功效分析见[功效与错误构成](results/power_error_composition_20261106/README.md)：历史 `1e-5` 量级点估计通常只是 1 个净错误，3 session × 16/32 帧严重欠功效。建议至少 10 个独立 session × 128 帧；0 dB 30–35、5 dB 10–15、10 dB 20–25、15 dB 10–15 个 session，对应可预注册的最小 ΔBER 约 `1e-3/5e-4/2e-4/1e-4`。
+
+文献机制调研见[方法调研](results/method_survey_20261106/README.md)：首选低秩贝叶斯状态空间适配器 + 无标签 Data 的软边缘化模型似然（ELBO），数据辅助 CIR/相位精化作为物理侧补充。
+
+P0 全量测试在 `PYTHONUTF8=1` 下 `1001 passed`。默认 Windows GBK 环境下，1 项子进程编码测试会失败；它与本改动无关，`PYTHONUTF8=1` 可复现通过。
+
+下一步 P1：固定 tail 协议，等离线饱和/oracle 上界子 agent 结果归档后，实现"数据辅助软似然 + 低维状态后验"的单因素机制筛查。离线饱和结果尚未返回，不能当作已完成证据。
+
 ## 复现命令
 
 ```powershell

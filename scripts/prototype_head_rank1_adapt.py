@@ -237,7 +237,8 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
     adapt_window_frames = 4 if branch == "full_head_adam_adapt_h4" else 1
     for frame in frames[:warmup_frames]:
         warmup_context = make_context(frame, cir, cfo, tail, snr)
-        tail = next_pilot_tail(model, warmup_context, alpha=float(config_tail_alpha(settings)), parameters=initial)
+        tail = next_pilot_tail(model, warmup_context, alpha=float(config_tail_alpha(settings)),
+                               parameters=initial, mode=str(settings.get("tail_update_mode", "pilot_only")))
         adapt_history.append(adapt_only_history_context(frame, warmup_context.condition, warmup_context.tail))
         reward_history.append(warmup_context)
         reward_history = reward_history[-(reward_window_frames - 1):] if reward_window_frames > 1 else []
@@ -388,7 +389,9 @@ def _run_branch(model, frames, cir, cfo, initial_tail, snr, settings, branch, ba
             "data_labels_used_for_control": False,
             "data_bce_used_for_control": False,
         })
-        tail = next_pilot_tail(model, context, alpha=float(config_tail_alpha(settings)), parameters=params_committed)
+        tail = next_pilot_tail(model, context, alpha=float(config_tail_alpha(settings)),
+                               parameters=params_committed,
+                               mode=str(settings.get("tail_update_mode", "pilot_only")))
         adapt_history.append(adapt_only_history_context(frame, context.condition, context.tail))
         adapt_history = adapt_history[-7:]
         reward_history.append(context)
@@ -472,7 +475,9 @@ def run(config, checkpoint, *, basis_seed, evaluation_seeds, frames, device, out
     if (training_seeds.intersection(evaluation_seeds) or basis_training_seeds.intersection(evaluation_seeds)
             or (need_fisher and (basis_seed in evaluation_seeds or basis_seed in training_seeds))):
         raise ValueError("Pilot方向训练seed、离线checkpoint训练seed与评估seed必须隔离。")
-    settings = config["pilot_transfer"]
+    settings = dict(config["pilot_transfer"])
+    # 顶层协议字段：dd_soft 与离线 curriculum 的 online_soft 对齐；缺省保留旧语义。
+    settings["tail_update_mode"] = str(config.get("tail_update_mode", "pilot_only"))
     warmup_frames = 7 if "fisher_rank1_trajectory_gn_h8" in branch_names else 0
     all_rows = []
     for snr in config["main_snrs"]:

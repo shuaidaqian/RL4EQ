@@ -341,18 +341,49 @@ def make_context(frame, cir, cfo, tail, snr):
     return TransferContext(frame, condition, tail.detach(), cfo=float(cfo))
 
 
-def next_pilot_tail(model, context, *, alpha, parameters=None):
-    """历史递推只观察 Adapt Pilot，与正式 PPO 的信息边界一致。"""
+TAIL_UPDATE_MODES = ("pilot_only", "dd_soft")
 
-    visible = context.frame.adapt_mask[-context.tail.numel():].bool()
-    if not bool(visible.any()):
-        return context.tail.detach().clone()
+
+def tail_update_mode(config) -> str:
+    """读取跨帧 tail 递推协议；缺省保持历史 pilot_only 语义。"""
+
+    mode = str(config.get("tail_update_mode", "pilot_only"))
+    if mode not in TAIL_UPDATE_MODES:
+        raise ValueError(f"tail_update_mode 必须为 {TAIL_UPDATE_MODES} 之一。")
+    return mode
+
+
+def next_pilot_tail(model, context, *, alpha, parameters=None, mode="pilot_only"):
+    """跨帧 soft-tail 递推。
+
+    pilot_only：历史协议，只允许 Adapt Pilot 位置更新。prefix 布局下帧尾
+        全是 Data，因此该模式实际不更新 tail，仅用于复现旧结果。
+    dd_soft：用当前帧最后 max_delay 个位置的模型软判决递推，与离线
+        curriculum 的 online_soft 一致。只读取接收波形与模型自身输出，
+        不读取 Data 发送符号或 Data 比特。
+    """
+
+    if mode not in TAIL_UPDATE_MODES:
+        raise ValueError(f"tail 更新模式必须为 {TAIL_UPDATE_MODES} 之一。")
+    tail_len = context.tail.numel()
+    if mode == "pilot_only":
+        visible = context.frame.adapt_mask[-tail_len:].bool()
+        if not bool(visible.any()):
+            return context.tail.detach().clone()
+        with torch.no_grad():
+            logits = context_logits(model, context, parameters, visible="adapt")
+            values = torch.tanh(logits[-tail_len:] / 2.0)
+            detected = torch.complex(values, torch.zeros_like(values))
+            updated = (1.0 - alpha) * context.tail + alpha * detected
+            return torch.where(visible, updated, context.tail).detach()
+    # dd_soft：整帧接收波形可见，但只把模型输出的最后 tail_len 个软判决
+    # 作为下一帧的跨帧 ISI 状态；不触碰任何 Data 标签。
     with torch.no_grad():
-        logits = context_logits(model, context, parameters, visible="adapt")
-        values = torch.tanh(logits[-context.tail.numel():] / 2.0)
+        logits = context_logits(model, context, parameters, visible="data")
+        values = torch.tanh(logits[-tail_len:] / 2.0)
         detected = torch.complex(values, torch.zeros_like(values))
         updated = (1.0 - alpha) * context.tail + alpha * detected
-        return torch.where(visible, updated, context.tail).detach()
+        return updated.detach()
 
 
 def _data_outer_loss(logits, frame, objective, soft_ber_temperature):
@@ -373,10 +404,12 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
                                      objective, receiver_input, reward_receiver_input,
                                      reward_task, reward_objective, snr_db,
                                      inner_task="full_frame", tail_alpha=0.5,
+                                     tail_mode="pilot_only",
                                      soft_gate_rule="conservative_and",
                                      persist_optimizer_state=False,
                                      update_rule="adam",
                                      rank1_basis=None,
+                                     rank1_state_params=None,
                                      rank1_damping=0.01,
                                      rank1_step_scale=1.0,
                                      history_frames=1, initial_history=(),
@@ -406,30 +439,36 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
         raise ValueError("trajectory Data目标必须为BCE/soft_ber，且温度必须为正数。")
     if not 0.0 <= tail_alpha <= 1.0:
         raise ValueError("soft-tail 更新系数必须位于[0, 1]。")
+    if tail_mode not in TAIL_UPDATE_MODES:
+        raise ValueError(f"trajectory tail_mode 必须为 {TAIL_UPDATE_MODES} 之一。")
     if int(history_frames) < 1:
         raise ValueError("Adapt历史长度必须为正整数。")
-    if update_rule not in {"adam", "rank1_gn"}:
-        raise ValueError("trajectory update_rule 必须为 adam 或 rank1_gn。")
+    if update_rule not in {"adam", "rank1_gn", "rank1_state_filter"}:
+        raise ValueError("trajectory update_rule 必须为 adam、rank1_gn 或 rank1_state_filter。")
     selected_groups = set(groups)
     named = dict(model.named_parameters())
     names = [name for name, _ in model.peft.named_group_parameters(selected_groups)]
     if not names:
         raise ValueError("持续轨迹指定的PEFT参数组为空。")
-    if update_rule == "rank1_gn":
+    if update_rule in {"rank1_gn", "rank1_state_filter"}:
         if selected_groups != {"head"} or rank1_basis is None:
-            raise ValueError("rank1_gn 仅支持 head 参数组且必须提供可学习basis。")
+            raise ValueError("rank1神经滤波仅支持head参数组且必须提供固定basis。")
         if objective != "bce" or receiver_input != "adapt_only":
-            raise ValueError("rank1_gn候选仅支持Adapt-only BCE。")
+            raise ValueError("rank1候选仅支持Adapt-only BCE。")
         if persist_optimizer_state:
-            raise ValueError("rank1_gn 是无优化器状态的标量GN更新。")
+            raise ValueError("rank1 GN/状态滤波不使用Adam优化器状态。")
         if rank1_damping <= 0:
             raise ValueError("rank1_gn damping 必须为正数。")
+        if update_rule == "rank1_state_filter" and (rank1_state_params is None or int(steps) != 1):
+            raise ValueError("状态滤波必须提供可学习先验参数，且每帧只执行一步。")
     origin = {name: named[name] for name in names}
     fast = dict(named)
     rank1_direction = (rank1_basis / rank1_basis.norm().clamp_min(1e-12)
-                       if update_rule == "rank1_gn" else None)
+                       if update_rule in {"rank1_gn", "rank1_state_filter"} else None)
     rank1_alpha = torch.zeros((), device=rank1_basis.device, dtype=rank1_basis.dtype,
-                              requires_grad=create_graph) if update_rule == "rank1_gn" else None
+                              requires_grad=create_graph) if update_rule in {"rank1_gn", "rank1_state_filter"} else None
+    rank1_variance = (rank1_state_params["initial_variance"]
+                      if update_rule == "rank1_state_filter" else None)
     def rank1_parameters_at(alpha):
         vector = torch.cat([origin[name].reshape(-1) for name in names]) + rank1_direction * alpha
         updated = dict(named)
@@ -470,13 +509,40 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
 
         inner_context, score_start = task_context(context, inner_task, role="adapt")
         update_contexts = [task_context(item, inner_task, role="adapt")[0] for item in history] + [inner_context]
-        if update_rule == "rank1_gn":
+        if update_rule in {"rank1_gn", "rank1_state_filter"}:
             before = rank1_parameters_at(rank1_alpha)
-            candidate, candidate_alpha, update = rank1_gauss_newton_adapt(
-                model, update_contexts, parameters=named, names=names, basis=rank1_basis,
-                coefficient=rank1_alpha, steps=steps, learning_rate=rank1_step_scale,
-                damping=rank1_damping, max_step_norm=max_delta_norm,
-                max_total_norm=max_delta_norm, create_graph=create_graph)
+            if update_rule == "rank1_gn":
+                candidate, candidate_alpha, update = rank1_gauss_newton_adapt(
+                    model, update_contexts, parameters=named, names=names, basis=rank1_basis,
+                    coefficient=rank1_alpha, steps=steps, learning_rate=rank1_step_scale,
+                    damping=rank1_damping, max_step_norm=max_delta_norm,
+                    max_total_norm=max_delta_norm, create_graph=create_graph)
+                variance_candidate = None
+            else:
+                _, _, pilot_stats = rank1_gauss_newton_adapt(
+                    model, update_contexts, parameters=named, names=names, basis=rank1_basis,
+                    coefficient=rank1_alpha, steps=1, learning_rate=1.0,
+                    damping=rank1_damping, max_step_norm=max_delta_norm,
+                    max_total_norm=max_delta_norm, create_graph=create_graph)
+                predicted_variance = rank1_variance + rank1_state_params["process_noise"]
+                precision = (predicted_variance.clamp_min(1e-8).reciprocal()
+                             + rank1_state_params["information_scale"] * pilot_stats["fisher"]
+                             + float(rank1_damping))
+                variance_candidate = precision.reciprocal().clamp_min(
+                    float(rank1_state_params.get("variance_floor", 1e-8)))
+                delta = (-pilot_stats["gradient"] / precision).clamp(
+                    min=-float(max_delta_norm), max=float(max_delta_norm))
+                candidate_alpha = rank1_alpha + delta
+                candidate = rank1_parameters_at(candidate_alpha)
+                update = {
+                    "delta_norm": float(delta.detach().abs().cpu()),
+                    "coefficient": candidate_alpha,
+                    "gradient": pilot_stats["gradient"],
+                    "fisher": pilot_stats["fisher"],
+                    "predicted_variance": predicted_variance,
+                    "posterior_variance": variance_candidate,
+                    "data_labels_used": False,
+                }
             candidate_optimizer_state = None
         else:
             before = fast
@@ -496,11 +562,13 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
         total_scale = (max_delta_norm / cumulative).clamp(max=1.0)
         for name in names:
             candidate[name] = origin[name] + (candidate[name] - origin[name]) * total_scale
-        if update_rule == "rank1_gn":
+        if update_rule in {"rank1_gn", "rank1_state_filter"}:
             projected_delta = torch.cat([(candidate[name] - origin[name]).reshape(-1) for name in names])
             # 以真正通过总半径投影的神经参数重建坐标，保证alpha状态与fast参数完全一致。
             candidate_alpha = torch.dot(rank1_direction, projected_delta)
             candidate = rank1_parameters_at(candidate_alpha)
+            if update_rule == "rank1_state_filter":
+                rank1_variance = variance_candidate
         step_delta = torch.sqrt(sum((candidate[name] - before[name]).float().square().sum()
                                     for name in names) + 1e-24)
 
@@ -543,7 +611,7 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
             soft_accept = soft_ber_accept + (1.0 - soft_ber_accept) * soft_ber_tie * soft_bce_accept
         gate = soft_accept + (1.0 if hard_accept else 0.0) - soft_accept.detach()
         fast = dict(before)
-        if update_rule == "rank1_gn":
+        if update_rule in {"rank1_gn", "rank1_state_filter"}:
             rank1_alpha = rank1_alpha + gate * (candidate_alpha - rank1_alpha)
             fast = rank1_parameters_at(rank1_alpha)
         else:
@@ -567,7 +635,7 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
         online_logits = context_logits(model, context, fast)
         online_data_losses.append(_data_outer_loss(
             online_logits, frame, data_objective, soft_ber_temperature))
-        tail = next_pilot_tail(model, context, alpha=tail_alpha, parameters=fast)
+        tail = next_pilot_tail(model, context, alpha=tail_alpha, parameters=fast, mode=tail_mode)
         if int(history_frames) > 1:
             from training.shared_pilot_state import adapt_only_history_context
             history.append(adapt_only_history_context(frame, context.condition, context.tail))
@@ -585,7 +653,14 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
             "soft_gate_accept_probability": float(soft_accept.detach().cpu()),
             "soft_gate_rule": soft_gate_rule,
             "update_rule": update_rule,
-            "rank1_coefficient": (float(rank1_alpha.detach().cpu()) if update_rule == "rank1_gn" else None),
+            "rank1_coefficient": (float(rank1_alpha.detach().cpu())
+                                  if update_rule in {"rank1_gn", "rank1_state_filter"} else None),
+            "rank1_state_variance": (float(rank1_variance.detach().cpu())
+                                    if update_rule == "rank1_state_filter" else None),
+            "rank1_state_gradient": (float(update["gradient"].detach().cpu())
+                                     if update_rule == "rank1_state_filter" else None),
+            "rank1_state_fisher": (float(update["fisher"].detach().cpu())
+                                   if update_rule == "rank1_state_filter" else None),
             "optimizer_state_steps": 0 if active_optimizer_state is None else active_optimizer_state["steps"],
             "data_labels_used_for_transition": False,
         })
@@ -667,6 +742,8 @@ def rank1_gauss_newton_adapt(model, contexts, *, parameters, names, basis, coeff
     return updated, alpha, {
         "delta_norm": float((alpha - coefficient).detach().abs().cpu()),
         "coefficient": alpha,
+        "gradient": gradient,
+        "fisher": fisher,
         "data_labels_used": False,
     }
 
@@ -692,8 +769,8 @@ class PilotTransferTrainer:
             raise ValueError("共同状态内循环要求完整帧的合法 Adapt 方程。")
         self.objective = objective or self.settings.get("objective", "post_adapt")
         self.trajectory_update_rule = self.settings.get("trajectory_update_rule", "adam")
-        if self.trajectory_update_rule not in {"adam", "rank1_gn"}:
-            raise ValueError("trajectory_update_rule 必须为 adam 或 rank1_gn。")
+        if self.trajectory_update_rule not in {"adam", "rank1_gn", "rank1_state_filter"}:
+            raise ValueError("trajectory_update_rule 必须为 adam、rank1_gn 或 rank1_state_filter。")
         if self.objective not in {"baseline", "post_adapt", "trajectory"}:
             raise ValueError("训练目标必须为 baseline、post_adapt 或 trajectory。")
         if self.objective == "trajectory" and (
@@ -702,14 +779,16 @@ class PilotTransferTrainer:
             raise ValueError("trajectory 目标要求连续帧偏移 [0, 1, ..., T-1]，且至少两帧。")
         if self.settings.get("trajectory_persist_optimizer_state", False) and self.objective != "trajectory":
             raise ValueError("跨帧优化器状态只允许用于 trajectory 外层目标。")
-        if self.trajectory_update_rule == "rank1_gn":
+        if self.trajectory_update_rule in {"rank1_gn", "rank1_state_filter"}:
             if self.objective != "trajectory":
-                raise ValueError("rank1_gn 只用于多帧 trajectory 外层目标。")
+                raise ValueError("rank1神经更新只用于多帧 trajectory 外层目标。")
             if (set(self.settings.get("inner_groups", ["phase_trend"])) != {"head"}
                     or self.settings.get("inner_objective", "pilot_signal_reconstruction") != "bce"
                     or self.inner_receiver_input != "adapt_only"
                     or self.settings.get("trajectory_persist_optimizer_state", False)):
-                raise ValueError("rank1_gn 要求 head、Adapt-only BCE，且不持久化优化器状态。")
+                raise ValueError("rank1更新要求head、Adapt-only BCE，且不持久化Adam状态。")
+            if self.trajectory_update_rule == "rank1_state_filter" and int(self.settings.get("inner_steps", 1)) != 1:
+                raise ValueError("rank1状态滤波每帧只允许一个Adapt更新步。")
         if config.get("pilot_layout") != "prefix" or config.get("main_level") != "B":
             raise ValueError("适配训练只支持 Level B 前缀 Pilot。")
         if config.get("offline_state_split") != "offline_train":
@@ -722,10 +801,13 @@ class PilotTransferTrainer:
         base_parameters = []
         self.rank1_basis_raw = None
         self.rank1_basis_source = None
-        if self.trajectory_update_rule == "rank1_gn":
+        self.rank1_state_raw = nn.ParameterDict()
+        if self.trajectory_update_rule in {"rank1_gn", "rank1_state_filter"}:
             head = dict(self.model.peft.named_group_parameters({"head"}))
             dimension = sum(parameter.numel() for parameter in head.values())
             basis_path_value = self.settings.get("trajectory_rank1_basis_init_path")
+            if self.trajectory_update_rule == "rank1_state_filter" and not basis_path_value:
+                raise ValueError("rank1_state_filter要求固定的外部Pilot Fisher basis。")
             if basis_path_value:
                 basis_path = Path(basis_path_value)
                 if not basis_path.is_absolute():
@@ -751,20 +833,33 @@ class PilotTransferTrainer:
                     "seed": int(self.settings.get("trajectory_rank1_basis_seed", self.settings.get("seed", 31000))),
                 }
             initial_basis = initial_basis / initial_basis.norm().clamp_min(1e-12)
-            self.rank1_basis_raw = nn.Parameter(initial_basis)
+            self.rank1_basis_raw = nn.Parameter(
+                initial_basis, requires_grad=self.trajectory_update_rule == "rank1_gn")
+            if self.trajectory_update_rule == "rank1_state_filter":
+                for name, initial_value in (
+                        ("initial_variance", float(self.settings.get("rank1_state_initial_variance", 100.0))),
+                        ("process_noise", float(self.settings.get("rank1_state_process_noise", 0.01))),
+                        ("information_scale", float(self.settings.get("rank1_state_information_scale", 1.0)))):
+                    if not math.isfinite(initial_value) or initial_value <= 0:
+                        raise ValueError(f"{name}的初始值必须是正有限数。")
+                    inverse_softplus = initial_value + math.log(-math.expm1(-initial_value))
+                    self.rank1_state_raw[name] = nn.Parameter(torch.tensor(
+                        inverse_softplus, dtype=torch.float32, device=self.device))
         outer_groups = self.settings.get("outer_groups")
         outer_names = None if outer_groups is None else {name for name, _ in self.model.peft.named_group_parameters(outer_groups)}
         if outer_names is not None and not outer_names:
             raise ValueError("离线 outer_groups 没有可训练参数。")
         for name, parameter in self.model.named_parameters():
             temporary = name.startswith("online_phase_trend_adapter.")
-            trainable = (self.trajectory_update_rule != "rank1_gn" and not temporary
+            trainable = (self.trajectory_update_rule not in {"rank1_gn", "rank1_state_filter"} and not temporary
                          and (outer_names is None or name in outer_names))
             parameter.requires_grad_(trainable)
             if trainable:
                 base_parameters.append(parameter)
-        if self.rank1_basis_raw is not None:
+        if self.trajectory_update_rule == "rank1_gn":
             base_parameters = [self.rank1_basis_raw]
+        elif self.trajectory_update_rule == "rank1_state_filter":
+            base_parameters = list(self.rank1_state_raw.parameters())
         self.optimizer = torch.optim.AdamW(base_parameters, lr=float(self.settings.get("outer_learning_rate", 1e-5)))
         self.history = []
         self.source_checkpoint = None
@@ -840,8 +935,12 @@ class PilotTransferTrainer:
                 from training.shared_pilot_state import adapt_only_history_context
                 historical_adapt_contexts.append(
                     adapt_only_history_context(frame, context.condition, context.tail))
-            if bool(frame.adapt_mask[-tail.numel():].any()):
-                tail = next_pilot_tail(self.model, context, alpha=float(self.config.get("tail_update_alpha", 0.5)))
+            if tail_update_mode(self.config) == "dd_soft" or bool(frame.adapt_mask[-tail.numel():].any()):
+                tail = next_pilot_tail(
+                    self.model, context,
+                    alpha=float(self.config.get("tail_update_alpha", 0.5)),
+                    mode=tail_update_mode(self.config),
+                )
         context = make_context(frames[history_frames], cir, cfo, tail, snr)
         if self.inner_history_frames > 1:
             past = tuple(historical_adapt_contexts[-(self.inner_history_frames - 1):])
@@ -909,6 +1008,15 @@ class PilotTransferTrainer:
             return None
         return self.rank1_basis_raw / self.rank1_basis_raw.norm().clamp_min(1e-12)
 
+    def rank1_state_parameters(self):
+        """返回正值约束的可学习状态先验参数。"""
+        if self.trajectory_update_rule != "rank1_state_filter":
+            return None
+        values = {name: F.softplus(value) + 1e-8
+                  for name, value in self.rank1_state_raw.items()}
+        values["variance_floor"] = float(self.settings.get("rank1_state_variance_floor", 1e-8))
+        return values
+
     def train(self, steps, batch_size=1, accumulation_steps=1, use_amp=False):
         # CUDA 的高效 attention backward 不支持本任务所需的二阶导数；两分支
         # 统一使用 math 后端，避免内循环外层反传失败或训练数值路径不同。
@@ -956,10 +1064,12 @@ class PilotTransferTrainer:
                         snr_db=snr,
                         inner_task=self.inner_task,
                         tail_alpha=float(self.config.get("tail_update_alpha", 0.5)),
+                        tail_mode=tail_update_mode(self.config),
                         soft_gate_rule=self.settings.get("trajectory_soft_gate_rule", "conservative_and"),
                         persist_optimizer_state=bool(self.settings.get("trajectory_persist_optimizer_state", False)),
                         update_rule=self.trajectory_update_rule,
                         rank1_basis=self.rank1_basis_raw,
+                        rank1_state_params=self.rank1_state_parameters(),
                         rank1_damping=float(self.settings.get("trajectory_rank1_damping", 0.01)),
                         rank1_step_scale=float(self.settings.get("trajectory_rank1_step_scale", 1.0)),
                         history_frames=self.inner_history_frames,
@@ -1065,6 +1175,12 @@ class PilotTransferTrainer:
                 "base_checkpoint_sha256": (self.source_checkpoint or {}).get("sha256"),
                 "status": "learned_basis_in_training; basis and source are embedded in checkpoint metrics and supported by the evaluator",
             } if self.rank1_basis_raw is not None else None),
+            "trajectory_rank1_basis_trainable": bool(
+                self.rank1_basis_raw is not None and self.rank1_basis_raw.requires_grad),
+            "trajectory_rank1_state_filter_parameters": ({
+                name: float(value.detach().cpu()) for name, value in self.rank1_state_parameters().items()
+                if isinstance(value, torch.Tensor)
+            } if self.trajectory_update_rule == "rank1_state_filter" else None),
             "offline_sample_cache_hits": self.sample_cache_hits,
             "offline_sample_cache_misses": self.sample_cache_misses,
             "offline_base_loss": "bce_all",

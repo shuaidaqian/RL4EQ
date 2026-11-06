@@ -16,7 +16,7 @@ from scipy.stats import t
 
 from training.pilot_transfer import (
     context_logits, differentiable_adapt, make_context, make_episode, next_pilot_tail, receiver_inputs,
-    receiver_tasks, task_context, channel_state_reward_loss, frame_to_device,
+    receiver_tasks, task_context, channel_state_reward_loss, frame_to_device, tail_update_mode,
 )
 from training.rl_modulated_online import _build_equalizer
 from training.windowed_discrete_ppo import should_accept_reward_guard
@@ -337,12 +337,14 @@ def run_transfer_comparison(config, *, baseline_checkpoint, post_checkpoint, see
                         rows.append(row)
                         handle.write(json.dumps(row, ensure_ascii=False) + "\n")
                         handle.flush()
-                        # Soft-tail（若 Pilot 布局覆盖帧尾）必须由已提交的神经状态递推；
+                        # Soft-tail 必须由已提交的神经状态递推；dd_soft 模式下
+                        # 前缀布局也使用帧尾 Data 位置的模型软判决，且不读取标签。
                         # 非持久 Frozen 协议继续使用离线初始参数。
                         tail_parameters = active if persistent else initial
                         tail = next_pilot_tail(model, context,
                             alpha=float(config.get("tail_update_alpha", 0.5)),
-                            parameters=tail_parameters)
+                            parameters=tail_parameters,
+                            mode=tail_update_mode(config))
                         if inner_history_frames > 1:
                             adapt_history.append(adapt_only_history_context(frame, context.condition, context.tail))
                             adapt_history = adapt_history[-(inner_history_frames-1):]
