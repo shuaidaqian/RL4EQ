@@ -120,6 +120,7 @@ v14–v27、rank-1 GN/状态滤波、全 head trajectory、soft-BER、持久 Ada
 ### 5.3 失败分支
 
 - 若 Data-aided CIR 精化不能闭合真实 CIR 差距：检查置信阈值/错误传播，改用可靠性分类器或纯 Pilot CIR 对照；若仍无增益，再回到表示/容量。
+- 若简单 LS/ridge 仍有偏（已在 3 seed × 16 帧观察到 0 dB 发散、5 dB 中性）：改用**离线学习的去偏映射**，输入合法特征（acquisition CIR、Data LS、置信度、相位特征），输出 CIR 残差；真实 CIR 只用于离线训练/评分。先用 held-out NMSE 验证，再上 BER。
 - 若软似然梯度被模型误差主导：改用数据辅助 CIR/相位精化 + 可靠性分类器 + 小神经校正。
 - 若 oracle 显示当前表示无可修空间：换更大/更结构化表示（LoRA/Adapter/全 head）或改作用位置。
 - 若高 SNR 仍无信号：检查软似然尺度、噪声方差归一化、`Q` 与门控；必要时用多帧批训练/重放降低梯度噪声。
@@ -200,7 +201,7 @@ python calibrate_channel.py --help
 |统计功效与错误构成|已完成|
 |在线适配方法文献调研|已完成（机制模板，不是本问题已证）|
 |离线饱和/oracle 上界|已完成：训练预算/宽度接近饱和；CIR 估计是 5/10 dB 主要残差|
-|Data-aided CIR/ELBO 诊断|进行中（CIR 四模式与 ELBO 方向筛查）|
+|Data-aided CIR/ELBO 诊断|已完成首轮：简单 LS/ridge 与单步 ELBO 未形成稳定增益；学习式去偏诊断运行中|
 |S-DANSA 实现|未开始|
 |在线优于 Frozen 的可重复证据|未成立|
 |随帧增长直到饱和|未成立|

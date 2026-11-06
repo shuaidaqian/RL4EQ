@@ -26,7 +26,7 @@ if str(ROOT) not in sys.path:
 
 from agent.cir_estimator import decision_directed_cir_update, pilot_sparse_cir_update
 from evaluation.pilot_transfer import _load_branch
-from training.data_aided_cir import data_aided_cir_update
+from training.data_aided_cir import data_aided_cir_update, pilot_ridge_cir_update
 from training.pilot_transfer import context_logits, make_context, make_episode, next_pilot_tail
 
 
@@ -67,6 +67,14 @@ def _run_on_episode(model, config, episode, seed, snr, mode, alpha, threshold, d
         elif mode == "pilot_sparse":
             cir = pilot_sparse_cir_update(
                 frame, cir, tail, max_paths=24, alpha=alpha, cfo_hint=float(cfo),
+            )
+        elif mode == "pilot_ridge":
+            latent = context.condition.latent_residual
+            phase0 = float(latent[0, 0].detach().cpu()) if latent is not None else 0.0
+            cfo_est = float(latent[0, 1].detach().cpu()) if latent is not None else 0.0
+            cir = pilot_ridge_cir_update(
+                frame, max_delay, cir, alpha=alpha, ridge=1e-2,
+                phase0=phase0, cfo=cfo_est,
             )
         elif mode == "data_cir":
             latent = context.condition.latent_residual

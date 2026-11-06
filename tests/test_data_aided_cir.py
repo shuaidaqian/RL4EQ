@@ -7,7 +7,7 @@ import torch
 
 from env.frame_structure import FrameConfig, FrameGenerator
 from env.linear_operator import LinearChannelOperator
-from training.data_aided_cir import data_aided_cir_update
+from training.data_aided_cir import data_aided_cir_update, pilot_ridge_cir_update
 
 
 def _fixture():
@@ -40,6 +40,12 @@ def test_data_aided_cir_is_label_free():
     poisoned_estimate = data_aided_cir_update(poisoned, logits, 4, cir, alpha=1.0)
     # lstsq 在 float32 下可能有 1e-7 级数值差异；语义上不得依赖 Data 标签。
     torch.testing.assert_close(baseline, poisoned_estimate, rtol=1e-6, atol=1e-6)
+
+
+def test_pilot_ridge_cir_recovers_known_channel():
+    frame, cir, _ = _fixture()
+    estimate = pilot_ridge_cir_update(frame, 4, cir, alpha=1.0, ridge=1e-6)
+    torch.testing.assert_close(estimate, cir / cir.norm(), rtol=1e-3, atol=1e-4)
 
 
 def test_data_aided_cir_falls_back_when_no_confident_symbols():

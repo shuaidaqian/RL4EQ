@@ -77,3 +77,52 @@ def data_aided_cir_update(
     estimate = estimate / estimate.norm().clamp_min(1e-12)
     blended = (1.0 - alpha) * previous + alpha * estimate
     return blended / blended.norm().clamp_min(1e-12)
+
+
+def pilot_ridge_cir_update(
+    frame,
+    max_delay: int,
+    previous_cir: torch.Tensor,
+    *,
+    alpha: float = 0.5,
+    ridge: float = 1e-2,
+    phase0: float = 0.0,
+    cfo: float = 0.0,
+) -> torch.Tensor:
+    """Pilot-only 全 tap ridge LS：已知 Adapt Pilot + 相位补偿 + acquisition 先验。
+
+    适配 prefix 布局：只使用帧首 Adapt Pilot 中卷积行完全落在 Pilot 内的位置。
+    与 ``pilot_sparse_cir_update`` 的 top-K 稀疏支持不同，这里对全部 tap 做
+    ridge 正则，避免支持选择不稳定；仍不读取 Data 或 Reward 标签。
+    """
+
+    if not 0.0 <= alpha <= 1.0:
+        raise ValueError("alpha 必须位于 [0, 1]。")
+    if ridge <= 0.0:
+        raise ValueError("Pilot ridge 必须为正数，保证欠定系统可解。")
+    device = previous_cir.device
+    previous = previous_cir.to(device=device, dtype=torch.complex64).reshape(-1)
+    if previous.numel() != max_delay + 1:
+        raise ValueError("previous_cir 长度必须为 max_delay + 1。")
+    rx = frame.rx_symbols.to(device=device, dtype=torch.complex64)
+    if phase0 != 0.0 or cfo != 0.0:
+        positions_all = torch.arange(rx.numel(), device=device, dtype=torch.float32)
+        correction = torch.exp(
+            -1j * (float(phase0) + 2.0 * torch.pi * float(cfo) * positions_all)
+        ).to(torch.complex64)
+        rx = rx * correction
+    pilot_mask = frame.adapt_mask.to(device=device).bool()
+    pilot_positions = torch.nonzero(pilot_mask, as_tuple=False).flatten()
+    pilot_positions = pilot_positions[pilot_positions >= max_delay]
+    if pilot_positions.numel() < 2:
+        return previous / previous.norm().clamp_min(1e-12)
+    tx = frame.tx_symbols.to(device=device, dtype=torch.complex64)
+    rows = torch.stack([tx[pilot_positions - delay] for delay in range(max_delay + 1)], dim=1)
+    targets = rx[pilot_positions]
+    identity = torch.eye(max_delay + 1, device=device, dtype=torch.complex64)
+    gram = rows.conj().transpose(0, 1) @ rows + ridge * identity
+    rhs = rows.conj().transpose(0, 1) @ targets + ridge * previous
+    estimate = torch.linalg.solve(gram, rhs).to(torch.complex64)
+    estimate = estimate / estimate.norm().clamp_min(1e-12)
+    blended = (1.0 - alpha) * previous + alpha * estimate
+    return blended / blended.norm().clamp_min(1e-12)
