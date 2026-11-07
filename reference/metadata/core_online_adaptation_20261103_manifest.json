@@ -1,0 +1,805 @@
+{
+  "schema_version": "core-online-adaptation-literature-v1",
+  "collected_date": "2026-11-03",
+  "retrieved_at_utc": "2026-11-03T04:28:13.877546+00:00",
+  "description": "对应全局与第一性原理分析中引用的7篇核心文献。PDF来自NIST或作者公开版本，不将预印本冒充出版社排版版本。",
+  "papers": [
+    {
+      "number": 1,
+      "file": "1965-evans-radar-studies-moon.pdf",
+      "doi": "10.6028/jres.069d.195",
+      "title": "Radar Studies of the Moon",
+      "year": 1965,
+      "pdf_url": "https://nvlpubs.nist.gov/nistpubs/jres/69D/jresv69Dn12p1637_A1b.pdf",
+      "keywords": [
+        "radar",
+        "moon"
+      ],
+      "purpose": "EME 长回波、月面散射、延迟和多普勒的原始物理背景。",
+      "note": "NIST 公开的原刊扫描版；扫描文字抽取可能存在 OCR 误差。",
+      "operation": "新增下载",
+      "bytes": 30199648,
+      "sha256": "54ccc9bd4c2dd1631e024e5ce0f9157d0c3682402e761c0ceb1e059ef62b469d",
+      "pages": 23,
+      "text_file": "1965-evans-radar-studies-moon.txt",
+      "first_page_excerpt": "VI Session: RADAR OBSERVATIONS OF THE MOON \nRadar Studies of the Moon \nJ. V. Evans \nLincoln Laboratoryl, Massachusetts Institute of Technology, Lexington, Mass. \nAccurate range measurements have been reported only by the group 'working at the Nava l Re· \nsearch Laboratory. Their most recent value for th e mean center-to -cen ter distance betwe en the \nEarth and the Moon is 384,400.2 ± 1.1 km and is based upon a value for the Earth's radius of 6.378,170 m \nwhich seemed most cons istent with the observed diurnal variation in range. \nThe absolut e cross section of the Moon has been determined over a wide range of wavelengths \nto a precision in most cases of ± 3 dB. Unfortunately, this uncertainty is too large to permit any \ndefinite conclusions to be drawn concerning the wavelength dependence",
+      "doi_url": "https://doi.org/10.6028/jres.069d.195",
+      "validated": true,
+      "publication_metadata": {
+        "title": [
+          "Radar studies of the Moon"
+        ],
+        "author": [
+          {
+            "given": "J.V.",
+            "family": "Evans",
+            "sequence": "first",
+            "affiliation": [],
+            "role": [
+              {
+                "role": "author",
+                "vocabulary": "crossref"
+              }
+            ]
+          }
+        ],
+        "container-title": [
+          "Journal of Research of the National Bureau of Standards, Section D: Radio Science"
+        ],
+        "published": {
+          "date-parts": [
+            [
+              1965,
+              12
+            ]
+          ]
+        },
+        "volume": "69D",
+        "issue": "12",
+        "page": "1637",
+        "article-number": null,
+        "DOI": "10.6028/jres.069d.195",
+        "URL": "https://doi.org/10.6028/jres.069d.195"
+      }
+    },
+    {
+      "number": 2,
+      "file": "1908.09049-park2021-few-pilots-meta-learning.pdf",
+      "doi": "10.1109/TSP.2020.3043879",
+      "title": "Learning to Demodulate From Few Pilots via Offline and Online Meta-Learning",
+      "year": 2021,
+      "arxiv_id": "1908.09049",
+      "keywords": [
+        "demodulate",
+        "pilots",
+        "meta"
+      ],
+      "purpose": "少 Pilot 下的离线元学习、在线快速适配和低维 context。",
+      "note": "正式出版年份为2021，DOI中2020不是本文采用的出版年份；PDF为作者公开版本。",
+      "pdf_url": "https://arxiv.org/pdf/1908.09049v3",
+      "arxiv_metadata": {
+        "versioned_id": "1908.09049v3",
+        "title": "Learning to Demodulate from Few Pilots via Offline and Online Meta-Learning",
+        "updated": "2020-12-04T03:28:31Z",
+        "authors": [
+          "Sangwoo Park",
+          "Hyeryung Jang",
+          "Osvaldo Simeone",
+          "Joonhyuk Kang"
+        ]
+      },
+      "operation": "新增下载",
+      "bytes": 13856921,
+      "sha256": "892a0d33dac9dff40c9514f0b23d28123dba77503ed014fc69c886bf34df7869",
+      "pages": 15,
+      "text_file": "1908.09049-park2021-few-pilots-meta-learning.txt",
+      "first_page_excerpt": "Learning to Demodulate from Few Pilots via\nOfﬂine and Online Meta-Learning\nSangwoo Park, Student Member, IEEE, Hyeryung Jang, Member, IEEE,\nOsvaldo Simeone, Fellow, IEEE, and Joonhyuk Kang, Member, IEEE\nAbstract—This paper considers an Internet-of-Things (IoT)\nscenario in which devices sporadically transmit short packets\nwith few pilot symbols over a fading channel. Devices are\ncharacterized by unique transmission non-idealities, such as I/Q\nimbalance. The number of pilots is generally insufﬁcient to obtain\nan accurate estimate of the end-to-end channel, which includes\nthe effects of fading and of the transmission-side distortion. This\npaper proposes to tackle this problem by using meta-learning.\nAccordingly, pilots from previous IoT transmissions are used\nas meta-training data in order to",
+      "doi_url": "https://doi.org/10.1109/TSP.2020.3043879",
+      "validated": true,
+      "abstract_url": "https://arxiv.org/abs/1908.09049",
+      "publication_metadata": {
+        "title": [
+          "Learning to Demodulate From Few Pilots via Offline and Online Meta-Learning"
+        ],
+        "author": [
+          {
+            "ORCID": "https://orcid.org/0000-0003-4091-7860",
+            "authenticated-orcid": false,
+            "given": "Sangwoo",
+            "family": "Park",
+            "sequence": "first",
+            "affiliation": [],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0002-7314-0739",
+            "authenticated-orcid": false,
+            "given": "Hyeryung",
+            "family": "Jang",
+            "sequence": "additional",
+            "affiliation": [],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0001-9898-3209",
+            "authenticated-orcid": false,
+            "given": "Osvaldo",
+            "family": "Simeone",
+            "sequence": "additional",
+            "affiliation": [],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0002-5508-3742",
+            "authenticated-orcid": false,
+            "given": "Joonhyuk",
+            "family": "Kang",
+            "sequence": "additional",
+            "affiliation": [],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          }
+        ],
+        "container-title": [
+          "IEEE Transactions on Signal Processing"
+        ],
+        "published": {
+          "date-parts": [
+            [
+              2021
+            ]
+          ]
+        },
+        "volume": "69",
+        "issue": null,
+        "page": "226-239",
+        "article-number": null,
+        "DOI": "10.1109/tsp.2020.3043879",
+        "URL": "https://doi.org/10.1109/tsp.2020.3043879"
+      }
+    },
+    {
+      "number": 3,
+      "file": "2203.14359-raviv-meta-learning-hybrid-receivers.pdf",
+      "doi": "10.1109/TWC.2023.3241841",
+      "title": "Online Meta-Learning for Hybrid Model-Based Deep Receivers",
+      "year": 2023,
+      "arxiv_id": "2203.14359",
+      "keywords": [
+        "meta",
+        "hybrid",
+        "receivers"
+      ],
+      "purpose": "物理模型辅助接收、预测式元学习、当前和历史任务配合。",
+      "note": "复用本目录既有公开全文；文中短记忆和编码反馈条件不能直接等同于当前长回波系统。",
+      "operation": "复用既有文件",
+      "pdf_url": "https://arxiv.org/pdf/2203.14359",
+      "arxiv_version": "v2",
+      "bytes": 3194473,
+      "sha256": "c1b78f2716fe11e09154011d90c4e5b51c04346eb0254053e60766d1e933556c",
+      "pages": 32,
+      "text_file": "2203.14359-raviv-meta-learning-hybrid-receivers.txt",
+      "first_page_excerpt": "Online Meta-Learning For Hybrid\nModel-Based Deep Receivers\nTomer Raviv, Sangwoo Park, Osvaldo Simeone,\nYonina C. Eldar, and Nir Shlezinger\nAbstract\nRecent years have witnessed growing interest in the application of deep neural networks (DNNs)\nfor receiver design, which can potentially be applied in complex environments without relying on\nknowledge of the channel model. However, the dynamic nature of communication channels often leads\nto rapid distribution shifts, which may require periodically retraining. This paper formulates a data-\nefﬁcient two-stage training method that facilitates rapid online adaptation. Our training mechanism uses a\npredictive meta-learning scheme to train rapidly from data corresponding to both current and past channel\nrealizations. Our method is applicable to any ",
+      "doi_url": "https://doi.org/10.1109/TWC.2023.3241841",
+      "validated": true,
+      "abstract_url": "https://arxiv.org/abs/2203.14359",
+      "publication_metadata": {
+        "title": [
+          "Online Meta-Learning for Hybrid Model-Based Deep Receivers"
+        ],
+        "author": [
+          {
+            "ORCID": "https://orcid.org/0000-0002-5626-3913",
+            "authenticated-orcid": false,
+            "given": "Tomer",
+            "family": "Raviv",
+            "sequence": "first",
+            "affiliation": [
+              {
+                "name": "School of ECE, Ben-Gurion University of the Negev, Be&#x2019;er Sheva, Israel"
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0003-4091-7860",
+            "authenticated-orcid": false,
+            "given": "Sangwoo",
+            "family": "Park",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "Department of Engineering, King&#x2019;s College London, London, U.K."
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0001-9898-3209",
+            "authenticated-orcid": false,
+            "given": "Osvaldo",
+            "family": "Simeone",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "Department of Engineering, King&#x2019;s College London, London, U.K."
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0003-4358-5304",
+            "authenticated-orcid": false,
+            "given": "Yonina C.",
+            "family": "Eldar",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "Faculty of Math and CS, Weizmann Institute of Science, Rehovot, Israel"
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0003-2234-929X",
+            "authenticated-orcid": false,
+            "given": "Nir",
+            "family": "Shlezinger",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "School of ECE, Ben-Gurion University of the Negev, Be&#x2019;er Sheva, Israel"
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          }
+        ],
+        "container-title": [
+          "IEEE Transactions on Wireless Communications"
+        ],
+        "published": {
+          "date-parts": [
+            [
+              2023,
+              10
+            ]
+          ]
+        },
+        "volume": "22",
+        "issue": "10",
+        "page": "6415-6431",
+        "article-number": null,
+        "DOI": "10.1109/twc.2023.3241841",
+        "URL": "https://doi.org/10.1109/twc.2023.3241841"
+      }
+    },
+    {
+      "number": 4,
+      "file": "1905.10750-shlezinger2020-viterbinet.pdf",
+      "doi": "10.1109/TWC.2020.2972352",
+      "title": "ViterbiNet: A Deep Learning Based Viterbi Algorithm for Symbol Detection",
+      "year": 2020,
+      "arxiv_id": "1905.10750",
+      "keywords": [
+        "viterbinet",
+        "symbol",
+        "detection"
+      ],
+      "purpose": "保留接收算法结构，仅学习模型相关的局部计算。",
+      "note": "PDF为作者公开版本；原始 Viterbi 状态空间不能直接扩展到116符号记忆。",
+      "pdf_url": "https://arxiv.org/pdf/1905.10750v2",
+      "arxiv_metadata": {
+        "versioned_id": "1905.10750v2",
+        "title": "ViterbiNet: A Deep Learning Based Viterbi Algorithm for Symbol Detection",
+        "updated": "2020-09-29T12:52:32Z",
+        "authors": [
+          "Nir Shlezinger",
+          "Nariman Farsad",
+          "Yonina C. Eldar",
+          "Andrea J. Goldsmith"
+        ]
+      },
+      "operation": "新增下载",
+      "bytes": 1037815,
+      "sha256": "763f0f6a1caa7f472b321bfe51467c2ad18b8dc16bda4da18b77ae9eda6054df",
+      "pages": 28,
+      "text_file": "1905.10750-shlezinger2020-viterbinet.txt",
+      "first_page_excerpt": "ViterbiNet: A Deep Learning Based Viterbi\nAlgorithm for Symbol Detection\nNir Shlezinger, Nariman Farsad, Yonina C. Eldar, and Andrea J. Goldsmith\nAbstract\nSymbol detection plays an important role in the implementation of digital receivers. In this work,\nwe propose ViterbiNet, which is a data-driven symbol detector that does not require channel state\ninformation (CSI). ViterbiNet is obtained by integrating deep neural networks (DNNs) into the Viterbi\nalgorithm. We identify the speciﬁc parts of the Viterbi algorithm that are channel-model-based, and\ndesign a DNN to implement only those computations, leaving the rest of the algorithm structure intact.\nWe then propose a meta-learning based approach to train ViterbiNet online based on recent decisions,\nallowing the receiver to track dynamic cha",
+      "doi_url": "https://doi.org/10.1109/TWC.2020.2972352",
+      "validated": true,
+      "abstract_url": "https://arxiv.org/abs/1905.10750",
+      "publication_metadata": {
+        "title": [
+          "ViterbiNet: A Deep Learning Based Viterbi Algorithm for Symbol Detection"
+        ],
+        "author": [
+          {
+            "ORCID": "https://orcid.org/0000-0003-2234-929X",
+            "authenticated-orcid": false,
+            "given": "Nir",
+            "family": "Shlezinger",
+            "sequence": "first",
+            "affiliation": [],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0003-0157-1596",
+            "authenticated-orcid": false,
+            "given": "Nariman",
+            "family": "Farsad",
+            "sequence": "additional",
+            "affiliation": [],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "given": "Yonina C.",
+            "family": "Eldar",
+            "sequence": "additional",
+            "affiliation": [],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "given": "Andrea J.",
+            "family": "Goldsmith",
+            "sequence": "additional",
+            "affiliation": [],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          }
+        ],
+        "container-title": [
+          "IEEE Transactions on Wireless Communications"
+        ],
+        "published": {
+          "date-parts": [
+            [
+              2020,
+              5
+            ]
+          ]
+        },
+        "volume": "19",
+        "issue": "5",
+        "page": "3319-3331",
+        "article-number": null,
+        "DOI": "10.1109/twc.2020.2972352",
+        "URL": "https://doi.org/10.1109/twc.2020.2972352"
+      }
+    },
+    {
+      "number": 5,
+      "file": "2108.00785-cohen2022-bayesian-active-meta-learning.pdf",
+      "doi": "10.1109/TSP.2022.3220035",
+      "title": "Bayesian Active Meta-Learning for Reliable and Efficient AI-Based Demodulation",
+      "year": 2022,
+      "arxiv_id": "2108.00785",
+      "keywords": [
+        "bayesian",
+        "meta",
+        "learning"
+      ],
+      "purpose": "少样本适配、不确定性校准和主动元训练。",
+      "note": "公开PDF标题为 Bayesian Active Meta-Learning for Few Pilot Demodulation and Equalization，与正式出版标题不同。",
+      "pdf_url": "https://arxiv.org/pdf/2108.00785v3",
+      "arxiv_metadata": {
+        "versioned_id": "2108.00785v3",
+        "title": "Bayesian Active Meta-Learning for Few Pilot Demodulation and Equalization",
+        "updated": "2022-12-05T17:09:42Z",
+        "authors": [
+          "Kfir M. Cohen",
+          "Sangwoo Park",
+          "Osvaldo Simeone",
+          "Shlomo Shamai"
+        ]
+      },
+      "operation": "新增下载",
+      "bytes": 6792703,
+      "sha256": "cd689a581fee110d4773aa604deaa96bfa62f10a3a79e1056fd78dc3d3b111c5",
+      "pages": 16,
+      "text_file": "2108.00785-cohen2022-bayesian-active-meta-learning.txt",
+      "first_page_excerpt": "1\nBayesian Active Meta-Learning for Reliable and\nEfﬁcient AI-Based Demodulation\nKﬁr M. Cohen, Student Member, IEEE, Sangwoo Park, Member, IEEE,\nOsvaldo Simeone, Fellow, IEEE, Shlomo Shamai (Shitz), Life Fellow, IEEE\nAbstract—Two of the main principles underlying the life\ncycle of an artiﬁcial intelligence (AI) module in communication\nnetworks are adaptation and monitoring. Adaptation refers to\nthe need to adjust the operation of an AI module depending on\nthe current conditions; while monitoring requires measures of\nthe reliability of an AI module’s decisions. Classical frequentist\nlearning methods for the design of AI modules fall short on\nboth counts of adaptation and monitoring, catering to one-\noff training and providing overconﬁdent decisions. This paper\nproposes a solution to address ",
+      "doi_url": "https://doi.org/10.1109/TSP.2022.3220035",
+      "validated": true,
+      "abstract_url": "https://arxiv.org/abs/2108.00785",
+      "publication_metadata": {
+        "title": [
+          "Bayesian Active Meta-Learning for Reliable and Efficient AI-Based Demodulation"
+        ],
+        "author": [
+          {
+            "ORCID": "https://orcid.org/0000-0001-8041-3873",
+            "authenticated-orcid": false,
+            "given": "Kfir M.",
+            "family": "Cohen",
+            "sequence": "first",
+            "affiliation": [
+              {
+                "name": "King&#x0027;s Communication, Learning, &amp; Information Processing (KCLIP) lab, Department of Engineering, King&#x0027;s College London, London, U.K."
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0003-4091-7860",
+            "authenticated-orcid": false,
+            "given": "Sangwoo",
+            "family": "Park",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "King&#x0027;s Communication, Learning, &amp; Information Processing (KCLIP) lab, Department of Engineering, King&#x0027;s College London, London, U.K."
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0001-9898-3209",
+            "authenticated-orcid": false,
+            "given": "Osvaldo",
+            "family": "Simeone",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "King&#x0027;s Communication, Learning, &amp; Information Processing (KCLIP) lab, Department of Engineering, King&#x0027;s College London, London, U.K."
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0002-6594-3371",
+            "authenticated-orcid": false,
+            "given": "Shlomo",
+            "family": "Shamai",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "Viterbi Faculty of Electrical and Computing Engineering, Technion&#x2013;Israel Institute of Technology, Haifa, Israel"
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          }
+        ],
+        "container-title": [
+          "IEEE Transactions on Signal Processing"
+        ],
+        "published": {
+          "date-parts": [
+            [
+              2022
+            ]
+          ]
+        },
+        "volume": "70",
+        "issue": null,
+        "page": "5366-5380",
+        "article-number": null,
+        "DOI": "10.1109/tsp.2022.3220035",
+        "URL": "https://doi.org/10.1109/tsp.2022.3220035"
+      }
+    },
+    {
+      "number": 6,
+      "file": "2407.09134-uzlaner2024-asynchronous-drift-adaptation.pdf",
+      "doi": "10.1109/TWC.2025.3533959",
+      "title": "Asynchronous Online Adaptation via Modular Drift Detection for Deep Receivers",
+      "year": 2025,
+      "arxiv_id": "2407.09134",
+      "keywords": [
+        "asynchronous",
+        "drift",
+        "receivers"
+      ],
+      "purpose": "基于漂移检测决定何时更新、更新哪个模块，作为非 RL 调度参考。",
+      "note": "复用既有文件；文件名中的2024是预印本年份，正式出版年份为2025。",
+      "operation": "复用既有文件",
+      "pdf_url": "https://arxiv.org/pdf/2407.09134",
+      "arxiv_version": "v1",
+      "bytes": 1803862,
+      "sha256": "b1d1d580887850d96aaa890918a0efa00841ac0aa7dcb22e404385e5563b30e7",
+      "pages": 13,
+      "text_file": "2407.09134-uzlaner2024-asynchronous-drift-adaptation.txt",
+      "first_page_excerpt": "1\nAsynchronous Online Adaptation via Modular Drift\nDetection for Deep Receivers\nNicole Uzlaner ∗, Tomer Raviv ∗, Nir Shlezinger, and Koby Todros\nAbstract—Deep learning is envisioned to facilitate the opera-\ntion of wireless receivers, with emerging architectures integrating\ndeep neural networks (DNNs) with traditional modular receiver\nprocessing. While deep receivers were shown to operate reliably\nin complex settings for which they were trained, the dynamic\nnature of wireless communications gives rise to the need to\nrepeatedly adapt deep receivers to channel variations. However,\nfrequent re-training is costly and ineffective, while in practice,\nnot every channel variation necessitates adaptation of the entire\nDNN. In this paper, we study concept drift detection for identifying\nwhen does a ",
+      "doi_url": "https://doi.org/10.1109/TWC.2025.3533959",
+      "validated": true,
+      "abstract_url": "https://arxiv.org/abs/2407.09134",
+      "publication_metadata": {
+        "title": [
+          "Asynchronous Online Adaptation via Modular Drift Detection for Deep Receivers"
+        ],
+        "author": [
+          {
+            "ORCID": "https://orcid.org/0009-0005-8553-3096",
+            "authenticated-orcid": false,
+            "given": "Nicole",
+            "family": "Uzlaner",
+            "sequence": "first",
+            "affiliation": [
+              {
+                "name": "School of ECE, Ben-Gurion University of the Negev, Be&#x2019;er Sheva, Israel"
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0002-5626-3913",
+            "authenticated-orcid": false,
+            "given": "Tomer",
+            "family": "Raviv",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "School of ECE, Ben-Gurion University of the Negev, Be&#x2019;er Sheva, Israel"
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0003-2234-929X",
+            "authenticated-orcid": false,
+            "given": "Nir",
+            "family": "Shlezinger",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "School of ECE, Ben-Gurion University of the Negev, Be&#x2019;er Sheva, Israel"
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0002-9200-2251",
+            "authenticated-orcid": false,
+            "given": "Koby",
+            "family": "Todros",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "School of ECE, Ben-Gurion University of the Negev, Be&#x2019;er Sheva, Israel"
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          }
+        ],
+        "container-title": [
+          "IEEE Transactions on Wireless Communications"
+        ],
+        "published": {
+          "date-parts": [
+            [
+              2025,
+              5
+            ]
+          ]
+        },
+        "volume": "24",
+        "issue": "5",
+        "page": "4454-4468",
+        "article-number": null,
+        "DOI": "10.1109/twc.2025.3533959",
+        "URL": "https://doi.org/10.1109/twc.2025.3533959"
+      }
+    },
+    {
+      "number": 7,
+      "file": "2511.06045-gusakov2025-online-bayesian-receiver.pdf",
+      "doi": "10.1109/TSP.2026.3697255",
+      "title": "Online Learning of Modular Bayesian Deep Receivers: Single-Step Adaptation With Streaming Data",
+      "year": 2026,
+      "arxiv_id": "2511.06045",
+      "keywords": [
+        "bayesian",
+        "single",
+        "streaming"
+      ],
+      "purpose": "把在线神经参数更新组织为流式贝叶斯跟踪。",
+      "note": "复用既有文件；文件名中的2025是预印本年份，正式出版元数据年份为2026。公开版本的投稿状态可能早于正式出版状态。",
+      "operation": "复用既有文件",
+      "pdf_url": "https://arxiv.org/pdf/2511.06045",
+      "arxiv_version": "v2",
+      "bytes": 7024792,
+      "sha256": "81a8a68f14635a89fce2adbeb877aef51ea2ac3c65b1c2d0a0c6e412a29f6a99",
+      "pages": 15,
+      "text_file": "2511.06045-gusakov2025-online-bayesian-receiver.txt",
+      "first_page_excerpt": "1\nOnline Learning of Modular Bayesian Deep Receivers:\nSingle-Step Adaptation with Streaming Data\nYakov Gusakov, Osvaldo Simeone, Tirza Routtenberg, and Nir Shlezinger\nAbstract—Deep neural network ( DNN)-based receivers offer a\npowerful alternative to classical model-based designs for wireless\ncommunication, especially in complex and nonlinear propagation\nenvironments. However , their adoption is challenged by the rapid\nvariability of wireless channels, which makes pre-trained static DNN-\nbased receivers ineffective, and by the latency and computational\nburden of online stochastic gradient descent ( SGD)-based learning.\nIn this work, we propose an online learning framework that enables\nrapid low-complexity adaptation of DNN-based receivers. Our\napproach is based on two main tenets. First, w",
+      "doi_url": "https://doi.org/10.1109/TSP.2026.3697255",
+      "validated": true,
+      "abstract_url": "https://arxiv.org/abs/2511.06045",
+      "publication_metadata": {
+        "title": [
+          "Online Learning of Modular Bayesian Deep Receivers: Single-Step Adaptation With Streaming Data"
+        ],
+        "author": [
+          {
+            "given": "Yakov",
+            "family": "Gusakov",
+            "sequence": "first",
+            "affiliation": [
+              {
+                "name": "School of ECE, Ben-Gurion University of the Negev, Be&#x02019;er-Sheva, Israel"
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0001-9898-3209",
+            "authenticated-orcid": false,
+            "given": "Osvaldo",
+            "family": "Simeone",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "Institute for Intelligent Networked Systems, Northeastern University London, London, U.K."
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0002-7238-7764",
+            "authenticated-orcid": false,
+            "given": "Tirza",
+            "family": "Routtenberg",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "School of ECE, Ben-Gurion University of the Negev, Be&#x02019;er-Sheva, Israel"
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          },
+          {
+            "ORCID": "https://orcid.org/0000-0003-2234-929X",
+            "authenticated-orcid": false,
+            "given": "Nir",
+            "family": "Shlezinger",
+            "sequence": "additional",
+            "affiliation": [
+              {
+                "name": "School of ECE, Ben-Gurion University of the Negev, Be&#x02019;er-Sheva, Israel"
+              }
+            ],
+            "role": [
+              {
+                "vocabulary": "crossref",
+                "role": "author"
+              }
+            ]
+          }
+        ],
+        "container-title": [
+          "IEEE Transactions on Signal Processing"
+        ],
+        "published": {
+          "date-parts": [
+            [
+              2026
+            ]
+          ]
+        },
+        "volume": "74",
+        "issue": null,
+        "page": "2192-2207",
+        "article-number": null,
+        "DOI": "10.1109/tsp.2026.3697255",
+        "URL": "https://doi.org/10.1109/tsp.2026.3697255"
+      }
+    }
+  ]
+}

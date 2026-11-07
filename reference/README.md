@@ -1,58 +1,29 @@
-# Reference Literature: RL for Adaptive Channel Equalization and Bit Sequence Recovery
+# 参考文献目录
 
-> 本目录已补充公开全文。当前共有 22 个 PDF（21 篇 arXiv 论文和 1 篇本地 P-FTNet 资料），
-> 以及对应的文本抽取、arXiv 元数据和 SHA-256 下载清单。详细文件映射见
-> [`literature_catalog.md`](literature_catalog.md)，下载校验见 [`download_manifest.json`](download_manifest.json)。
+本目录整理与当前唯一研究目标——**离线训练适应信道 + 在线微调做均衡**——相关的公开文献。
 
-## Research Topic
+## 目录结构
 
-Adaptive signal recovery for bit sequences transmitted over a channel using **on-policy online reinforcement learning**. Bit sequence structure: **training sequence + pilot + data**.
+| 路径 | 内容 |
+|---|---|
+| `*.pdf` | 42 篇相关文献，文件名即论文标题（Windows 不允许的字符用 ` - ` 或空格替换） |
+| `参考文献目录_GBT7714.md` | 按 GB/T 7714—2015 著录的引用目录，分 A/B/C/D 四组 |
+| `archive_text/` | 旧版 `pdftotext` 全文抽取（仅备查，不参与引用） |
+| `metadata/` | 旧版 arXiv 元数据、BibTeX、下载清单与文献目录（仅备查） |
+| `archive_unrelated/` | 4 篇与当前唯一目标偏离的历史文献（NOMA、MIMO-RL、Meta-RL 频谱、RIS-DRL），保留但不进入主线 |
 
-## Search Strategy
+## 命名与引用规则
 
-Papers collected from arXiv (cs.IT, eess.SP), CrossRef, Semantic Scholar. Keywords: reinforcement learning, channel equalization, Q-learning, deep RL, online learning, signal detection, adaptive filtering, wireless receiver, symbol detection, continual learning.
+- PDF 文件名使用论文完整标题；`:` 替换为 ` - `，`/`、`?`、`*` 等 Windows 非法字符替换为空格。
+- 引用目录使用顺序编码制，作者 3 人以上只列前 3 人并加 `et al`；西文姓名缩写不加点、以空格分隔。
+- 预印本按 `[EB/OL]` 著录，给出首次提交日期、引用日期与 arXiv 编号；已正式发表且可核验的条目按 `[J]` / `[C/OL]` 著录；卷期页码未核验时不编造。
 
-## Paper Categories
+## 与当前目标的关系
 
-### RL for Channel Equalization/Detection
+A 组直接服务“离线训练 + 在线微调均衡”：在线线性读出、低维潜在动力学、元学习更新规则、贝叶斯在线后验、软数据辅助与低秩 Adapter。
 
-- **Improved Channel Equalization using Deep Reinforcement Learning and Optimization** - Swati Katwal and Vinay Bhatia (2018) [DOI:10.4108/eai.28-10-2021.171685](https://doi.org/10.4108/eai.28-10-2021.171685)
-- **Cluster channel equalization using adaptive sensing and RL for UAV communication** - Xin Liu et al. (2024) [DOI:10.7717/peerj-cs.2557](https://doi.org/10.7717/peerj-cs.2557)
-- **RIS-Enabled Wireless Channel Equalization: Adaptive RIS Equalizer and DRL** - Gal Ben-Itzhak and Ender Ayanoglu (2026) [arXiv:2603.02489](https://arxiv.org/abs/2603.02489)
-- **Robust Data Detection for MIMO Systems with One-Bit ADCs: A RL Approach** - Yo-Seb Jeon, Namyoon Lee and H. Vincent Poor (2019) [arXiv:1903.12546](https://arxiv.org/abs/1903.12546)
-- **Deep RL Aided Monte Carlo Tree Search for MIMO Detection** - Tz-Wei Mo, Ronald Y. Chang and Te-Yi Kan (2021) [arXiv:2102.00178](https://arxiv.org/abs/2102.00178)
+B 组服务机制筛选与稳定性：秩/子空间诊断、锚点门控、参考接收机分歧监控、导频投毒安全边界。
 
-### Online/Continual Learning for Receivers
+C 组提供均衡器结构、离线训练与物理背景：长记忆展开均衡器、Trellis 在线学习、软 SIC、VAE 均衡、Pilotless、EME 月面回波背景。
 
-- **Learning During Detection: Continual Learning for Neural OFDM Receivers via DMRS** - Mohanad Obeed and Ming Jian (2026) [arXiv:2602.20361](https://arxiv.org/abs/2602.20361)
-- **Online Learning of Modular Bayesian Deep Receivers: Single-Step Adaptation** - Yakov Gusakov et al. (2025) [arXiv:2511.06045](https://arxiv.org/abs/2511.06045)
-- **Detection for 5G-NOMA: An Online Adaptive Machine Learning Approach** - Daniyal Amir Awan et al. (2017) [arXiv:1711.00355](https://arxiv.org/abs/1711.00355)
-- **Enabling Green Wireless Communications with Neuromorphic Continual Learning** - Yanzhen Liu et al. (2025) [arXiv:2502.17168](https://arxiv.org/abs/2502.17168)
-- **Machine Learning-Based Adaptive Receive Filtering on an SDR Platform** - Matthias Mehlhose et al. (2019) [arXiv:1911.04291](https://arxiv.org/abs/1911.04291)
-- **Learning to Continuously Optimize Wireless Resource in Episodically Dynamic Environment** - Haoran Sun et al. (2020) [arXiv:2011.07782](https://arxiv.org/abs/2011.07782)
-
-### Deep Learning for Channel Est./Equalization
-
-- **Deep Learning-Based Pilotless Spatial Multiplexing** - Dani Korpi et al. (2023) [arXiv:2312.05158](https://arxiv.org/abs/2312.05158)
-- **Feature-Aided Adaptive-Tuning Deep Learning for Massive Device Detection** - Xiaodan Shao et al. (2020) [arXiv:2012.13523](https://arxiv.org/abs/2012.13523)
-- **Deep Learning-Based Joint Channel Equalization and Symbol Detection** - Muntasir Mahmud et al. (2025) [DOI:10.1109/tccn.2024.3480036](https://doi.org/10.1109/tccn.2024.3480036)
-- **Detection and Channel Equalization with Deep Learning for Low Resolution MIMO** - Aldebaro Klautau et al. (2018) [DOI:10.1109/acssc.2018.8645551](https://doi.org/10.1109/acssc.2018.8645551)
-- **Joint Channel Estimation and Symbol Detection using Bi-LSTM in MIMO-OFDM** - Aswathy K Nair and Vivek Menon (2022) [DOI:10.1109/comsnets53615.2022.9668456](https://doi.org/10.1109/comsnets53615.2022.9668456)
-- **Enhanced Multi-Critic DRL for Channel Estimation in 6G** - P. Mithillesh Kumar and M. Supriya (2025) [DOI:10.1109/access.2025.3630331](https://doi.org/10.1109/access.2025.3630331)
-- **Physics Guided DRL for Channel Estimation** - P. Mithillesh Kumar and M. Supriya (2025) [DOI:10.1109/ojcoms.2025.3560319](https://doi.org/10.1109/ojcoms.2025.3560319)
-
-### Foundational - Adaptive/Turbo Equalization
-
-- **Turbo equalization: adaptive equalization and channel decoding jointly optimized** - C. Laot, A. Glavieux and J. Labat (2001) [DOI:10.1109/49.947038](https://doi.org/10.1109/49.947038)
-- **Adaptive minimum bit-error rate equalization for binary signaling** - Chen-Chu Yeh and J.R. Barry (2000) [DOI:10.1109/26.855530](https://doi.org/10.1109/26.855530)
-- **Nonlinear Channel Equalization and Adaptive Learning for Low-Power VLC Systems** - LiuYang Niu et al. (2026) [DOI:10.61784/jcsee3114](https://doi.org/10.61784/jcsee3114)
-- **Adaptive minimum symbol-error rate equalization for QAM** - Chen-Chu Yeh and J.R. Barry (2003) [DOI:10.1109/tsp.2003.819081](https://doi.org/10.1109/tsp.2003.819081)
-
-### RL in Communications
-
-- **Meta-RL for Fast and Data-Efficient Spectrum Allocation in Dynamic Wireless Networks** - Oluwaseyi Giwa et al. (2025) [arXiv:2507.10619](https://arxiv.org/abs/2507.10619)
-- **Composite Reward Design in PPO-Driven Adaptive Filtering** - Abdullah Burkan Bereketoglu (2025) [arXiv:2506.06323](https://arxiv.org/abs/2506.06323)
-
-当前 BibTeX 共收录 24 个原有条目；本轮新增的 21 篇 arXiv 元数据已经写入
-`arxiv_metadata.json`，其中与原有条目重合的论文保留同一引用记录。仅 DOI 的资料和
-尚无合法公开全文的条目见 [`doi_only.md`](doi_only.md)。
+D 组为已归档的历史路线，保留可追溯性，不作为当前实施依据。
