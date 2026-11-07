@@ -10,6 +10,7 @@
 - 独立确认 v1（seed 100001–100010，10 session × 128 帧）：H1/H2 通过；H3 在 5/10/15 dB 通过、0 dB 不通过。
 - 传统基线公平比较（3 seed × 16 帧，seed 130001–130003）：Frozen/Bayes 四 SNR 显著优于 CFO+DD-Phase LMMSE/DFE-RLS；成本约 795/829/268/761/2 ms/帧，当前不实时；见 `docs/results/traditional_comparison_v1_20261107/`。
 - 0 dB Data 后验/相位变体（2 seed × 16 帧，seed 140001–140002）：0 dB 是早期收敛/后段饱和+晚窗为正，不是增长；5/10/15 dB 才支持增长；0 dB H3 判据待定。EM2 的 0 dB 增益跨 seed 异质，block_phase 同向但仅比 soft 高约 0.0018；见 `docs/results/diagnose_0db_data_posterior_v1_20261107/`。
+- 成本：模型前向 ≈400 ms、tail 独立前向 ≈400 ms、后验 ≈30 ms；tail 复用逐位一致，总耗时 ≈830→≈435 ms（4.2× 预算）；模型前向是剩余瓶颈，当前不实时。见 `docs/results/profile_bayes_cost_v1_20261107/`。
 - **不宣称在线神经参数微调**；该子主张在开发中未成立，不在本快照的确认范围。
 - 历史 PEFT/RL/子空间实验保留在 `codex/online-peft` 与 `docs/route-v4-20261106` 分支；本快照不保留其脚本与文档。
 
@@ -42,11 +43,17 @@ python scripts/compare_traditional_baselines.py --config configs/eme_long_memory
 python scripts/diagnose_0db_data_posterior.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 140001 140002 --frames 16 --device cuda --output docs/results/diagnose_0db_data_posterior_v1_20261107/variants_2x16.json
 ```
 
+成本 profile：
+
+```powershell
+python scripts/profile_bayes_cost.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 160001 --frames 8 --device cuda --output docs/results/profile_bayes_cost_v1_20261107/profile.json
+```
+
 ## 证据边界
 
 - 开发 seed 90001–99010、130001–130003、140001–140002 与确认 seed 100001–100010 已使用；不得重测或并入确认。
 - 0 dB 的 H3 不通过；2-seed 变体筛查显示 0 dB 是早期收敛/后段饱和+晚窗为正，不是增长；5/10/15 dB 才支持增长。
 - 同帧 EM/block_phase 的 BER 使用同帧更新后的 CIR，与已确认的跨帧因果不同，需单独标注或改为跨帧。
-- 传统对照记录了逐帧耗时（Frozen ≈795 ms、Bayes ≈829 ms），但未做完整成本插桩；当前不实时。
+- 成本 profile：模型前向 ≈400 ms、tail 独立前向 ≈400 ms、后验 ≈30 ms；tail 复用逐位一致，总耗时 ≈830→≈435 ms（4.2× 预算）；模型前向是剩余瓶颈，当前不实时。
 - 传统基线公平对照为 3×16 开发（seed 130001–130003）；传统方法使用代码默认实现，未加载 clean 分支未包含的 frozen calibration；`SC-FDE-MMSE` 无相位补偿。
 - 开发筛查不等于确认；不得把开发结果写成确认。

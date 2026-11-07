@@ -61,7 +61,7 @@
 
 - 0 dB 的 H3 不通过；2-seed Data 后验/相位变体筛查显示 0 dB 的增益是早期收敛、后段饱和+晚窗为正，不是增长；5/10/15 dB 才支持增长。若仍要求 0 dB 增长，需要新的机制或新的预注册判据。
 - 同帧 EM/block_phase 的 BER 使用同帧更新后的 CIR，与已确认的跨帧因果 Bayes 不同，需单独标注或改为跨帧。
-- 逐帧延迟已在传统对照中记录（Frozen ≈795 ms、Bayes ≈829 ms/帧），P1 变体中 soft/block ≈1.7 s、EM2 ≈2.1 s、EM3 ≈2.8 s；均未做完整成本插桩，当前不实时。
+- 成本 profile：模型前向 ≈400 ms、tail 独立前向 ≈400 ms、Pilot/Data 后验合计 ≈30 ms；tail 复用与独立前向逐位一致，把总耗时从 ≈830 ms 降到 ≈435 ms（4.2× 预算）。模型前向是剩余瓶颈；当前不实时。
 - 传统基线公平比较已完成 3×16 开发：Frozen/Bayes 四 SNR 显著优于 CFO+DD-Phase LMMSE/DFE-RLS；SC-FDE 无相位补偿，仅作弱对照；确认级对照待扩样本。
 - 神经参数微调子主张未成立，不在本快照的确认范围内。
 - 确认集只运行一次；不得在看到结果后调参或换 seed 重测。
@@ -128,7 +128,22 @@ python scripts/diagnose_tail_protocol_alignment.py --config configs/eme_long_mem
 - 成本：soft/block ≈1.7 s/帧、EM2 ≈2.1 s、EM3 ≈2.8 s；102.4 ms 帧预算下不实时。
 - 同帧重解码与已确认的跨帧因果不同；正式使用需明确时序或改为跨帧。
 
-## 9. 文档
+## 9. 成本 profile（2026-11-07）
+
+[profile 归档](results/profile_bayes_cost_v1_20261107/README.md)（1 seed × 4 SNR × 8 帧，当前 GPU）：
+
+| SNR | forward | pilot | data | tail_fwd | total_fwd | total_reuse | 预算比 |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 dB | 413 ms | 8.6 ms | 19.3 ms | 402 ms | 842 ms | 441 ms | 4.3× |
+| 5 dB | 400 ms | 9.6 ms | 21.2 ms | 395 ms | 826 ms | 431 ms | 4.2× |
+| 10 dB | 401 ms | 9.7 ms | 20.4 ms | 400 ms | 831 ms | 431 ms | 4.2× |
+| 15 dB | 402 ms | 10.4 ms | 21.7 ms | 408 ms | 841 ms | 434 ms | 4.2× |
+
+- tail 复用与独立前向**逐位一致**（`tail_match=True`），总耗时 ~830→~435 ms；零精度 2×。
+- 模型前向 ~400 ms 是剩余瓶颈；Pilot/Data 后验合计 ~30 ms；102.4 ms 下约 4.2×。
+- 优先级：tail 复用（立即）→ 模型前向（warm-start/层数/batch/蒸馏）→ 后验。
+
+## 10. 文档
 
 - [确认协议](protocols/confirmation_physical_v1_20261106.md)
 - [确认判据草案](protocols/confirmation_criteria_v4_draft_20261106.md)
@@ -137,6 +152,7 @@ python scripts/diagnose_tail_protocol_alignment.py --config configs/eme_long_mem
 - [独立确认归档](results/bayesian_cir_confirmation_v1_20261106/README.md)
 - [传统基线公平对照](results/traditional_comparison_v1_20261107/README.md)
 - [0 dB Data 后验变体](results/diagnose_0db_data_posterior_v1_20261107/README.md)
+- [成本 profile](results/profile_bayes_cost_v1_20261107/README.md)
 - [tail 协议对齐](results/tail_alignment_v1_20261106/README.md)
 - [功效与错误构成](results/power_error_composition_20261106/README.md)
 - [离线饱和/oracle](results/offline_saturation_20261106/README.md)
