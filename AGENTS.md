@@ -4,7 +4,7 @@
 
 ## 当前规范
 
-本项目当前是**物理算法快照** `physical-bayes-cir-v1`；唯一事实源是[研究路线（物理版 v1）](docs/research_route_physical_v1_20261106.md)。
+本项目当前是**物理算法快照** `bayes-cir`；唯一事实源是[研究路线（物理版 v1）](docs/research_route_physical_v1_20261106.md)。
 
 - 核心：离线神经均衡器 + 合法在线贝叶斯物理状态（CIR）适配；相对同源 acquisition-CIR Frozen 的 Data BER 增益。
 - 独立确认 v1（seed 100001–100010，10 session × 128 帧）：H1/H2 通过；H3 在 5/10/15 dB 通过；0 dB 按早期收敛/后段饱和判据（用户 2026-11-07 确认）。
@@ -13,7 +13,7 @@
 - block_phase 10×64 开发筛查（新 seed 145001–145010，`--timing causal/same_frame`）：block_phase 相对 soft 无可归因增量，causal 四 SNR 配对区间全跨零；0 dB 点估计 `+0.0039` 约需 40+ session，不升级为正式变体。block_phase 绝对 Bayes 增益在 0/5/10 dB 成立且不劣于 soft。same_frame（同帧重解码）绝对增益更高但不属已确认时序，两种时序分开报告。见 `docs/results/block_phase_dev10x64_v1_20261107/`。
 - 成本：模型前向 ≈400 ms、tail 独立前向 ≈400 ms、后验 ≈30 ms；tail 复用逐位一致，总耗时 ≈830→≈435 ms（4.2× 预算）；模型前向是剩余瓶颈，当前不实时。warm-start/AMP 扫描显示 AMP 无加速、warm-start 4/2 在 10/15 dB 退化，只有 8 满足四 SNR 不退化；见 `docs/results/profile_bayes_cost_v1_20261107/` 与 `docs/results/profile_bayes_cost_sweep_v1_20261107/`。
 - **不宣称在线神经参数微调**；该子主张在开发中未成立，不在本快照的确认范围。
-- 历史 PEFT/RL/子空间实验保留在 `codex/online-peft` 与 `docs/route-v4-20261106` 分支；本快照不保留其脚本与文档。
+- 历史 PEFT/RL/子空间实验保留在 `peft-experiments` 与 `route-v4-docs` 分支；本快照不保留其脚本与文档。
 
 ## 不可放松的约束
 

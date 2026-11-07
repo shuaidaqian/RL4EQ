@@ -34,6 +34,7 @@
 命令：
 
 ```powershell
+# 注意：该脚本未包含在当前物理快照中，以下命令为历史记录
 python scripts/prototype_head_rank1_adapt.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --pretrained D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --basis-seed 78001 --seed-start 92001 --num-seeds 3 --frames 16 --device cuda --branches frozen --output docs/results/tail_alignment_v1_20261106/frozen_dd_soft.json
 ```
 

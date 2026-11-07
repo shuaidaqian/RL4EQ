@@ -2,8 +2,8 @@
 
 ## 0. 地位
 
-- 本分支 `physical-bayes-cir-v1` 是**物理算法快照**，本文件是当前唯一事实源。
-- 历史 PEFT/RL/子空间实验保留在 `codex/online-peft` 与 `docs/route-v4-20261106` 分支；本快照不保留旧实验文档与脚本。
+- 本分支 `bayes-cir` 是**物理算法快照**，本文件是当前唯一事实源。
+- 历史 PEFT/RL/子空间实验保留在 `peft-experiments` 与 `route-v4-docs` 分支；本快照不保留旧实验文档与脚本。
 - 机器可读状态见[research_route_v4_20261106.json](protocols/research_route_v4_20261106.json)；确认协议见[confirmation_physical_v1_20261106.md](protocols/confirmation_physical_v1_20261106.md)。
 
 ## 1. 核心主张

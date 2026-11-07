@@ -1,6 +1,6 @@
 # RL4EQ：离线神经均衡器 + 在线贝叶斯 CIR 适配
 
-本分支 `physical-bayes-cir-v1` 是物理算法快照；历史 PEFT/RL 实验在 `codex/online-peft` 与 `docs/route-v4-20261106` 分支。
+本分支 `bayes-cir` 是物理算法快照；历史 PEFT/RL 实验在 `peft-experiments` 与 `route-v4-docs` 分支。
 
 ## 结论（独立确认 v1）
 

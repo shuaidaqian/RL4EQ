@@ -31,7 +31,7 @@
 
 | 旧文档/旧协议 | 当前替代 | 说明 |
 |---|---|---|
-| 旧 PEFT/RL/子空间实验 | docs/research_route_physical_v1_20261106.md | 保留在 codex/online-peft 与 docs/route-v4-20261106 分支；本快照不保留 |
+| 旧 PEFT/RL/子空间实验 | docs/research_route_physical_v1_20261106.md | 保留在 peft-experiments 与 route-v4-docs 分支；本快照不保留 |
 | pilot_only tail 协议 | configs/eme_long_memory_v2_online_dd_tail_v1.json（dd_soft） | 物理管线使用 dd_soft |
 | acquisition CIR only | Bayes CIR 后验 | 物理主张的 Frozen 对照为 acquisition CIR |
 

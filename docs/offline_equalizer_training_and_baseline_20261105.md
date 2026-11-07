@@ -30,7 +30,7 @@ python pretrain.py --config configs/eme_long_memory_v2.json --stage all --steps 
 
 ## 主矩阵与 BER
 
-结果来自 `logs/eme_pilot256_bandit_pilotsparse_main_60f_3s_final/`，同一 Level B 长回波 profile、116符号最大时延、1200秒相干时间、零 acquisition 空档、`cfo_phase_tiny`；0/5/10/15 dB，每点3个独立 seed、每个 seed 连续60帧。12种方法共8640条逐帧记录。传统对照使用合法 Pilot 驱动的 CFO/相位补偿 LMMSE-FIR 与 DFE-RLS，均为非神经、非RL接收机。
+结果来自主矩阵运行（原始逐帧日志 `logs/eme_pilot256_bandit_pilotsparse_main_60f_3s_final/` 已在归档清理中移除，聚合数值见本文与结果快照），同一 Level B 长回波 profile、116符号最大时延、1200秒相干时间、零 acquisition 空档、`cfo_phase_tiny`；0/5/10/15 dB，每点3个独立 seed、每个 seed 连续60帧。12种方法共8640条逐帧记录。传统对照使用合法 Pilot 驱动的 CFO/相位补偿 LMMSE-FIR 与 DFE-RLS，均为非神经、非RL接收机。
 
 | SNR | Frozen Offline NN | CFO+DD-Phase DFE-RLS | CFO+DD-Phase LMMSE-FIR | NN相对DFE的BER降低 |
 |---:|---:|---:|---:|---:|
@@ -49,7 +49,7 @@ python pretrain.py --config configs/eme_long_memory_v2.json --stage all --steps 
 
 权威 checkpoint 位于原项目工作区 `D:\Research\RL4EQ\pretrained\eme_bce_all_32_20260905_pilot256\model_best.pt`，SHA256 为 `8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4`。训练指标、模型配置和独立主矩阵的文件指纹及逐 seed BER 已汇总到[机器可读结果快照](results/offline_equalizer_baseline_snapshot_20261105.json)。主矩阵原始摘要哈希为 `3148679b040806af8ebf605b542b7970639d510dadcba505e2afd4fa58203913`，逐帧日志哈希为 `872e8ad0e6a496b9cf63c4e0069f6a4d00a2365ebcb08917353de4d2b581aa82`。
 
-checkpoint 与原始大日志目前不在这个 Codex worktree 的 `pretrained/` 和 `logs/` 目录中，但仍在原项目路径可读。当前 worktree 无法仅凭 Git checkout 独立重跑该矩阵；要在此 worktree 复现，需要恢复 checkpoint 和原始评估资产，并核对对应的训练源码版本。历史的 Pilot=128、30秒 acquisition 空档、旧 Frozen 条件边界结果不并入这张主表。跨帧 34 个 memory scale 参数的 A/B 试验也不是传统均衡器对照，不作为离线模型胜过 baseline 的证据。
+checkpoint 位于 `pretrained/eme_bce_all_32_20260905_pilot256/`。主矩阵的逐帧日志已在归档清理中移除，表中数值来自当时的聚合结果与结果快照；要重跑该矩阵需重新生成日志。历史的 Pilot=128、30 秒 acquisition 空档、旧 Frozen 条件边界结果不并入这张主表。跨帧 34 个 memory scale 参数的 A/B 试验也不是传统均衡器对照，不作为离线模型胜过 baseline 的证据。
 
 ## 与在线研究的接口
 

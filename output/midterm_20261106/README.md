@@ -41,14 +41,7 @@
 | `export_pdf.py` | PPT 导出 PDF |
 | `style.py` | 配色、字体、版式的统一定义 |
 
-**重新生成需要切换到 `physical-bayes-cir-v1` 分支的工作树**
-（`D:/Research/RL4EQ-worktrees/physical`），
-因为脚本读取的 `docs/results/bayesian_cir_confirmation_v1_20261106/`、
-`docs/results/bayesian_cir_diag_v1_20261106/`、`docs/results/offline_saturation_20261106/`
-只存在于该分支。当前 `D:\Research\RL4EQ` 检出的是 `codex/physical-state-tracking`，
-不含这些归档，脚本在此目录不能直接运行。
-
-生成后在物理工作树里重新生成，再同步回本目录即可。
+**重新生成**：在 `D:\Research\RL4EQ` 检出 `bayes-cir` 分支后直接运行上述脚本。数据归档、脚本与图表源都在同一仓库内，不需要额外同步。
 
 ## 四、关键结果速查
 

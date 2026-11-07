@@ -49,7 +49,7 @@
 - Oracle 诊断：5 seed × 4 SNR × 8 帧；实验 3/4：3 seed × 4 SNR × 12 帧。
 - Frozen soft-tail：上一帧最后 `max_delay` 个 logits 的 `tanh(logit/2)`，`alpha=1.0`，
   与 `training/curriculum.py` 的 `online_soft` 一致。
-  现有 `scripts/prototype_head_rank1_adapt.py` 的 `next_pilot_tail` 在 prefix 布局下
+  现有历史脚本 `scripts/prototype_head_rank1_adapt.py`（当前快照未包含） 的 `next_pilot_tail` 在 prefix 布局下
   不更新帧尾，本次不沿用。
 - 线性算子后端：训练沿用默认 `direct`；评估使用 `RL4EQ_LINEAR_OPERATOR_BACKEND=fft`。
   已核对 seed 91001、2 帧（0/5/10/15 dB）Frozen 逐帧判决与 `direct` 完全一致。
