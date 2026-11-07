@@ -1,0 +1,17 @@
+\section{实验设置}
+
+\subsection{确认设计与预注册判据}
+
+确认协议在运行前冻结（2026-11-06）。配置为 \texttt{eme\_long\_memory\_v2\_online\_dd\_tail\_v1.json}；checkpoint 为第 3 节的强离线模型，SHA256 为 \texttt{8cd3912d…aec4}；贝叶斯超参数固定为 acquisition ridge $=10^{-2}$、过程噪声 $Q=10^{-4}$、Data 行噪声尺度 1.0，不按真实 SNR 调度。确认使用 10 个独立 session（seed 100001–100010），每个 session 连续 128 帧，覆盖 0/5/10/15 dB；开发 seed 90001–99010 全部排除。确认集只运行一次；看到结果后不得调参、换 seed 或改判据。开发 seed 与确认 seed 完全不重叠；确认 seed 在协议中预先指定，没有参与 checkpoint 选择、超参数搜索或基线校准。Reward Pilot 在确认中不进入 CIR 递推，只保留为动作后验收；因此确认结果不依赖任何 Data 标签回流。
+
+三个假设如下。H1（主效应）：四个 SNR 等权、session 级平均增益$\Delta_s=\operatorname{mean}_{\mathrm{sessions}}(\mathrm{BER}_{\mathrm{frozen},s}-\mathrm{BER}_{\mathrm{bayes},s})>0$，单侧检验，$\alpha=0.05$。H2（安全护栏）：每个 SNR 的单侧 95\% 下界不小于 0，点估计不得为负，允许退化量为 0；四个 SNR 用 Holm 校正。H3（增长）：每个 SNR 的 16 帧窗口增益$\mathrm{gain}_w=\mathrm{BER}_{\mathrm{frozen},w}-\mathrm{BER}_{\mathrm{bayes},w}$，会话级斜率与末窗减首窗为正；逐 SNR 报告，不用四 SNR 平均掩盖 0 dB 的饱和或波动。
+
+\subsection{统计单位与功效}
+
+统计单位是独立 session，不是帧，也不是 bit。对每个 session 先计算配对增益$d_s=\operatorname{mean}_t(e_{\mathrm{frozen},t}-e_{\mathrm{bayes},t})/768$，再对 $n$ 个 session 做单侧 $t$ 检验；置信界用 $t$ 分布而非正态近似。这样做的原因是逐帧错误数严重过离散：主矩阵中 0 dB 的方差/均值比为 70.6，设计效应约 90.7；5/10/15 dB 的设计效应分别为 2.25、2.58、1.77。若把 bit 当作独立 Bernoulli，置信区间会窄几个数量级。
+
+功效分析给出了确认设计的依据。以 $n=3$、$F=128$ 的开发口径，80\% power 的最小可检出效应在 0/5/10/15 dB 约为 $4.51\times10^{-3}$、$9.97\times10^{-4}$、$3.28\times10^{-4}$、$1.37\times10^{-4}$；本文确认观测到的 $d_s$ 均值分别为 $3.68\times10^{-2}$、$8.03\times10^{-3}$、$1.97\times10^{-3}$、$2.60\times10^{-4}$，均高于该 MDE 约 2–8 倍。另一方面，$1\times10^{-5}$ 的效应在 128 帧 session 上只相当于约 0.98 个净错误；在 3 session × 32 帧、共 73,728 bit 上，1 个净错误就是 $1.36\times10^{-5}$。因此本文不把 $1\times10^{-5}$ 量级的点估计当作连续效应，也不以它作为确认目标。10 个 session 的选择不是事后凑样本，而是在运行前根据功效分析固定。若把目标设为 $10^{-5}$，0/5 dB 需要 $10^{4}$–$10^{5}$ 个独立 session，实际不可行；本文因此把确认目标设为与物理机制相称的 $10^{-3}$–$10^{-4}$ 量级，并在运行前固定 session 数与帧数。
+
+\subsection{开发筛查与基线}
+
+正式确认前，本文使用四组开发 seed 做规模筛查：3×16（95001–95003）、5×32（97001–97005）、10×64（98001–98010）、10×128（99001–99010）。这些结果只用于设计，不并入确认。传统基线包括 CFO+DD-Phase LMMSE-FIR、CFO+DD-Phase DFE-RLS 与 SC-FDE-MMSE；前两者使用合法 Pilot 做 CFO/相位补偿，不使用神经网络或强化学习；SC-FDE-MMSE 未做 CFO/相位补偿，只作弱对照。所有比较共享同一 episode、同一接收波形、同一 Pilot 预算（256：Adapt 224 / Reward 32）与同一 acquisition CIR。传统基线的 CFO/相位补偿使用与 Frozen/Bayes 相同的 Pilot 预算，但其滤波器系数由各自规则在线估计；本文不向传统方法提供真实 CIR、Data 标签或 Reward Pilot。SC-FDE-MMSE 只作弱对照，因为它在当前配置下没有做 CFO/相位补偿。这样的对照不能证明传统方法的最优实现，但能说明本文的增益不是在“传统方法被削弱”的条件下取得的。

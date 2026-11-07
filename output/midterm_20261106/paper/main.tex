@@ -1,0 +1,43 @@
+% !TeX program = xelatex
+% 编译：xelatex main.tex（两遍，交叉引用与目录）
+\documentclass[UTF8,a4paper,zihao=-4]{ctexart}
+
+\usepackage{amsmath,amssymb,bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{caption}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\geometry{left=2.6cm,right=2.6cm,top=2.6cm,bottom=2.6cm}
+\captionsetup{font=small,labelsep=quad}
+\graphicspath{{figures/}}
+\hypersetup{colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue}
+
+\title{\bfseries 长记忆 EME 信道下离线训练与在线贝叶斯 CIR 适配的神经块均衡器}
+\author{李诚谦\quad 钱骁伟\quad 胡小玲\\[2pt]
+\small 北京邮电大学信息与通信工程学院，北京 100876}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\input{sections/00_abstract}
+
+\noindent\textbf{关键词：}地月地通信；长记忆信道；神经块均衡；贝叶斯信道估计；判决反馈；在线适配
+
+\input{sections/01_intro}
+\input{sections/02_model}
+\input{sections/03_offline}
+\input{sections/04_online}
+\input{sections/05_setup}
+\input{sections/06_results}
+\input{sections/07_discussion}
+\input{sections/08_conclusion}
+
+\input{sections/refs}
+
+\end{document}

@@ -1,0 +1,21 @@
+\section{系统与信号模型}
+
+\subsection{信道与帧结构}
+
+本文沿用 Level B 长回波配置：单载波、线性 BPSK、1024 符号帧，最大信道时延 116 符号，标称相干时间 1200 s，采用零 acquisition 空档与 cfo\_phase\_tiny 的慢相位/CFO 设置。每帧前缀为 256 个 Pilot 符号，其中 Adapt Pilot 224 个、Reward Pilot 32 个；其余 768 个为 Data 符号。Pilot 布局、采样率与帧长在所有比较中保持不变，本文不通过修改信道、Pilot 或接收窗口来获得增益。帧预算为 102.4 ms；本文只在成本讨论中使用这一预算，不把它当作物理定律。Pilot 预算在 Frozen、Bayes 与传统基线之间完全一致，任何一方都不能通过增加 Pilot 获得优势。
+
+\subsection{接收信号模型}
+
+设第 t 个符号的发送符号为 $x_t \in \{-1,+1\}$，信道冲激响应为 $\mathbf{h}=[h_0,\ldots,h_{L-1}]^{\mathsf T}$，$L=116$。接收复基带样本写为
+
+\begin{equation*}
+y_t = e^{j(2\pi f_{\mathrm{cfo}} t+\varphi_t)}\sum_{l=0}^{L-1} h_l x_{t-l}+n_t,
+\end{equation*}
+
+其中 $f_{\mathrm{cfo}}$ 为载波频偏，$\varphi_t$ 为慢相位，$n_t$ 为复高斯噪声。接收机在整帧上做块均衡：把 1024 个接收样本与已知符号掩码送入网络，输出 1024 个 logits $z_t$，判决为 $\hat{x}_t=\operatorname{sign}(z_t)$。Data BER 只在事后用发送比特评分；BER 与 NMSE 的评价都在会话结束后统一进行，避免评价反馈进入在线循环。
+
+在线阶段，CFO 与慢相位由 Adapt Pilot 及当前 CIR/tail 估计；CIR 的递推见第 4 节。本文不假设已知真实 CIR、相位或 CFO，也不把仿真真值送入任何可部署分支。
+
+\subsection{Pilot 角色与数据隔离}
+
+Adapt Pilot 的已知符号用于在线 CIR 后验与相位/CFO 估计；Reward Pilot 保留为动作后验收集，不进入内循环拟合；Data 段的接收波形参与均衡与判决反馈，但 Data 的发送标签从不进入在线更新、选择、验收或阈值设定。离线训练时，Data 标签只用于反向传播与 checkpoint 选择；确认时只用于事后 BER 与 NMSE 诊断。Pilot、Reward 与 Data 三种角色的数据、seed 与访问时序相互隔离。
