@@ -59,8 +59,9 @@
 
 ## 4. 边界与未完成项
 
-- 0 dB 的 H3 不通过，不能被四 SNR 平均掩盖；若要把 0 dB 写成"增长"，需要新的预注册窗口/判据或新的独立 seed。
-- 逐帧延迟已在传统对照中记录（Frozen ≈795 ms、Bayes ≈829 ms/帧），但未做完整成本插桩；当前不实时。
+- 0 dB 的 H3 不通过；2-seed Data 后验/相位变体筛查显示 0 dB 的增益是早期收敛、后段饱和+晚窗为正，不是增长；5/10/15 dB 才支持增长。若仍要求 0 dB 增长，需要新的机制或新的预注册判据。
+- 同帧 EM/block_phase 的 BER 使用同帧更新后的 CIR，与已确认的跨帧因果 Bayes 不同，需单独标注或改为跨帧。
+- 逐帧延迟已在传统对照中记录（Frozen ≈795 ms、Bayes ≈829 ms/帧），P1 变体中 soft/block ≈1.7 s、EM2 ≈2.1 s、EM3 ≈2.8 s；均未做完整成本插桩，当前不实时。
 - 传统基线公平比较已完成 3×16 开发：Frozen/Bayes 四 SNR 显著优于 CFO+DD-Phase LMMSE/DFE-RLS；SC-FDE 无相位补偿，仅作弱对照；确认级对照待扩样本。
 - 神经参数微调子主张未成立，不在本快照的确认范围内。
 - 确认集只运行一次；不得在看到结果后调参或换 seed 重测。
@@ -108,7 +109,26 @@ python scripts/diagnose_tail_protocol_alignment.py --config configs/eme_long_mem
 - 公平性检查：同帧 rx hash 一致、Frozen/传统共享同一 acquisition CIR、传统 `uses_neural_network=False`、`uses_reward_or_data_labels=False`。
 - 开发对照；传统方法使用代码默认实现，未加载 clean 分支未包含的 frozen calibration 资产。
 
-## 8. 文档
+## 8. 0 dB Data 后验变体（2026-11-07）
+
+[变体筛查归档](results/diagnose_0db_data_posterior_v1_20261107/README.md)（2 seed × 16 帧，seed 140001–140002；同帧重解码，非跨帧因果）：
+
+| SNR | Frozen | soft | oracle | EM2 | EM3 | block_phase | EM+block |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 dB | 0.186808 | 0.168457 | 0.168050 | **0.162557** | 0.164144 | 0.166585 | 0.169312 |
+| 5 dB | 0.052327 | **0.047526** | 0.047648 | 0.048462 | 0.049276 | 0.047892 | 0.048584 |
+| 10 dB | 0.006673 | **0.005941** | 0.006063 | 0.006144 | 0.006144 | 0.006022 | 0.006185 |
+| 15 dB | 0.001017 | 0.001221 | 0.001180 | 0.001221 | 0.001180 | 0.001221 | 0.001180 |
+
+- 0 dB 的 2-seed 增益：soft `+0.0184`、oracle `+0.0188`、EM2 `+0.0243`（seed `0.0395/0.0090`，异质）、EM3 `+0.0227`、block_phase `+0.0202`（`0.0151/0.0254`，同向）、EM+block `+0.0175`。
+- **0 dB 的 H3 斜率仍为负**：soft `−0.0152`、oracle `−0.0109`、EM2 `−0.0110`、block `−0.0135`；但第四窗已转正（`+0.010 ~ +0.025`）。
+- **0 dB 的形状是“早期收敛 → 第三窗负 → 第四窗正”**，不是增长；**0 dB 应写成早期收敛/后段饱和且晚窗为正，5/10/15 dB 才是增长**。
+- 5/10 dB 的 soft 最好；EM2/EM3 略差；15 dB 两个 seed 的 Bayes 都略差于 Frozen，属于 session 噪声。
+- 误差 lag-1 约 0；EM 的收益来自“更新 CIR 后重解码”，不是误差相关模型。
+- 成本：soft/block ≈1.7 s/帧、EM2 ≈2.1 s、EM3 ≈2.8 s；102.4 ms 帧预算下不实时。
+- 同帧重解码与已确认的跨帧因果不同；正式使用需明确时序或改为跨帧。
+
+## 9. 文档
 
 - [确认协议](protocols/confirmation_physical_v1_20261106.md)
 - [确认判据草案](protocols/confirmation_criteria_v4_draft_20261106.md)
@@ -116,6 +136,7 @@ python scripts/diagnose_tail_protocol_alignment.py --config configs/eme_long_mem
 - [贝叶斯 CIR 开发归档](results/bayesian_cir_diag_v1_20261106/README.md)
 - [独立确认归档](results/bayesian_cir_confirmation_v1_20261106/README.md)
 - [传统基线公平对照](results/traditional_comparison_v1_20261107/README.md)
+- [0 dB Data 后验变体](results/diagnose_0db_data_posterior_v1_20261107/README.md)
 - [tail 协议对齐](results/tail_alignment_v1_20261106/README.md)
 - [功效与错误构成](results/power_error_composition_20261106/README.md)
 - [离线饱和/oracle](results/offline_saturation_20261106/README.md)

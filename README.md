@@ -29,6 +29,7 @@
 - [独立确认归档](docs/results/bayesian_cir_confirmation_v1_20261106/README.md)
 - [开发筛查归档](docs/results/bayesian_cir_diag_v1_20261106/README.md)
 - [传统基线公平对照](docs/results/traditional_comparison_v1_20261107/README.md)
+- [0 dB Data 后验变体](docs/results/diagnose_0db_data_posterior_v1_20261107/README.md)
 - [确认协议](docs/protocols/confirmation_physical_v1_20261106.md)
 - [全仓文档索引](docs/document_index_20261106.md)
 
@@ -44,6 +45,8 @@ python scripts/diagnose_bayesian_cir.py --config configs/eme_long_memory_v2_onli
 ## 边界
 
 - 神经参数微调子主张未成立，不在本快照的确认范围。
-- 0 dB 的 H3 不通过；传统对照记录逐帧耗时（Frozen ≈795 ms、Bayes ≈829 ms），但未做完整成本插桩；当前不实时。
+- 0 dB 的 H3 不通过；2-seed Data 后验/相位变体筛查显示 0 dB 是早期收敛/后段饱和+晚窗为正，不是增长；5/10/15 dB 才支持增长。
+- 同帧 EM/block_phase 的 BER 使用同帧更新后的 CIR，与已确认的跨帧因果不同，需单独标注或改为跨帧。
+- 逐帧耗时：Frozen ≈795 ms、Bayes ≈829 ms；P1 变体 soft/block ≈1.7 s、EM2 ≈2.1 s、EM3 ≈2.8 s；均未完整插桩，当前不实时。
 - 传统基线公平比较为 3×16 开发；Frozen/Bayes 四 SNR 显著优于 CFO+DD-Phase LMMSE/DFE-RLS；`SC-FDE-MMSE` 无相位补偿，仅作弱对照。
 - 确认集只运行一次；不得重测或换 seed。
