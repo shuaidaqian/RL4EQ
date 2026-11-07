@@ -8,7 +8,8 @@ import torch
 from env.frame_structure import FrameConfig, FrameGenerator
 from env.linear_operator import LinearChannelOperator
 from training.bayesian_cir import (
-    acquisition_prior, add_process_noise, data_posterior, pilot_posterior,
+    acquisition_prior, add_process_noise, data_posterior, estimate_data_block_phases,
+    pilot_posterior,
 )
 
 
@@ -64,3 +65,51 @@ def test_process_noise_increases_covariance_diagonal():
     covariance = torch.eye(5, dtype=torch.complex64)
     updated = add_process_noise(covariance, 1e-2)
     torch.testing.assert_close(torch.diagonal(updated), torch.full((5,), 1.01, dtype=torch.complex64))
+
+
+def test_estimate_data_block_phases_recovers_known_block_phase():
+    """已知的逐块相位旋转应被 DD 残差估计恢复，且不读 Data 标签。"""
+
+    acquisition, cir, logits = _fixture()
+    positions = torch.nonzero(acquisition.data_mask, as_tuple=False).flatten()
+    positions = positions[positions >= 4]
+    blocks = 4
+    block_of = torch.cat([
+        torch.full((chunk.numel(),), index, dtype=torch.long)
+        for index, chunk in enumerate(torch.chunk(torch.arange(positions.numel()), blocks))
+    ])
+    block_phase = torch.tensor([0.2, -0.1, 0.05, -0.2])
+    full_phase = torch.zeros(acquisition.rx_symbols.numel())
+    full_phase[positions] = block_phase[block_of]
+    rotated = replace(acquisition, rx_symbols=acquisition.rx_symbols * torch.exp(1j * full_phase))
+
+    estimate = estimate_data_block_phases(
+        rotated, logits, cir / cir.norm(), 4, 0.0, 0.0, blocks=blocks,
+    )
+    torch.testing.assert_close(estimate, block_phase, rtol=0, atol=1e-4)
+
+    poisoned = replace(rotated, bits=~rotated.bits)
+    torch.testing.assert_close(
+        estimate_data_block_phases(poisoned, logits, cir / cir.norm(), 4, 0.0, 0.0, blocks=blocks),
+        estimate, rtol=0, atol=0,
+    )
+
+
+def test_data_posterior_with_block_phases_is_label_free_and_finite():
+    """带块相位的 Data 后验必须有限、收缩协方差，且与 Data 标签无关。"""
+
+    acquisition, _, logits = _fixture()
+    mean, covariance = acquisition_prior(acquisition, 0.0, 4, 0.1, ridge=1e-3)
+    phases = estimate_data_block_phases(acquisition, logits, mean, 4, 0.0, 0.0)
+    post_mean, post_cov = data_posterior(
+        acquisition, logits, mean, covariance, 4, 0.1, 0.0, 0.0, block_phases=phases,
+    )
+    assert torch.isfinite(post_mean).all() and torch.isfinite(post_cov).all()
+    assert torch.trace(post_cov).real < torch.trace(covariance).real
+
+    poisoned = replace(acquisition, bits=~acquisition.bits)
+    poisoned_mean, poisoned_cov = data_posterior(
+        poisoned, logits, mean, covariance, 4, 0.1, 0.0, 0.0, block_phases=phases,
+    )
+    torch.testing.assert_close(post_mean, poisoned_mean, rtol=1e-6, atol=1e-6)
+    torch.testing.assert_close(post_cov, poisoned_cov, rtol=1e-6, atol=1e-6)

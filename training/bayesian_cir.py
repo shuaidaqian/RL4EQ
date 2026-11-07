@@ -25,9 +25,60 @@ def _rows(symbols: torch.Tensor, positions: torch.Tensor, max_delay: int) -> tor
     return torch.stack([symbols[positions - delay] for delay in range(max_delay + 1)], dim=1)
 
 
-def _phase_correct(receiver: torch.Tensor, positions: torch.Tensor, phase0: float, cfo: float) -> torch.Tensor:
-    phase = torch.exp(-1j * (float(phase0) + 2.0 * torch.pi * float(cfo) * positions.to(torch.float32)))
-    return receiver[positions] * phase.to(torch.complex64)
+def _phase_correct(
+    receiver: torch.Tensor,
+    positions: torch.Tensor,
+    phase0: float,
+    cfo: float,
+    phase_by_position: torch.Tensor | None = None,
+) -> torch.Tensor:
+    phase = float(phase0) + 2.0 * torch.pi * float(cfo) * positions.to(torch.float32)
+    if phase_by_position is not None:
+        phase = phase + phase_by_position.to(device=phase.device, dtype=phase.dtype)
+    return receiver[positions] * torch.exp(-1j * phase).to(torch.complex64)
+
+
+def _block_index(count: int, blocks: int, device) -> torch.Tensor:
+    """返回每个位置所属的块索引，块切分与 ``torch.chunk`` 一致。"""
+
+    indices = torch.arange(int(count), device=device)
+    return torch.cat([
+        torch.full((chunk.numel(),), index, device=device, dtype=torch.long)
+        for index, chunk in enumerate(torch.chunk(indices, int(blocks)))
+    ])
+
+
+def estimate_data_block_phases(
+    frame,
+    logits: torch.Tensor,
+    prior_mean: torch.Tensor,
+    max_delay: int,
+    phase0: float,
+    cfo: float,
+    *,
+    blocks: int = 4,
+) -> torch.Tensor:
+    """用 Data soft 判决的 DD 残差估计逐块相位偏移；不读 Data 标签。"""
+
+    if blocks < 1:
+        raise ValueError("blocks 必须为正整数。")
+    device = prior_mean.device
+    soft = torch.tanh(logits / 2.0)
+    mask = frame.data_mask.to(device=device).bool()
+    positions = torch.nonzero(mask, as_tuple=False).flatten()
+    positions = positions[positions >= max_delay]
+    if positions.numel() < blocks:
+        return torch.zeros(blocks, device=device, dtype=torch.float32)
+    corrected = _phase_correct(
+        frame.rx_symbols.to(device=device).to(torch.complex64), positions, phase0, cfo,
+    )
+    design = _rows(soft, positions, max_delay)
+    design = torch.complex(design, torch.zeros_like(design))
+    prediction = (design @ prior_mean.reshape(-1).to(torch.complex64)).to(torch.complex64)
+    products = corrected * prediction.conj()
+    return torch.stack([
+        torch.angle(chunk.sum()) for chunk in torch.chunk(products, int(blocks))
+    ]).detach()
 
 
 def acquisition_prior(
@@ -108,8 +159,12 @@ def data_posterior(
     noise_variance: float,
     phase0: float,
     cfo: float,
+    block_phases: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Data soft 判决后验；符号方差通过 CIR 能量传播到行噪声。"""
+    """Data soft 判决后验；符号方差通过 CIR 能量传播到行噪声。
+
+    ``block_phases`` 提供逐块 DD 相位偏移时，先按块去旋转再构造 LS 行。
+    """
 
     device = prior_mean.device
     soft = torch.tanh(logits / 2.0)
@@ -119,7 +174,15 @@ def data_posterior(
     positions = positions[positions >= max_delay]
     if positions.numel() < 2:
         return prior_mean.detach(), prior_covariance.detach()
-    corrected = _phase_correct(frame.rx_symbols.to(device=device).to(torch.complex64), positions, phase0, cfo)
+    phase_by_position = None
+    if block_phases is not None:
+        phase_by_position = block_phases.to(device=device).reshape(-1)[
+            _block_index(positions.numel(), block_phases.numel(), device)
+        ]
+    corrected = _phase_correct(
+        frame.rx_symbols.to(device=device).to(torch.complex64), positions, phase0, cfo,
+        phase_by_position=phase_by_position,
+    )
     real_design = _rows(soft, positions, max_delay)
     design = torch.complex(real_design, torch.zeros_like(real_design))
     cir_energy = prior_mean.abs().square()
