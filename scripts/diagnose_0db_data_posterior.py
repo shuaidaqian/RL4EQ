@@ -90,8 +90,22 @@ def _em_posterior(
     return cir, covariance, context, logits
 
 
-def run_variant(config, model, *, seed, snr, frames, variants=VARIANTS, device="cpu"):
-    """在同一 episode 上运行 Frozen 参考与各 Data 后验变体。"""
+def run_variant(
+    config, model, *, seed, snr, frames, variants=VARIANTS, device="cpu",
+    timing="same_frame",
+):
+    """在同一 episode 上运行 Frozen 参考与各 Data 后验变体。
+
+    ``timing`` 区分两种合法但不同的时序协议：
+
+    - ``same_frame``（历史语义）：本帧 Pilot/Data 后验更新 CIR 后，立刻用更新后的
+      CIR 重新解码本帧（同帧重解码 / transductive turbo）。不是已确认协议的时序。
+    - ``causal``：本帧判决只使用更新前的 CIR；本帧后验更新仅作用于下一帧，
+      与 ``diagnose_bayesian_cir.py`` 的已确认跨帧因果一致，可直接部署。
+    """
+
+    if timing not in {"same_frame", "causal"}:
+        raise ValueError(f"未知时序协议：{timing}")
 
     device = torch.device(device) if isinstance(device, str) else device
     _, _, cfo, tail, received, acquisition = make_episode(
@@ -137,7 +151,7 @@ def run_variant(config, model, *, seed, snr, frames, variants=VARIANTS, device="
                 phase0, cfo_est,
             )
 
-            final_logits = None
+            updated_logits = None
             if variant == "soft":
                 final_cir, final_covariance = data_posterior(
                     frame, logits, pilot_cir, pilot_covariance, max_delay,
@@ -150,7 +164,7 @@ def run_variant(config, model, *, seed, snr, frames, variants=VARIANTS, device="
                 )
             elif variant in {"em2", "em3"}:
                 steps = 2 if variant == "em2" else 3
-                final_cir, final_covariance, context, final_logits = _em_posterior(
+                final_cir, final_covariance, context, updated_logits = _em_posterior(
                     model, frame, context, state["tail"], pilot_cir, pilot_covariance,
                     cfo, snr, max_delay, noise_variance, phase0, cfo_est, steps, False,
                 )
@@ -163,7 +177,7 @@ def run_variant(config, model, *, seed, snr, frames, variants=VARIANTS, device="
                     noise_variance, phase0, cfo_est, block_phases=phases,
                 )
             elif variant == "em_block":
-                final_cir, final_covariance, context, final_logits = _em_posterior(
+                final_cir, final_covariance, context, updated_logits = _em_posterior(
                     model, frame, context, state["tail"], pilot_cir, pilot_covariance,
                     cfo, snr, max_delay, noise_variance, phase0, cfo_est, 2, True,
                 )
@@ -171,23 +185,31 @@ def run_variant(config, model, *, seed, snr, frames, variants=VARIANTS, device="
                 raise ValueError(f"未知变体：{variant}")
 
             final_covariance = add_process_noise(final_covariance, 1e-4)
-            if final_logits is None:
-                final_context = make_context(frame, final_cir, cfo, state["tail"], snr)
-                with torch.no_grad():
-                    final_logits = context_logits(model, final_context, None, visible="data")
+            if timing == "same_frame":
+                # 历史语义：更新后重解码本帧；EM 变体内部已重解码，直接复用。
+                if updated_logits is None:
+                    final_context = make_context(frame, final_cir, cfo, state["tail"], snr)
+                    with torch.no_grad():
+                        decision_logits = context_logits(
+                            model, final_context, None, visible="data",
+                        )
+                else:
+                    decision_logits = updated_logits
             else:
-                final_context = context
+                # 因果时序：本帧判决必须早于本帧后验更新；更新只作用于下一帧。
+                decision_logits = logits
 
-            ber_data = _ber(final_logits, frame)
+            ber_data = _ber(decision_logits, frame)
             nmse = _nmse(
                 final_cir, frame.true_cir.to(device=device, dtype=torch.complex64),
             )
-            lag1 = _error_lag1(final_logits, frame)
+            lag1 = _error_lag1(decision_logits, frame)
             state["cir"], state["covariance"] = final_cir, final_covariance
-            state["tail"] = tail_from_logits(final_logits, state["tail"], 1.0)
+            state["tail"] = tail_from_logits(decision_logits, state["tail"], 1.0)
             rows.append({
                 "seed": int(seed), "snr_db": int(snr), "frame_index": int(frame.frame_index),
-                "variant": variant, "ber_data": ber_data, "frozen_ber": frozen_ber,
+                "variant": variant, "timing": timing,
+                "ber_data": ber_data, "frozen_ber": frozen_ber,
                 "gain": frozen_ber - ber_data, "nmse": nmse, "error_lag1": lag1,
                 "elapsed_ms": (time.perf_counter() - start) * 1000.0,
                 "rx_sha256": rx_sha256,
@@ -258,6 +280,7 @@ def _summarize(rows, config, variants, seeds, frames):
     }
     return {
         "seeds": list(seeds), "frames": int(frames), "variants": list(variants),
+        "timing": rows[0]["timing"] if rows else None,
         "fairness": fairness, "per_snr": per_snr,
     }
 
@@ -269,6 +292,10 @@ def main() -> None:
     parser.add_argument("--seeds", nargs="+", type=int, default=[140001, 140002])
     parser.add_argument("--frames", type=int, default=16)
     parser.add_argument("--variants", nargs="+", default=list(VARIANTS))
+    parser.add_argument(
+        "--timing", choices=("same_frame", "causal"), default="same_frame",
+        help="same_frame=更新后重解码（历史语义）；causal=本帧判决早于更新",
+    )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
@@ -283,7 +310,7 @@ def main() -> None:
         for seed in args.seeds:
             rows.extend(run_variant(
                 config, model, seed=seed, snr=snr, frames=args.frames,
-                variants=tuple(args.variants), device=device,
+                variants=tuple(args.variants), device=device, timing=args.timing,
             ))
     summary = _summarize(rows, config, tuple(args.variants), args.seeds, args.frames)
     summary["rows"] = rows

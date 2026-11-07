@@ -10,6 +10,7 @@
 - 独立确认 v1（seed 100001–100010，10 session × 128 帧）：H1/H2 通过；H3 在 5/10/15 dB 通过；0 dB 按早期收敛/后段饱和判据（用户 2026-11-07 确认）。
 - 传统基线公平比较（3 seed × 16 帧，seed 130001–130003）：Frozen/Bayes 四 SNR 显著优于 CFO+DD-Phase LMMSE/DFE-RLS；成本约 795/829/268/761/2 ms/帧，当前不实时；见 `docs/results/traditional_comparison_v1_20261107/`。
 - 0 dB Data 后验/相位变体（2 seed × 16 帧，seed 140001–140002）：0 dB 是早期收敛/后段饱和+晚窗为正，不是增长；5/10/15 dB 才支持增长；0 dB 按早期收敛/后段饱和判据（用户 2026-11-07 确认）。EM2 的 0 dB 增益跨 seed 异质，block_phase 同向但仅比 soft 高约 0.0018；见 `docs/results/diagnose_0db_data_posterior_v1_20261107/`。
+- block_phase 10×64 开发筛查（新 seed 145001–145010，`--timing causal/same_frame`）：block_phase 相对 soft 无可归因增量，causal 四 SNR 配对区间全跨零；0 dB 点估计 `+0.0039` 约需 40+ session，不升级为正式变体。block_phase 绝对 Bayes 增益在 0/5/10 dB 成立且不劣于 soft。same_frame（同帧重解码）绝对增益更高但不属已确认时序，两种时序分开报告。见 `docs/results/block_phase_dev10x64_v1_20261107/`。
 - 成本：模型前向 ≈400 ms、tail 独立前向 ≈400 ms、后验 ≈30 ms；tail 复用逐位一致，总耗时 ≈830→≈435 ms（4.2× 预算）；模型前向是剩余瓶颈，当前不实时。warm-start/AMP 扫描显示 AMP 无加速、warm-start 4/2 在 10/15 dB 退化，只有 8 满足四 SNR 不退化；见 `docs/results/profile_bayes_cost_v1_20261107/` 与 `docs/results/profile_bayes_cost_sweep_v1_20261107/`。
 - **不宣称在线神经参数微调**；该子主张在开发中未成立，不在本快照的确认范围。
 - 历史 PEFT/RL/子空间实验保留在 `codex/online-peft` 与 `docs/route-v4-20261106` 分支；本快照不保留其脚本与文档。
@@ -51,7 +52,7 @@ python scripts/profile_bayes_cost.py --config configs/eme_long_memory_v2_online_
 
 ## 证据边界
 
-- 开发 seed 90001–99010、130001–130003、140001–140002 与确认 seed 100001–100010 已使用；不得重测或并入确认。
+- 开发 seed 90001–99010、130001–130003、140001–140002、145001–145010 与确认 seed 100001–100010 已使用；不得重测或并入确认。
 - 0 dB 按早期收敛/后段饱和判据（用户 2026-11-07 确认）；5/10/15 dB 保留增长假设；2-seed 变体筛查支持该形状。
 - 同帧 EM/block_phase 的 BER 使用同帧更新后的 CIR，与已确认的跨帧因果不同，需单独标注或改为跨帧。
 - 成本 profile：模型前向 ≈400 ms、tail 独立前向 ≈400 ms、后验 ≈30 ms；tail 复用逐位一致，总耗时 ≈830→≈435 ms（4.2× 预算）；模型前向是剩余瓶颈，当前不实时。

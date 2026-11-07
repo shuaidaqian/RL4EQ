@@ -128,6 +128,23 @@ python scripts/diagnose_tail_protocol_alignment.py --config configs/eme_long_mem
 - 成本：soft/block ≈1.7 s/帧、EM2 ≈2.1 s、EM3 ≈2.8 s；102.4 ms 帧预算下不实时。
 - 同帧重解码与已确认的跨帧因果不同；正式使用需明确时序或改为跨帧。
 
+### 8.1 block_phase 10×64 两种时序（2026-11-07，无独立增量）
+
+[block_phase 筛查归档](results/block_phase_dev10x64_v1_20261107/README.md)（10 新开发 seed 145001–145010 × 64 帧 × 四 SNR，变体 `soft`/`block_phase`，两种时序）：
+
+| SNR | causal block−soft（95%） | same_frame block−soft（95%） | causal block 绝对增益 |
+|---:|---:|---:|---:|
+| 0 dB | +0.00386 `[−0.00418,+0.01191]` | +0.00014 `[−0.00676,+0.00704]` | +0.02439 `[+0.01636,+0.03242]` |
+| 5 dB | +0.00142 `[−0.00136,+0.00421]` | +0.00034 `[+0.00011,+0.00057]` | +0.00781 `[+0.00250,+0.01311]` |
+| 10 dB | +0.000075 `[−0.00004,+0.00019]` | +0.00001 `[−0.00006,+0.00008]` | +0.00159 `[+0.00083,+0.00234]` |
+| 15 dB | +0.000020 `[−0.00002,+0.00006]` | +0.000006 `[−0.00002,+0.00003]` | +0.00014 `[−0.00003,+0.00031]` |
+
+- **block_phase 相对 soft 无可归因增量**：causal 四 SNR 配对区间全跨零；same_frame 仅 5 dB 不跨零但幅度 `+3.4e-4`。0 dB 点估计 `+0.0039` 约需 40+ session 才能检出，不进入 P2。
+- **block_phase 不劣于 soft**：绝对 Bayes 增益在 0/5/10 dB 成立，NMSE 略低；保留为等价性说明，不升级为 0 dB 正式变体。
+- **时序差异**：same_frame（同帧重解码）绝对增益明显高于 causal（0 dB `+0.0293` vs `+0.0244`），但非同帧重解码不读标签；两种时序分开报告，不混合。
+- **实现**：`scripts/diagnose_0db_data_posterior.py` 新增 `--timing {same_frame,causal}`；causal 模式本帧判决严格早于本帧后验更新，与 `diagnose_bayesian_cir.py` 一致。定向测试 `tests/test_0db_data_posterior.py` 覆盖首帧因果等价与非法时序拒绝。
+- 成本：causal ≈660–665 ms/帧，same_frame ≈1270–1275 ms/帧；均不满足 102.4 ms 预算。
+
 ## 9. 成本 profile（2026-11-07）
 
 [profile 归档](results/profile_bayes_cost_v1_20261107/README.md)（1 seed × 4 SNR × 8 帧，当前 GPU）：
