@@ -29,7 +29,7 @@ if str(ROOT) not in sys.path:
 from baseline.traditional_equalizers import TraditionalPhaseState, run_traditional_equalizer
 from evaluation.pilot_transfer import _load_branch
 from training.bayesian_cir import acquisition_prior, add_process_noise, data_posterior, pilot_posterior
-from training.pilot_transfer import context_logits, make_context, make_episode, next_pilot_tail
+from training.pilot_transfer import context_logits, make_context, make_episode, tail_from_logits
 
 TRADITIONAL_COMPARISON_METHODS = (
     "CFO+DD-Phase LMMSE-FIR",
@@ -111,7 +111,7 @@ def run_comparison(config, model, *, seed, snr, frames, methods=DEFAULT_METHODS,
             start = time.perf_counter()
             with torch.no_grad():
                 logits = context_logits(model, context, None, visible="data")
-            frozen_tail = next_pilot_tail(model, context, alpha=1.0, mode="dd_soft")
+            frozen_tail = tail_from_logits(logits, frozen_tail, 1.0)
             rows.append(_row(
                 frame, "frozen", logits, seed=seed, snr=snr, rx_sha256=rx_sha256,
                 cir_sha256=_sha(frozen_cir), uses_neural_network=True,
@@ -136,7 +136,7 @@ def run_comparison(config, model, *, seed, snr, frames, methods=DEFAULT_METHODS,
                 frame, logits, bayes_cir, bayes_covariance, max_delay, noise_variance, phase0, cfo_est,
             )
             bayes_covariance = add_process_noise(bayes_covariance, 1e-4)
-            bayes_tail = next_pilot_tail(model, context, alpha=1.0, mode="dd_soft")
+            bayes_tail = tail_from_logits(logits, bayes_tail, 1.0)
             rows.append(_row(
                 frame, "bayes", logits, seed=seed, snr=snr, rx_sha256=rx_sha256,
                 cir_sha256=_sha(current_bayes_cir), uses_neural_network=True,

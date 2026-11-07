@@ -9,7 +9,9 @@ import torch
 from agent.cir_estimator import condition_from_cir
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from env.frame_structure import FrameConfig, FrameGenerator
-from training.pilot_transfer import TransferContext, context_logits, next_pilot_tail, tail_update_mode
+from training.pilot_transfer import (
+    TransferContext, context_logits, next_pilot_tail, tail_from_logits, tail_update_mode,
+)
 
 
 def _fixture():
@@ -67,3 +69,22 @@ def test_tail_update_mode_defaults_to_legacy_pilot_only():
     assert tail_update_mode({"tail_update_mode": "dd_soft"}) == "dd_soft"
     with pytest.raises(ValueError):
         tail_update_mode({"tail_update_mode": "unknown"})
+
+
+def test_tail_from_logits_matches_dd_soft_without_data_labels():
+    """复用当前帧 logits 的 tail 必须与 dd_soft 独立前向逐位一致，且不读标签。"""
+
+    model, context = _fixture()
+    with torch.no_grad():
+        logits = context_logits(model, context, None, visible="data")
+    expected = next_pilot_tail(model, context, alpha=1.0, mode="dd_soft")
+    got = tail_from_logits(logits, context.tail, alpha=1.0)
+    torch.testing.assert_close(got, expected, rtol=0, atol=0)
+
+    frame = context.frame
+    poisoned_bits = frame.bits.clone()
+    poisoned_bits[frame.data_mask] = ~poisoned_bits[frame.data_mask]
+    poisoned = replace(context, frame=replace(frame, bits=poisoned_bits))
+    torch.testing.assert_close(
+        tail_from_logits(logits, poisoned.tail, alpha=1.0), got, rtol=0, atol=0,
+    )

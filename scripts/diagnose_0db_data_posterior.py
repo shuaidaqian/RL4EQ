@@ -32,7 +32,7 @@ from training.bayesian_cir import (
     estimate_data_block_phases,
     pilot_posterior,
 )
-from training.pilot_transfer import context_logits, make_context, make_episode, next_pilot_tail
+from training.pilot_transfer import context_logits, make_context, make_episode, tail_from_logits
 
 VARIANTS = ("soft", "oracle", "em2", "em3", "block_phase", "em_block")
 
@@ -121,7 +121,7 @@ def run_variant(config, model, *, seed, snr, frames, variants=VARIANTS, device="
         with torch.no_grad():
             frozen_logits = context_logits(model, frozen_context, None, visible="data")
             frozen_ber = _ber(frozen_logits, frame)
-        frozen_tail = next_pilot_tail(model, frozen_context, alpha=1.0, mode="dd_soft")
+        frozen_tail = tail_from_logits(frozen_logits, frozen_tail, 1.0)
 
         for variant in variants:
             state = states[variant]
@@ -184,7 +184,7 @@ def run_variant(config, model, *, seed, snr, frames, variants=VARIANTS, device="
             )
             lag1 = _error_lag1(final_logits, frame)
             state["cir"], state["covariance"] = final_cir, final_covariance
-            state["tail"] = next_pilot_tail(model, final_context, alpha=1.0, mode="dd_soft")
+            state["tail"] = tail_from_logits(final_logits, state["tail"], 1.0)
             rows.append({
                 "seed": int(seed), "snr_db": int(snr), "frame_index": int(frame.frame_index),
                 "variant": variant, "ber_data": ber_data, "frozen_ber": frozen_ber,

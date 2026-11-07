@@ -360,6 +360,23 @@ def tail_update_mode(config) -> str:
     return mode
 
 
+def tail_from_logits(logits: torch.Tensor, tail: torch.Tensor, alpha: float = 1.0) -> torch.Tensor:
+    """用已计算的整帧 logits 递推 dd_soft tail；不读 Data 标签。
+
+    与 ``next_pilot_tail(mode="dd_soft")`` 的结果逐位一致，但省去一次模型前向。
+    """
+
+    if not 0.0 <= float(alpha) <= 1.0:
+        raise ValueError("soft-tail 更新系数必须位于[0, 1]。")
+    tail_len = tail.numel()
+    if logits.numel() < tail_len:
+        raise ValueError("logits 长度必须不小于 tail 长度。")
+    values = torch.tanh(logits[-tail_len:] / 2.0).float()
+    detected = torch.complex(values, torch.zeros_like(values))
+    updated = (1.0 - float(alpha)) * tail.to(detected.dtype) + float(alpha) * detected
+    return updated.detach()
+
+
 def next_pilot_tail(model, context, *, alpha, parameters=None, mode="pilot_only"):
     """跨帧 soft-tail 递推。
 
@@ -387,10 +404,7 @@ def next_pilot_tail(model, context, *, alpha, parameters=None, mode="pilot_only"
     # 作为下一帧的跨帧 ISI 状态；不触碰任何 Data 标签。
     with torch.no_grad():
         logits = context_logits(model, context, parameters, visible="data")
-        values = torch.tanh(logits[-tail_len:] / 2.0)
-        detected = torch.complex(values, torch.zeros_like(values))
-        updated = (1.0 - alpha) * context.tail + alpha * detected
-        return updated.detach()
+    return tail_from_logits(logits, context.tail, alpha)
 
 
 def _data_outer_loss(logits, frame, objective, soft_ber_temperature):
@@ -642,7 +656,10 @@ def differentiable_online_trajectory(model, contexts, *, learning_rate, steps,
         online_logits = context_logits(model, context, fast)
         online_data_losses.append(_data_outer_loss(
             online_logits, frame, data_objective, soft_ber_temperature))
-        tail = next_pilot_tail(model, context, alpha=tail_alpha, parameters=fast, mode=tail_mode)
+        if tail_mode == "dd_soft":
+            tail = tail_from_logits(online_logits, context.tail, tail_alpha)
+        else:
+            tail = next_pilot_tail(model, context, alpha=tail_alpha, parameters=fast, mode=tail_mode)
         if int(history_frames) > 1:
             from training.shared_pilot_state import adapt_only_history_context
             history.append(adapt_only_history_context(frame, context.condition, context.tail))
@@ -942,11 +959,18 @@ class PilotTransferTrainer:
                 from training.shared_pilot_state import adapt_only_history_context
                 historical_adapt_contexts.append(
                     adapt_only_history_context(frame, context.condition, context.tail))
-            if tail_update_mode(self.config) == "dd_soft" or bool(frame.adapt_mask[-tail.numel():].any()):
+            tail_mode = tail_update_mode(self.config)
+            if tail_mode == "dd_soft":
+                with torch.no_grad():
+                    tail_logits = context_logits(self.model, context, None, visible="data")
+                tail = tail_from_logits(
+                    tail_logits, tail, float(self.config.get("tail_update_alpha", 1.0)),
+                )
+            elif bool(frame.adapt_mask[-tail.numel():].any()):
                 tail = next_pilot_tail(
                     self.model, context,
                     alpha=float(self.config.get("tail_update_alpha", 0.5)),
-                    mode=tail_update_mode(self.config),
+                    mode=tail_mode,
                 )
         context = make_context(frames[history_frames], cir, cfo, tail, snr)
         if self.inner_history_frames > 1:

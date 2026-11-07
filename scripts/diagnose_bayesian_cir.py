@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
 
 from evaluation.pilot_transfer import _load_branch
 from training.bayesian_cir import acquisition_prior, add_process_noise, data_posterior, pilot_posterior
-from training.pilot_transfer import context_logits, make_context, make_episode, next_pilot_tail
+from training.pilot_transfer import context_logits, make_context, make_episode, tail_from_logits
 
 
 def _nmse(estimate: torch.Tensor, truth: torch.Tensor) -> float:
@@ -56,13 +56,13 @@ def _run(model, config, seed, snr, frames, process_noise, ridge, device):
         with torch.no_grad():
             frozen_logits = context_logits(model, frozen_context, None, visible="data")
             frozen_ber = _ber(frozen_logits, frame)
-        frozen_tail = next_pilot_tail(model, frozen_context, alpha=1.0, mode="dd_soft")
+        frozen_tail = tail_from_logits(frozen_logits, frozen_tail, 1.0)
 
         bayes_context = make_context(frame, bayes_cir, cfo, bayes_tail, snr)
         with torch.no_grad():
             bayes_logits = context_logits(model, bayes_context, None, visible="data")
             bayes_ber = _ber(bayes_logits, frame)
-        bayes_tail = next_pilot_tail(model, bayes_context, alpha=1.0, mode="dd_soft")
+        bayes_tail = tail_from_logits(bayes_logits, bayes_tail, 1.0)
 
         truth = frame.true_cir.to(device=device, dtype=torch.complex64).reshape(-1)
         latent = bayes_context.condition.latent_residual

@@ -8,7 +8,7 @@
   "success_criteria": {
     "primary_effect": "mean_s(BER_frozen,s - BER_bayes,s) > 0，按预注册统计方法显著",
     "safety_guardrail": "每个主要 SNR 的配对差 BER_bayes - BER_frozen 点估计不得为正；允许退化量为 0",
-    "growth": "固定窗口 gain_w = BER_frozen,w - BER_bayes,w 的会话级斜率与末窗减早窗为正；允许局部回升，不要求逐帧严格单调",
+    "growth": "5/10/15 dB：固定窗口 gain_w = BER_frozen,w - BER_bayes,w 的会话级斜率与末窗减早窗为正；0 dB：早期收敛/后段饱和+晚窗为正（用户 2026-11-07 确认）；允许局部回升，不要求逐帧严格单调",
     "statistical_unit": "独立 session；帧与 bit 不得冒充独立样本",
     "multiple_comparison": "正式确认前冻结",
     "attribution": "同源 checkpoint + acquisition CIR + 同一 dd_soft tail 的 Frozen 对照；Bayes 为同一 checkpoint + 贝叶斯递归 CIR 后验；神经权重两臂冻结",
@@ -86,8 +86,8 @@
     "neural_increment": "not_established",
     "s_dansa_implementation": "not_started",
     "online_gain_over_frozen": "physical Bayes CIR confirmed (H1/H2 pass); neural increment not established",
-    "growth_until_saturation": "confirmed at 5/10/15 dB; 0 dB large gain but H3 fail; neural version not established",
-    "formal_confirmation": "physical confirmation v1 completed (100001-100010, 10x128): H1/H2 pass; H3 pass at 5/10/15 dB, fail at 0 dB"
+    "growth_until_saturation": "confirmed at 5/10/15 dB; 0 dB early convergence/late saturation (user 2026-11-07); neural version not established",
+    "formal_confirmation": "physical confirmation v1 completed (100001-100010, 10x128): H1/H2 pass; H3 pass at 5/10/15 dB; 0 dB under convergence/saturation criterion (user 2026-11-07)"
   },
   "confirmation_v1_20261106": {
     "protocol": "docs/protocols/confirmation_physical_v1_20261106.md",
@@ -95,7 +95,7 @@
     "frames": 128,
     "h1": {"mean": 0.011767, "se": 0.000861, "one_sided_lower95": 0.010188, "p_one_sided": 1.26e-7, "pass": true},
     "h2": {"0": {"delta": 0.036802, "lower95": 0.030289, "holm_p": 1e-5, "neg_seeds": 0}, "5": {"delta": 0.008032, "lower95": 0.006265, "holm_p": 2e-5, "neg_seeds": 0}, "10": {"delta": 0.001971, "lower95": 0.001456, "holm_p": 6e-5, "neg_seeds": 0}, "15": {"delta": 0.000260, "lower95": 0.000149, "holm_p": 0.001, "neg_seeds": 0}, "pass": true},
-    "h3": {"5": {"slope_per_bin": 0.000410, "pass": true}, "10": {"slope_per_bin": 0.000377, "pass": true}, "15": {"slope_per_bin": 0.000064, "pass": true}, "0": {"slope_per_bin": -0.001238, "pass": false}},
+    "h3": {"5": {"slope_per_bin": 0.000410, "pass": true}, "10": {"slope_per_bin": 0.000377, "pass": true}, "15": {"slope_per_bin": 0.000064, "pass": true}, "0": {"slope_per_bin": -0.001238, "pass_old_growth": false, "interpretation_20261107": "early convergence/late saturation; not growth; user confirmed"}},
     "neural_subclaim": "not tested in confirmation"
   },
   "physical_stages": [
