@@ -60,7 +60,8 @@
 ## 4. 边界与未完成项
 
 - 0 dB 的 H3 不通过，不能被四 SNR 平均掩盖；若要把 0 dB 写成"增长"，需要新的预注册窗口/判据或新的独立 seed。
-- 逐帧延迟/GPU 显存未插桩，成本报告不完整。
+- 逐帧延迟已在传统对照中记录（Frozen ≈795 ms、Bayes ≈829 ms/帧），但未做完整成本插桩；当前不实时。
+- 传统基线公平比较已完成 3×16 开发：Frozen/Bayes 四 SNR 显著优于 CFO+DD-Phase LMMSE/DFE-RLS；SC-FDE 无相位补偿，仅作弱对照；确认级对照待扩样本。
 - 神经参数微调子主张未成立，不在本快照的确认范围内。
 - 确认集只运行一次；不得在看到结果后调参或换 seed 重测。
 
@@ -86,13 +87,35 @@ python scripts/diagnose_bayesian_cir.py --config configs/eme_long_memory_v2_onli
 python scripts/diagnose_tail_protocol_alignment.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 90001 90002 90003 --frames 6 --device cuda --output docs/results/tail_alignment_v1_20261106/tail_protocol_alignment.json
 ```
 
-## 7. 文档
+## 7. 传统基线公平比较（2026-11-07）
+
+[对照归档](results/traditional_comparison_v1_20261107/README.md)（3 seed × 16 帧，seed 130001–130003）：
+
+- 同一 episode、同一接收波形、同一 Pilot 预算（256：Adapt 224 / Reward 32）与同一 acquisition CIR/CFO；传统方法不读 Reward/Data 标签、不使用神经网络/RL。
+- 四 SNR 的 Data BER：
+
+| SNR | Frozen | Bayes | CFO+DD-Phase LMMSE-FIR | CFO+DD-Phase DFE-RLS | SC-FDE-MMSE |
+|---:|---:|---:|---:|---:|---:|
+| 0 dB | 0.214572 | **0.181424** | 0.436551 | 0.406359 | 0.490641 |
+| 5 dB | 0.052544 | **0.049344** | 0.149495 | 0.170546 | 0.485677 |
+| 10 dB | 0.008138 | **0.007270** | 0.041314 | 0.035862 | 0.484185 |
+| 15 dB | 0.001519 | **0.001383** | 0.016710 | 0.017442 | 0.482829 |
+
+- Bayes−Frozen：0/5/10/15 dB `−0.0331/−0.0032/−0.00087/−0.00014`。
+- 逐 (seed, frame) 配对差（传统−Bayes / 传统−Frozen）全部为正；48 对/SNR。
+- 成本（当前 GPU，逐帧均值）：Frozen ≈795 ms、Bayes ≈829 ms、LMMSE ≈268 ms、DFE-RLS ≈761 ms、SC-FDE ≈2 ms；102.4 ms 帧预算下不实时。
+- 强传统为 CFO+DD-Phase LMMSE/DFE；`SC-FDE-MMSE` 未做 CFO/相位补偿，接近随机，仅作弱对照。
+- 公平性检查：同帧 rx hash 一致、Frozen/传统共享同一 acquisition CIR、传统 `uses_neural_network=False`、`uses_reward_or_data_labels=False`。
+- 开发对照；传统方法使用代码默认实现，未加载 clean 分支未包含的 frozen calibration 资产。
+
+## 8. 文档
 
 - [确认协议](protocols/confirmation_physical_v1_20261106.md)
 - [确认判据草案](protocols/confirmation_criteria_v4_draft_20261106.md)
 - [机器可读状态](protocols/research_route_v4_20261106.json)
 - [贝叶斯 CIR 开发归档](results/bayesian_cir_diag_v1_20261106/README.md)
 - [独立确认归档](results/bayesian_cir_confirmation_v1_20261106/README.md)
+- [传统基线公平对照](results/traditional_comparison_v1_20261107/README.md)
 - [tail 协议对齐](results/tail_alignment_v1_20261106/README.md)
 - [功效与错误构成](results/power_error_composition_20261106/README.md)
 - [离线饱和/oracle](results/offline_saturation_20261106/README.md)

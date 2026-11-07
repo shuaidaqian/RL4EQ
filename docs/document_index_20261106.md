@@ -18,6 +18,7 @@
 | 离线基线 | [docs/offline_equalizer_training_and_baseline_20261105.md](offline_equalizer_training_and_baseline_20261105.md) | 离线模型与传统基线主矩阵 |
 | 物理确认 | [docs/results/bayesian_cir_confirmation_v1_20261106/README.md](results/bayesian_cir_confirmation_v1_20261106/README.md) | H1/H2 通过；H3 0 dB 不通过 |
 | 物理开发 | [docs/results/bayesian_cir_diag_v1_20261106/README.md](results/bayesian_cir_diag_v1_20261106/README.md) | 3×16 至 10×128 开发筛查 |
+| 传统基线 | [docs/results/traditional_comparison_v1_20261107/README.md](results/traditional_comparison_v1_20261107/README.md) | 同波形同 Pilot 公平对照；Frozen/Bayes 显著优于传统 |
 | 物理基础 | [docs/results/tail_alignment_v1_20261106/README.md](results/tail_alignment_v1_20261106/README.md) | dd_soft tail 训练/评估对齐 |
 | 物理基础 | [docs/results/offline_saturation_20261106/README.md](results/offline_saturation_20261106/README.md) | 训练预算/宽度接近饱和；CIR 是主要残差 |
 | 统计功效 | [docs/results/power_error_composition_20261106/README.md](results/power_error_composition_20261106/README.md) | MDE、session 数与错误构成 |
@@ -49,7 +50,7 @@
 |---|---|---|
 | [docs/offline_equalizer_training_and_baseline_20261105.md](offline_equalizer_training_and_baseline_20261105.md) | 历史 | 开发记录；当前规范以 v4 为准 |
 
-### 结果归档（6）
+### 结果归档（7）
 
 | 文档 | 状态 | 说明 |
 |---|---|---|
@@ -59,6 +60,7 @@
 | [docs/results/offline_saturation_20261106/README.md](results/offline_saturation_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/power_error_composition_20261106/README.md](results/power_error_composition_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
 | [docs/results/tail_alignment_v1_20261106/README.md](results/tail_alignment_v1_20261106/README.md) | 结果 | 原语义；不按 v4 追认 |
+| [docs/results/traditional_comparison_v1_20261107/README.md](results/traditional_comparison_v1_20261107/README.md) | 结果 | 原语义；不按 v4 追认 |
 
 ## 4. 维护规则
 

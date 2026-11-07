@@ -8,6 +8,7 @@
 
 - 核心：离线神经均衡器 + 合法在线贝叶斯物理状态（CIR）适配；相对同源 acquisition-CIR Frozen 的 Data BER 增益。
 - 独立确认 v1（seed 100001–100010，10 session × 128 帧）：H1/H2 通过；H3 在 5/10/15 dB 通过、0 dB 不通过。
+- 传统基线公平比较（3 seed × 16 帧，seed 130001–130003）：Frozen/Bayes 四 SNR 显著优于 CFO+DD-Phase LMMSE/DFE-RLS；成本约 795/829/268/761/2 ms/帧，当前不实时；见 `docs/results/traditional_comparison_v1_20261107/`。
 - **不宣称在线神经参数微调**；该子主张在开发中未成立，不在本快照的确认范围。
 - 历史 PEFT/RL/子空间实验保留在 `codex/online-peft` 与 `docs/route-v4-20261106` 分支；本快照不保留其脚本与文档。
 
@@ -28,9 +29,16 @@ python -m pytest -q -p no:cacheprovider
 
 物理确认命令见[路线第 6 节](docs/research_route_physical_v1_20261106.md#6-复现)。
 
+传统基线公平对照：
+
+```powershell
+python scripts/compare_traditional_baselines.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 130001 130002 130003 --frames 16 --device cuda --output docs/results/traditional_comparison_v1_20261107/comparison.json
+```
+
 ## 证据边界
 
 - 开发 seed 90001–99010 与确认 seed 100001–100010 已使用；不得重测或并入确认。
 - 0 dB 的 H3 不通过，不能用四 SNR 平均掩盖。
-- 逐帧延迟/GPU 显存未插桩，成本报告不完整。
+- 传统对照记录了逐帧耗时（Frozen ≈795 ms、Bayes ≈829 ms），但未做完整成本插桩；当前不实时。
+- 传统基线公平对照为 3×16 开发（seed 130001–130003）；传统方法使用代码默认实现，未加载 clean 分支未包含的 frozen calibration；`SC-FDE-MMSE` 无相位补偿。
 - 开发筛查不等于确认；不得把开发结果写成确认。

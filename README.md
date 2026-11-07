@@ -28,6 +28,7 @@
 - [研究路线（物理版 v1）](docs/research_route_physical_v1_20261106.md)
 - [独立确认归档](docs/results/bayesian_cir_confirmation_v1_20261106/README.md)
 - [开发筛查归档](docs/results/bayesian_cir_diag_v1_20261106/README.md)
+- [传统基线公平对照](docs/results/traditional_comparison_v1_20261107/README.md)
 - [确认协议](docs/protocols/confirmation_physical_v1_20261106.md)
 - [全仓文档索引](docs/document_index_20261106.md)
 
@@ -43,5 +44,6 @@ python scripts/diagnose_bayesian_cir.py --config configs/eme_long_memory_v2_onli
 ## 边界
 
 - 神经参数微调子主张未成立，不在本快照的确认范围。
-- 0 dB 的 H3 不通过；逐帧延迟/显存未插桩。
+- 0 dB 的 H3 不通过；传统对照记录逐帧耗时（Frozen ≈795 ms、Bayes ≈829 ms），但未做完整成本插桩；当前不实时。
+- 传统基线公平比较为 3×16 开发；Frozen/Bayes 四 SNR 显著优于 CFO+DD-Phase LMMSE/DFE-RLS；`SC-FDE-MMSE` 无相位补偿，仅作弱对照。
 - 确认集只运行一次；不得重测或换 seed。
