@@ -450,6 +450,35 @@ def fig_offline_ber(D):
     save(fig, "fig_offline_ber.png")
 
 
+def fig_traditional_fair():
+    """3x16 公平对照：Frozen/Bayes 与三种传统接收机（seed 130001-130003）。"""
+    labels = SNR_LABEL
+    series = [
+        ("Frozen",     [0.214572, 0.052544, 0.008138, 0.001519], FROZEN),
+        ("Bayes",      [0.181424, 0.049344, 0.007270, 0.001383], BAYES),
+        ("LMMSE-FIR",  [0.436551, 0.149495, 0.041314, 0.016710], TEAL),
+        ("DFE-RLS",    [0.406359, 0.170546, 0.035862, 0.017442], "#4A5D6E"),
+        ("SC-FDE",     [0.490641, 0.485677, 0.484185, 0.482829], "#B8C2CC"),
+    ]
+    fig, ax = plt.subplots(figsize=(10.4, 3.9))
+    x = np.arange(4); w = 0.16
+    for k, (name, vals, c) in enumerate(series):
+        ax.bar(x + (k - 2) * w, vals, w, color=c, edgecolor="none", label=name)
+    ax.set_yscale("log")
+    ax.set_ylim(8e-4, 1.2)
+    ax.set_xticks(x); ax.set_xticklabels(labels)
+    ax.set_ylabel("Data BER（对数轴）")
+    ax.grid(True, axis="y", which="both", alpha=0.5)
+    ax.legend(ncol=5, loc="upper center", bbox_to_anchor=(0.5, 1.12),
+              columnspacing=1.1, handlelength=1.2, fontsize=9)
+    for i in range(4):
+        best_trad = min(series[2][1][i], series[3][1][i])
+        ax.annotate(f"{best_trad/series[1][1][i]:.1f}×",
+                    (x[i] - w, best_trad * 1.15), ha="center", fontsize=8.2,
+                    color=GOOD, weight="bold")
+    fig.tight_layout()
+    save(fig, "fig_traditional_fair.png")
+
 def fig_plan():
     fig, ax = plt.subplots(figsize=(11.4, 3.4))
     ax.set_xlim(0, 12); ax.set_ylim(0.75, 3.05); ax.axis("off")
@@ -543,6 +572,7 @@ def main():
     fig_nmse(D)
     fig_oracle_cir(D)
     fig_offline_ber(D)
+    fig_traditional_fair()
     print("生成示意图……")
     fig_route()
     fig_rx_arch()

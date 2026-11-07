@@ -344,6 +344,35 @@ def slide_offline_arch(prs, idx, total):
     return s
 
 
+def slide_traditional(prs, idx, total):
+    s = page(prs, idx, total, "研究点二 · 公平对照",
+             "不是靠弱基线取胜：同波形同 Pilot 下传统接收机差 2–12 倍")
+    pic_fit(s, FIGDIR / "fig_traditional_fair.png", MX, 1.58, 8.55, 4.15)
+
+    x = 9.35
+    items = [
+        ("公平性", "同 episode、同接收波形、同 Pilot 预算、同 acquisition CIR"),
+        ("传统方法", "不读 Reward/Data 标签，不使用神经网络或强化学习"),
+        ("配对差", "每个 SNR 48 对，传统减 Bayes 全部为正"),
+        ("边界", "3 seed × 16 帧开发规模，不是确认级证据"),
+    ]
+    y = 1.75
+    for h, body in items:
+        rect(s, x, y + 0.05, 0.045, 0.26, fill=BAYES)
+        text(s, h, x + 0.18, y, 3.30, 0.30, size=11.5, bold=True, color=NAVY)
+        text(s, body, x + 0.18, y + 0.32, 3.30, 0.85, size=9.8, color=MUTED)
+        y += 1.06
+
+    text(s, "倍数 = 较强的传统方法 BER ÷ Bayes BER。SC-FDE-MMSE 未做 CFO/相位补偿，只作弱对照。",
+         MX, 6.24, CW, 0.30, size=9.8, color=MUTED)
+    speaker(s, "这一页回答一个可能的质疑：是不是传统基线被削弱了？"
+               "公平对照里传统接收机用的是同一批波形、同一 Pilot 预算、同一 acquisition CIR，"
+               "而且不读任何标签。结果 Bayes 仍然低 2 到 12 倍，高信噪比差距更大。"
+               "注意这是 3×16 的开发规模，不是确认级证据。")
+    return s
+
+
+
 def slide_cir(prs, idx, total):
     s = page(prs, idx, total, "研究点二 · 问题定位",
              "离线网络已饱和，剩余误差主要来自 CIR 估计",
@@ -444,7 +473,7 @@ def slide_seed(prs, idx, total):
     rows = [
         ("H1", "四 SNR 等权平均增益 > 0", "+0.01177　下界 +0.01019", "通过"),
         ("H2", "每个 SNR 下界 > 0 且无负向 seed", "0/5/10/15 dB 全部满足", "通过"),
-        ("H3", "增益随帧增长", "5/10/15 dB 通过；0 dB 饱和", "部分"),
+        ("H3", "增益随帧增长", "5/10/15 dB 通过；0 dB 早期收敛", "部分"),
     ]
     y = 5.28
     for name, desc, val, verdict in rows:
@@ -458,7 +487,7 @@ def slide_seed(prs, idx, total):
         if name != "H3":
             hline(s, MX, y - 0.06, SW - MX, color="#EDEAE4")
     speaker(s, "逐 session 看，10 个 session 的配对增益全部为正，没有一个是负的。"
-               "H1 和 H2 通过。H3 的增长假设在 5/10/15 dB 成立，0 dB 因为早期饱和不通过，"
+               "H1 和 H2 通过。H3 的增长假设在 5/10/15 dB 成立；0 dB 呈早期收敛、后段饱和，按预注册判据不计为增长，"
                "这一点我们如实报告。")
     return s
 
@@ -485,7 +514,7 @@ def slide_boundary(prs, idx, total):
 
     rect(s, x, 3.96, 0.05, 0.34, fill=ALERT)
     text(s, "需要说明的边界", x + 0.18, 3.96, 4.3, 0.34, size=13, bold=True, color=ALERT)
-    no = ["0 dB 增益早期饱和，H3 未通过", "确认集只运行一次，不得重测",
+    no = ["0 dB 早期收敛/后段饱和，不计为增长", "确认集只运行一次，不得重测",
           "逐帧延迟与显存尚未插桩"]
     y = 4.42
     for t in no:
@@ -552,7 +581,7 @@ def main():
 
     builders = [
         cover, slide_route, slide_model, slide_rcs, slide_delay, slide_baseline,
-        slide_offline, slide_offline_arch, slide_cir, slide_arch, slide_loop, slide_scale,
+        slide_offline, slide_offline_arch, slide_traditional, slide_cir, slide_arch, slide_loop, slide_scale,
         slide_growth, slide_confirm, slide_seed, slide_boundary, slide_plan,
         slide_summary,
     ]
