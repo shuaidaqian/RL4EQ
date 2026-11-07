@@ -35,6 +35,7 @@ CURATED = [
     ("传统基线", "docs/results/traditional_comparison_v1_20261107/README.md", "同波形同 Pilot 公平对照；Frozen/Bayes 显著优于传统"),
     ("0 dB 变体", "docs/results/diagnose_0db_data_posterior_v1_20261107/README.md", "Data 后验/相位变体；0 dB H3 形状为收敛/饱和"),
     ("成本 profile", "docs/results/profile_bayes_cost_v1_20261107/README.md", "tail 复用 2×；模型前向 ~400 ms；4.2× 预算"),
+    ("成本扫描", "docs/results/profile_bayes_cost_sweep_v1_20261107/README.md", "warm-start/AMP；只有 8 满足四 SNR 不退化"),
     ("物理基础", "docs/results/tail_alignment_v1_20261106/README.md", "dd_soft tail 训练/评估对齐"),
     ("物理基础", "docs/results/offline_saturation_20261106/README.md", "训练预算/宽度接近饱和；CIR 是主要残差"),
     ("统计功效", "docs/results/power_error_composition_20261106/README.md", "MDE、session 数与错误构成"),

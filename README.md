@@ -31,6 +31,7 @@
 - [传统基线公平对照](docs/results/traditional_comparison_v1_20261107/README.md)
 - [0 dB Data 后验变体](docs/results/diagnose_0db_data_posterior_v1_20261107/README.md)
 - [成本 profile](docs/results/profile_bayes_cost_v1_20261107/README.md)
+- [warm-start/AMP 扫描](docs/results/profile_bayes_cost_sweep_v1_20261107/README.md)
 - [确认协议](docs/protocols/confirmation_physical_v1_20261106.md)
 - [全仓文档索引](docs/document_index_20261106.md)
 

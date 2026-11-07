@@ -143,6 +143,14 @@ python scripts/diagnose_tail_protocol_alignment.py --config configs/eme_long_mem
 - 模型前向 ~400 ms 是剩余瓶颈；Pilot/Data 后验合计 ~30 ms；102.4 ms 下约 4.2×。
 - 优先级：tail 复用（立即）→ 模型前向（warm-start/层数/batch/蒸馏）→ 后验。
 
+### 9.1 warm-start / AMP 扫描（2026-11-07）
+
+[扫描归档](results/profile_bayes_cost_sweep_v1_20261107/README.md)（1 seed × 4 帧 × 4 SNR）：
+
+- AMP 在 GTX 1650 上无 BER 变化、无加速；warm-start 4 在 0/5 dB 更好但 10/15 dB 退化；warm-start 2 更差；**只有 8 满足四 SNR 不退化**。
+- 成本：ws8 ≈430 ms（4.2×）、ws4 ≈320 ms（3.1×）、ws2 ≈270 ms（2.6×）；tail 复用逐位一致；102.4 ms 下仍不实时。
+- 结论：tail 复用是唯一零精度 2×；warm-start/AMP 不能免费加速；模型前向需蒸馏/剪枝/重训/batch/更大 GPU。
+
 ## 10. 文档
 
 - [确认协议](protocols/confirmation_physical_v1_20261106.md)
