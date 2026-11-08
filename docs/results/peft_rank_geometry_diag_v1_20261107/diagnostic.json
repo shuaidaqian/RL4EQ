@@ -1,0 +1,1909 @@
+{
+  "schema_version": "peft-rank-geometry-diagnostic-v1",
+  "diagnostic_only": true,
+  "online_updates_executed": false,
+  "data_labels_used": true,
+  "data_labels_used_for": "oracle 秩-r 拟合与 BER 评分；不回流在线更新或门控",
+  "state_split": "offline_train",
+  "checkpoint": "D:\\Research\\RL4EQ\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt",
+  "config": "configs\\eme_long_memory_v2_online_dd_tail_v1.json",
+  "seeds": [
+    110001,
+    110002,
+    110003
+  ],
+  "frames": 16,
+  "ranks": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    65
+  ],
+  "fit_steps": 8,
+  "fit_lr": 0.01,
+  "per_snr": {
+    "0": {
+      "rank_noise": [
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.798828125,
+            "entropy_rank": 0.8800825903269616,
+            "participation_ratio": 0.7961622739756801,
+            "stable_rank": 0.4869218991331883
+          },
+          "adapt_grads": {
+            "threshold_count": 0.875,
+            "energy_rank_90": 0.1875,
+            "entropy_rank": 0.1530805548041135,
+            "participation_ratio": 0.11776714541713648,
+            "stable_rank": 0.0897931643574463,
+            "top1_energy": 0.6960440747048585,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.125,
+            "energy_rank_90": 0.7652811735941321,
+            "entropy_rank": 0.8260611487073706,
+            "participation_ratio": 0.8520814797854466,
+            "stable_rank": 0.8155902116596216
+          },
+          "data_grads": {
+            "threshold_count": 0.75,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.11745838862691822,
+            "participation_ratio": 0.09222745378453065,
+            "stable_rank": 0.07737694353736357,
+            "top1_energy": 0.8077341536477227,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.25,
+            "energy_rank_90": 0.843520782396088,
+            "entropy_rank": 0.86653708422606,
+            "participation_ratio": 0.8841599799448072,
+            "stable_rank": 0.8410896209944367
+          },
+          "elbo_grads": {
+            "threshold_count": 0.875,
+            "energy_rank_90": 0.1875,
+            "entropy_rank": 0.2023222079346918,
+            "participation_ratio": 0.16801245395175968,
+            "stable_rank": 0.12400823505957699,
+            "top1_energy": 0.5039987866126251,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.125,
+            "energy_rank_90": 0.7652811735941321,
+            "entropy_rank": 0.7701099758608716,
+            "participation_ratio": 0.7889720984733675,
+            "stable_rank": 0.7453221239785379
+          },
+          "fisher": {
+            "effective_rank": 1.3043993269561376,
+            "numerical_rank": 16,
+            "stable_rank": 0.001922404307585496,
+            "top1_energy": 0.9454840242742182
+          }
+        },
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.79296875,
+            "entropy_rank": 0.8781888655175777,
+            "participation_ratio": 0.7934806604602151,
+            "stable_rank": 0.4866017199132362
+          },
+          "adapt_grads": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.1875,
+            "entropy_rank": 0.21037098068941096,
+            "participation_ratio": 0.17676265502812463,
+            "stable_rank": 0.13779448885431686,
+            "top1_energy": 0.4535740182328924,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.0,
+            "energy_rank_90": 0.7635467980295567,
+            "entropy_rank": 0.7604490458149629,
+            "participation_ratio": 0.777231300223999,
+            "stable_rank": 0.7168228487172499
+          },
+          "data_grads": {
+            "threshold_count": 0.9375,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.16571307408287428,
+            "participation_ratio": 0.1291629397703578,
+            "stable_rank": 0.09819863940725843,
+            "top1_energy": 0.6364650302413484,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.0625,
+            "energy_rank_90": 0.8423645320197044,
+            "entropy_rank": 0.8113013264120491,
+            "participation_ratio": 0.8372198010529407,
+            "stable_rank": 0.7981950424984774
+          },
+          "elbo_grads": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.1697561996354062,
+            "participation_ratio": 0.14008953128196058,
+            "stable_rank": 0.11325365736426023,
+            "top1_energy": 0.5518585576356256,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.0,
+            "energy_rank_90": 0.8423645320197044,
+            "entropy_rank": 0.8066973901617882,
+            "participation_ratio": 0.8234493438054189,
+            "stable_rank": 0.7672559452020556
+          },
+          "fisher": {
+            "effective_rank": 1.2477836354010483,
+            "numerical_rank": 16,
+            "stable_rank": 0.002168454573704646,
+            "top1_energy": 0.9584871482599864
+          }
+        },
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.80078125,
+            "entropy_rank": 0.8788538206022142,
+            "participation_ratio": 0.7957183420970105,
+            "stable_rank": 0.49592537957572097
+          },
+          "adapt_grads": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.1875,
+            "entropy_rank": 0.2005761570507577,
+            "participation_ratio": 0.17032729533191965,
+            "stable_rank": 0.1346662765293413,
+            "top1_energy": 0.4641102554460426,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.0,
+            "energy_rank_90": 0.7658536585365854,
+            "entropy_rank": 0.771775291466199,
+            "participation_ratio": 0.7859452442895252,
+            "stable_rank": 0.7284545577309386
+          },
+          "data_grads": {
+            "threshold_count": 0.875,
+            "energy_rank_90": 0.1875,
+            "entropy_rank": 0.16909020267057798,
+            "participation_ratio": 0.12887302509103551,
+            "stable_rank": 0.09527449592372873,
+            "top1_energy": 0.6559992723554674,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.125,
+            "energy_rank_90": 0.7658536585365854,
+            "entropy_rank": 0.8076014478099295,
+            "participation_ratio": 0.8380419072012244,
+            "stable_rank": 0.8078854201709964
+          },
+          "elbo_grads": {
+            "threshold_count": 0.875,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.13521923695138346,
+            "participation_ratio": 0.10361076148121813,
+            "stable_rank": 0.08315054122759812,
+            "top1_energy": 0.751648745483522,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.125,
+            "energy_rank_90": 0.8439024390243902,
+            "entropy_rank": 0.8461413789397563,
+            "participation_ratio": 0.869789652946587,
+            "stable_rank": 0.8323325551542937
+          },
+          "fisher": {
+            "effective_rank": 1.2466505888897859,
+            "numerical_rank": 14,
+            "stable_rank": 0.001933994201513437,
+            "top1_energy": 0.9586285572602217
+          }
+        }
+      ],
+      "intrinsic_dimension": [
+        {
+          "frozen_ber": 0.1905924528837204,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.1787109449505806,
+              "heldout_ber": 0.20166016183793545,
+              "train_gain": 0.011881507933139801,
+              "heldout_gain": -0.01106770895421505,
+              "coefficient_norm": 0.0799650177359581
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.17871094308793545,
+              "heldout_ber": 0.2023112028837204,
+              "train_gain": 0.01188150979578495,
+              "heldout_gain": -0.01171875,
+              "coefficient_norm": 0.11301973462104797
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.1767578162252903,
+              "heldout_ber": 0.20149740390479565,
+              "train_gain": 0.0138346366584301,
+              "heldout_gain": -0.010904951021075249,
+              "coefficient_norm": 0.12349838018417358
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.17757162265479565,
+              "heldout_ber": 0.20133464224636555,
+              "train_gain": 0.013020830228924751,
+              "heldout_gain": -0.01074218936264515,
+              "coefficient_norm": 0.18198400735855103
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.17757162265479565,
+              "heldout_ber": 0.20133464224636555,
+              "train_gain": 0.013020830228924751,
+              "heldout_gain": -0.01074218936264515,
+              "coefficient_norm": 0.18198400735855103
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.17757162265479565,
+              "heldout_ber": 0.20133464224636555,
+              "train_gain": 0.013020830228924751,
+              "heldout_gain": -0.01074218936264515,
+              "coefficient_norm": 0.18198400735855103
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.17757162265479565,
+              "heldout_ber": 0.20133464224636555,
+              "train_gain": 0.013020830228924751,
+              "heldout_gain": -0.01074218936264515,
+              "coefficient_norm": 0.18198400735855103
+            }
+          }
+        },
+        {
+          "frozen_ber": 0.24552409816533327,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.2032877653837204,
+              "heldout_ber": 0.28759766556322575,
+              "train_gain": 0.04223633278161287,
+              "heldout_gain": -0.042073567397892475,
+              "coefficient_norm": 0.07995957881212234
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.2023112028837204,
+              "heldout_ber": 0.2866211012005806,
+              "train_gain": 0.04321289528161287,
+              "heldout_gain": -0.041097003035247326,
+              "coefficient_norm": 0.11299241334199905
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.20247396640479565,
+              "heldout_ber": 0.2864583432674408,
+              "train_gain": 0.043050131760537624,
+              "heldout_gain": -0.040934245102107525,
+              "coefficient_norm": 0.11503303796052933
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.20198568515479565,
+              "heldout_ber": 0.28629557602107525,
+              "train_gain": 0.043538413010537624,
+              "heldout_gain": -0.04077147785574198,
+              "coefficient_norm": 0.16794486343860626
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.20198568515479565,
+              "heldout_ber": 0.28629557602107525,
+              "train_gain": 0.043538413010537624,
+              "heldout_gain": -0.04077147785574198,
+              "coefficient_norm": 0.16794486343860626
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.20198568515479565,
+              "heldout_ber": 0.28629557602107525,
+              "train_gain": 0.043538413010537624,
+              "heldout_gain": -0.04077147785574198,
+              "coefficient_norm": 0.16794486343860626
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.20198568515479565,
+              "heldout_ber": 0.28629557602107525,
+              "train_gain": 0.043538413010537624,
+              "heldout_gain": -0.04077147785574198,
+              "coefficient_norm": 0.16794486343860626
+            }
+          }
+        },
+        {
+          "frozen_ber": 0.20393881015479565,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.24365234933793545,
+              "heldout_ber": 0.16487630642950535,
+              "train_gain": -0.0397135391831398,
+              "heldout_gain": 0.0390625037252903,
+              "coefficient_norm": 0.07978348433971405
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.2446289137005806,
+              "heldout_ber": 0.1645507887005806,
+              "train_gain": -0.04069010354578495,
+              "heldout_gain": 0.03938802145421505,
+              "coefficient_norm": 0.11302930861711502
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.24495443515479565,
+              "heldout_ber": 0.1660156324505806,
+              "train_gain": -0.041015625,
+              "heldout_gain": 0.03792317770421505,
+              "coefficient_norm": 0.14993421733379364
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.24462891183793545,
+              "heldout_ber": 0.1638997420668602,
+              "train_gain": -0.0406901016831398,
+              "heldout_gain": 0.04003906808793545,
+              "coefficient_norm": 0.210409477353096
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.24462891183793545,
+              "heldout_ber": 0.1638997420668602,
+              "train_gain": -0.0406901016831398,
+              "heldout_gain": 0.04003906808793545,
+              "coefficient_norm": 0.210409477353096
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.24462891183793545,
+              "heldout_ber": 0.1638997420668602,
+              "train_gain": -0.0406901016831398,
+              "heldout_gain": 0.04003906808793545,
+              "coefficient_norm": 0.210409477353096
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.24462891183793545,
+              "heldout_ber": 0.1638997420668602,
+              "train_gain": -0.0406901016831398,
+              "heldout_gain": 0.04003906808793545,
+              "coefficient_norm": 0.210409477353096
+            }
+          }
+        }
+      ],
+      "response_spectrum": [
+        {
+          "energy_share": {
+            "1": 0.9062657507073105,
+            "2": 0.9462189808289979,
+            "4": 0.978712685900094,
+            "8": 0.9954614752136989,
+            "16": 0.9994471463009478,
+            "32": 0.999952196232585,
+            "65": 1.0000000000000002
+          },
+          "persistence_early_to_late": {
+            "1": 0.9064439405219757,
+            "2": 0.9454083660255538,
+            "4": 0.979057151831262,
+            "8": 0.9935899652091662,
+            "16": 0.9985693243304726,
+            "32": 0.9994577349191675,
+            "65": 1.0000000000000233
+          },
+          "random_basis_control": {
+            "1": 0.02092454574241979,
+            "2": 0.02233085181935653,
+            "4": 0.04235285613053572,
+            "8": 0.106446837803859,
+            "16": 0.24253812817844347,
+            "32": 0.5159252875404055,
+            "65": 1.0000000000000004
+          },
+          "principal_energy_top1": 0.9062657507073105
+        },
+        {
+          "energy_share": {
+            "1": 0.9151563026975982,
+            "2": 0.9376811187068335,
+            "4": 0.9723241313922826,
+            "8": 0.9946131236210309,
+            "16": 0.9992873102953405,
+            "32": 0.9999468880608889,
+            "65": 1.0
+          },
+          "persistence_early_to_late": {
+            "1": 0.9035606363157598,
+            "2": 0.9209161767860243,
+            "4": 0.9550887929643546,
+            "8": 0.9722920122086325,
+            "16": 0.9802735866856492,
+            "32": 0.9905820700504763,
+            "65": 1.000000000000022
+          },
+          "random_basis_control": {
+            "1": 0.023280199758353815,
+            "2": 0.024352505873277214,
+            "4": 0.04450447092927694,
+            "8": 0.10955830216129775,
+            "16": 0.24753078438218795,
+            "32": 0.5172507350413543,
+            "65": 1.0000000000000002
+          },
+          "principal_energy_top1": 0.9151563026975982
+        },
+        {
+          "energy_share": {
+            "1": 0.9150979316505738,
+            "2": 0.9412928754507417,
+            "4": 0.9726645211656993,
+            "8": 0.9963857245313694,
+            "16": 0.9993508551050623,
+            "32": 0.9999546979104114,
+            "65": 0.9999999999999998
+          },
+          "persistence_early_to_late": {
+            "1": 0.8897023291961681,
+            "2": 0.915593461272606,
+            "4": 0.9394327964875163,
+            "8": 0.9775343410306061,
+            "16": 0.9964793807058202,
+            "32": 0.998659698884843,
+            "65": 1.0000000000000222
+          },
+          "random_basis_control": {
+            "1": 0.023131285479809895,
+            "2": 0.024781745781609618,
+            "4": 0.04600331178440505,
+            "8": 0.11073235535741882,
+            "16": 0.24616292981884633,
+            "32": 0.5147194495117267,
+            "65": 1.0000000000000002
+          },
+          "principal_energy_top1": 0.9150979316505738
+        }
+      ]
+    },
+    "5": {
+      "rank_noise": [
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.798828125,
+            "entropy_rank": 0.8800825903269616,
+            "participation_ratio": 0.7961622739756801,
+            "stable_rank": 0.4869218991331883
+          },
+          "adapt_grads": {
+            "threshold_count": 0.6875,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.14397643313472797,
+            "participation_ratio": 0.1277835115165044,
+            "stable_rank": 0.10825940763206819,
+            "top1_energy": 0.5773170329216404,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.3125,
+            "energy_rank_90": 0.843520782396088,
+            "entropy_rank": 0.8364057706433677,
+            "participation_ratio": 0.8395006700350037,
+            "stable_rank": 0.777665765649912
+          },
+          "data_grads": {
+            "threshold_count": 0.6875,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.10315559171786697,
+            "participation_ratio": 0.08050007019664875,
+            "stable_rank": 0.07130667563745327,
+            "top1_energy": 0.8764957760444573,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.3125,
+            "energy_rank_90": 0.843520782396088,
+            "entropy_rank": 0.8827887372711879,
+            "participation_ratio": 0.8988898710376376,
+            "stable_rank": 0.8535562360937299
+          },
+          "elbo_grads": {
+            "threshold_count": 0.75,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.13813609128157245,
+            "participation_ratio": 0.10657749724763708,
+            "stable_rank": 0.08504536958373876,
+            "top1_energy": 0.7349018565726877,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.25,
+            "energy_rank_90": 0.843520782396088,
+            "entropy_rank": 0.8430418999309449,
+            "participation_ratio": 0.8661359615604034,
+            "stable_rank": 0.8253408406252926
+          },
+          "fisher": {
+            "effective_rank": 1.2010844150879356,
+            "numerical_rank": 12,
+            "stable_rank": 0.0005731434776232793,
+            "top1_energy": 0.9648212239983127
+          }
+        },
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.79296875,
+            "entropy_rank": 0.8781888655175777,
+            "participation_ratio": 0.7934806604602151,
+            "stable_rank": 0.4866017199132362
+          },
+          "adapt_grads": {
+            "threshold_count": 0.5625,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.13176845342213667,
+            "participation_ratio": 0.10883358151917541,
+            "stable_rank": 0.0871746193208906,
+            "top1_energy": 0.7169517972878885,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.4375,
+            "energy_rank_90": 0.8423645320197044,
+            "entropy_rank": 0.8499543109733276,
+            "participation_ratio": 0.8628402846566513,
+            "stable_rank": 0.8208501619426369
+          },
+          "data_grads": {
+            "threshold_count": 0.6875,
+            "energy_rank_90": 0.1875,
+            "entropy_rank": 0.1796212405648603,
+            "participation_ratio": 0.15008570809179672,
+            "stable_rank": 0.11064047534563924,
+            "top1_energy": 0.5648927284951633,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.3125,
+            "energy_rank_90": 0.7635467980295567,
+            "entropy_rank": 0.7954639968487905,
+            "participation_ratio": 0.810851460444231,
+            "stable_rank": 0.7726262139694717
+          },
+          "elbo_grads": {
+            "threshold_count": 0.625,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.1433415066346423,
+            "participation_ratio": 0.11105677123313329,
+            "stable_rank": 0.08649372718535846,
+            "top1_energy": 0.72259575386387,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.375,
+            "energy_rank_90": 0.8423645320197044,
+            "entropy_rank": 0.8367759917450546,
+            "participation_ratio": 0.8600384649970916,
+            "stable_rank": 0.8222494421088755
+          },
+          "fisher": {
+            "effective_rank": 1.2279396920037795,
+            "numerical_rank": 12,
+            "stable_rank": 0.0006512225820468023,
+            "top1_energy": 0.9600047525539289
+          }
+        },
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.80078125,
+            "entropy_rank": 0.8788538206022142,
+            "participation_ratio": 0.7957183420970105,
+            "stable_rank": 0.49592537957572097
+          },
+          "adapt_grads": {
+            "threshold_count": 0.5625,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.11420646843528857,
+            "participation_ratio": 0.09398003104660037,
+            "stable_rank": 0.07866830940617708,
+            "top1_energy": 0.7944749349741645,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.4375,
+            "energy_rank_90": 0.8439024390243902,
+            "entropy_rank": 0.8700506662677632,
+            "participation_ratio": 0.8818928431397869,
+            "stable_rank": 0.841370672592961
+          },
+          "data_grads": {
+            "threshold_count": 0.625,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.13111494417992456,
+            "participation_ratio": 0.10908896445887191,
+            "stable_rank": 0.08769616174435278,
+            "top1_energy": 0.7126879758112641,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.375,
+            "energy_rank_90": 0.8439024390243902,
+            "entropy_rank": 0.8508114306312271,
+            "participation_ratio": 0.862905052343795,
+            "stable_rank": 0.8231666186969913
+          },
+          "elbo_grads": {
+            "threshold_count": 0.625,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.11438245874821647,
+            "participation_ratio": 0.0886338468257926,
+            "stable_rank": 0.0753412960054259,
+            "top1_energy": 0.8295583340575784,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.375,
+            "energy_rank_90": 0.8439024390243902,
+            "entropy_rank": 0.8698504164551067,
+            "participation_ratio": 0.8886115323266147,
+            "stable_rank": 0.8480793701869369
+          },
+          "fisher": {
+            "effective_rank": 1.2144917431253135,
+            "numerical_rank": 11,
+            "stable_rank": 0.0005096013156267313,
+            "top1_energy": 0.9610572238057845
+          }
+        }
+      ],
+      "intrinsic_dimension": [
+        {
+          "frozen_ber": 0.04630534001626074,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.04557291744276881,
+              "heldout_ber": 0.04654948180541396,
+              "train_gain": 0.000732422573491931,
+              "heldout_gain": -0.00024414178915321827,
+              "coefficient_norm": 0.07995281368494034
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.04557291744276881,
+              "heldout_ber": 0.04671224160119891,
+              "train_gain": 0.000732422573491931,
+              "heldout_gain": -0.0004069015849381685,
+              "coefficient_norm": 0.0809476375579834
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.04508463619276881,
+              "heldout_ber": 0.04638672061264515,
+              "train_gain": 0.001220703823491931,
+              "heldout_gain": -8.138059638440609e-05,
+              "coefficient_norm": 0.11261608451604843
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.04524739691987634,
+              "heldout_ber": 0.046712241135537624,
+              "train_gain": 0.001057943096384406,
+              "heldout_gain": -0.0004069011192768812,
+              "coefficient_norm": 0.14911514520645142
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.04524739691987634,
+              "heldout_ber": 0.046712241135537624,
+              "train_gain": 0.001057943096384406,
+              "heldout_gain": -0.0004069011192768812,
+              "coefficient_norm": 0.14911514520645142
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.04524739691987634,
+              "heldout_ber": 0.046712241135537624,
+              "train_gain": 0.001057943096384406,
+              "heldout_gain": -0.0004069011192768812,
+              "coefficient_norm": 0.14911514520645142
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.04524739691987634,
+              "heldout_ber": 0.046712241135537624,
+              "train_gain": 0.001057943096384406,
+              "heldout_gain": -0.0004069011192768812,
+              "coefficient_norm": 0.14911514520645142
+            }
+          }
+        },
+        {
+          "frozen_ber": 0.06152344006113708,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.05989583535119891,
+              "heldout_ber": 0.06347656343132257,
+              "train_gain": 0.0016276047099381685,
+              "heldout_gain": -0.0019531233701854944,
+              "coefficient_norm": 0.07989286631345749
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.05908203357830644,
+              "heldout_ber": 0.06396484607830644,
+              "train_gain": 0.0024414064828306437,
+              "heldout_gain": -0.0024414060171693563,
+              "coefficient_norm": 0.08756206184625626
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.058919273782521486,
+              "heldout_ber": 0.06396484607830644,
+              "train_gain": 0.002604166278615594,
+              "heldout_gain": -0.0024414060171693563,
+              "coefficient_norm": 0.12843403220176697
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.058919273782521486,
+              "heldout_ber": 0.06363932462409139,
+              "train_gain": 0.002604166278615594,
+              "heldout_gain": -0.0021158845629543066,
+              "coefficient_norm": 0.17699572443962097
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.058919273782521486,
+              "heldout_ber": 0.06363932462409139,
+              "train_gain": 0.002604166278615594,
+              "heldout_gain": -0.0021158845629543066,
+              "coefficient_norm": 0.17699572443962097
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.058919273782521486,
+              "heldout_ber": 0.06363932462409139,
+              "train_gain": 0.002604166278615594,
+              "heldout_gain": -0.0021158845629543066,
+              "coefficient_norm": 0.17699572443962097
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.058919273782521486,
+              "heldout_ber": 0.06363932462409139,
+              "train_gain": 0.002604166278615594,
+              "heldout_gain": -0.0021158845629543066,
+              "coefficient_norm": 0.17699572443962097
+            }
+          }
+        },
+        {
+          "frozen_ber": 0.04988606949336827,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.053873700089752674,
+              "heldout_ber": 0.04492187639698386,
+              "train_gain": -0.003987630596384406,
+              "heldout_gain": 0.004964193096384406,
+              "coefficient_norm": 0.07983793318271637
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.05436198180541396,
+              "heldout_ber": 0.04606119962409139,
+              "train_gain": -0.004475912312045693,
+              "heldout_gain": 0.0038248698692768812,
+              "coefficient_norm": 0.10899592936038971
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.054361981339752674,
+              "heldout_ber": 0.0460611991584301,
+              "train_gain": -0.004475911846384406,
+              "heldout_gain": 0.0038248703349381685,
+              "coefficient_norm": 0.15899060666561127
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.054361981339752674,
+              "heldout_ber": 0.04541015764698386,
+              "train_gain": -0.004475911846384406,
+              "heldout_gain": 0.004475911846384406,
+              "coefficient_norm": 0.20297417044639587
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.054361981339752674,
+              "heldout_ber": 0.04541015764698386,
+              "train_gain": -0.004475911846384406,
+              "heldout_gain": 0.004475911846384406,
+              "coefficient_norm": 0.20297417044639587
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.054361981339752674,
+              "heldout_ber": 0.04541015764698386,
+              "train_gain": -0.004475911846384406,
+              "heldout_gain": 0.004475911846384406,
+              "coefficient_norm": 0.20297417044639587
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.054361981339752674,
+              "heldout_ber": 0.04541015764698386,
+              "train_gain": -0.004475911846384406,
+              "heldout_gain": 0.004475911846384406,
+              "coefficient_norm": 0.20297417044639587
+            }
+          }
+        }
+      ],
+      "response_spectrum": [
+        {
+          "energy_share": {
+            "1": 0.9281466476861906,
+            "2": 0.9741347709350768,
+            "4": 0.9887161355978611,
+            "8": 0.9981574657630623,
+            "16": 0.9998234969889715,
+            "32": 0.99999173369036,
+            "65": 0.9999999999999999
+          },
+          "persistence_early_to_late": {
+            "1": 0.9239969321558715,
+            "2": 0.9700934235454218,
+            "4": 0.9846446657994412,
+            "8": 0.9942677680006634,
+            "16": 0.9965059711570318,
+            "32": 0.9985972051506614,
+            "65": 1.0000000000000238
+          },
+          "random_basis_control": {
+            "1": 0.01956171073252395,
+            "2": 0.020284681876110364,
+            "4": 0.03978729225817692,
+            "8": 0.10369395143759222,
+            "16": 0.2372344115253193,
+            "32": 0.5093795998043877,
+            "65": 1.0000000000000004
+          },
+          "principal_energy_top1": 0.9281466476861906
+        },
+        {
+          "energy_share": {
+            "1": 0.9384744640590265,
+            "2": 0.9787744185380558,
+            "4": 0.9913650818492452,
+            "8": 0.9993759189373235,
+            "16": 0.9999386644895132,
+            "32": 0.9999971945052488,
+            "65": 1.0
+          },
+          "persistence_early_to_late": {
+            "1": 0.9357375244512602,
+            "2": 0.9762540248631778,
+            "4": 0.9864252721179472,
+            "8": 0.9980269251697761,
+            "16": 0.9989322100342801,
+            "32": 0.9995268844870159,
+            "65": 1.0000000000000218
+          },
+          "random_basis_control": {
+            "1": 0.01956591139338514,
+            "2": 0.02075231836085143,
+            "4": 0.040837623316475065,
+            "8": 0.10536951054172099,
+            "16": 0.24025279687317339,
+            "32": 0.5092252671624815,
+            "65": 1.0000000000000007
+          },
+          "principal_energy_top1": 0.9384744640590265
+        },
+        {
+          "energy_share": {
+            "1": 0.9394121833647494,
+            "2": 0.9794879995875705,
+            "4": 0.9926030192697037,
+            "8": 0.9994276457395237,
+            "16": 0.9999479077131096,
+            "32": 0.9999973693298733,
+            "65": 1.0000000000000002
+          },
+          "persistence_early_to_late": {
+            "1": 0.9339127530982307,
+            "2": 0.9740091399482838,
+            "4": 0.9844468880603761,
+            "8": 0.9970016030042962,
+            "16": 0.998182328856883,
+            "32": 0.9992157182742104,
+            "65": 1.0000000000000233
+          },
+          "random_basis_control": {
+            "1": 0.019468543809725198,
+            "2": 0.020519047467141262,
+            "4": 0.04104982820150181,
+            "8": 0.10480397612213012,
+            "16": 0.2409917770895502,
+            "32": 0.5052961639019615,
+            "65": 1.0000000000000004
+          },
+          "principal_energy_top1": 0.9394121833647494
+        }
+      ]
+    },
+    "10": {
+      "rank_noise": [
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.798828125,
+            "entropy_rank": 0.8800825903269616,
+            "participation_ratio": 0.7961622739756801,
+            "stable_rank": 0.4869218991331883
+          },
+          "adapt_grads": {
+            "threshold_count": 0.4375,
+            "energy_rank_90": 0.0625,
+            "entropy_rank": 0.07469144891812182,
+            "participation_ratio": 0.06661550337497438,
+            "stable_rank": 0.06453836997411244,
+            "top1_energy": 0.9684161534459258,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.5625,
+            "energy_rank_90": 0.921760391198044,
+            "entropy_rank": 0.9151313186522949,
+            "participation_ratio": 0.9163292389598842,
+            "stable_rank": 0.8674564235270528
+          },
+          "data_grads": {
+            "threshold_count": 0.5,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.11899897367350515,
+            "participation_ratio": 0.08805123960881846,
+            "stable_rank": 0.0747008540321463,
+            "top1_energy": 0.8366704880389204,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.5,
+            "energy_rank_90": 0.843520782396088,
+            "entropy_rank": 0.8647865836894972,
+            "participation_ratio": 0.8894054108226834,
+            "stable_rank": 0.8465855527033643
+          },
+          "elbo_grads": {
+            "threshold_count": 0.625,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.12164909143008809,
+            "participation_ratio": 0.0945667820971706,
+            "stable_rank": 0.07848456734808623,
+            "top1_energy": 0.7963348988445944,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.375,
+            "energy_rank_90": 0.843520782396088,
+            "entropy_rank": 0.8617753688493099,
+            "participation_ratio": 0.8812217242787125,
+            "stable_rank": 0.838814874648679
+          },
+          "fisher": {
+            "effective_rank": 1.122367718574066,
+            "numerical_rank": 9,
+            "stable_rank": 4.490914826209729e-05,
+            "top1_energy": 0.9794898442139084
+          }
+        },
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.79296875,
+            "entropy_rank": 0.8781888655175777,
+            "participation_ratio": 0.7934806604602151,
+            "stable_rank": 0.4866017199132362
+          },
+          "adapt_grads": {
+            "threshold_count": 0.375,
+            "energy_rank_90": 0.0625,
+            "entropy_rank": 0.06896416029454347,
+            "participation_ratio": 0.06460483611027676,
+            "stable_rank": 0.06354888499829278,
+            "top1_energy": 0.9834948323905139,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.625,
+            "energy_rank_90": 0.9211822660098522,
+            "entropy_rank": 0.9214700128839619,
+            "participation_ratio": 0.9185804527701957,
+            "stable_rank": 0.8694026708133628
+          },
+          "data_grads": {
+            "threshold_count": 0.625,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.12793915882341972,
+            "participation_ratio": 0.10350954000893686,
+            "stable_rank": 0.08395146751148566,
+            "top1_energy": 0.7444777542625943,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.375,
+            "energy_rank_90": 0.8423645320197044,
+            "entropy_rank": 0.8543147563730311,
+            "participation_ratio": 0.8695500153098856,
+            "stable_rank": 0.827473960580216
+          },
+          "elbo_grads": {
+            "threshold_count": 0.625,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.11580143428932856,
+            "participation_ratio": 0.08865976915106726,
+            "stable_rank": 0.07530405621551314,
+            "top1_energy": 0.829968571960199,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.375,
+            "energy_rank_90": 0.8423645320197044,
+            "entropy_rank": 0.868136070911035,
+            "participation_ratio": 0.8882647384251999,
+            "stable_rank": 0.8452449855110659
+          },
+          "fisher": {
+            "effective_rank": 1.1946794400143108,
+            "numerical_rank": 7,
+            "stable_rank": 1.0982029534016664e-05,
+            "top1_energy": 0.9586291764365218
+          }
+        },
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.80078125,
+            "entropy_rank": 0.8788538206022142,
+            "participation_ratio": 0.7957183420970105,
+            "stable_rank": 0.49592537957572097
+          },
+          "adapt_grads": {
+            "threshold_count": 0.375,
+            "energy_rank_90": 0.0625,
+            "entropy_rank": 0.08411922886272685,
+            "participation_ratio": 0.07224325401788331,
+            "stable_rank": 0.06735069213372367,
+            "top1_energy": 0.9279785852223656,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.625,
+            "energy_rank_90": 0.9219512195121952,
+            "entropy_rank": 0.9042853010468952,
+            "participation_ratio": 0.9092100179223018,
+            "stable_rank": 0.8641918826752844
+          },
+          "data_grads": {
+            "threshold_count": 0.625,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.12352553180026553,
+            "participation_ratio": 0.09676980147996245,
+            "stable_rank": 0.07968841417492595,
+            "top1_energy": 0.784304727947086,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.375,
+            "energy_rank_90": 0.8439024390243902,
+            "entropy_rank": 0.8594470105214739,
+            "participation_ratio": 0.8783868658538919,
+            "stable_rank": 0.8393137002927703
+          },
+          "elbo_grads": {
+            "threshold_count": 0.625,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.13632901829765717,
+            "participation_ratio": 0.11164727192686988,
+            "stable_rank": 0.08902690897617425,
+            "top1_energy": 0.7020349321206525,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.375,
+            "energy_rank_90": 0.8439024390243902,
+            "entropy_rank": 0.8448786190583539,
+            "participation_ratio": 0.8596899606051078,
+            "stable_rank": 0.820483256871549
+          },
+          "fisher": {
+            "effective_rank": 1.14388589429591,
+            "numerical_rank": 7,
+            "stable_rank": 1.9287237396033912e-05,
+            "top1_energy": 0.9716380468458091
+          }
+        }
+      ],
+      "intrinsic_dimension": [
+        {
+          "frozen_ber": 0.004638672042347025,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.004720052282209508,
+              "heldout_ber": 0.004394531308207661,
+              "train_gain": -8.1380239862483e-05,
+              "heldout_gain": 0.0002441407341393642,
+              "coefficient_norm": 0.05620046332478523
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.004720052282209508,
+              "heldout_ber": 0.004394531308207661,
+              "train_gain": -8.1380239862483e-05,
+              "heldout_gain": 0.0002441407341393642,
+              "coefficient_norm": 0.09985806792974472
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.004720052282209508,
+              "heldout_ber": 0.004394531308207661,
+              "train_gain": -8.1380239862483e-05,
+              "heldout_gain": 0.0002441407341393642,
+              "coefficient_norm": 0.15183962881565094
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.004720052282209508,
+              "heldout_ber": 0.004394531308207661,
+              "train_gain": -8.1380239862483e-05,
+              "heldout_gain": 0.0002441407341393642,
+              "coefficient_norm": 0.21923018991947174
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.004720052282209508,
+              "heldout_ber": 0.004394531308207661,
+              "train_gain": -8.1380239862483e-05,
+              "heldout_gain": 0.0002441407341393642,
+              "coefficient_norm": 0.21923018991947174
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.004720052282209508,
+              "heldout_ber": 0.004394531308207661,
+              "train_gain": -8.1380239862483e-05,
+              "heldout_gain": 0.0002441407341393642,
+              "coefficient_norm": 0.21923018991947174
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.004720052282209508,
+              "heldout_ber": 0.004394531308207661,
+              "train_gain": -8.1380239862483e-05,
+              "heldout_gain": 0.0002441407341393642,
+              "coefficient_norm": 0.21923018991947174
+            }
+          }
+        },
+        {
+          "frozen_ber": 0.007812500145519152,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.008300781337311491,
+              "heldout_ber": 0.007161458575865254,
+              "train_gain": -0.0004882811917923391,
+              "heldout_gain": 0.0006510415696538985,
+              "coefficient_norm": 0.07976862043142319
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.008300781337311491,
+              "heldout_ber": 0.007161458575865254,
+              "train_gain": -0.0004882811917923391,
+              "heldout_gain": 0.0006510415696538985,
+              "coefficient_norm": 0.11299595236778259
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.008300781337311491,
+              "heldout_ber": 0.007161458575865254,
+              "train_gain": -0.0004882811917923391,
+              "heldout_gain": 0.0006510415696538985,
+              "coefficient_norm": 0.14098501205444336
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.008300781337311491,
+              "heldout_ber": 0.007161458575865254,
+              "train_gain": -0.0004882811917923391,
+              "heldout_gain": 0.0006510415696538985,
+              "coefficient_norm": 0.21352656185626984
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.008300781337311491,
+              "heldout_ber": 0.007161458575865254,
+              "train_gain": -0.0004882811917923391,
+              "heldout_gain": 0.0006510415696538985,
+              "coefficient_norm": 0.21352656185626984
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.008300781337311491,
+              "heldout_ber": 0.007161458575865254,
+              "train_gain": -0.0004882811917923391,
+              "heldout_gain": 0.0006510415696538985,
+              "coefficient_norm": 0.21352656185626984
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.008300781337311491,
+              "heldout_ber": 0.007161458575865254,
+              "train_gain": -0.0004882811917923391,
+              "heldout_gain": 0.0006510415696538985,
+              "coefficient_norm": 0.21352656185626984
+            }
+          }
+        },
+        {
+          "frozen_ber": 0.005696614694898017,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.006510416918899864,
+              "heldout_ber": 0.00472005209303461,
+              "train_gain": -0.0008138022240018472,
+              "heldout_gain": 0.0009765626018634066,
+              "coefficient_norm": 0.07620371878147125
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.006510416918899864,
+              "heldout_ber": 0.00472005209303461,
+              "train_gain": -0.0008138022240018472,
+              "heldout_gain": 0.0009765626018634066,
+              "coefficient_norm": 0.11228562146425247
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.006510416918899864,
+              "heldout_ber": 0.00472005209303461,
+              "train_gain": -0.0008138022240018472,
+              "heldout_gain": 0.0009765626018634066,
+              "coefficient_norm": 0.1542467325925827
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.006510416918899864,
+              "heldout_ber": 0.00472005209303461,
+              "train_gain": -0.0008138022240018472,
+              "heldout_gain": 0.0009765626018634066,
+              "coefficient_norm": 0.22368256747722626
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.006510416918899864,
+              "heldout_ber": 0.00472005209303461,
+              "train_gain": -0.0008138022240018472,
+              "heldout_gain": 0.0009765626018634066,
+              "coefficient_norm": 0.22368256747722626
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.006510416918899864,
+              "heldout_ber": 0.00472005209303461,
+              "train_gain": -0.0008138022240018472,
+              "heldout_gain": 0.0009765626018634066,
+              "coefficient_norm": 0.22368256747722626
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.006510416918899864,
+              "heldout_ber": 0.00472005209303461,
+              "train_gain": -0.0008138022240018472,
+              "heldout_gain": 0.0009765626018634066,
+              "coefficient_norm": 0.22368256747722626
+            }
+          }
+        }
+      ],
+      "response_spectrum": [
+        {
+          "energy_share": {
+            "1": 0.9393164754997949,
+            "2": 0.9888912123086928,
+            "4": 0.996140914660552,
+            "8": 0.9997555403816187,
+            "16": 0.9999795979278323,
+            "32": 0.9999993301515594,
+            "65": 1.0
+          },
+          "persistence_early_to_late": {
+            "1": 0.9372588876306129,
+            "2": 0.9875837332628078,
+            "4": 0.9956073967378103,
+            "8": 0.9996610053295121,
+            "16": 0.9999395729522175,
+            "32": 0.999989129126522,
+            "65": 1.0000000000000318
+          },
+          "random_basis_control": {
+            "1": 0.019732799955828644,
+            "2": 0.020636171631103938,
+            "4": 0.04092652819383645,
+            "8": 0.10568481043014841,
+            "16": 0.23885937034302282,
+            "32": 0.5056628688444753,
+            "65": 1.0000000000000004
+          },
+          "principal_energy_top1": 0.9393164754997949
+        },
+        {
+          "energy_share": {
+            "1": 0.9442901580724822,
+            "2": 0.9884849551273889,
+            "4": 0.99575281226482,
+            "8": 0.9998008699044443,
+            "16": 0.9999855959699137,
+            "32": 0.9999995601621012,
+            "65": 1.0000000000000002
+          },
+          "persistence_early_to_late": {
+            "1": 0.9460253267081653,
+            "2": 0.9893934268297269,
+            "4": 0.9938402716147829,
+            "8": 0.9996598726974246,
+            "16": 0.999969037272915,
+            "32": 0.9999941338305063,
+            "65": 1.000000000000016
+          },
+          "random_basis_control": {
+            "1": 0.020729746413146764,
+            "2": 0.021854210535844864,
+            "4": 0.044099815171595606,
+            "8": 0.10966058532728971,
+            "16": 0.24292554417455103,
+            "32": 0.49736310360563,
+            "65": 1.0000000000000004
+          },
+          "principal_energy_top1": 0.9442901580724822
+        },
+        {
+          "energy_share": {
+            "1": 0.9455318675828803,
+            "2": 0.9896901546581569,
+            "4": 0.9957850440353816,
+            "8": 0.9998160347342895,
+            "16": 0.9999855992301758,
+            "32": 0.9999995073663431,
+            "65": 1.0000000000000002
+          },
+          "persistence_early_to_late": {
+            "1": 0.9456873803481122,
+            "2": 0.9897534377595958,
+            "4": 0.9956988453571969,
+            "8": 0.9997939039006314,
+            "16": 0.9999721463244038,
+            "32": 0.9999937479564255,
+            "65": 1.0000000000000273
+          },
+          "random_basis_control": {
+            "1": 0.020082517449947292,
+            "2": 0.020822187259883534,
+            "4": 0.04166738154740744,
+            "8": 0.10613907931847687,
+            "16": 0.2396062662515076,
+            "32": 0.5020243923505736,
+            "65": 1.0000000000000007
+          },
+          "principal_energy_top1": 0.9455318675828803
+        }
+      ]
+    },
+    "15": {
+      "rank_noise": [
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.798828125,
+            "entropy_rank": 0.8800825903269616,
+            "participation_ratio": 0.7961622739756801,
+            "stable_rank": 0.4869218991331883
+          },
+          "adapt_grads": {
+            "threshold_count": 0.0625,
+            "energy_rank_90": 0.0625,
+            "entropy_rank": 0.0625600852315017,
+            "participation_ratio": 0.06251167985852224,
+            "stable_rank": 0.06250583992891777,
+            "top1_energy": 0.9999065698673211,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.9375,
+            "energy_rank_90": 0.921760391198044,
+            "entropy_rank": 0.9289156655078703,
+            "participation_ratio": 0.9214837453345199,
+            "stable_rank": 0.8716306659441898
+          },
+          "data_grads": {
+            "threshold_count": 0.4375,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.1155420332520695,
+            "participation_ratio": 0.09633933838888512,
+            "stable_rank": 0.08011352171347817,
+            "top1_energy": 0.7801429604296761,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.5625,
+            "energy_rank_90": 0.843520782396088,
+            "entropy_rank": 0.8687145564268642,
+            "participation_ratio": 0.8789953486394058,
+            "stable_rank": 0.835469462646689
+          },
+          "elbo_grads": {
+            "threshold_count": 0.3125,
+            "energy_rank_90": 0.0625,
+            "entropy_rank": 0.0685350474710892,
+            "participation_ratio": 0.0645694684976206,
+            "stable_rank": 0.06353264139835313,
+            "top1_energy": 0.983746285757609,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.6875,
+            "energy_rank_90": 0.921760391198044,
+            "entropy_rank": 0.922126572864454,
+            "participation_ratio": 0.9188991106358388,
+            "stable_rank": 0.8695219058509115
+          },
+          "fisher": {
+            "effective_rank": 1.0244049469543615,
+            "numerical_rank": 6,
+            "stable_rank": 2.569184982280904e-13,
+            "top1_energy": 0.9965837218154139
+          }
+        },
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.79296875,
+            "entropy_rank": 0.8781888655175777,
+            "participation_ratio": 0.7934806604602151,
+            "stable_rank": 0.4866017199132362
+          },
+          "adapt_grads": {
+            "threshold_count": 0.125,
+            "energy_rank_90": 0.0625,
+            "entropy_rank": 0.06273157538346154,
+            "participation_ratio": 0.06255231363755141,
+            "stable_rank": 0.06252615671114006,
+            "top1_energy": 0.9995816676969144,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.875,
+            "energy_rank_90": 0.9211822660098522,
+            "entropy_rank": 0.9285671023094907,
+            "participation_ratio": 0.9211671855981073,
+            "stable_rank": 0.8715044477806433
+          },
+          "data_grads": {
+            "threshold_count": 0.4375,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.10692219691204927,
+            "participation_ratio": 0.08810214993792251,
+            "stable_rank": 0.07549641788741657,
+            "top1_energy": 0.8278538472275947,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.5625,
+            "energy_rank_90": 0.8423645320197044,
+            "entropy_rank": 0.8782469226035647,
+            "participation_ratio": 0.8889674892809314,
+            "stable_rank": 0.8448496690458102
+          },
+          "elbo_grads": {
+            "threshold_count": 0.3125,
+            "energy_rank_90": 0.0625,
+            "entropy_rank": 0.07802239991140313,
+            "participation_ratio": 0.0693154314822868,
+            "stable_rank": 0.06590038794724257,
+            "top1_energy": 0.948401093632942,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.6875,
+            "energy_rank_90": 0.9211822660098522,
+            "entropy_rank": 0.9111553300491699,
+            "participation_ratio": 0.9126438299805768,
+            "stable_rank": 0.8645701705308544
+          },
+          "fisher": {
+            "effective_rank": 1.2159787440424639,
+            "numerical_rank": 9,
+            "stable_rank": 9.671481197367834e-15,
+            "top1_energy": 0.9541340867762322
+          }
+        },
+        {
+          "gaussian_baseline": {
+            "threshold_count": 1.0,
+            "energy_rank_90": 0.80078125,
+            "entropy_rank": 0.8788538206022142,
+            "participation_ratio": 0.7957183420970105,
+            "stable_rank": 0.49592537957572097
+          },
+          "adapt_grads": {
+            "threshold_count": 0.125,
+            "energy_rank_90": 0.0625,
+            "entropy_rank": 0.06307364339388695,
+            "participation_ratio": 0.06264769787323568,
+            "stable_rank": 0.06257384903972041,
+            "top1_energy": 0.9988198098590111,
+            "maximum_rank": 16
+          },
+          "adapt_grads_gap": {
+            "threshold_count": 0.875,
+            "energy_rank_90": 0.9219512195121952,
+            "entropy_rank": 0.9282319290019503,
+            "participation_ratio": 0.9212690036676345,
+            "stable_rank": 0.8738240638273964
+          },
+          "data_grads": {
+            "threshold_count": 0.5625,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.12359865013381817,
+            "participation_ratio": 0.10581220193890081,
+            "stable_rank": 0.08625571168597021,
+            "top1_energy": 0.724589697057312,
+            "maximum_rank": 16
+          },
+          "data_grads_gap": {
+            "threshold_count": 0.4375,
+            "energy_rank_90": 0.8439024390243902,
+            "entropy_rank": 0.859363813143436,
+            "participation_ratio": 0.8670230452900624,
+            "stable_rank": 0.82607118885554
+          },
+          "elbo_grads": {
+            "threshold_count": 0.375,
+            "energy_rank_90": 0.125,
+            "entropy_rank": 0.09448156968524361,
+            "participation_ratio": 0.07868564517366042,
+            "stable_rank": 0.07055970030609707,
+            "top1_energy": 0.8857747372631537,
+            "maximum_rank": 16
+          },
+          "elbo_grads_gap": {
+            "threshold_count": 0.625,
+            "energy_rank_90": 0.8439024390243902,
+            "entropy_rank": 0.8924945565799528,
+            "participation_ratio": 0.9011136968813679,
+            "stable_rank": 0.8577211346463797
+          },
+          "fisher": {
+            "effective_rank": 1.2028055373403002,
+            "numerical_rank": 8,
+            "stable_rank": 9.617534633271641e-15,
+            "top1_energy": 0.9574521275497688
+          }
+        }
+      ],
+      "intrinsic_dimension": [
+        {
+          "frozen_ber": 0.0005696614753105678,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.0004882812645519152,
+              "heldout_ber": 0.0006510416860692203,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.0799165889620781
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.0004882812645519152,
+              "heldout_ber": 0.0006510416860692203,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.1130368709564209
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.0004882812645519152,
+              "heldout_ber": 0.0006510416860692203,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.15997649729251862
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.0004882812645519152,
+              "heldout_ber": 0.0006510416860692203,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.199764683842659
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.0004882812645519152,
+              "heldout_ber": 0.0006510416860692203,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.199764683842659
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.0004882812645519152,
+              "heldout_ber": 0.0006510416860692203,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.199764683842659
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.0004882812645519152,
+              "heldout_ber": 0.0006510416860692203,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.199764683842659
+            }
+          }
+        },
+        {
+          "frozen_ber": 0.0007324218968278728,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.0006510416860692203,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.07995135337114334
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.0006510416860692203,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.11313566565513611
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.0006510416860692203,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.15987205505371094
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.0006510416860692203,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.21934612095355988
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.0006510416860692203,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.21934612095355988
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.0006510416860692203,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.21934612095355988
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.0006510416860692203,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": 8.138021075865254e-05,
+              "heldout_gain": -8.138021075865254e-05,
+              "coefficient_norm": 0.21934612095355988
+            }
+          }
+        },
+        {
+          "frozen_ber": 0.001057942739862483,
+          "ranks": {
+            "1": {
+              "basis_rank": 1,
+              "train_ber": 0.0013020833721384406,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": -0.0002441406322759576,
+              "heldout_gain": 0.0002441406322759576,
+              "coefficient_norm": 0.07991959154605865
+            },
+            "2": {
+              "basis_rank": 2,
+              "train_ber": 0.0013020833721384406,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": -0.0002441406322759576,
+              "heldout_gain": 0.0002441406322759576,
+              "coefficient_norm": 0.11313578486442566
+            },
+            "4": {
+              "basis_rank": 4,
+              "train_ber": 0.0013020833721384406,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": -0.0002441406322759576,
+              "heldout_gain": 0.0002441406322759576,
+              "coefficient_norm": 0.16006700694561005
+            },
+            "8": {
+              "basis_rank": 8,
+              "train_ber": 0.0013020833721384406,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": -0.0002441406322759576,
+              "heldout_gain": 0.0002441406322759576,
+              "coefficient_norm": 0.22367136180400848
+            },
+            "16": {
+              "basis_rank": 8,
+              "train_ber": 0.0013020833721384406,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": -0.0002441406322759576,
+              "heldout_gain": 0.0002441406322759576,
+              "coefficient_norm": 0.22367136180400848
+            },
+            "32": {
+              "basis_rank": 8,
+              "train_ber": 0.0013020833721384406,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": -0.0002441406322759576,
+              "heldout_gain": 0.0002441406322759576,
+              "coefficient_norm": 0.22367136180400848
+            },
+            "65": {
+              "basis_rank": 8,
+              "train_ber": 0.0013020833721384406,
+              "heldout_ber": 0.0008138021075865254,
+              "train_gain": -0.0002441406322759576,
+              "heldout_gain": 0.0002441406322759576,
+              "coefficient_norm": 0.22367136180400848
+            }
+          }
+        }
+      ],
+      "response_spectrum": [
+        {
+          "energy_share": {
+            "1": 0.940918470061148,
+            "2": 0.9907468125911792,
+            "4": 0.998007146568302,
+            "8": 0.9998194138307477,
+            "16": 0.9999897077279497,
+            "32": 0.9999997033052073,
+            "65": 0.9999999999999998
+          },
+          "persistence_early_to_late": {
+            "1": 0.9377318999687958,
+            "2": 0.988398290991488,
+            "4": 0.9976930375062072,
+            "8": 0.9997317831382442,
+            "16": 0.9999462916198615,
+            "32": 0.9999876558262062,
+            "65": 1.0000000000000298
+          },
+          "random_basis_control": {
+            "1": 0.019327838239173244,
+            "2": 0.019981104811298535,
+            "4": 0.039295789312022364,
+            "8": 0.10383082847756583,
+            "16": 0.23670252600094913,
+            "32": 0.5090118336404266,
+            "65": 1.0000000000000007
+          },
+          "principal_energy_top1": 0.940918470061148
+        },
+        {
+          "energy_share": {
+            "1": 0.9473426852821285,
+            "2": 0.9914680324281904,
+            "4": 0.9978169177367078,
+            "8": 0.9998808662599373,
+            "16": 0.9999914147273216,
+            "32": 0.99999976657312,
+            "65": 0.9999999999999999
+          },
+          "persistence_early_to_late": {
+            "1": 0.9499304183053728,
+            "2": 0.9936634476685821,
+            "4": 0.9978390666184057,
+            "8": 0.9998369331913621,
+            "16": 0.9999792215633679,
+            "32": 0.9999949874396613,
+            "65": 1.0000000000000249
+          },
+          "random_basis_control": {
+            "1": 0.02074288021707663,
+            "2": 0.021839643466173137,
+            "4": 0.04417237287614349,
+            "8": 0.1095720188720244,
+            "16": 0.24238278768191426,
+            "32": 0.49652253154180964,
+            "65": 1.0000000000000004
+          },
+          "principal_energy_top1": 0.9473426852821285
+        },
+        {
+          "energy_share": {
+            "1": 0.9473811821384546,
+            "2": 0.9919582660878904,
+            "4": 0.9978767546748158,
+            "8": 0.9998937771387123,
+            "16": 0.9999921805991172,
+            "32": 0.9999997724310306,
+            "65": 1.0
+          },
+          "persistence_early_to_late": {
+            "1": 0.947444421159019,
+            "2": 0.9920079710250435,
+            "4": 0.9977922880287112,
+            "8": 0.999879068850511,
+            "16": 0.9999826053939174,
+            "32": 0.9999953709075535,
+            "65": 1.000000000000021
+          },
+          "random_basis_control": {
+            "1": 0.020111660945872217,
+            "2": 0.020843065774685355,
+            "4": 0.041617729623706655,
+            "8": 0.10603789299368407,
+            "16": 0.23911544124145712,
+            "32": 0.5009433489682688,
+            "65": 1.0000000000000002
+          },
+          "principal_energy_top1": 0.9473811821384546
+        }
+      ]
+    }
+  }
+}

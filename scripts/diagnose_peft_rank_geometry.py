@@ -290,7 +290,7 @@ def _diagnosis_intrinsic_dimension(model, session, ranks, steps, lr, device) -> 
         # 基来自训练帧 Data 梯度（oracle 内在维度；不进入在线更新）。
         singular_basis = torch.linalg.svd(
             training.double(), full_matrices=False,
-        ).vh[:effective].transpose(0, 1)
+        ).Vh[:effective].transpose(0, 1)
         basis = singular_basis.to(device=device, dtype=theta0.dtype)
         coefficient = _fit_shared_coefficient(
             model, contexts, frames, theta0, basis, steps, lr, device,
@@ -332,9 +332,10 @@ def _diagnosis_response_spectrum(session, ranks) -> dict:
         basis = vh_early[:effective].transpose(0, 1)
         persistence[str(rank)] = subspace_capture(basis, late)
     # 同维随机正交基对照。
-    generator = torch.Generator().manual_seed(17)
+    generator = torch.Generator(device=late.device).manual_seed(17)
     random_basis = torch.linalg.qr(
-        torch.randn(dimension, max(ranks), generator=generator, dtype=torch.float64),
+        torch.randn(dimension, max(ranks), generator=generator, dtype=torch.float64,
+                    device=late.device),
     )[0]
     random_control = {
         str(rank): subspace_capture(random_basis[:, :rank], late) for rank in ranks
