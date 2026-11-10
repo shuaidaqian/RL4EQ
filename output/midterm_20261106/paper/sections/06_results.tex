@@ -6,6 +6,7 @@
 
 \begin{table}[htbp]
 \centering
+\small
 \caption{离线神经均衡器与传统均衡器在 3 seed × 60 帧主矩阵上的 Data BER。相对降低以 CFO+DD-Phase DFE-RLS 为参照。}
 \begin{tabular}{lrrrr}
 \toprule
@@ -21,7 +22,7 @@ SNR & 离线神经均衡器 & CFO+DD-Phase DFE-RLS & CFO+DD-Phase LMMSE-FIR & �
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/fig_offline_ber.png}
+\includegraphics[width=0.95\linewidth]{figures/fig_offline_ber.pdf}
 \caption{离线神经均衡器与传统均衡器在 3 seed × 60 帧主矩阵上的 Data BER。标注为相对 CFO+DD-Phase DFE-RLS 的 BER 降低比例。}
 \end{figure}
 
@@ -33,6 +34,7 @@ SNR & 离线神经均衡器 & CFO+DD-Phase DFE-RLS & CFO+DD-Phase LMMSE-FIR & �
 
 \begin{table}[htbp]
 \centering
+\small
 \caption{独立确认 v1 的逐 SNR 配对结果。ΔBER 定义为 $\mathrm{BER}_{\mathrm{frozen}}-\mathrm{BER}_{\mathrm{bayes}}$；下界为单侧 95\% $t$ 下界（df=9）。}
 \begin{tabular}{lrrrrrrr}
 \toprule
@@ -48,7 +50,7 @@ SNR & Frozen BER & Bayes BER & ΔBER & SE & 单侧 95\% 下界 & Holm $p$ & 负�
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/fig_ber_forest.png}
+\includegraphics[width=0.95\linewidth]{figures/fig_ber_forest.pdf}
 \caption{独立确认 v1 的 BER 曲线与逐 SNR 配对增益森林图。左：Frozen 与 Bayes 的四 SNR 平均 BER；右：session 级配对 ΔBER 与双侧 95\% 置信区间（1.96×SE）。}
 \end{figure}
 
@@ -60,7 +62,7 @@ SNR & Frozen BER & Bayes BER & ΔBER & SE & 单侧 95\% 下界 & Holm $p$ & 负�
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/fig_seed.png}
+\includegraphics[width=0.95\linewidth]{figures/fig_seed.pdf}
 \caption{10 个独立 session 的配对增益分布。每个点为一个 session 的 ΔBER；横线为 10 session 均值。}
 \end{figure}
 
@@ -70,6 +72,7 @@ SNR & Frozen BER & Bayes BER & ΔBER & SE & 单侧 95\% 下界 & Holm $p$ & 负�
 
 \begin{table}[htbp]
 \centering
+\small
 \caption{独立确认 v1 的 16 帧窗口增益与会话级斜率。H3 要求斜率与末窗减首窗均为正；0 dB 的末窗减首窗为正，但斜率因第 2 窗早期峰值而为负。}
 \begin{tabular}{lrrrr}
 \toprule
@@ -85,7 +88,7 @@ SNR & 16 帧窗口增益（Frozen−Bayes） & 斜率/bin & 首窗 / 末窗 & H3
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/fig_growth.png}
+\includegraphics[width=0.95\linewidth]{figures/fig_growth.pdf}
 \caption{配对增益随会话内帧窗口的演化。每箱 16 帧；0 dB 呈早期峰值后波动，5/10/15 dB 总体上升。}
 \end{figure}
 
@@ -97,6 +100,7 @@ SNR & 16 帧窗口增益（Frozen−Bayes） & 斜率/bin & 首窗 / 末窗 & H3
 
 \begin{table}[htbp]
 \centering
+\small
 \caption{Frozen 与 Bayes 的 CIR 归一化均方误差。下降比例由表中数值计算。}
 \begin{tabular}{lrrr}
 \toprule
@@ -112,7 +116,7 @@ SNR & Frozen NMSE & Bayes NMSE & 下降 \\
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/fig_nmse.png}
+\includegraphics[width=0.95\linewidth]{figures/fig_nmse.pdf}
 \caption{Frozen 与 Bayes 的 CIR 估计 NMSE。标注为相对 Frozen 的下降比例。}
 \end{figure}
 
@@ -124,6 +128,7 @@ NMSE 不是本文的主判据，但它提供了机制证据：Bayes 与 Frozen �
 
 \begin{table}[htbp]
 \centering
+\small
 \caption{不同开发规模上的 session 级配对增益。区间与逐 seed 细节见开发归档；这些 seed 不并入确认。}
 \begin{tabular}{lrrrrr}
 \toprule
@@ -139,7 +144,7 @@ NMSE 不是本文的主判据，但它提供了机制证据：Bayes 与 Frozen �
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/fig_scale.png}
+\includegraphics[width=0.95\linewidth]{figures/fig_scale.pdf}
 \caption{三种开发规模（5×32、10×64、10×128）上的配对增益一致性。误差棒为描述性 95\% 区间。}
 \end{figure}
 
