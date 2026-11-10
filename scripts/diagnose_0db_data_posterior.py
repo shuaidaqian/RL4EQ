@@ -220,7 +220,7 @@ def run_variant(
 
 def _summarize(rows, config, variants, seeds, frames):
     per_snr = {}
-    for snr in config["main_snrs"]:
+    for snr in sorted({row["snr_db"] for row in rows}):
         snr_rows = [row for row in rows if row["snr_db"] == snr]
         variant_summary = {}
         for variant in variants:
@@ -291,6 +291,8 @@ def main() -> None:
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--seeds", nargs="+", type=int, default=[140001, 140002])
     parser.add_argument("--frames", type=int, default=16)
+    parser.add_argument("--snrs", nargs="+", type=int, default=None,
+                        help="只跑指定 SNR；默认使用 config 的 main_snrs")
     parser.add_argument("--variants", nargs="+", default=list(VARIANTS))
     parser.add_argument(
         "--timing", choices=("same_frame", "causal"), default="same_frame",
@@ -306,7 +308,8 @@ def main() -> None:
     model.eval()
 
     rows = []
-    for snr in config["main_snrs"]:
+    snrs = args.snrs if args.snrs else config["main_snrs"]
+    for snr in snrs:
         for seed in args.seeds:
             rows.extend(run_variant(
                 config, model, seed=seed, snr=snr, frames=args.frames,
