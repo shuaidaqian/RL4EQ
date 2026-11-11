@@ -1,0 +1,115 @@
+{
+  "loss_curve": {
+    "steps": 32,
+    "step1_relative_diff": 0.0,
+    "max_relative_diff": 0.05015426839899967,
+    "max_relative_diff_step": 24,
+    "final_relative_diff": 2.798988785002559e-05,
+    "all_relative_diff_max_after_step5": 0.05015426839899967
+  },
+  "best_model_metric": {
+    "original": 0.06575521151535213,
+    "retrained": 0.06510416744276881,
+    "abs_diff": 0.0006510440725833178,
+    "relative_diff": 0.009901026208870393
+  },
+  "independent_eval": {
+    "0": {
+      "original": {
+        "frozen_ber": 0.2096354216337204,
+        "bayes_ber": 0.1898600310087204,
+        "gain": 0.019775390625,
+        "frozen_nmse": 0.12550579682397764,
+        "bayes_nmse": 0.07122492941818967
+      },
+      "retrained": {
+        "frozen_ber": 0.20947266183793545,
+        "bayes_ber": 0.18904622923582792,
+        "gain": 0.020426432602107525,
+        "frozen_nmse": 0.12550579682397764,
+        "bayes_nmse": 0.0712044216517963
+      },
+      "abs_diff": {
+        "frozen_ber": 0.00016275979578495026,
+        "bayes_ber": 0.0008138017728924751,
+        "gain": 0.0006510419771075249,
+        "frozen_nmse": 0.0,
+        "bayes_nmse": 2.0507766393368376e-05
+      }
+    },
+    "5": {
+      "original": {
+        "frozen_ber": 0.05314127751626074,
+        "bayes_ber": 0.04980468889698386,
+        "gain": 0.0033365886192768812,
+        "frozen_nmse": 0.04741111379375873,
+        "bayes_nmse": 0.02324783366927707
+      },
+      "retrained": {
+        "frozen_ber": 0.05322265764698386,
+        "bayes_ber": 0.04988606902770698,
+        "gain": 0.0033365886192768812,
+        "frozen_nmse": 0.04741111379375873,
+        "bayes_nmse": 0.023250257683833816
+      },
+      "abs_diff": {
+        "frozen_ber": 8.138013072311878e-05,
+        "bayes_ber": 8.138013072311878e-05,
+        "gain": 0.0,
+        "frozen_nmse": 0.0,
+        "bayes_nmse": 2.4240145567455684e-06
+      }
+    },
+    "10": {
+      "original": {
+        "frozen_ber": 0.00895182321255561,
+        "bayes_ber": 0.008056640857830644,
+        "gain": 0.000895182354724966,
+        "frozen_nmse": 0.018938260506738153,
+        "bayes_nmse": 0.009183245810011722
+      },
+      "retrained": {
+        "frozen_ber": 0.00895182321255561,
+        "bayes_ber": 0.008056640857830644,
+        "gain": 0.000895182354724966,
+        "frozen_nmse": 0.018938260506738153,
+        "bayes_nmse": 0.009182597368504354
+      },
+      "abs_diff": {
+        "frozen_ber": 0.0,
+        "bayes_ber": 0.0,
+        "gain": 0.0,
+        "frozen_nmse": 0.0,
+        "bayes_nmse": 6.484415073677863e-07
+      }
+    },
+    "15": {
+      "original": {
+        "frozen_ber": 0.0007324218968278728,
+        "bayes_ber": 0.0006510416860692203,
+        "gain": 8.138021075865254e-05,
+        "frozen_nmse": 0.009448357612385744,
+        "bayes_nmse": 0.005410849283265121
+      },
+      "retrained": {
+        "frozen_ber": 0.0007324218968278728,
+        "bayes_ber": 0.0006510416860692203,
+        "gain": 8.138021075865254e-05,
+        "frozen_nmse": 0.009448357612385744,
+        "bayes_nmse": 0.005411143197201821
+      },
+      "abs_diff": {
+        "frozen_ber": 0.0,
+        "bayes_ber": 0.0,
+        "gain": 0.0,
+        "frozen_nmse": 0.0,
+        "bayes_nmse": 2.9391393669992577e-07
+      }
+    }
+  },
+  "tolerance": {
+    "ber_abs_diff": "<=1e-3",
+    "nmse_relative_diff": "<=1%",
+    "note": "10/15 dB 逐位相同"
+  }
+}

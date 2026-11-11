@@ -1,0 +1,622 @@
+{
+  "config": "configs\\eme_long_memory_v2_online_dd_tail_v1.json",
+  "checkpoint": "docs\\results\\reproducible_training_v1_20261111\\retrained\\model_best.pt",
+  "seeds": [
+    170021
+  ],
+  "frames": 16,
+  "process_noise": 0.0001,
+  "ridge": 0.01,
+  "per_snr": {
+    "0": {
+      "frozen_ber": 0.20947266183793545,
+      "bayes_ber": 0.18904622923582792,
+      "gain": 0.020426432602107525,
+      "frozen_nmse": 0.12550579682397764,
+      "bayes_nmse": 0.0712044216517963,
+      "frames": 16
+    },
+    "5": {
+      "frozen_ber": 0.05322265764698386,
+      "bayes_ber": 0.04988606902770698,
+      "gain": 0.0033365886192768812,
+      "frozen_nmse": 0.04741111379375873,
+      "bayes_nmse": 0.023250257683833816,
+      "frames": 16
+    },
+    "10": {
+      "frozen_ber": 0.00895182321255561,
+      "bayes_ber": 0.008056640857830644,
+      "gain": 0.000895182354724966,
+      "frozen_nmse": 0.018938260506738153,
+      "bayes_nmse": 0.009182597368504354,
+      "frames": 16
+    },
+    "15": {
+      "frozen_ber": 0.0007324218968278728,
+      "bayes_ber": 0.0006510416860692203,
+      "gain": 8.138021075865254e-05,
+      "frozen_nmse": 0.009448357612385744,
+      "bayes_nmse": 0.005411143197201821,
+      "frames": 16
+    }
+  },
+  "rows": [
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 0,
+      "frozen_ber": 0.5729166865348816,
+      "bayes_ber": 0.5729166865348816,
+      "frozen_nmse": 0.12207362722700507,
+      "bayes_nmse": 0.12207362722700507
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 1,
+      "frozen_ber": 0.1497395932674408,
+      "bayes_ber": 0.1354166716337204,
+      "frozen_nmse": 0.12227674863149628,
+      "bayes_nmse": 0.13108275481268955
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 2,
+      "frozen_ber": 0.1966145932674408,
+      "bayes_ber": 0.1966145932674408,
+      "frozen_nmse": 0.12300809548544947,
+      "bayes_nmse": 0.10047172707955605
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 3,
+      "frozen_ber": 0.140625,
+      "bayes_ber": 0.1497395932674408,
+      "frozen_nmse": 0.12420448123482399,
+      "bayes_nmse": 0.08659775371156318
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 4,
+      "frozen_ber": 0.2096354216337204,
+      "bayes_ber": 0.16015625,
+      "frozen_nmse": 0.12455951077057785,
+      "bayes_nmse": 0.07612391317072069
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 5,
+      "frozen_ber": 0.19921875,
+      "bayes_ber": 0.2591145932674408,
+      "frozen_nmse": 0.12478111189494658,
+      "bayes_nmse": 0.07150434756826557
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 6,
+      "frozen_ber": 0.1614583432674408,
+      "bayes_ber": 0.1354166716337204,
+      "frozen_nmse": 0.12518874061122318,
+      "bayes_nmse": 0.07103190065425358
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 7,
+      "frozen_ber": 0.3645833432674408,
+      "bayes_ber": 0.1471354216337204,
+      "frozen_nmse": 0.1249941238528114,
+      "bayes_nmse": 0.06261002261232432
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 8,
+      "frozen_ber": 0.1354166716337204,
+      "bayes_ber": 0.13671875,
+      "frozen_nmse": 0.12509646270056163,
+      "bayes_nmse": 0.06044639164701613
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 9,
+      "frozen_ber": 0.1588541716337204,
+      "bayes_ber": 0.1692708432674408,
+      "frozen_nmse": 0.12600159463329408,
+      "bayes_nmse": 0.057337295769467875
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 10,
+      "frozen_ber": 0.1341145932674408,
+      "bayes_ber": 0.1471354216337204,
+      "frozen_nmse": 0.1275522377457336,
+      "bayes_nmse": 0.05649600243949861
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 11,
+      "frozen_ber": 0.15625,
+      "bayes_ber": 0.12890625,
+      "frozen_nmse": 0.12663334165872592,
+      "bayes_nmse": 0.05406113220575778
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 12,
+      "frozen_ber": 0.1640625,
+      "bayes_ber": 0.14453125,
+      "frozen_nmse": 0.12650589076091387,
+      "bayes_nmse": 0.05205630167608518
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 13,
+      "frozen_ber": 0.29296875,
+      "bayes_ber": 0.2174479216337204,
+      "frozen_nmse": 0.12777971094431145,
+      "bayes_nmse": 0.04692933549430279
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 14,
+      "frozen_ber": 0.15234375,
+      "bayes_ber": 0.17578125,
+      "frozen_nmse": 0.1282953836636311,
+      "bayes_nmse": 0.047404534776871336
+    },
+    {
+      "seed": 170021,
+      "snr_db": 0,
+      "frame_index": 15,
+      "frozen_ber": 0.1627604216337204,
+      "bayes_ber": 0.1484375,
+      "frozen_nmse": 0.1291416873681369,
+      "bayes_nmse": 0.04304370558336315
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 0,
+      "frozen_ber": 0.0299479179084301,
+      "bayes_ber": 0.0299479179084301,
+      "frozen_nmse": 0.04469537041653413,
+      "bayes_nmse": 0.04469537041653413
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 1,
+      "frozen_ber": 0.0559895858168602,
+      "bayes_ber": 0.0572916679084301,
+      "frozen_nmse": 0.04484010214956151,
+      "bayes_nmse": 0.031373444044523816
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 2,
+      "frozen_ber": 0.06640625,
+      "bayes_ber": 0.0703125,
+      "frozen_nmse": 0.04533361721448275,
+      "bayes_nmse": 0.023757048828300743
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 3,
+      "frozen_ber": 0.0520833358168602,
+      "bayes_ber": 0.0481770858168602,
+      "frozen_nmse": 0.04612960155939584,
+      "bayes_nmse": 0.022698314233609965
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 4,
+      "frozen_ber": 0.0572916679084301,
+      "bayes_ber": 0.0546875,
+      "frozen_nmse": 0.0464372082242628,
+      "bayes_nmse": 0.023075573200282723
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 5,
+      "frozen_ber": 0.0611979179084301,
+      "bayes_ber": 0.0546875,
+      "frozen_nmse": 0.04663082370324341,
+      "bayes_nmse": 0.024571908488078997
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 6,
+      "frozen_ber": 0.0572916679084301,
+      "bayes_ber": 0.046875,
+      "frozen_nmse": 0.04697349781740603,
+      "bayes_nmse": 0.020922423877884844
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 7,
+      "frozen_ber": 0.0520833358168602,
+      "bayes_ber": 0.05078125,
+      "frozen_nmse": 0.04691333638287927,
+      "bayes_nmse": 0.019099329714574214
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 8,
+      "frozen_ber": 0.05078125,
+      "bayes_ber": 0.0546875,
+      "frozen_nmse": 0.047155782120797976,
+      "bayes_nmse": 0.019963525709401336
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 9,
+      "frozen_ber": 0.0677083358168602,
+      "bayes_ber": 0.0520833358168602,
+      "frozen_nmse": 0.04795758113875864,
+      "bayes_nmse": 0.02019198790455248
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 10,
+      "frozen_ber": 0.0416666679084301,
+      "bayes_ber": 0.0403645858168602,
+      "frozen_nmse": 0.049241492890170775,
+      "bayes_nmse": 0.021365313974282922
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 11,
+      "frozen_ber": 0.0546875,
+      "bayes_ber": 0.0442708358168602,
+      "frozen_nmse": 0.04856413750226569,
+      "bayes_nmse": 0.020315706124517777
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 12,
+      "frozen_ber": 0.0442708358168602,
+      "bayes_ber": 0.0455729179084301,
+      "frozen_nmse": 0.0486375184109423,
+      "bayes_nmse": 0.01983482216928428
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 13,
+      "frozen_ber": 0.05078125,
+      "bayes_ber": 0.0442708358168602,
+      "frozen_nmse": 0.049354149243262015,
+      "bayes_nmse": 0.017718601223378705
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 14,
+      "frozen_ber": 0.0481770858168602,
+      "bayes_ber": 0.0520833358168602,
+      "frozen_nmse": 0.049566664275568675,
+      "bayes_nmse": 0.020386371420570176
+    },
+    {
+      "seed": 170021,
+      "snr_db": 5,
+      "frame_index": 15,
+      "frozen_ber": 0.0611979179084301,
+      "bayes_ber": 0.0520833358168602,
+      "frozen_nmse": 0.05014693765060788,
+      "bayes_nmse": 0.02203438161156397
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 0,
+      "frozen_ber": 0.0026041667442768812,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.016745896708558788,
+      "bayes_nmse": 0.016745896708558788
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 1,
+      "frozen_ber": 0.01171875,
+      "bayes_ber": 0.010416666977107525,
+      "frozen_nmse": 0.016849364444703054,
+      "bayes_nmse": 0.009247433925655312
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 2,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.0078125,
+      "frozen_nmse": 0.017179556778979036,
+      "bayes_nmse": 0.006914934196884859
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 3,
+      "frozen_ber": 0.00390625,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.01769824464068831,
+      "bayes_nmse": 0.007656148034893234
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 4,
+      "frozen_ber": 0.01171875,
+      "bayes_ber": 0.01171875,
+      "frozen_nmse": 0.0179704025858807,
+      "bayes_nmse": 0.009302985977939562
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 5,
+      "frozen_ber": 0.006510416977107525,
+      "bayes_ber": 0.0078125,
+      "frozen_nmse": 0.018141578744595637,
+      "bayes_nmse": 0.008203745851925398
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 6,
+      "frozen_ber": 0.010416666977107525,
+      "bayes_ber": 0.006510416977107525,
+      "frozen_nmse": 0.01843428240313832,
+      "bayes_nmse": 0.008493905589595228
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 7,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.01302083395421505,
+      "frozen_nmse": 0.01846008637521567,
+      "bayes_nmse": 0.007607750887393455
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 8,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.010416666977107525,
+      "frozen_nmse": 0.01878646090418645,
+      "bayes_nmse": 0.009290227480711117
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 9,
+      "frozen_ber": 0.01171875,
+      "bayes_ber": 0.0078125,
+      "frozen_nmse": 0.019502145919955676,
+      "bayes_nmse": 0.010342308677678512
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 10,
+      "frozen_ber": 0.006510416977107525,
+      "bayes_ber": 0.0078125,
+      "frozen_nmse": 0.020585087933212565,
+      "bayes_nmse": 0.010014467298106237
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 11,
+      "frozen_ber": 0.010416666977107525,
+      "bayes_ber": 0.0052083334885537624,
+      "frozen_nmse": 0.020080171360222852,
+      "bayes_nmse": 0.009381227545196739
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 12,
+      "frozen_ber": 0.00911458395421505,
+      "bayes_ber": 0.006510416977107525,
+      "frozen_nmse": 0.02028042831667978,
+      "bayes_nmse": 0.007748580170369812
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 13,
+      "frozen_ber": 0.0078125,
+      "bayes_ber": 0.00911458395421505,
+      "frozen_nmse": 0.02062401494928417,
+      "bayes_nmse": 0.007973173960680528
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 14,
+      "frozen_ber": 0.010416666977107525,
+      "bayes_ber": 0.00911458395421505,
+      "frozen_nmse": 0.020639336562089,
+      "bayes_nmse": 0.008740314321438063
+    },
+    {
+      "seed": 170021,
+      "snr_db": 10,
+      "frame_index": 15,
+      "frozen_ber": 0.01302083395421505,
+      "bayes_ber": 0.010416666977107525,
+      "frozen_nmse": 0.02103510948042042,
+      "bayes_nmse": 0.009258457269042838
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 0,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.007581972667392871,
+      "bayes_nmse": 0.007581972667392871
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 1,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.0076601414405889695,
+      "bayes_nmse": 0.004494004275472458
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 2,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.007891618593064812,
+      "bayes_nmse": 0.003989675147720772
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 3,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.008241985049074219,
+      "bayes_nmse": 0.004592016696813811
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 4,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.008491831386309295,
+      "bayes_nmse": 0.005872976543539838
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 5,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.008648457203963409,
+      "bayes_nmse": 0.00493508863293048
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 6,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.008909309712464076,
+      "bayes_nmse": 0.005773578616405172
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 7,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.008985120053207937,
+      "bayes_nmse": 0.004284670146479899
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 8,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.009358453249513269,
+      "bayes_nmse": 0.006471054816074676
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 9,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.010017438400139137,
+      "bayes_nmse": 0.006665242448977749
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 10,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.010973445212202972,
+      "bayes_nmse": 0.005367603774131264
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 11,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.010574770367842745,
+      "bayes_nmse": 0.005527659099737363
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 12,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0013020833721384406,
+      "frozen_nmse": 0.010848327783391317,
+      "bayes_nmse": 0.005000529344023661
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 13,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0026041667442768812,
+      "frozen_nmse": 0.010969379893277988,
+      "bayes_nmse": 0.0059803740552256054
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 14,
+      "frozen_ber": 0.0013020833721384406,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.010868884577602716,
+      "bayes_nmse": 0.004781691469509564
+    },
+    {
+      "seed": 170021,
+      "snr_db": 15,
+      "frame_index": 15,
+      "frozen_ber": 0.0,
+      "bayes_ber": 0.0,
+      "frozen_nmse": 0.01115258620813616,
+      "bayes_nmse": 0.005260153420793949
+    }
+  ]
+}

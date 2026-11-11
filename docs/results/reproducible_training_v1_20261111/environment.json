@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-11",
+  "git_commit": "600cca769e146917cc9a78a0da29f022ff7e1b22",
+  "git_dirty_code": false,
+  "python": "3.12.7",
+  "torch": "2.11.0+cu128",
+  "cuda": "12.8",
+  "cudnn": "91900",
+  "gpu": "NVIDIA GeForce GTX 1650",
+  "command": "python pretrain.py --config configs/eme_long_memory_v2.json --stage all --steps 32 --batch-size 1 --accumulation-steps 1 --save-dir docs/results/reproducible_training_v1_20261111/retrained",
+  "config": "configs/eme_long_memory_v2.json",
+  "config_sha256": "4f104bc0a8fad33c89ec794694bc77bbc3f9c64aee94279a9575f75daab44263",
+  "original_checkpoint": "D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+  "original_checkpoint_sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4",
+  "retrained_checkpoint": "docs/results/reproducible_training_v1_20261111/retrained/model_best.pt",
+  "seed": {
+    "curriculum_seed": 80000,
+    "sampling_rule": "seed = curriculum_seed + sample_index",
+    "source": "configs/eme_long_memory_v2.json 未显式设置，使用默认 80000"
+  },
+  "training": {
+    "steps": 32,
+    "batch_size": 1,
+    "accumulation_steps": 1,
+    "amp": false,
+    "objective": "bce_all"
+  },
+  "note": "原 checkpoint 的 history 没有采样 seed/输入哈希，无法逐条证明同一数据序列；本次以第一步 loss 逐位相同与最终指标一致作为证据。"
+}
