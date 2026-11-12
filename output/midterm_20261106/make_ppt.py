@@ -297,7 +297,7 @@ def slide_baseline(prs, idx, total):
 def slide_offline(prs, idx, total):
     s = page(prs, idx, total, "研究点二 · 离线训练",
              "离线训练：神经均衡器把 BER 降到传统均衡的 5%–50%")
-    pic_fit(s, FIGDIR / "v2" / "fig_offline_ber.png", MX, 1.62, 7.80, 4.50)
+    pic_fit(s, FIGDIR / "fig_offline_ber.png", MX, 1.62, 7.80, 4.50)
 
     x = 8.80
     items = [
@@ -347,7 +347,7 @@ def slide_offline_arch(prs, idx, total):
 def slide_traditional(prs, idx, total):
     s = page(prs, idx, total, "研究点二 · 公平对照",
              "不是靠弱基线取胜：同波形同 Pilot 下传统接收机差 2–12 倍")
-    pic_fit(s, FIGDIR / "v2" / "fig_traditional_fair.png", MX, 1.58, 8.55, 4.15)
+    pic_fit(s, FIGDIR / "fig_traditional_fair.png", MX, 1.58, 8.55, 4.15)
 
     x = 9.35
     items = [
@@ -428,7 +428,7 @@ def slide_loop(prs, idx, total):
 def slide_scale(prs, idx, total):
     s = page(prs, idx, total, "研究点二 · 开发筛查",
              "三种开发规模上，配对增益的方向始终一致")
-    pic_fit(s, FIGDIR / "v2" / "fig_scale.png", 1.55, 1.50, 10.2, 4.75)
+    pic_fit(s, FIGDIR / "fig_scale.png", 1.55, 1.50, 10.2, 4.75)
     text(s, "5 seed × 32 帧　→　10 seed × 64 帧　→　10 seed × 128 帧",
          MX, 6.30, CW, 0.30, size=11.5, color=MUTED)
     speaker(s, "在正式确认之前，先在开发 seed 上做了三次规模递增的筛查。"
@@ -439,7 +439,7 @@ def slide_scale(prs, idx, total):
 def slide_growth(prs, idx, total):
     s = page(prs, idx, total, "研究点二 · 时序行为",
              "增益在会话内累积：5/10/15 dB 后段仍在上升，0 dB 峰值后回落")
-    pic_fit(s, FIGDIR / "v2" / "fig_growth.png", MX, 1.52, 9.45, 4.75)
+    pic_fit(s, FIGDIR / "fig_growth.png", MX, 1.52, 9.45, 4.75)
     x = 10.30
     text(s, "物理状态在成长", x, 1.90, 2.60, 0.30, size=12.5, bold=True, color=BAYES)
     text(s, "不是网络权重在变", x, 2.22, 2.60, 0.32, size=10.5, color=MUTED)
@@ -456,7 +456,7 @@ def slide_confirm(prs, idx, total):
     s = page(prs, idx, total, "研究点二 · 独立确认 v1",
              "四个 SNR 全部显著，单侧 95% 下界均为正",
              "独立 seed 100001–100010，10 session × 128 帧；配置与 checkpoint 运行前冻结")
-    pic_fit(s, FIGDIR / "v2" / "fig_ber_forest.png", MX, 1.80, CW, 4.35)
+    pic_fit(s, FIGDIR / "fig_ber_forest.png", MX, 1.80, CW, 4.35)
     text(s, "H1：四 SNR 等权平均 +0.01177，下界 +0.01019，p = 1.26×10⁻⁷",
          MX, 6.28, CW, 0.30, size=11.5, color=INK)
     speaker(s, "这是核心结果。独立 seed、128 帧长会话、配置运行前冻结。"
@@ -468,7 +468,7 @@ def slide_confirm(prs, idx, total):
 def slide_seed(prs, idx, total):
     s = page(prs, idx, total, "研究点二 · 独立确认 v1",
              "10 个独立 session，配对增益无一个为负")
-    pic_fit(s, FIGDIR / "v2" / "fig_seed.png", MX, 1.55, CW, 3.55)
+    pic_fit(s, FIGDIR / "fig_seed.png", MX, 1.55, CW, 3.55)
 
     rows = [
         ("H1", "四 SNR 等权平均增益 > 0", "+0.01177　下界 +0.01019", "通过"),
@@ -497,7 +497,7 @@ def slide_boundary(prs, idx, total):
              "物理增益已在四 SNR 确认，边界在 0 dB 饱和与成本度量")
 
     # 左：NMSE
-    pic_fit(s, FIGDIR / "v2" / "fig_nmse.png", MX, 1.58, 7.45, 4.55)
+    pic_fit(s, FIGDIR / "fig_nmse.png", MX, 1.58, 7.45, 4.55)
     text(s, "同一波形下 CIR 估计误差下降 67%–75%", MX, 6.22, 7.45, 0.30,
          size=10.5, color=MUTED)
 
