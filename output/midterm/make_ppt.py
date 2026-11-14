@@ -1,7 +1,7 @@
 """生成中期答辩 PPT。
 
 版式全部手绘，不使用 Office 默认主题。
-运行：python output/midterm_20261106/make_ppt.py
+运行：python output/midterm/make_ppt.py
 """
 
 from pathlib import Path

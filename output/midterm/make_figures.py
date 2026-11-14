@@ -1,7 +1,7 @@
 """生成中期答辩所需的全部数据图。
 
 所有数字都从 docs/results 下的 JSON 直接读取，不手工抄写，保证图与归档一致。
-运行：python output/midterm_20261106/make_figures.py
+运行：python output/midterm/make_figures.py
 """
 
 import json

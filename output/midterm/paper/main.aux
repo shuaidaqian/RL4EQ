@@ -1,0 +1,67 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand*\HyPL@Entry[1]{}
+\citation{evans1965}
+\citation{shlezinger2020}
+\citation{hershey2014}
+\citation{park2021}
+\citation{cohen2022}
+\HyPL@Entry{0<</S/D>>}
+\@writefile{toc}{\contentsline {section}{\numberline {1}引言}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}系统与信号模型}{2}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}信道与帧结构}{2}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}接收信号模型}{3}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Pilot 角色与数据隔离}{3}{subsection.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}离线神经块均衡器}{3}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}网络结构与输入输出}{3}{subsection.3.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces 离线神经块均衡器的结构与训练流程。接收帧与仅在 Adapt Pilot 位置非零的已知符号输入共同进入 Pilot 条件化的 4 层展开网络；网络输出 1024 个符号的 logits，离线以全帧等权 BCE 训练。}}{4}{figure.caption.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}离线训练目标与数据角色}{4}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}离线饱和与可修复空间}{4}{subsection.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}在线贝叶斯 CIR 适配}{5}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}共享物理状态与 Frozen 对照}{5}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}贝叶斯递归 CIR 后验}{5}{subsection.4.2}\protected@file@percent }
+\citation{kay1993}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces 在线闭环。冻结神经均衡器在物理状态 $s(t)$ 条件下输出软判决；贝叶斯更新利用 Adapt Pilot 与 Data 软观测递推 CIR 后验，所得 $s(t+1)$ 仅用于下一帧。}}{6}{figure.caption.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}信息边界与归因}{7}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}复杂度与因果性}{7}{subsection.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}实验设置}{7}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}确认设计与预注册判据}{7}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}统计单位与功效}{8}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}开发筛查与基线}{8}{subsection.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}结果}{9}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}离线均衡器相对传统基线}{9}{subsection.6.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces 离线神经均衡器与传统均衡器在 3 seed × 60 帧主矩阵上的 Data BER。相对降低以 CFO+DD-Phase DFE-RLS 为参照。}}{9}{table.caption.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces 离线神经均衡器与传统均衡器在 3 seed × 60 帧主矩阵上的 Data BER。标注为相对 CFO+DD-Phase DFE-RLS 的 BER 降低比例。}}{9}{figure.caption.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}独立确认的主效应与安全护栏}{10}{subsection.6.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces 独立确认 v1 的逐 SNR 配对结果。ΔBER 定义为 $\mathrm  {BER}_{\mathrm  {frozen}}-\mathrm  {BER}_{\mathrm  {bayes}}$；下界为单侧 95\% $t$ 下界（df=9）。}}{10}{table.caption.5}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces 独立确认 v1 的 BER 曲线与逐 SNR 配对增益森林图。左：Frozen 与 Bayes 的四 SNR 平均 BER；右：session 级配对 ΔBER 与双侧 95\% 置信区间（1.96×SE）。}}{10}{figure.caption.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}会话级一致性}{11}{subsection.6.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces 10 个独立 session 的配对增益分布。每个点为一个 session 的 ΔBER；横线为 10 session 均值。}}{11}{figure.caption.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}增益随帧演化}{11}{subsection.6.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces 独立确认 v1 的 16 帧窗口增益与会话级斜率。H3 要求斜率与末窗减首窗均为正；0 dB 的末窗减首窗为正，但斜率因第 2 窗早期峰值而为负。}}{11}{table.caption.8}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces 配对增益随会话内帧窗口的演化。每箱 16 帧；0 dB 呈早期峰值后波动，5/10/15 dB 总体上升。}}{12}{figure.caption.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}CIR 估计误差}{12}{subsection.6.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Frozen 与 Bayes 的 CIR 归一化均方误差。下降比例由表中数值计算。}}{12}{table.caption.10}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Frozen 与 Bayes 的 CIR 估计 NMSE。标注为相对 Frozen 的下降比例。}}{13}{figure.caption.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.6}开发规模一致性}{13}{subsection.6.6}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces 不同开发规模上的 session 级配对增益。区间与逐 seed 细节见开发归档；这些 seed 不并入确认。}}{13}{table.caption.12}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces 三种开发规模（5×32、10×64、10×128）上的配对增益一致性。误差棒为描述性 95\% 区间。}}{14}{figure.caption.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.7}与传统接收机的公平对照}{14}{subsection.6.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}讨论与局限}{14}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}增益来源与机制}{14}{subsection.7.1}\protected@file@percent }
+\citation{shlezinger2020}
+\citation{hershey2014}
+\citation{park2021}
+\citation{cohen2022}
+\citation{kay1993}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}与既有工作的关系}{15}{subsection.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}局限}{15}{subsection.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.4}未来方向}{16}{subsection.7.4}\protected@file@percent }
+\bibcite{evans1965}{1}
+\bibcite{shlezinger2020}{2}
+\bibcite{hershey2014}{3}
+\bibcite{park2021}{4}
+\bibcite{cohen2022}{5}
+\bibcite{kay1993}{6}
+\@writefile{toc}{\contentsline {section}{\numberline {8}结论}{17}{section.8}\protected@file@percent }
+\gdef \@abspage@last{18}
