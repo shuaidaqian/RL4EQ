@@ -65,7 +65,7 @@ pilot_total = 256, pilot_layout = prefix
 ## 复现
 
 ```powershell
-python scripts/compare_traditional_baselines.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 130001 130002 130003 --frames 16 --device cuda --output docs/results/traditional_comparison_v1_20261107/comparison.json
+python scripts/compare_traditional_baselines.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 130001 130002 130003 --frames 16 --device cuda --output docs/results/traditional_comparison_v1_20261107/comparison.json
 ```
 
 ## 边界

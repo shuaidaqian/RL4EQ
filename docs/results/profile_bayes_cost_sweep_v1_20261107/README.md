@@ -42,7 +42,7 @@ tail 复用与独立 dd_soft 在全部 24 个记录中逐位一致（`tail_match
 ## 复现
 
 ```powershell
-python scripts/profile_bayes_cost_sweep.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 160201 --frames 4 --device cuda --output docs/results/profile_bayes_cost_sweep_v1_20261107/sweep.json
+python scripts/profile_bayes_cost_sweep.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 160201 --frames 4 --device cuda --output docs/results/profile_bayes_cost_sweep_v1_20261107/sweep.json
 ```
 
 ## 边界

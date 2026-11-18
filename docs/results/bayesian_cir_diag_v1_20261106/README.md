@@ -13,7 +13,7 @@
 
 ## 协议
 
-- 强离线 checkpoint：`D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`。
+- 强离线 checkpoint：`D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`。
 - 配置：`configs/eme_long_memory_v2_online_dd_tail_v1.json`（`dd_soft` tail、`alpha=1.0`）。
 - 开发 seed：95001、95002、95003；每 seed/SNR 16 连续帧。
 - Frozen：acquisition CIR；Bayes：每帧 Pilot→Data 后验，用于下一帧。
@@ -125,7 +125,7 @@
 ## 复现
 
 ```powershell
-python scripts/diagnose_bayesian_cir.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 95001 95002 95003 --frames 16 --process-noise 1e-4 --ridge 1e-2 --device cuda --output docs/results/bayesian_cir_diag_v1_20261106/bayes_cir_q1e4_r1e2.json
+python scripts/diagnose_bayesian_cir.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 95001 95002 95003 --frames 16 --process-noise 1e-4 --ridge 1e-2 --device cuda --output docs/results/bayesian_cir_diag_v1_20261106/bayes_cir_q1e4_r1e2.json
 ```
 
 配对差与逐帧汇总见 `summary.json`。定向测试 `tests/test_bayesian_cir.py` 4 项通过。

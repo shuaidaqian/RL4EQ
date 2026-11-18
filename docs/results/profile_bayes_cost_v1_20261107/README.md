@@ -37,7 +37,7 @@
 - 1 seed × 8 帧，GPU 与缓存状态会影响绝对数值；比例与瓶颈判断稳定。
 
 ```powershell
-python scripts/profile_bayes_cost.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 160001 --frames 8 --device cuda --output docs/results/profile_bayes_cost_v1_20261107/profile.json
+python scripts/profile_bayes_cost.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 160001 --frames 8 --device cuda --output docs/results/profile_bayes_cost_v1_20261107/profile.json
 ```
 
 ## 边界

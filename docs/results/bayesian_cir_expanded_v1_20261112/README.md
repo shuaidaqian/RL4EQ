@@ -6,7 +6,7 @@
 ## 协议
 
 - 配置：`configs/eme_long_memory_v2_online_dd_tail_v1.json`；`dd_soft` tail `alpha=1.0`。
-- checkpoint：`D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`。
+- checkpoint：`D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`。
 - seed：170031–170060；每 seed/SNR 128 帧；SNR 0/5/10/15 dB。
 - Bayes：`Q=1e-4`、`ridge=1e-2`；Frozen 为同源 acquisition CIR。
 - 统计单位是 **session（seed）**；窗口为 16 帧，共 8 窗。
@@ -61,7 +61,7 @@
 $env:PYTHONUTF8=1
 python scripts/diagnose_bayesian_cir.py `
   --config configs/eme_long_memory_v2_online_dd_tail_v1.json `
-  --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt `
+  --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt `
   --seeds 170031 170032 170033 170034 170035 170036 170037 170038 170039 170040 `
           170041 170042 170043 170044 170045 170046 170047 170048 170049 170050 `
           170051 170052 170053 170054 170055 170056 170057 170058 170059 170060 `

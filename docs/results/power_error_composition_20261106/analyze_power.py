@@ -20,7 +20,7 @@ POWER = 0.80
 MAX_N = 2_000_000
 
 REPO = Path(__file__).resolve().parents[3]
-MAIN = Path("D:/Research/RL4EQ/logs/eme_pilot256_bandit_pilotsparse_main_60f_3s_final/frame_metrics.jsonl")
+MAIN = Path("D:/Research/02_研究点二_神经均衡/logs/eme_pilot256_bandit_pilotsparse_main_60f_3s_final/frame_metrics.jsonl")
 
 DATASETS = [
     ("main_60f", MAIN, "method"),
@@ -475,7 +475,7 @@ def main():
             "mde_and_required_sessions": "非中心 t、alpha=0.05 双侧、80% power；按多个帧级方差场景报告",
         },
         "unavailable": {
-            "per_symbol_frozen_logits": "现有 frame_metrics.jsonl 只保存逐帧 BER，无逐符号 logit；docs/results 与 D:/Research/RL4EQ/logs 中未找到逐符号 logit 数组",
+            "per_symbol_frozen_logits": "现有 frame_metrics.jsonl 只保存逐帧 BER，无逐符号 logit；docs/results 与 D:/Research/02_研究点二_神经均衡/logs 中未找到逐符号 logit 数组",
             "wrong_logit_threshold_fractions_0p1_0p5_1p0_2p0": "不可用：无逐符号 logit，无法计算阈值占比",
             "error_symbol_spatial_histogram": "不可用：无逐符号错误位置",
             "error_run_length_distribution": "不可用：无逐符号判决序列",

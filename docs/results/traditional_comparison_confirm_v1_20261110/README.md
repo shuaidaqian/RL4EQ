@@ -11,7 +11,7 @@
 ## 协议
 
 - 配置：`configs/eme_long_memory_v2_online_dd_tail_v1.json`；`dd_soft` tail `alpha=1.0`。
-- checkpoint：`D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`。
+- checkpoint：`D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`。
 - seed：170001–170005；每 seed/SNR 64 帧；SNR 0/5/10/15 dB。
 - 方法：
   - `frozen`：acquisition CIR + 冻结神经模型 + dd_soft tail；
@@ -51,7 +51,7 @@
 $env:PYTHONUTF8=1
 python scripts/compare_traditional_baselines.py `
   --config configs/eme_long_memory_v2_online_dd_tail_v1.json `
-  --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt `
+  --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt `
   --seeds 170001 170002 170003 170004 170005 --frames 64 --device cuda `
   --output docs/results/traditional_comparison_confirm_v1_20261110/comparison.json
 ```

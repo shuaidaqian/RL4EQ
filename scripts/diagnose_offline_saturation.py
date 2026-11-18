@@ -427,7 +427,7 @@ def run(args) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="离线网络饱和/可修复空间开发诊断")
     parser.add_argument("--config", default="configs/eme_long_memory_v2.json")
-    parser.add_argument("--checkpoint", default="D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt")
+    parser.add_argument("--checkpoint", default="D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt")
     parser.add_argument("--seeds", nargs="+", type=int, default=[91001, 91002, 91003, 91004, 91005])
     parser.add_argument("--snrs", nargs="+", type=float, default=[0, 5, 10, 15])
     parser.add_argument("--frames", type=int, default=8)

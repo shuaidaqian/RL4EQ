@@ -47,7 +47,7 @@ python pretrain.py --config configs/eme_long_memory_v2.json --stage all --steps 
 
 ## 资产、版本与复现限制
 
-权威 checkpoint 位于原项目工作区 `D:\Research\RL4EQ\pretrained\eme_bce_all_32_20260905_pilot256\model_best.pt`，SHA256 为 `8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4`。训练指标、模型配置和独立主矩阵的文件指纹及逐 seed BER 已汇总到[机器可读结果快照](results/offline_equalizer_baseline_snapshot_20261105.json)。主矩阵原始摘要哈希为 `3148679b040806af8ebf605b542b7970639d510dadcba505e2afd4fa58203913`，逐帧日志哈希为 `872e8ad0e6a496b9cf63c4e0069f6a4d00a2365ebcb08917353de4d2b581aa82`。
+权威 checkpoint 位于原项目工作区 `D:\Research_研究点二_神经均衡\pretrained\eme_bce_all_32_20260905_pilot256\model_best.pt`，SHA256 为 `8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4`。训练指标、模型配置和独立主矩阵的文件指纹及逐 seed BER 已汇总到[机器可读结果快照](results/offline_equalizer_baseline_snapshot_20261105.json)。主矩阵原始摘要哈希为 `3148679b040806af8ebf605b542b7970639d510dadcba505e2afd4fa58203913`，逐帧日志哈希为 `872e8ad0e6a496b9cf63c4e0069f6a4d00a2365ebcb08917353de4d2b581aa82`。
 
 checkpoint 位于 `pretrained/eme_bce_all_32_20260905_pilot256/`。主矩阵的逐帧日志已在归档清理中移除，表中数值来自当时的聚合结果与结果快照；要重跑该矩阵需重新生成日志。历史的 Pilot=128、30 秒 acquisition 空档、旧 Frozen 条件边界结果不并入这张主表。跨帧 34 个 memory scale 参数的 A/B 试验也不是传统均衡器对照，不作为离线模型胜过 baseline 的证据。
 

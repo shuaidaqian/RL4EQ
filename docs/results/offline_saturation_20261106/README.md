@@ -60,7 +60,7 @@
 
 | 文件 | SHA256 |
 | --- | --- |
-| `D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt` | `8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4` |
+| `D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt` | `8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4` |
 | `configs/eme_long_memory_v2.json` | `f3952864d26025b9ec5cfc6ea6008080435a7c4e5747881b410eb3d141aebfa5` |
 | `configs/eme_long_memory_v2_iter6_satdev_v1.json` | `ba5c43b14fc530ba3b881aa891f810c783900aa5837a6b251aafa5c4607f316b` |
 | `configs/eme_long_memory_v2_dmodel96_satdev_v1.json` | `28e139e2a41a848241e0180cb03ae8591958f849900861456ed43e67a33594f0` |
@@ -80,7 +80,7 @@
 
 ## 精确命令
 
-以下 `<PY>` = `D:/Research/RL4EQ/.venv-gpu/Scripts/python.exe`，工作目录为项目根。
+以下 `<PY>` = `D:/Research/02_研究点二_神经均衡/.venv-gpu/Scripts/python.exe`，工作目录为项目根。
 
 ### 1) 原始 checkpoint：Frozen + Oracle head + Oracle CIR（同帧）
 
@@ -119,12 +119,12 @@ RL4EQ_LINEAR_OPERATOR_BACKEND=fft <PY> -I -X utf8 scripts/diagnose_offline_satur
 ```bash
 <PY> -X utf8 pretrain.py --config configs/eme_long_memory_v2.json --stage all \
   --steps 32 --batch-size 1 \
-  --resume D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt \
+  --resume D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt \
   --save-dir docs/results/offline_saturation_20261106/continued32 --device cuda
 
 <PY> -X utf8 pretrain.py --config configs/eme_long_memory_v2.json --stage all \
   --steps 64 --batch-size 1 \
-  --resume D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt \
+  --resume D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt \
   --save-dir docs/results/offline_saturation_20261106/continued64 --device cuda
 ```
 

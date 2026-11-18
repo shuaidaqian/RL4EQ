@@ -6,7 +6,7 @@
 ## 协议
 
 - 配置：`configs/eme_long_memory_v2_online_dd_tail_v1.json`；`dd_soft` tail `alpha=1.0`。
-- checkpoint：`D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`。
+- checkpoint：`D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`。
 - seed：170011–170020；每 seed 128 帧；只跑 0 dB；`--timing causal`（本帧判决早于更新）。
 - 变体：`soft`（当前 Data 后验）、`em2`（2 步 EM）、`em_block`（EM + 块相位）。
 - 窗口：32 帧一个，共 4 窗；`gain = Frozen BER − 变体 BER`。
@@ -65,7 +65,7 @@
 $env:PYTHONUTF8=1
 python scripts/diagnose_0db_data_posterior.py `
   --config configs/eme_long_memory_v2_online_dd_tail_v1.json `
-  --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt `
+  --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt `
   --seeds 170011 170012 170013 170014 170015 170016 170017 170018 170019 170020 `
   --frames 128 --snrs 0 --timing causal --variants soft em2 em_block --device cuda `
   --output docs/results/0db_criteria_robustness_v1_20261110/variants.json

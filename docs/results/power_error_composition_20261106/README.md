@@ -21,7 +21,7 @@
 
 | 数据集 | 路径 | session 结构 | 逐帧配对数 |
 |---|---|---|---|
-| 历史主矩阵 `main_60f` | `D:/Research/RL4EQ/logs/eme_pilot256_bandit_pilotsparse_main_60f_3s_final/frame_metrics.jsonl` | 3 seed × 60 帧 × 4 SNR | 720 |
+| 历史主矩阵 `main_60f` | `D:/Research/02_研究点二_神经均衡/logs/eme_pilot256_bandit_pilotsparse_main_60f_3s_final/frame_metrics.jsonl` | 3 seed × 60 帧 × 4 SNR | 720 |
 | `adapt_replay_16f` | `docs/results/adapt_replay_dev_16f_v1_20261106/frame_metrics.jsonl` | 3 seed × 2 arm × 16 帧 × 4 SNR | 384 |
 | `cumulative_radius_16f` | `docs/results/cumulative_radius_dev_16f_v1_20261106/frame_metrics.jsonl` | 3 × 2 × 16 × 4 | 384 |
 | `persistent_adam_16f` | `docs/results/persistent_adam_dev_16f_v1_20261106/frame_metrics.jsonl` | 3 × 2 × 16 × 4 | 384 |
@@ -47,7 +47,7 @@
 
 ### 1.3 明确不可用
 
-- 逐符号 Frozen logit：所有 `frame_metrics.jsonl(.gz)` 只保存逐帧 BER；`docs/results` 与 `D:/Research/RL4EQ/logs` 中未找到逐符号 logit 数组。
+- 逐符号 Frozen logit：所有 `frame_metrics.jsonl(.gz)` 只保存逐帧 BER；`docs/results` 与 `D:/Research/02_研究点二_神经均衡/logs` 中未找到逐符号 logit 数组。
 - 因此 `|logit| < 0.1/0.5/1.0/2.0` 的错误占比、错误符号空间位置直方图、连续错误 run-length 分布均**不可用**。
 - 历史 `docs/results/error_geometry_stage_20261101.json` 有错误 |logit| 的聚合均值与 `≥5/≥20` 计数，但来自**不同 checkpoint、5 seed × 8 帧、offline_train 切分**，只能作上下文，不能与主矩阵混合。
 

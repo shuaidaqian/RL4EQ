@@ -76,5 +76,5 @@ non_oracle_uses_reward_or_data_labels = false
 ## 复现
 
 ```powershell
-python scripts/diagnose_0db_data_posterior.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 140001 140002 --frames 16 --device cuda --output docs/results/diagnose_0db_data_posterior_v1_20261107/variants_2x16.json
+python scripts/diagnose_0db_data_posterior.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 140001 140002 --frames 16 --device cuda --output docs/results/diagnose_0db_data_posterior_v1_20261107/variants_2x16.json
 ```

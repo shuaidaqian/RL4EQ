@@ -93,10 +93,10 @@ block_phase 的相位估计相对 Data 后验约 +5 ms/帧；主要成本仍是�
 $env:PYTHONUTF8=1
 
 # causal（可部署时序）
-python scripts/diagnose_0db_data_posterior.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 145001 145002 145003 145004 145005 145006 145007 145008 145009 145010 --frames 64 --variants soft block_phase --timing causal --device cuda --output docs/results/block_phase_dev10x64_v1_20261107/causal_10x64.json
+python scripts/diagnose_0db_data_posterior.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 145001 145002 145003 145004 145005 145006 145007 145008 145009 145010 --frames 64 --variants soft block_phase --timing causal --device cuda --output docs/results/block_phase_dev10x64_v1_20261107/causal_10x64.json
 
 # same_frame（历史语义对照）
-python scripts/diagnose_0db_data_posterior.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 145001 145002 145003 145004 145005 145006 145007 145008 145009 145010 --frames 64 --variants soft block_phase --timing same_frame --device cuda --output docs/results/block_phase_dev10x64_v1_20261107/same_frame_10x64.json
+python scripts/diagnose_0db_data_posterior.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 145001 145002 145003 145004 145005 145006 145007 145008 145009 145010 --frames 64 --variants soft block_phase --timing same_frame --device cuda --output docs/results/block_phase_dev10x64_v1_20261107/same_frame_10x64.json
 
 # 汇总
 python scripts/analyze_block_phase_dev.py docs/results/block_phase_dev10x64_v1_20261107/causal_10x64.json docs/results/block_phase_dev10x64_v1_20261107/same_frame_10x64.json

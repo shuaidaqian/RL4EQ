@@ -22,7 +22,7 @@
 ## 3. 设计
 
 - 配置：`configs/eme_long_memory_v2_online_dd_tail_v1.json`（Level B，116 符号记忆，prefix Pilot=256：Adapt=224/Reward=32，0/5/10/15 dB，dd_soft tail `alpha=1.0`）。
-- Checkpoint：`D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`，SHA256 `8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4`。
+- Checkpoint：`D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt`，SHA256 `8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4`。
 - Bayes 超参数（冻结）：acquisition ridge `1e-2`、过程噪声 `Q=1e-4`、Data 行噪声尺度 `1.0`（`R_t = sigma^2 + sum_l |h_l|^2 Var_{t-l}`）；不按真实 SNR 调度。
 - 会话：10 个独立 session（seed 100001–100010），每 session 128 连续帧；Frozen/Bayes 同波形、同 tail 规则、同 checkpoint。
 - 统计单位：独立 session；帧与 bit 不冒充独立样本。
@@ -46,7 +46,7 @@
 ## 6. 运行
 
 ```powershell
-python scripts/diagnose_bayesian_cir.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/RL4EQ/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 100001 100002 100003 100004 100005 100006 100007 100008 100009 100010 --frames 128 --process-noise 1e-4 --ridge 1e-2 --device cuda --output docs/results/bayesian_cir_confirmation_v1_20261106/confirmation.json
+python scripts/diagnose_bayesian_cir.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 100001 100002 100003 100004 100005 100006 100007 100008 100009 100010 --frames 128 --process-noise 1e-4 --ridge 1e-2 --device cuda --output docs/results/bayesian_cir_confirmation_v1_20261106/confirmation.json
 ```
 
 ## 7. 开发证据（仅用于设计，不并入确认）
