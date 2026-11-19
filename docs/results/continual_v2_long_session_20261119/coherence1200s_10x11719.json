@@ -1,0 +1,410 @@
+{
+  "protocol": {
+    "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+    "manifest": "docs/protocols/continual_v2_coherence1200s_long_session_20261119.json",
+    "seeds": [
+      232001,
+      232002,
+      232003,
+      232004,
+      232005,
+      232006,
+      232007,
+      232008,
+      232009,
+      232010
+    ],
+    "frames": 11719,
+    "snrs": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "state_split": "offline_train",
+    "experiment": "p4_coherence1200s_long_session_10x11719",
+    "output": "docs/results/continual_v2_long_session_20261119/coherence1200s_10x11719.json",
+    "device": "cuda",
+    "stream_rows": true,
+    "checkpoint_interval": 128,
+    "variants": [
+      {
+        "name": "acquisition_frozen_physics",
+        "arm": "acquisition",
+        "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+        "decoder": "physics_branch",
+        "phase_estimator": "circular_all",
+        "phase_reference_backend": "vectorized",
+        "operator_backend": "fft",
+        "process_noise": 1e-06
+      },
+      {
+        "name": "online_known_adapt_real_pilot",
+        "arm": "recursive_pilot",
+        "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+        "decoder": "known_adapt_real_physics",
+        "phase_estimator": "circular_all",
+        "phase_reference_backend": "vectorized",
+        "operator_backend": "fft",
+        "process_noise": 1e-06
+      }
+    ],
+    "arms": [
+      "acquisition_frozen_physics",
+      "online_known_adapt_real_pilot"
+    ],
+    "pairs": [
+      [
+        "acquisition_frozen_physics",
+        "online_known_adapt_real_pilot"
+      ]
+    ],
+    "role": "development",
+    "noise_source": "acquisition_residual",
+    "statistical_unit": "session",
+    "timing": "current_pilot_then_decode",
+    "linear_operator_backend": "direct",
+    "torch_version": "2.11.0+cu128",
+    "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+    "manifest_sha256": "69f8691af59ed2aa5b1cfb13890a7bf3d1a9d575e664878c2cf92da858c6aa1a",
+    "checkpoint_sha256": {
+      "D:\\Research\\02_研究点二_神经均衡\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4"
+    },
+    "git_commit": "da8ee7e922a5ceb831db5845829b7e350f2d8333",
+    "sources": {
+      "training/continual_receiver.py": "281abf709f949244957b4eb07feed3f81cee166f4ec479d9b899b64546786b5c",
+      "training/continual_phase.py": "918470e6963c198d875cc4303474f973caa3757e5b2117bd350db47dce810ec7",
+      "evaluation/continual_variants.py": "3e7eabf34677817b9068bd9f9b62d77986bd37bee3bbe128f6f9b1198779b2f8",
+      "scripts/compare_continual_variants.py": "f8f1e3bb22b5705296574eb927764f310f27b50253cfbbfa25abe83b8e28c043",
+      "evaluation/receiver_diagnostics.py": "ed29b2bb94f14731298988a31d5f5fe5fe689827a9e13a545f60c49a31a1d9c4",
+      "agent/unfolded_equalizer.py": "cabc7006d53c1519047f91486a82453109f006f35d6e51bb65f41971087b1e07",
+      "env/linear_operator.py": "0b06279cbc0535c15446782f158af29aceafb452cdfec02d49cc5747dcf0bb1d"
+    }
+  },
+  "acquisitions": [
+    {
+      "seed": 232001,
+      "snr_db": 0,
+      "noise_estimate": 0.9793740639167022,
+      "noise_truth_diagnostic": 1.0,
+      "cfo_estimate": 0.00039384117033571474,
+      "cir_norm": 1.0521284341812134
+    },
+    {
+      "seed": 232002,
+      "snr_db": 0,
+      "noise_estimate": 1.0109988430949717,
+      "noise_truth_diagnostic": 1.0,
+      "cfo_estimate": 0.00030580403067184697,
+      "cir_norm": 1.0215996503829956
+    },
+    {
+      "seed": 232003,
+      "snr_db": 0,
+      "noise_estimate": 1.023489613379239,
+      "noise_truth_diagnostic": 1.0,
+      "cfo_estimate": 0.00020599667935077289,
+      "cir_norm": 1.0759068727493286
+    },
+    {
+      "seed": 232004,
+      "snr_db": 0,
+      "noise_estimate": 1.0140923687089358,
+      "noise_truth_diagnostic": 1.0,
+      "cfo_estimate": -0.0005643306237858927,
+      "cir_norm": 1.0791597366333008
+    },
+    {
+      "seed": 232005,
+      "snr_db": 0,
+      "noise_estimate": 0.9925112083578606,
+      "noise_truth_diagnostic": 1.0,
+      "cfo_estimate": 0.0002868086493864933,
+      "cir_norm": 1.0309784412384033
+    },
+    {
+      "seed": 232006,
+      "snr_db": 0,
+      "noise_estimate": 1.065554717767237,
+      "noise_truth_diagnostic": 1.0,
+      "cfo_estimate": 0.00030602711898191455,
+      "cir_norm": 1.0128040313720703
+    },
+    {
+      "seed": 232007,
+      "snr_db": 0,
+      "noise_estimate": 1.0260448984080617,
+      "noise_truth_diagnostic": 1.0,
+      "cfo_estimate": 0.00039235487715439115,
+      "cir_norm": 1.1180040836334229
+    },
+    {
+      "seed": 232008,
+      "snr_db": 0,
+      "noise_estimate": 0.9828287669348201,
+      "noise_truth_diagnostic": 1.0,
+      "cfo_estimate": -0.0005058835191158681,
+      "cir_norm": 1.0725295543670654
+    },
+    {
+      "seed": 232009,
+      "snr_db": 0,
+      "noise_estimate": 1.0086385284305002,
+      "noise_truth_diagnostic": 1.0,
+      "cfo_estimate": 0.0004482003362529254,
+      "cir_norm": 1.0373107194900513
+    },
+    {
+      "seed": 232010,
+      "snr_db": 0,
+      "noise_estimate": 0.9850868274529222,
+      "noise_truth_diagnostic": 1.0,
+      "cfo_estimate": 0.0003626723683602296,
+      "cir_norm": 1.0550881624221802
+    },
+    {
+      "seed": 232001,
+      "snr_db": 5,
+      "noise_estimate": 0.3096799097552795,
+      "noise_truth_diagnostic": 0.31622776601683794,
+      "cfo_estimate": 0.0003925536461897711,
+      "cir_norm": 1.0117853879928589
+    },
+    {
+      "seed": 232002,
+      "snr_db": 5,
+      "noise_estimate": 0.3196594688832149,
+      "noise_truth_diagnostic": 0.31622776601683794,
+      "cfo_estimate": 0.0003027934949779001,
+      "cir_norm": 0.9940290451049805
+    },
+    {
+      "seed": 232003,
+      "snr_db": 5,
+      "noise_estimate": 0.3236807800588307,
+      "noise_truth_diagnostic": 0.31622776601683794,
+      "cfo_estimate": 0.00020614432147469448,
+      "cir_norm": 1.0231873989105225
+    },
+    {
+      "seed": 232004,
+      "snr_db": 5,
+      "noise_estimate": 0.32063060861946585,
+      "noise_truth_diagnostic": 0.31622776601683794,
+      "cfo_estimate": -0.0005662965101832038,
+      "cir_norm": 1.0258901119232178
+    },
+    {
+      "seed": 232005,
+      "snr_db": 5,
+      "noise_estimate": 0.31395634601322914,
+      "noise_truth_diagnostic": 0.31622776601683794,
+      "cfo_estimate": 0.00029705432249937014,
+      "cir_norm": 1.0021342039108276
+    },
+    {
+      "seed": 232006,
+      "snr_db": 5,
+      "noise_estimate": 0.3370330065761626,
+      "noise_truth_diagnostic": 0.31622776601683794,
+      "cfo_estimate": 0.0003158985420022631,
+      "cir_norm": 0.9922392964363098
+    },
+    {
+      "seed": 232007,
+      "snr_db": 5,
+      "noise_estimate": 0.32449142856419205,
+      "noise_truth_diagnostic": 0.31622776601683794,
+      "cfo_estimate": 0.00039560560758532807,
+      "cir_norm": 1.0489997863769531
+    },
+    {
+      "seed": 232008,
+      "snr_db": 5,
+      "noise_estimate": 0.31078243949624923,
+      "noise_truth_diagnostic": 0.31622776601683794,
+      "cfo_estimate": -0.000504405914415574,
+      "cir_norm": 1.0217702388763428
+    },
+    {
+      "seed": 232009,
+      "snr_db": 5,
+      "noise_estimate": 0.31892743927699985,
+      "noise_truth_diagnostic": 0.31622776601683794,
+      "cfo_estimate": 0.0004393698525251092,
+      "cir_norm": 1.0087999105453491
+    },
+    {
+      "seed": 232010,
+      "snr_db": 5,
+      "noise_estimate": 0.3117318484160615,
+      "noise_truth_diagnostic": 0.31622776601683794,
+      "cfo_estimate": 0.00035164950801447076,
+      "cir_norm": 1.0181574821472168
+    },
+    {
+      "seed": 232001,
+      "snr_db": 10,
+      "noise_estimate": 0.09791790125542119,
+      "noise_truth_diagnostic": 0.1,
+      "cfo_estimate": 0.00039159185615015283,
+      "cir_norm": 1.0009028911590576
+    },
+    {
+      "seed": 232002,
+      "snr_db": 10,
+      "noise_estimate": 0.10106574333407099,
+      "noise_truth_diagnostic": 0.1,
+      "cfo_estimate": 0.0003029303459800551,
+      "cir_norm": 0.9908708333969116
+    },
+    {
+      "seed": 232003,
+      "snr_db": 10,
+      "noise_estimate": 0.10237143714223693,
+      "noise_truth_diagnostic": 0.1,
+      "cfo_estimate": 0.00020618334989390075,
+      "cir_norm": 1.006577730178833
+    },
+    {
+      "seed": 232004,
+      "snr_db": 10,
+      "noise_estimate": 0.10137803494307604,
+      "noise_truth_diagnostic": 0.1,
+      "cfo_estimate": -0.0005682600704703404,
+      "cir_norm": 1.0083712339401245
+    },
+    {
+      "seed": 232005,
+      "snr_db": 10,
+      "noise_estimate": 0.09930503934566193,
+      "noise_truth_diagnostic": 0.1,
+      "cfo_estimate": 0.0003019298048307424,
+      "cir_norm": 0.996297299861908
+    },
+    {
+      "seed": 232006,
+      "snr_db": 10,
+      "noise_estimate": 0.10658956531203098,
+      "noise_truth_diagnostic": 0.1,
+      "cfo_estimate": 0.0003196497705750779,
+      "cir_norm": 0.9908875823020935
+    },
+    {
+      "seed": 232007,
+      "snr_db": 10,
+      "noise_estimate": 0.10263042006718824,
+      "noise_truth_diagnostic": 0.1,
+      "cfo_estimate": 0.0003973014470359539,
+      "cir_norm": 1.0216526985168457
+    },
+    {
+      "seed": 232008,
+      "snr_db": 10,
+      "noise_estimate": 0.0982787339543065,
+      "noise_truth_diagnostic": 0.1,
+      "cfo_estimate": -0.0005045292521622482,
+      "cir_norm": 1.005933165550232
+    },
+    {
+      "seed": 232009,
+      "snr_db": 10,
+      "noise_estimate": 0.10085171084518063,
+      "noise_truth_diagnostic": 0.1,
+      "cfo_estimate": 0.00043402519427562667,
+      "cir_norm": 1.0010011196136475
+    },
+    {
+      "seed": 232010,
+      "snr_db": 10,
+      "noise_estimate": 0.09866606901253118,
+      "noise_truth_diagnostic": 0.1,
+      "cfo_estimate": 0.0003467752953530347,
+      "cir_norm": 1.0060497522354126
+    },
+    {
+      "seed": 232001,
+      "snr_db": 15,
+      "noise_estimate": 0.030959307214782125,
+      "noise_truth_diagnostic": 0.03162277660168379,
+      "cfo_estimate": 0.00039098336533952173,
+      "cir_norm": 0.9986836910247803
+    },
+    {
+      "seed": 232002,
+      "snr_db": 15,
+      "noise_estimate": 0.03195810012654004,
+      "noise_truth_diagnostic": 0.03162277660168379,
+      "cfo_estimate": 0.0003035368859643046,
+      "cir_norm": 0.9930540323257446
+    },
+    {
+      "seed": 232003,
+      "snr_db": 15,
+      "noise_estimate": 0.032381487794741766,
+      "noise_truth_diagnostic": 0.03162277660168379,
+      "cfo_estimate": 0.00020619152061488268,
+      "cir_norm": 1.0016274452209473
+    },
+    {
+      "seed": 232004,
+      "snr_db": 15,
+      "noise_estimate": 0.03205775400452632,
+      "noise_truth_diagnostic": 0.03162277660168379,
+      "cfo_estimate": -0.0005696349771855654,
+      "cir_norm": 1.002717137336731
+    },
+    {
+      "seed": 232005,
+      "snr_db": 15,
+      "noise_estimate": 0.03141179153211521,
+      "noise_truth_diagnostic": 0.03162277660168379,
+      "cfo_estimate": 0.0003043966894832659,
+      "cir_norm": 0.9963698983192444
+    },
+    {
+      "seed": 232006,
+      "snr_db": 15,
+      "noise_estimate": 0.03371077781407352,
+      "noise_truth_diagnostic": 0.03162277660168379,
+      "cfo_estimate": 0.0003212922965140936,
+      "cir_norm": 0.9933799505233765
+    },
+    {
+      "seed": 232007,
+      "snr_db": 15,
+      "noise_estimate": 0.03246771679600702,
+      "noise_truth_diagnostic": 0.03162277660168379,
+      "cfo_estimate": 0.0003982086180295585,
+      "cir_norm": 1.010252833366394
+    },
+    {
+      "seed": 232008,
+      "snr_db": 15,
+      "noise_estimate": 0.03108861940137424,
+      "noise_truth_diagnostic": 0.03162277660168379,
+      "cfo_estimate": -0.0005048929065442498,
+      "cir_norm": 1.0012931823730469
+    },
+    {
+      "seed": 232009,
+      "snr_db": 15,
+      "noise_estimate": 0.031895546782907395,
+      "noise_truth_diagnostic": 0.03162277660168379,
+      "cfo_estimate": 0.0004308789828990854,
+      "cir_norm": 0.9993017315864563
+    },
+    {
+      "seed": 232010,
+      "snr_db": 15,
+      "noise_estimate": 0.03125127272882534,
+      "noise_truth_diagnostic": 0.03162277660168379,
+      "cfo_estimate": 0.0003444047890392317,
+      "cir_norm": 1.0020782947540283
+    }
+  ],
+  "rows": [],
+  "status": "completed",
+  "rows_file": "coherence1200s_10x11719.jsonl.gz",
+  "row_count": 937520
+}

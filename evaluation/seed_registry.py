@@ -51,8 +51,18 @@ def reserve_seeds(root, *, experiment, seeds, purpose, details):
         not isinstance(x, int) or isinstance(x, bool) or x < 0 for x in seeds
     ):
         raise ValueError("种子必须是非空、互异、非负整数。")
-    if any(row["experiment"] == experiment for row in registry["experiments"]):
-        raise ValueError("实验名已登记，禁止隐式重跑。")
+    existing = next((row for row in registry["experiments"] if row["experiment"] == experiment), None)
+    if existing is not None:
+        if (existing.get("status") == "reserved" and existing.get("purpose") == purpose
+                and existing.get("seeds") == list(seeds)):
+            existing["status"] = "running"
+            existing["details"] = details
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            temporary.replace(path)
+            return path
+        raise ValueError("实验名已登记且状态或种子不匹配，禁止隐式重跑。")
     used = observed_seeds(root)
     for row in registry["experiments"]:
         used.update(row["seeds"])
