@@ -1,0 +1,763 @@
+{
+  "status": "development_descriptive_only",
+  "statistical_axes": {
+    "receiver_session": "10 paired receiver sessions, conditional on each trained model",
+    "training_repeat": "3 independent training repeats; each cell averages the same 10 receiver sessions",
+    "joint_generalization_ci": null
+  },
+  "per_snr": {
+    "0": {
+      "mean_ber_by_candidate": {
+        "acquisition_physics_q1e6": {
+          "mean": 0.15001627604166665,
+          "ci95": [
+            0.14220824083742592,
+            0.15782431124590737
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "recursive_pilot_physics_q1e6": {
+          "mean": 0.13193359375000002,
+          "ci95": [
+            0.12481637563566851,
+            0.13905081186433152
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "untrained_known_adapt_physics": {
+          "mean": 0.12318115234374998,
+          "ci95": [
+            0.11618808897749476,
+            0.1301742157100052
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "untrained_known_adapt_neural": {
+          "mean": 0.12318522135416668,
+          "ci95": [
+            0.11619013021483163,
+            0.13018031249350173
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r0_acquisition_known_adapt_neural": {
+          "mean": 0.12321573893229165,
+          "ci95": [
+            0.11627852452931806,
+            0.13015295333526525
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r0_recursive_pilot_known_adapt_neural": {
+          "mean": 0.12320963541666667,
+          "ci95": [
+            0.11625522493725954,
+            0.1301640458960738
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r1_acquisition_known_adapt_neural": {
+          "mean": 0.123193359375,
+          "ci95": [
+            0.11624547405173705,
+            0.13014124469826296
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r1_recursive_pilot_known_adapt_neural": {
+          "mean": 0.12319132486979165,
+          "ci95": [
+            0.1162381346828625,
+            0.1301445150567208
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r2_acquisition_known_adapt_neural": {
+          "mean": 0.12310994466145833,
+          "ci95": [
+            0.11605765898006518,
+            0.1301622303428515
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r2_recursive_pilot_known_adapt_neural": {
+          "mean": 0.12310180664062498,
+          "ci95": [
+            0.11604096072899941,
+            0.13016265255225054
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        }
+      },
+      "untrained_neural_minus_trained_by_repeat": {
+        "0": {
+          "acquisition": {
+            "mean": -3.051757812500139e-05,
+            "ci95": [
+              -0.00017866180970757772,
+              0.00011762665345757496
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": -2.44140625e-05,
+            "ci95": [
+              -0.0001965916631118442,
+              0.0001477635381118442
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        },
+        "1": {
+          "acquisition": {
+            "mean": -8.138020833334258e-06,
+            "ci95": [
+              -0.00014624322415594172,
+              0.00012996718248927322
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": -6.103515625001388e-06,
+            "ci95": [
+              -0.00015626748699234166,
+              0.0001440604557423389
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        },
+        "2": {
+          "acquisition": {
+            "mean": 7.527669270833288e-05,
+            "ci95": [
+              -9.010296015809292e-05,
+              0.00024065634557475868
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": 8.341471354166713e-05,
+            "ci95": [
+              -0.00011393940925641925,
+              0.0002807688363397535
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        }
+      },
+      "recursive_minus_acquisition_training_by_repeat": {
+        "0": 6.103515625001388e-06,
+        "1": 2.034505208332871e-06,
+        "2": 8.138020833334258e-06
+      },
+      "recursive_minus_acquisition_training_repeat_axis": {
+        "mean": 5.425347222222839e-06,
+        "ci95": [
+          -2.2947517229894027e-06,
+          1.314544616743508e-05
+        ],
+        "n": 3,
+        "status": "t_descriptive"
+      },
+      "pilot_physics_gain_vs_acquisition": {
+        "mean": 0.018082682291666666,
+        "ci95": [
+          0.015950109345689235,
+          0.020215255237644097
+        ],
+        "n": 10,
+        "status": "t_descriptive"
+      },
+      "known_adapt_physics_gain_vs_recursive_pilot": {
+        "mean": 0.008752441406249999,
+        "ci95": [
+          0.007577663351926244,
+          0.009927219460573752
+        ],
+        "n": 10,
+        "status": "t_descriptive"
+      }
+    },
+    "5": {
+      "mean_ber_by_candidate": {
+        "acquisition_physics_q1e6": {
+          "mean": 0.04651896158854167,
+          "ci95": [
+            0.04018420819638006,
+            0.052853714980703285
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "recursive_pilot_physics_q1e6": {
+          "mean": 0.03882853190104167,
+          "ci95": [
+            0.03303739446543094,
+            0.0446196693366524
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "untrained_known_adapt_physics": {
+          "mean": 0.02645263671875,
+          "ci95": [
+            0.021481211073114855,
+            0.03142406236438514
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "untrained_known_adapt_neural": {
+          "mean": 0.026444498697916662,
+          "ci95": [
+            0.021476231716973694,
+            0.03141276567885963
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r0_acquisition_known_adapt_neural": {
+          "mean": 0.02642822265625,
+          "ci95": [
+            0.021457795064306263,
+            0.03139865024819374
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r0_recursive_pilot_known_adapt_neural": {
+          "mean": 0.026407877604166664,
+          "ci95": [
+            0.021450260694966118,
+            0.03136549451336721
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r1_acquisition_known_adapt_neural": {
+          "mean": 0.02643025716145833,
+          "ci95": [
+            0.021470725319454195,
+            0.03138978900346247
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r1_recursive_pilot_known_adapt_neural": {
+          "mean": 0.026438395182291664,
+          "ci95": [
+            0.02148011250742241,
+            0.03139667785716092
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r2_acquisition_known_adapt_neural": {
+          "mean": 0.026387532552083336,
+          "ci95": [
+            0.021424629956128056,
+            0.03135043514803862
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r2_recursive_pilot_known_adapt_neural": {
+          "mean": 0.02635498046875,
+          "ci95": [
+            0.02139982232692315,
+            0.03131013861057685
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        }
+      },
+      "untrained_neural_minus_trained_by_repeat": {
+        "0": {
+          "acquisition": {
+            "mean": 1.6276041666666436e-05,
+            "ci95": [
+              -4.9458957815096496e-05,
+              8.201104114842936e-05
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": 3.662109374999965e-05,
+            "ci95": [
+              -4.093943304310059e-05,
+              0.0001141816205430999
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        },
+        "1": {
+          "acquisition": {
+            "mean": 1.4241536458333218e-05,
+            "ci95": [
+              -7.035810753725043e-05,
+              9.884118045391686e-05
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": 6.103515624999653e-06,
+            "ci95": [
+              -7.566685049509379e-05,
+              8.78738817450931e-05
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        },
+        "2": {
+          "acquisition": {
+            "mean": 5.6966145833332873e-05,
+            "ci95": [
+              -2.0897234617940798e-05,
+              0.00013482952628460654
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": 8.951822916666574e-05,
+            "ci95": [
+              7.417534412467445e-06,
+              0.00017161892392086403
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        }
+      },
+      "recursive_minus_acquisition_training_by_repeat": {
+        "0": 2.0345052083333217e-05,
+        "1": -8.138020833333565e-06,
+        "2": 3.255208333333287e-05
+      },
+      "recursive_minus_acquisition_training_repeat_axis": {
+        "mean": 1.4919704861110841e-05,
+        "ci95": [
+          -3.695043127676457e-05,
+          6.678984099898626e-05
+        ],
+        "n": 3,
+        "status": "t_descriptive"
+      },
+      "pilot_physics_gain_vs_acquisition": {
+        "mean": 0.0076904296875,
+        "ci95": [
+          0.006309275408401857,
+          0.009071583966598143
+        ],
+        "n": 10,
+        "status": "t_descriptive"
+      },
+      "known_adapt_physics_gain_vs_recursive_pilot": {
+        "mean": 0.012375895182291666,
+        "ci95": [
+          0.011342960583699031,
+          0.0134088297808843
+        ],
+        "n": 10,
+        "status": "t_descriptive"
+      }
+    },
+    "10": {
+      "mean_ber_by_candidate": {
+        "acquisition_physics_q1e6": {
+          "mean": 0.006087239583333333,
+          "ci95": [
+            0.004107675657103118,
+            0.008066803509563548
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "recursive_pilot_physics_q1e6": {
+          "mean": 0.004475911458333334,
+          "ci95": [
+            0.003022342588113642,
+            0.005929480328553026
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "untrained_known_adapt_physics": {
+          "mean": 0.0011698404947916665,
+          "ci95": [
+            0.0005858550660048412,
+            0.001753825923578492
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "untrained_known_adapt_neural": {
+          "mean": 0.001171875,
+          "ci95": [
+            0.00058760954458395,
+            0.00175614045541605
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r0_acquisition_known_adapt_neural": {
+          "mean": 0.0011739095052083334,
+          "ci95": [
+            0.0005869573788705699,
+            0.001760861631546097
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r0_recursive_pilot_known_adapt_neural": {
+          "mean": 0.0011637369791666669,
+          "ci95": [
+            0.0005875188817977829,
+            0.001739955076535551
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r1_acquisition_known_adapt_neural": {
+          "mean": 0.001177978515625,
+          "ci95": [
+            0.0005864570142711616,
+            0.0017695000169788385
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r1_recursive_pilot_known_adapt_neural": {
+          "mean": 0.0011759440104166666,
+          "ci95": [
+            0.0005850853475982185,
+            0.0017668026732351148
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r2_acquisition_known_adapt_neural": {
+          "mean": 0.0011678059895833333,
+          "ci95": [
+            0.0005870556373748613,
+            0.0017485563417918054
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r2_recursive_pilot_known_adapt_neural": {
+          "mean": 0.001171875,
+          "ci95": [
+            0.0005914489444173341,
+            0.0017523010555826658
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        }
+      },
+      "untrained_neural_minus_trained_by_repeat": {
+        "0": {
+          "acquisition": {
+            "mean": -2.0345052083333477e-06,
+            "ci95": [
+              -1.2773369778088847e-05,
+              8.70435936142215e-06
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": 8.138020833333326e-06,
+            "ci95": [
+              -4.134967246387254e-06,
+              2.0411008913053907e-05
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        },
+        "1": {
+          "acquisition": {
+            "mean": -6.103515624999978e-06,
+            "ci95": [
+              -2.1521266087586334e-05,
+              9.314234837586378e-06
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": -4.069010416666652e-06,
+            "ci95": [
+              -2.1959811191381727e-05,
+              1.3821790358048423e-05
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        },
+        "2": {
+          "acquisition": {
+            "mean": 4.069010416666684e-06,
+            "ci95": [
+              -5.1357306431237575e-06,
+              1.3273751476457126e-05
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": 0.0,
+            "ci95": [
+              -9.702649007003328e-06,
+              9.702649007003328e-06
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        }
+      },
+      "recursive_minus_acquisition_training_by_repeat": {
+        "0": 1.0172526041666675e-05,
+        "1": 2.034505208333326e-06,
+        "2": -4.069010416666684e-06
+      },
+      "recursive_minus_acquisition_training_repeat_axis": {
+        "mean": 2.7126736111111053e-06,
+        "ci95": [
+          -1.5036359866727095e-05,
+          2.0461707088949305e-05
+        ],
+        "n": 3,
+        "status": "t_descriptive"
+      },
+      "pilot_physics_gain_vs_acquisition": {
+        "mean": 0.001611328125,
+        "ci95": [
+          0.0010101239312910232,
+          0.0022125323187089764
+        ],
+        "n": 10,
+        "status": "t_descriptive"
+      },
+      "known_adapt_physics_gain_vs_recursive_pilot": {
+        "mean": 0.0033060709635416665,
+        "ci95": [
+          0.002386946597412587,
+          0.004225195329670747
+        ],
+        "n": 10,
+        "status": "t_descriptive"
+      }
+    },
+    "15": {
+      "mean_ber_by_candidate": {
+        "acquisition_physics_q1e6": {
+          "mean": 0.00084228515625,
+          "ci95": [
+            0.0006122484642267082,
+            0.0010723218482732919
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "recursive_pilot_physics_q1e6": {
+          "mean": 0.0007080078125000001,
+          "ci95": [
+            0.0005500899342695831,
+            0.0008659256907304171
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "untrained_known_adapt_physics": {
+          "mean": 0.00020345052083333334,
+          "ci95": [
+            0.00010191982077682479,
+            0.0003049812208898419
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "untrained_known_adapt_neural": {
+          "mean": 0.00020345052083333334,
+          "ci95": [
+            0.00010191982077682479,
+            0.0003049812208898419
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r0_acquisition_known_adapt_neural": {
+          "mean": 0.00020345052083333334,
+          "ci95": [
+            0.00010145726393995923,
+            0.00030544377772670744
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r0_recursive_pilot_known_adapt_neural": {
+          "mean": 0.00020345052083333332,
+          "ci95": [
+            9.850032532559275e-05,
+            0.0003084007163410739
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r1_acquisition_known_adapt_neural": {
+          "mean": 0.00020548502604166664,
+          "ci95": [
+            0.00010315772291542959,
+            0.0003078123291679037
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r1_recursive_pilot_known_adapt_neural": {
+          "mean": 0.00020548502604166664,
+          "ci95": [
+            0.00010315772291542959,
+            0.0003078123291679037
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r2_acquisition_known_adapt_neural": {
+          "mean": 0.00020548502604166664,
+          "ci95": [
+            9.998684241104426e-05,
+            0.000310983209672289
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        },
+        "train_r2_recursive_pilot_known_adapt_neural": {
+          "mean": 0.00020548502604166664,
+          "ci95": [
+            9.998684241104426e-05,
+            0.000310983209672289
+          ],
+          "n": 10,
+          "status": "t_descriptive"
+        }
+      },
+      "untrained_neural_minus_trained_by_repeat": {
+        "0": {
+          "acquisition": {
+            "mean": 0.0,
+            "ci95": [
+              -6.860808908324956e-06,
+              6.860808908324956e-06
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": 5.4210108624275225e-21,
+            "ci95": [
+              -6.860808908324942e-06,
+              6.8608089083249525e-06
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        },
+        "1": {
+          "acquisition": {
+            "mean": -2.034505208333334e-06,
+            "ci95": [
+              -1.0296013143994906e-05,
+              6.227002727328237e-06
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": -2.034505208333334e-06,
+            "ci95": [
+              -1.0296013143994906e-05,
+              6.227002727328237e-06
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        },
+        "2": {
+          "acquisition": {
+            "mean": -2.034505208333326e-06,
+            "ci95": [
+              -1.0296013143994886e-05,
+              6.227002727328234e-06
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          },
+          "recursive_pilot": {
+            "mean": -2.034505208333326e-06,
+            "ci95": [
+              -1.0296013143994886e-05,
+              6.227002727328234e-06
+            ],
+            "n": 10,
+            "status": "t_descriptive"
+          }
+        }
+      },
+      "recursive_minus_acquisition_training_by_repeat": {
+        "0": 5.4210108624275225e-21,
+        "1": 0.0,
+        "2": 0.0
+      },
+      "recursive_minus_acquisition_training_repeat_axis": {
+        "mean": 1.807003620809174e-21,
+        "ci95": [
+          -5.967905440836234e-21,
+          9.581912682454581e-21
+        ],
+        "n": 3,
+        "status": "t_descriptive"
+      },
+      "pilot_physics_gain_vs_acquisition": {
+        "mean": 0.00013427734374999998,
+        "ci95": [
+          1.5405043348515985e-05,
+          0.000253149644151484
+        ],
+        "n": 10,
+        "status": "t_descriptive"
+      },
+      "known_adapt_physics_gain_vs_recursive_pilot": {
+        "mean": 0.0005045572916666666,
+        "ci95": [
+          0.00036997347047074093,
+          0.0006391411128625923
+        ],
+        "n": 10,
+        "status": "t_descriptive"
+      }
+    }
+  },
+  "analysis_source_sha256": "20d0fc4a1f6545b567b08359cfa617e1fcf98968a44a961215694123cad271bd"
+}
