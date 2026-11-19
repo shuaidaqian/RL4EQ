@@ -39,8 +39,6 @@ def validate_variants(manifest):
         if source is not None:
             if source not in previous:
                 raise ValueError('共享上下文必须引用排在前面的候选。')
-            if row['checkpoint'] != previous[source]['checkpoint']:
-                raise ValueError('共享上下文的候选必须使用同一 checkpoint。')
         previous[row['name']] = row
     for pair in manifest.get('pairs', []):
         if len(pair) != 2 or pair[0] not in names or pair[1] not in names or pair[0] == pair[1]:

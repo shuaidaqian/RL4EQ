@@ -1,0 +1,223 @@
+{
+  "description": "新 warm-start 的三重复微调独立开发验证。所有已训练 checkpoint 候选复用同一递归 Pilot 物理源候选每帧的实际接收输入，固定物理状态、噪声估计、相位和 tail，只比较权重带来的解码变化。含 acquisition Frozen 与递归物理锚点、未训练物理/神经候选、三重复×两训练策略的 checkpoint。Data 标签只在接收完成后评分。开发验证，不是最终确认。",
+  "variants": [
+    {
+      "name": "acquisition_physics_q1e6",
+      "arm": "acquisition",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "recursive_pilot_physics_q1e6",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "untrained_known_adapt_physics",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "context_source": "recursive_pilot_physics_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "untrained_known_adapt_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_physics_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "train_r0_acquisition_known_adapt_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_known_adapt_20261119/repeat0_acquisition.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_physics_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06,
+      "training_repeat": 0,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "train_r0_recursive_pilot_known_adapt_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_known_adapt_20261119/repeat0_recursive_pilot.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_physics_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06,
+      "training_repeat": 0,
+      "training_method": "recursive_pilot"
+    },
+    {
+      "name": "train_r1_acquisition_known_adapt_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_known_adapt_20261119/repeat1_acquisition.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_physics_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06,
+      "training_repeat": 1,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "train_r1_recursive_pilot_known_adapt_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_known_adapt_20261119/repeat1_recursive_pilot.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_physics_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06,
+      "training_repeat": 1,
+      "training_method": "recursive_pilot"
+    },
+    {
+      "name": "train_r2_acquisition_known_adapt_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_known_adapt_20261119/repeat2_acquisition.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_physics_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06,
+      "training_repeat": 2,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "train_r2_recursive_pilot_known_adapt_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_known_adapt_20261119/repeat2_recursive_pilot.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_physics_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06,
+      "training_repeat": 2,
+      "training_method": "recursive_pilot"
+    }
+  ],
+  "pairs": [
+    [
+      "acquisition_physics_q1e6",
+      "recursive_pilot_physics_q1e6"
+    ],
+    [
+      "recursive_pilot_physics_q1e6",
+      "untrained_known_adapt_physics"
+    ],
+    [
+      "untrained_known_adapt_physics",
+      "untrained_known_adapt_neural"
+    ],
+    [
+      "recursive_pilot_physics_q1e6",
+      "train_r0_acquisition_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_physics",
+      "train_r0_acquisition_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_neural",
+      "train_r0_acquisition_known_adapt_neural"
+    ],
+    [
+      "recursive_pilot_physics_q1e6",
+      "train_r0_recursive_pilot_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_physics",
+      "train_r0_recursive_pilot_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_neural",
+      "train_r0_recursive_pilot_known_adapt_neural"
+    ],
+    [
+      "train_r0_acquisition_known_adapt_neural",
+      "train_r0_recursive_pilot_known_adapt_neural"
+    ],
+    [
+      "recursive_pilot_physics_q1e6",
+      "train_r1_acquisition_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_physics",
+      "train_r1_acquisition_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_neural",
+      "train_r1_acquisition_known_adapt_neural"
+    ],
+    [
+      "recursive_pilot_physics_q1e6",
+      "train_r1_recursive_pilot_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_physics",
+      "train_r1_recursive_pilot_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_neural",
+      "train_r1_recursive_pilot_known_adapt_neural"
+    ],
+    [
+      "train_r1_acquisition_known_adapt_neural",
+      "train_r1_recursive_pilot_known_adapt_neural"
+    ],
+    [
+      "recursive_pilot_physics_q1e6",
+      "train_r2_acquisition_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_physics",
+      "train_r2_acquisition_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_neural",
+      "train_r2_acquisition_known_adapt_neural"
+    ],
+    [
+      "recursive_pilot_physics_q1e6",
+      "train_r2_recursive_pilot_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_physics",
+      "train_r2_recursive_pilot_known_adapt_neural"
+    ],
+    [
+      "untrained_known_adapt_neural",
+      "train_r2_recursive_pilot_known_adapt_neural"
+    ],
+    [
+      "train_r2_acquisition_known_adapt_neural",
+      "train_r2_recursive_pilot_known_adapt_neural"
+    ]
+  ]
+}

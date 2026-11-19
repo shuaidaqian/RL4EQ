@@ -52,8 +52,7 @@ def test_variant_manifest_rejects_unknown_or_ambiguous_comparisons():
     assert len(validate_variants(dict(variants=[variant, physical]))) == 2
     with pytest.raises(ValueError, match='前面'):
         validate_variants(dict(variants=[physical, variant]))
-    with pytest.raises(ValueError, match='同一 checkpoint'):
-        validate_variants(dict(variants=[variant, dict(physical, checkpoint='other.pt')]))
+    assert len(validate_variants(dict(variants=[variant, dict(physical, checkpoint='other.pt')]))) == 2
 
 
 def test_real_bpsk_known_adapt_solver_matches_reduced_real_normal_equations():

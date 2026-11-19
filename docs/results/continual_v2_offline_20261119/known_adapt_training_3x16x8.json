@@ -1,0 +1,3611 @@
+{
+  "protocol": {
+    "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+    "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+    "seeds": [
+      226001,
+      226002,
+      226003,
+      226004,
+      226005,
+      226006,
+      226007,
+      226008,
+      226009,
+      226010,
+      226011,
+      226012,
+      226013,
+      226014,
+      226015,
+      226016,
+      226017,
+      226018,
+      226019,
+      226020,
+      226021,
+      226022,
+      226023,
+      226024,
+      226025,
+      226026,
+      226027,
+      226028,
+      226029,
+      226030,
+      226031,
+      226032,
+      226033,
+      226034,
+      226035,
+      226036,
+      226037,
+      226038,
+      226039,
+      226040,
+      226041,
+      226042,
+      226043,
+      226044,
+      226045,
+      226046,
+      226047,
+      226048
+    ],
+    "training_seeds": [
+      402001,
+      402002,
+      402003
+    ],
+    "frames": 8,
+    "sample_frames": [
+      0,
+      1,
+      3,
+      7
+    ],
+    "learning_rate": 0.0001,
+    "process_noise": 1e-06,
+    "phase_estimator": "circular_all",
+    "operator_backend": "fft",
+    "physics_real_bpsk_known_adapt": true,
+    "experiment": "p3_known_adapt_real_finetune_3x16x8",
+    "output_dir": "pretrained/continual_v2_p3_known_adapt_20261119",
+    "report": "docs/results/continual_v2_offline_20261119/known_adapt_training_3x16x8.json",
+    "device": "cuda",
+    "role": "training",
+    "repeats": 3,
+    "episodes_per_repeat": 16,
+    "methods": [
+      "acquisition",
+      "recursive_pilot"
+    ],
+    "snr_schedule": [
+      0,
+      5,
+      10,
+      15,
+      0,
+      5,
+      10,
+      15,
+      0,
+      5,
+      10,
+      15,
+      0,
+      5,
+      10,
+      15
+    ],
+    "supervision": "仅离线 Data BCE，接收输入不含 Data/Reward 标签",
+    "trajectory": "每个会话内权重固定，轨迹结束后训练；历史状态截断梯度",
+    "inference_mode": "eval，保留梯度；在线部署权重冻结",
+    "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+    "checkpoint_sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4",
+    "git_commit": "e7dd8d79c6dfb4154180a773fbe585b0dcd34d83",
+    "sources": {
+      "training/continual_receiver.py": "281abf709f949244957b4eb07feed3f81cee166f4ec479d9b899b64546786b5c",
+      "training/continual_offline.py": "83bb389304df5d75840f9affeef7ef9d030249de1999b4944a6af1f4e36a6102",
+      "scripts/train_continual_offline.py": "47b3508b649c917c36ddbc0fd4852a838350d475165397c9cbf3190f1f0862bb",
+      "agent/unfolded_equalizer.py": "cabc7006d53c1519047f91486a82453109f006f35d6e51bb65f41971087b1e07"
+    }
+  },
+  "rows": [
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 0,
+      "seed": 226001,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.39976415038108826,
+          "data_bits": 768,
+          "gradient_norm": 0.05367452651262283
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.4240148663520813,
+          "data_bits": 768,
+          "gradient_norm": 0.041711024940013885
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.41033220291137695,
+          "data_bits": 768,
+          "gradient_norm": 0.11489628255367279
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.4378593862056732,
+          "data_bits": 768,
+          "gradient_norm": 0.03182203322649002
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 0,
+      "seed": 226001,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.3911544680595398,
+          "data_bits": 768,
+          "gradient_norm": 0.06489962339401245
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.4234785735607147,
+          "data_bits": 768,
+          "gradient_norm": 0.09978042542934418
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.3926112651824951,
+          "data_bits": 768,
+          "gradient_norm": 0.11984143406152725
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.4313189387321472,
+          "data_bits": 768,
+          "gradient_norm": 0.03473964333534241
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 1,
+      "seed": 226002,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.11933720111846924,
+          "data_bits": 768,
+          "gradient_norm": 0.12782002985477448
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.09911437332630157,
+          "data_bits": 768,
+          "gradient_norm": 0.03775008022785187
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.09966671466827393,
+          "data_bits": 768,
+          "gradient_norm": 0.028325486928224564
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.104644775390625,
+          "data_bits": 768,
+          "gradient_norm": 0.0486452691257
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 1,
+      "seed": 226002,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.0933460146188736,
+          "data_bits": 768,
+          "gradient_norm": 0.16420139372348785
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.09427081048488617,
+          "data_bits": 768,
+          "gradient_norm": 0.07047948241233826
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.09998823702335358,
+          "data_bits": 768,
+          "gradient_norm": 0.023734450340270996
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.09084933996200562,
+          "data_bits": 768,
+          "gradient_norm": 0.0405597984790802
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 2,
+      "seed": 226003,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.0004912064759992063,
+          "data_bits": 768,
+          "gradient_norm": 0.0034927185624837875
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.00027148795197717845,
+          "data_bits": 768,
+          "gradient_norm": 0.0026057001668959856
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.013506848365068436,
+          "data_bits": 768,
+          "gradient_norm": 0.011775411665439606
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.005413942039012909,
+          "data_bits": 768,
+          "gradient_norm": 0.008252541534602642
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 2,
+      "seed": 226003,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.0003092329716309905,
+          "data_bits": 768,
+          "gradient_norm": 0.00755792623385787
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0004074326134286821,
+          "data_bits": 768,
+          "gradient_norm": 0.005200076382607222
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.011688283644616604,
+          "data_bits": 768,
+          "gradient_norm": 0.008070028387010098
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.002259492874145508,
+          "data_bits": 768,
+          "gradient_norm": 0.027527092024683952
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 3,
+      "seed": 226004,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 7.45235162469271e-09,
+          "data_bits": 768,
+          "gradient_norm": 1.4007893014422734e-06
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 1.8725330259896505e-13,
+          "data_bits": 768,
+          "gradient_norm": 1.7767319733519304e-13
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0049556707963347435,
+          "data_bits": 768,
+          "gradient_norm": 0.18924930691719055
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 2.9133795376168337e-10,
+          "data_bits": 768,
+          "gradient_norm": 8.376939142351603e-09
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 3,
+      "seed": 226004,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 3.1792057593287015e-13,
+          "data_bits": 768,
+          "gradient_norm": 3.304620932453872e-08
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 1.7634866819864897e-13,
+          "data_bits": 768,
+          "gradient_norm": 3.926231830430303e-14
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.005806657485663891,
+          "data_bits": 768,
+          "gradient_norm": 0.17759265005588531
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 6.745971142807505e-11,
+          "data_bits": 768,
+          "gradient_norm": 1.5040852244241343e-11
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 4,
+      "seed": 226005,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.38941988348960876,
+          "data_bits": 768,
+          "gradient_norm": 0.31799840927124023
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.3954788148403168,
+          "data_bits": 768,
+          "gradient_norm": 0.08570869266986847
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.3907749056816101,
+          "data_bits": 768,
+          "gradient_norm": 0.05732278525829315
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.41834673285484314,
+          "data_bits": 768,
+          "gradient_norm": 0.04254787415266037
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 4,
+      "seed": 226005,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.38234764337539673,
+          "data_bits": 768,
+          "gradient_norm": 0.2608563005924225
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.38563477993011475,
+          "data_bits": 768,
+          "gradient_norm": 0.08902309834957123
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.37198778986930847,
+          "data_bits": 768,
+          "gradient_norm": 0.09703006595373154
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.41215285658836365,
+          "data_bits": 768,
+          "gradient_norm": 0.060455817729234695
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 5,
+      "seed": 226006,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.06605251133441925,
+          "data_bits": 768,
+          "gradient_norm": 0.1097891628742218
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.06296872347593307,
+          "data_bits": 768,
+          "gradient_norm": 0.16827698051929474
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.06091339513659477,
+          "data_bits": 768,
+          "gradient_norm": 0.04043414816260338
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.05353538319468498,
+          "data_bits": 768,
+          "gradient_norm": 0.025197818875312805
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 5,
+      "seed": 226006,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.060021281242370605,
+          "data_bits": 768,
+          "gradient_norm": 0.10236778855323792
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.06250748038291931,
+          "data_bits": 768,
+          "gradient_norm": 0.1549680233001709
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.0535421296954155,
+          "data_bits": 768,
+          "gradient_norm": 0.02521612122654915
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0530383363366127,
+          "data_bits": 768,
+          "gradient_norm": 0.03891367092728615
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 6,
+      "seed": 226007,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.010327686555683613,
+          "data_bits": 768,
+          "gradient_norm": 0.04949767142534256
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.004867455922067165,
+          "data_bits": 768,
+          "gradient_norm": 0.09345903992652893
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.005625784397125244,
+          "data_bits": 768,
+          "gradient_norm": 0.02752220258116722
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.01593935117125511,
+          "data_bits": 768,
+          "gradient_norm": 0.02077261544764042
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 6,
+      "seed": 226007,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.011007212102413177,
+          "data_bits": 768,
+          "gradient_norm": 0.051745619624853134
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.006397284101694822,
+          "data_bits": 768,
+          "gradient_norm": 0.07185375690460205
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.006861846428364515,
+          "data_bits": 768,
+          "gradient_norm": 0.01678551733493805
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.01641283929347992,
+          "data_bits": 768,
+          "gradient_norm": 0.02149120904505253
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 7,
+      "seed": 226008,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 6.2166658487683435e-09,
+          "data_bits": 768,
+          "gradient_norm": 3.4294333772777463e-07
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 9.597016757678656e-12,
+          "data_bits": 768,
+          "gradient_norm": 7.1208123841870474e-09
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 7.396657019853592e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.01242672186344862
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 4.673201488003542e-07,
+          "data_bits": 768,
+          "gradient_norm": 8.091892595984973e-06
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 7,
+      "seed": 226008,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 1.1180013359535224e-08,
+          "data_bits": 768,
+          "gradient_norm": 6.033376394043444e-07
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 3.346989569177894e-13,
+          "data_bits": 768,
+          "gradient_norm": 3.61166485607356e-10
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0004028704424854368,
+          "data_bits": 768,
+          "gradient_norm": 0.06030011922121048
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 2.5308517592748103e-07,
+          "data_bits": 768,
+          "gradient_norm": 5.385258646128932e-06
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 8,
+      "seed": 226009,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.36962640285491943,
+          "data_bits": 768,
+          "gradient_norm": 0.06622473895549774
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.3738505244255066,
+          "data_bits": 768,
+          "gradient_norm": 0.07308081537485123
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.36611509323120117,
+          "data_bits": 768,
+          "gradient_norm": 0.11717955023050308
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.40194171667099,
+          "data_bits": 768,
+          "gradient_norm": 0.16573107242584229
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 8,
+      "seed": 226009,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.3570309579372406,
+          "data_bits": 768,
+          "gradient_norm": 0.0724574625492096
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.36942827701568604,
+          "data_bits": 768,
+          "gradient_norm": 0.06624636799097061
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.36169084906578064,
+          "data_bits": 768,
+          "gradient_norm": 0.11266288161277771
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.38326534628868103,
+          "data_bits": 768,
+          "gradient_norm": 0.25197872519493103
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 9,
+      "seed": 226010,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.06516972184181213,
+          "data_bits": 768,
+          "gradient_norm": 0.01968642883002758
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.06489884108304977,
+          "data_bits": 768,
+          "gradient_norm": 0.11566518992185593
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.07836198806762695,
+          "data_bits": 768,
+          "gradient_norm": 0.018486322835087776
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.06417376548051834,
+          "data_bits": 768,
+          "gradient_norm": 0.10961320251226425
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 9,
+      "seed": 226010,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.06271527707576752,
+          "data_bits": 768,
+          "gradient_norm": 0.018778054043650627
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.06177765130996704,
+          "data_bits": 768,
+          "gradient_norm": 0.13194727897644043
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.07610686123371124,
+          "data_bits": 768,
+          "gradient_norm": 0.03913482278585434
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.06127313897013664,
+          "data_bits": 768,
+          "gradient_norm": 0.07404224574565887
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 10,
+      "seed": 226011,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.007955322042107582,
+          "data_bits": 768,
+          "gradient_norm": 0.035291459411382675
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.00016483329818584025,
+          "data_bits": 768,
+          "gradient_norm": 0.0013333525275811553
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.007349475286900997,
+          "data_bits": 768,
+          "gradient_norm": 0.002580667147412896
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0006183830555528402,
+          "data_bits": 768,
+          "gradient_norm": 0.013075534254312515
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 10,
+      "seed": 226011,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.008497070521116257,
+          "data_bits": 768,
+          "gradient_norm": 0.036157846450805664
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 9.293900075135753e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.0002838504733517766
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.009538663551211357,
+          "data_bits": 768,
+          "gradient_norm": 0.008474204689264297
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0005696106236428022,
+          "data_bits": 768,
+          "gradient_norm": 0.01180623471736908
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 11,
+      "seed": 226012,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.0009533603442832828,
+          "data_bits": 768,
+          "gradient_norm": 0.1161549761891365
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 1.3045634017494478e-10,
+          "data_bits": 768,
+          "gradient_norm": 6.016265707842194e-09
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 3.3153921830120225e-09,
+          "data_bits": 768,
+          "gradient_norm": 1.9130776962583695e-08
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 1.3522159392209687e-08,
+          "data_bits": 768,
+          "gradient_norm": 8.232071877500857e-07
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 11,
+      "seed": 226012,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.006790578365325928,
+          "data_bits": 768,
+          "gradient_norm": 0.21217599511146545
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 6.983711386965297e-10,
+          "data_bits": 768,
+          "gradient_norm": 3.010691784766095e-08
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 4.604716608014314e-09,
+          "data_bits": 768,
+          "gradient_norm": 2.04927292912771e-08
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 2.35803243597843e-09,
+          "data_bits": 768,
+          "gradient_norm": 1.322106442103177e-07
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 12,
+      "seed": 226013,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.33853158354759216,
+          "data_bits": 768,
+          "gradient_norm": 0.09393659234046936
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.34259170293807983,
+          "data_bits": 768,
+          "gradient_norm": 0.14900700747966766
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.3211521506309509,
+          "data_bits": 768,
+          "gradient_norm": 0.10532719641923904
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.33257240056991577,
+          "data_bits": 768,
+          "gradient_norm": 0.24514825642108917
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 12,
+      "seed": 226013,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.33896708488464355,
+          "data_bits": 768,
+          "gradient_norm": 0.08287567645311356
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.3348833918571472,
+          "data_bits": 768,
+          "gradient_norm": 0.310543030500412
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.3049381375312805,
+          "data_bits": 768,
+          "gradient_norm": 0.08282501995563507
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.32900479435920715,
+          "data_bits": 768,
+          "gradient_norm": 0.2449248731136322
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 13,
+      "seed": 226014,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.12976162135601044,
+          "data_bits": 768,
+          "gradient_norm": 0.23507699370384216
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.11411520093679428,
+          "data_bits": 768,
+          "gradient_norm": 0.33148273825645447
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.133926123380661,
+          "data_bits": 768,
+          "gradient_norm": 0.14380647242069244
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.10277318954467773,
+          "data_bits": 768,
+          "gradient_norm": 0.07879641652107239
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 13,
+      "seed": 226014,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.1111525297164917,
+          "data_bits": 768,
+          "gradient_norm": 0.2475484013557434
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.11623712629079819,
+          "data_bits": 768,
+          "gradient_norm": 0.2964417040348053
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.11129729449748993,
+          "data_bits": 768,
+          "gradient_norm": 0.11912740767002106
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.09598638862371445,
+          "data_bits": 768,
+          "gradient_norm": 0.12353387475013733
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 14,
+      "seed": 226015,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.01391480304300785,
+          "data_bits": 768,
+          "gradient_norm": 0.030181454494595528
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.007808493450284004,
+          "data_bits": 768,
+          "gradient_norm": 0.007690614089369774
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.034384630620479584,
+          "data_bits": 768,
+          "gradient_norm": 0.0488484725356102
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.004358669742941856,
+          "data_bits": 768,
+          "gradient_norm": 0.021083278581500053
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 14,
+      "seed": 226015,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.01324772834777832,
+          "data_bits": 768,
+          "gradient_norm": 0.01208877470344305
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.006724168546497822,
+          "data_bits": 768,
+          "gradient_norm": 0.0037744578439742327
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.03045702539384365,
+          "data_bits": 768,
+          "gradient_norm": 0.04794035851955414
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.004811831284314394,
+          "data_bits": 768,
+          "gradient_norm": 0.0220775306224823
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 15,
+      "seed": 226016,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 7.892614356637352e-16,
+          "data_bits": 768,
+          "gradient_norm": 2.4446840459922594e-15
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 9.037050762537784e-18,
+          "data_bits": 768,
+          "gradient_norm": 4.064759813460217e-12
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 2.637622481267265e-16,
+          "data_bits": 768,
+          "gradient_norm": 6.302031430206875e-15
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 4.547320517773708e-15,
+          "data_bits": 768,
+          "gradient_norm": 5.76856584486138e-15
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 402001,
+      "episode": 15,
+      "seed": 226016,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 6.97513314976432e-16,
+          "data_bits": 768,
+          "gradient_norm": 1.5925486781428176e-15
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 7.167197407333089e-18,
+          "data_bits": 768,
+          "gradient_norm": 1.144467875503763e-12
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 4.259922913749704e-17,
+          "data_bits": 768,
+          "gradient_norm": 1.0801882951067031e-15
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 1.056521863688173e-16,
+          "data_bits": 768,
+          "gradient_norm": 9.335305753993702e-16
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 0,
+      "seed": 226017,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.4017302989959717,
+          "data_bits": 768,
+          "gradient_norm": 0.13408705592155457
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.3982602059841156,
+          "data_bits": 768,
+          "gradient_norm": 0.15012776851654053
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.4252719283103943,
+          "data_bits": 768,
+          "gradient_norm": 0.08268512040376663
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.4101501405239105,
+          "data_bits": 768,
+          "gradient_norm": 0.17234671115875244
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 0,
+      "seed": 226017,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.38904905319213867,
+          "data_bits": 768,
+          "gradient_norm": 0.14482267200946808
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.39297521114349365,
+          "data_bits": 768,
+          "gradient_norm": 0.17618399858474731
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.4158627390861511,
+          "data_bits": 768,
+          "gradient_norm": 0.09561435133218765
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.3928416669368744,
+          "data_bits": 768,
+          "gradient_norm": 0.16675937175750732
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 1,
+      "seed": 226018,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.10447075963020325,
+          "data_bits": 768,
+          "gradient_norm": 0.16793149709701538
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.10185923427343369,
+          "data_bits": 768,
+          "gradient_norm": 0.07486303895711899
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.12469987571239471,
+          "data_bits": 768,
+          "gradient_norm": 0.03854423388838768
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.1159294992685318,
+          "data_bits": 768,
+          "gradient_norm": 0.022606203332543373
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 1,
+      "seed": 226018,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.10056986659765244,
+          "data_bits": 768,
+          "gradient_norm": 0.18218164145946503
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.09250136464834213,
+          "data_bits": 768,
+          "gradient_norm": 0.028778448700904846
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.11538039892911911,
+          "data_bits": 768,
+          "gradient_norm": 0.03316221758723259
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.10261698812246323,
+          "data_bits": 768,
+          "gradient_norm": 0.02055918425321579
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 2,
+      "seed": 226019,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 5.150086508365348e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.0003612621803767979
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0021581014152616262,
+          "data_bits": 768,
+          "gradient_norm": 0.005219695158302784
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.0015495105180889368,
+          "data_bits": 768,
+          "gradient_norm": 0.003997116349637508
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0005066808662377298,
+          "data_bits": 768,
+          "gradient_norm": 0.038903191685676575
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 2,
+      "seed": 226019,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 3.645026299636811e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.000797000655438751
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0008058333769440651,
+          "data_bits": 768,
+          "gradient_norm": 0.005441543646156788
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.002143183723092079,
+          "data_bits": 768,
+          "gradient_norm": 0.0025215265341103077
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.000323659332934767,
+          "data_bits": 768,
+          "gradient_norm": 0.021957529708743095
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 3,
+      "seed": 226020,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 4.967081856932509e-09,
+          "data_bits": 768,
+          "gradient_norm": 5.575339514507505e-07
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 1.6080837667686865e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.0005808454588986933
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 3.3013182031832455e-12,
+          "data_bits": 768,
+          "gradient_norm": 7.484050132111608e-16
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.01606263592839241,
+          "data_bits": 768,
+          "gradient_norm": 0.13629421591758728
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 3,
+      "seed": 226020,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 6.208834335552638e-09,
+          "data_bits": 768,
+          "gradient_norm": 8.453229156657471e-07
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.00016470099217258394,
+          "data_bits": 768,
+          "gradient_norm": 0.005984493065625429
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 4.1724685772431824e-13,
+          "data_bits": 768,
+          "gradient_norm": 6.978019414532089e-16
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.019362594932317734,
+          "data_bits": 768,
+          "gradient_norm": 0.14626674354076385
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 4,
+      "seed": 226021,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.36657747626304626,
+          "data_bits": 768,
+          "gradient_norm": 0.1115669310092926
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.3569914698600769,
+          "data_bits": 768,
+          "gradient_norm": 0.07703147828578949
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.3672805428504944,
+          "data_bits": 768,
+          "gradient_norm": 0.12959639728069305
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.355148047208786,
+          "data_bits": 768,
+          "gradient_norm": 0.05703942850232124
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 4,
+      "seed": 226021,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.3575833737850189,
+          "data_bits": 768,
+          "gradient_norm": 0.10078749060630798
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.3480820655822754,
+          "data_bits": 768,
+          "gradient_norm": 0.11216165870428085
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.3623018264770508,
+          "data_bits": 768,
+          "gradient_norm": 0.12160041183233261
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.33295658230781555,
+          "data_bits": 768,
+          "gradient_norm": 0.06256571412086487
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 5,
+      "seed": 226022,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.06726191192865372,
+          "data_bits": 768,
+          "gradient_norm": 0.06783074140548706
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.08538835495710373,
+          "data_bits": 768,
+          "gradient_norm": 0.08427422493696213
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.05314123257994652,
+          "data_bits": 768,
+          "gradient_norm": 0.05728922039270401
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.06439998745918274,
+          "data_bits": 768,
+          "gradient_norm": 0.0458400622010231
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 5,
+      "seed": 226022,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.06291447579860687,
+          "data_bits": 768,
+          "gradient_norm": 0.02477886900305748
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.07676206529140472,
+          "data_bits": 768,
+          "gradient_norm": 0.07356297224760056
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.05322941392660141,
+          "data_bits": 768,
+          "gradient_norm": 0.09183426201343536
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.06230073422193527,
+          "data_bits": 768,
+          "gradient_norm": 0.03686961904168129
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 6,
+      "seed": 226023,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 4.631581759895198e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.0018739068182185292
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0004416628507897258,
+          "data_bits": 768,
+          "gradient_norm": 0.002753627486526966
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0008190807420760393,
+          "data_bits": 768,
+          "gradient_norm": 0.017059192061424255
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.008143276907503605,
+          "data_bits": 768,
+          "gradient_norm": 0.12347710877656937
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 6,
+      "seed": 226023,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 5.079391848994419e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.0018952700775116682
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.00055399548728019,
+          "data_bits": 768,
+          "gradient_norm": 0.004425472114235163
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0016955176834017038,
+          "data_bits": 768,
+          "gradient_norm": 0.027741454541683197
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.004522291012108326,
+          "data_bits": 768,
+          "gradient_norm": 0.11855237185955048
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 7,
+      "seed": 226024,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 4.470360437380805e-08,
+          "data_bits": 768,
+          "gradient_norm": 1.5575362795061665e-06
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 1.1712445249778547e-11,
+          "data_bits": 768,
+          "gradient_norm": 1.1190121745885406e-10
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 1.4800113174937013e-13,
+          "data_bits": 768,
+          "gradient_norm": 2.2345836390037094e-13
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 1.3593999537153678e-10,
+          "data_bits": 768,
+          "gradient_norm": 2.319679381912465e-08
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 7,
+      "seed": 226024,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 9.934154832080822e-09,
+          "data_bits": 768,
+          "gradient_norm": 3.5119447261422465e-07
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 2.4468825403356487e-12,
+          "data_bits": 768,
+          "gradient_norm": 2.9502508075429645e-11
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 7.067951231882683e-14,
+          "data_bits": 768,
+          "gradient_norm": 2.7753251357221648e-14
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 5.381037629370589e-12,
+          "data_bits": 768,
+          "gradient_norm": 6.220051058415665e-13
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 8,
+      "seed": 226025,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.34360846877098083,
+          "data_bits": 768,
+          "gradient_norm": 0.17634880542755127
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.34182631969451904,
+          "data_bits": 768,
+          "gradient_norm": 0.09275677055120468
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.38078469038009644,
+          "data_bits": 768,
+          "gradient_norm": 0.06106936186552048
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.3486911654472351,
+          "data_bits": 768,
+          "gradient_norm": 0.14390698075294495
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 8,
+      "seed": 226025,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.3262161612510681,
+          "data_bits": 768,
+          "gradient_norm": 0.14695103466510773
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.32958531379699707,
+          "data_bits": 768,
+          "gradient_norm": 0.07903885841369629
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.37397122383117676,
+          "data_bits": 768,
+          "gradient_norm": 0.06937702745199203
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.3364672064781189,
+          "data_bits": 768,
+          "gradient_norm": 0.1460302621126175
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 9,
+      "seed": 226026,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.15591248869895935,
+          "data_bits": 768,
+          "gradient_norm": 0.044227130711078644
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.1191435158252716,
+          "data_bits": 768,
+          "gradient_norm": 0.07108097523450851
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.11516189575195312,
+          "data_bits": 768,
+          "gradient_norm": 0.09173743426799774
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.13027653098106384,
+          "data_bits": 768,
+          "gradient_norm": 0.10914097726345062
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 9,
+      "seed": 226026,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.14964985847473145,
+          "data_bits": 768,
+          "gradient_norm": 0.05309596285223961
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.10916894674301147,
+          "data_bits": 768,
+          "gradient_norm": 0.04806692525744438
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.11598851531744003,
+          "data_bits": 768,
+          "gradient_norm": 0.1202135756611824
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.12026618421077728,
+          "data_bits": 768,
+          "gradient_norm": 0.022621698677539825
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 10,
+      "seed": 226027,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.0010274451924487948,
+          "data_bits": 768,
+          "gradient_norm": 0.00901369284838438
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0028059538453817368,
+          "data_bits": 768,
+          "gradient_norm": 0.03308132663369179
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0005716143641620874,
+          "data_bits": 768,
+          "gradient_norm": 0.005663382355123758
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.0031162607483565807,
+          "data_bits": 768,
+          "gradient_norm": 0.12998290359973907
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 10,
+      "seed": 226027,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.0005677322624251246,
+          "data_bits": 768,
+          "gradient_norm": 0.0037761356215924025
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0022704594302922487,
+          "data_bits": 768,
+          "gradient_norm": 0.022378912195563316
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0004208972677588463,
+          "data_bits": 768,
+          "gradient_norm": 0.003657868830487132
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.002468838356435299,
+          "data_bits": 768,
+          "gradient_norm": 0.10098294913768768
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 11,
+      "seed": 226028,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 1.4955740994731593e-15,
+          "data_bits": 768,
+          "gradient_norm": 8.018756015096273e-13
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 7.811256524416221e-15,
+          "data_bits": 768,
+          "gradient_norm": 1.0234865797757731e-13
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 3.350797287207663e-14,
+          "data_bits": 768,
+          "gradient_norm": 5.2281953316331634e-14
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 1.0527033041660746e-14,
+          "data_bits": 768,
+          "gradient_norm": 1.3407557009070814e-10
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 11,
+      "seed": 226028,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 1.4123756646576449e-15,
+          "data_bits": 768,
+          "gradient_norm": 4.278056790654565e-14
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 1.1177229719775013e-15,
+          "data_bits": 768,
+          "gradient_norm": 4.9526961714728077e-14
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 8.490891197337602e-15,
+          "data_bits": 768,
+          "gradient_norm": 1.3220463770965518e-15
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 2.2659254504740593e-14,
+          "data_bits": 768,
+          "gradient_norm": 3.9846858451708655e-11
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 12,
+      "seed": 226029,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.3530077636241913,
+          "data_bits": 768,
+          "gradient_norm": 0.1374342441558838
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.358303427696228,
+          "data_bits": 768,
+          "gradient_norm": 0.0826486274600029
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.35585784912109375,
+          "data_bits": 768,
+          "gradient_norm": 0.10459671169519424
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.3766789138317108,
+          "data_bits": 768,
+          "gradient_norm": 0.11499746143817902
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 12,
+      "seed": 226029,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.3464828431606293,
+          "data_bits": 768,
+          "gradient_norm": 0.1325867772102356
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.3453570306301117,
+          "data_bits": 768,
+          "gradient_norm": 0.08728732168674469
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.3513472080230713,
+          "data_bits": 768,
+          "gradient_norm": 0.11129418760538101
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.37310051918029785,
+          "data_bits": 768,
+          "gradient_norm": 0.11938317865133286
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 13,
+      "seed": 226030,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.11234506219625473,
+          "data_bits": 768,
+          "gradient_norm": 0.018786637112498283
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.11317096650600433,
+          "data_bits": 768,
+          "gradient_norm": 0.19368693232536316
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.10769772529602051,
+          "data_bits": 768,
+          "gradient_norm": 0.12975427508354187
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.10040273517370224,
+          "data_bits": 768,
+          "gradient_norm": 0.03938648849725723
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 13,
+      "seed": 226030,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.1085231602191925,
+          "data_bits": 768,
+          "gradient_norm": 0.01848701946437359
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.09436541050672531,
+          "data_bits": 768,
+          "gradient_norm": 0.1515592485666275
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.10706689208745956,
+          "data_bits": 768,
+          "gradient_norm": 0.13520590960979462
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.09805061668157578,
+          "data_bits": 768,
+          "gradient_norm": 0.027420250698924065
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 14,
+      "seed": 226031,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.0008137356489896774,
+          "data_bits": 768,
+          "gradient_norm": 0.010372862219810486
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.00033802245161496103,
+          "data_bits": 768,
+          "gradient_norm": 0.001769080525264144
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.001689742086455226,
+          "data_bits": 768,
+          "gradient_norm": 0.03560119867324829
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0004608677118085325,
+          "data_bits": 768,
+          "gradient_norm": 0.0026715542189776897
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 14,
+      "seed": 226031,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.00015787714801263064,
+          "data_bits": 768,
+          "gradient_norm": 0.002063698135316372
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.00045524584129452705,
+          "data_bits": 768,
+          "gradient_norm": 0.00556973647326231
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.002060797531157732,
+          "data_bits": 768,
+          "gradient_norm": 0.045559510588645935
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0003845448954962194,
+          "data_bits": 768,
+          "gradient_norm": 0.0015948734944686294
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 15,
+      "seed": 226032,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 9.155069213037485e-15,
+          "data_bits": 768,
+          "gradient_norm": 3.802254518181503e-12
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 2.0742860672786105e-15,
+          "data_bits": 768,
+          "gradient_norm": 4.886980035055666e-13
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 3.607172523943693e-18,
+          "data_bits": 768,
+          "gradient_norm": 3.85299151728336e-15
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 5.737124913595543e-14,
+          "data_bits": 768,
+          "gradient_norm": 3.47945278275294e-14
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 402002,
+      "episode": 15,
+      "seed": 226032,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 1.6198524675602047e-15,
+          "data_bits": 768,
+          "gradient_norm": 1.3647472908717706e-12
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 5.544105396091661e-16,
+          "data_bits": 768,
+          "gradient_norm": 8.146226714836249e-15
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 5.087673205590597e-18,
+          "data_bits": 768,
+          "gradient_norm": 1.1015489837287989e-15
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 3.017395632399361e-14,
+          "data_bits": 768,
+          "gradient_norm": 1.1356380788009324e-14
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 0,
+      "seed": 226033,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.38102787733078003,
+          "data_bits": 768,
+          "gradient_norm": 0.11248749494552612
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.3719868063926697,
+          "data_bits": 768,
+          "gradient_norm": 0.16160182654857635
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.3763740062713623,
+          "data_bits": 768,
+          "gradient_norm": 0.03590277582406998
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.3624018132686615,
+          "data_bits": 768,
+          "gradient_norm": 0.2025829404592514
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 0,
+      "seed": 226033,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.3695685863494873,
+          "data_bits": 768,
+          "gradient_norm": 0.1117754876613617
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.36661824584007263,
+          "data_bits": 768,
+          "gradient_norm": 0.1703222095966339
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.3609026372432709,
+          "data_bits": 768,
+          "gradient_norm": 0.039637647569179535
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.3459770679473877,
+          "data_bits": 768,
+          "gradient_norm": 0.2252293974161148
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 1,
+      "seed": 226034,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.07137873023748398,
+          "data_bits": 768,
+          "gradient_norm": 0.020231319591403008
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.03975745663046837,
+          "data_bits": 768,
+          "gradient_norm": 0.05133573338389397
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.07663991302251816,
+          "data_bits": 768,
+          "gradient_norm": 0.011585098691284657
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.07158684730529785,
+          "data_bits": 768,
+          "gradient_norm": 0.07234743982553482
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 1,
+      "seed": 226034,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.061081480234861374,
+          "data_bits": 768,
+          "gradient_norm": 0.027279535308480263
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.04056885465979576,
+          "data_bits": 768,
+          "gradient_norm": 0.05437353625893593
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.07098834961652756,
+          "data_bits": 768,
+          "gradient_norm": 0.02597862482070923
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.06466450542211533,
+          "data_bits": 768,
+          "gradient_norm": 0.05568086355924606
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 2,
+      "seed": 226035,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.012276478111743927,
+          "data_bits": 768,
+          "gradient_norm": 0.02292848937213421
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.00272889225743711,
+          "data_bits": 768,
+          "gradient_norm": 0.12051817774772644
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.00016438918828498572,
+          "data_bits": 768,
+          "gradient_norm": 0.00195195188280195
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.00026414263993501663,
+          "data_bits": 768,
+          "gradient_norm": 0.0002539674169383943
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 2,
+      "seed": 226035,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.012059248983860016,
+          "data_bits": 768,
+          "gradient_norm": 0.01813344657421112
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.004973459057509899,
+          "data_bits": 768,
+          "gradient_norm": 0.12714247405529022
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.00024639282491989434,
+          "data_bits": 768,
+          "gradient_norm": 0.0041070845909416676
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.00025653879856690764,
+          "data_bits": 768,
+          "gradient_norm": 0.002038343343883753
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 3,
+      "seed": 226036,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 7.241806782479657e-17,
+          "data_bits": 768,
+          "gradient_norm": 2.2269408861316222e-15
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 2.791391792190956e-13,
+          "data_bits": 768,
+          "gradient_norm": 1.0221034766168605e-13
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0008308045798912644,
+          "data_bits": 768,
+          "gradient_norm": 0.37288594245910645
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 2.3730203999733357e-13,
+          "data_bits": 768,
+          "gradient_norm": 5.42310303380724e-16
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 3,
+      "seed": 226036,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 2.156679473378376e-18,
+          "data_bits": 768,
+          "gradient_norm": 1.8442840113305986e-16
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 1.8006917571616876e-13,
+          "data_bits": 768,
+          "gradient_norm": 2.2087762391667654e-13
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0009877311531454325,
+          "data_bits": 768,
+          "gradient_norm": 0.4159751236438751
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 2.2228651753476714e-13,
+          "data_bits": 768,
+          "gradient_norm": 2.3181773459792247e-15
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 4,
+      "seed": 226037,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.3753533363342285,
+          "data_bits": 768,
+          "gradient_norm": 0.10965527594089508
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.3797418475151062,
+          "data_bits": 768,
+          "gradient_norm": 0.2569050192832947
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.37681007385253906,
+          "data_bits": 768,
+          "gradient_norm": 0.10350881516933441
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.3813714385032654,
+          "data_bits": 768,
+          "gradient_norm": 0.12029155343770981
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 4,
+      "seed": 226037,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.3587716519832611,
+          "data_bits": 768,
+          "gradient_norm": 0.08898312598466873
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.37759947776794434,
+          "data_bits": 768,
+          "gradient_norm": 0.2512069642543793
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.36949238181114197,
+          "data_bits": 768,
+          "gradient_norm": 0.10094691812992096
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.36751461029052734,
+          "data_bits": 768,
+          "gradient_norm": 0.11752533912658691
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 5,
+      "seed": 226038,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.0808170735836029,
+          "data_bits": 768,
+          "gradient_norm": 0.09366250038146973
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.08380304276943207,
+          "data_bits": 768,
+          "gradient_norm": 0.09659095108509064
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.0859060138463974,
+          "data_bits": 768,
+          "gradient_norm": 0.013803204521536827
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.08876755833625793,
+          "data_bits": 768,
+          "gradient_norm": 0.22618912160396576
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 5,
+      "seed": 226038,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.07922348380088806,
+          "data_bits": 768,
+          "gradient_norm": 0.11048420518636703
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.07426521182060242,
+          "data_bits": 768,
+          "gradient_norm": 0.08047396689653397
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.07446703314781189,
+          "data_bits": 768,
+          "gradient_norm": 0.04912182316184044
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.08899422734975815,
+          "data_bits": 768,
+          "gradient_norm": 0.2525387406349182
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 6,
+      "seed": 226039,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.010571501217782497,
+          "data_bits": 768,
+          "gradient_norm": 0.01570509746670723
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.022308578714728355,
+          "data_bits": 768,
+          "gradient_norm": 0.02346985414624214
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.00716821476817131,
+          "data_bits": 768,
+          "gradient_norm": 0.047177817672491074
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.002621916588395834,
+          "data_bits": 768,
+          "gradient_norm": 0.044216301292181015
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 6,
+      "seed": 226039,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.008418053388595581,
+          "data_bits": 768,
+          "gradient_norm": 0.02022632211446762
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.020225802436470985,
+          "data_bits": 768,
+          "gradient_norm": 0.03095654584467411
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0074321976862847805,
+          "data_bits": 768,
+          "gradient_norm": 0.021901438012719154
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.003928283229470253,
+          "data_bits": 768,
+          "gradient_norm": 0.0512823686003685
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 7,
+      "seed": 226040,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 3.135181916462176e-15,
+          "data_bits": 768,
+          "gradient_norm": 9.969980570290193e-12
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 2.4658201120646552e-17,
+          "data_bits": 768,
+          "gradient_norm": 1.2930666271139036e-15
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 7.724477787211781e-16,
+          "data_bits": 768,
+          "gradient_norm": 8.347175964209912e-15
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 2.2122851239727431e-13,
+          "data_bits": 768,
+          "gradient_norm": 6.477409212300722e-13
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 7,
+      "seed": 226040,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 5.049927316422189e-16,
+          "data_bits": 768,
+          "gradient_norm": 4.3182360465188196e-11
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 1.1275588442924714e-17,
+          "data_bits": 768,
+          "gradient_norm": 7.617455174326201e-16
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 1.4641368157429507e-16,
+          "data_bits": 768,
+          "gradient_norm": 5.285860826462468e-15
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 9.97641842726514e-15,
+          "data_bits": 768,
+          "gradient_norm": 4.920067784718214e-14
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 8,
+      "seed": 226041,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.3847760558128357,
+          "data_bits": 768,
+          "gradient_norm": 0.07682923227548599
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.3907594382762909,
+          "data_bits": 768,
+          "gradient_norm": 0.10184390097856522
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.3926693797111511,
+          "data_bits": 768,
+          "gradient_norm": 0.08444744348526001
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.40162238478660583,
+          "data_bits": 768,
+          "gradient_norm": 0.18170705437660217
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 8,
+      "seed": 226041,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.37507206201553345,
+          "data_bits": 768,
+          "gradient_norm": 0.07329957187175751
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.38961324095726013,
+          "data_bits": 768,
+          "gradient_norm": 0.07509197294712067
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.3896560072898865,
+          "data_bits": 768,
+          "gradient_norm": 0.08681322634220123
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.3878823220729828,
+          "data_bits": 768,
+          "gradient_norm": 0.16057667136192322
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 9,
+      "seed": 226042,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.09462244808673859,
+          "data_bits": 768,
+          "gradient_norm": 0.1206333339214325
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.11201336234807968,
+          "data_bits": 768,
+          "gradient_norm": 0.035758744925260544
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.10013698041439056,
+          "data_bits": 768,
+          "gradient_norm": 0.040623169392347336
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.11302264779806137,
+          "data_bits": 768,
+          "gradient_norm": 0.32187506556510925
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 9,
+      "seed": 226042,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.08670161664485931,
+          "data_bits": 768,
+          "gradient_norm": 0.08274489641189575
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.10513433814048767,
+          "data_bits": 768,
+          "gradient_norm": 0.04055696353316307
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.08849738538265228,
+          "data_bits": 768,
+          "gradient_norm": 0.025171630084514618
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.11184617131948471,
+          "data_bits": 768,
+          "gradient_norm": 0.3406384289264679
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 10,
+      "seed": 226043,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.005743540823459625,
+          "data_bits": 768,
+          "gradient_norm": 0.09539014101028442
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 6.931099778739735e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.0008059344254434109
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.004311608150601387,
+          "data_bits": 768,
+          "gradient_norm": 0.048410966992378235
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.011799200437963009,
+          "data_bits": 768,
+          "gradient_norm": 0.07957521080970764
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 10,
+      "seed": 226043,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.005379686132073402,
+          "data_bits": 768,
+          "gradient_norm": 0.10843539237976074
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 8.568393241148442e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.0012925988994538784
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.004073235671967268,
+          "data_bits": 768,
+          "gradient_norm": 0.012094755657017231
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.009763948619365692,
+          "data_bits": 768,
+          "gradient_norm": 0.07792965322732925
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 11,
+      "seed": 226044,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 5.614205988990761e-09,
+          "data_bits": 768,
+          "gradient_norm": 6.124462288426002e-07
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.0045371828600764275,
+          "data_bits": 768,
+          "gradient_norm": 0.20861107110977173
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 9.564986669374775e-08,
+          "data_bits": 768,
+          "gradient_norm": 5.0354658014839515e-05
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 4.885568616330715e-10,
+          "data_bits": 768,
+          "gradient_norm": 9.23441660916069e-08
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 11,
+      "seed": 226044,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 1.6118073889459517e-11,
+          "data_bits": 768,
+          "gradient_norm": 9.561171854244321e-10
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.006261046510189772,
+          "data_bits": 768,
+          "gradient_norm": 0.21365314722061157
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 4.29724650530261e-07,
+          "data_bits": 768,
+          "gradient_norm": 0.0002264745853608474
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 1.4668606329593104e-09,
+          "data_bits": 768,
+          "gradient_norm": 2.921724444604479e-07
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 12,
+      "seed": 226045,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.3741200864315033,
+          "data_bits": 768,
+          "gradient_norm": 0.07860203832387924
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.34793734550476074,
+          "data_bits": 768,
+          "gradient_norm": 0.1060885488986969
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.3762180805206299,
+          "data_bits": 768,
+          "gradient_norm": 0.1299372762441635
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.3744839131832123,
+          "data_bits": 768,
+          "gradient_norm": 0.08119173347949982
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 12,
+      "seed": 226045,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.37074050307273865,
+          "data_bits": 768,
+          "gradient_norm": 0.07701802253723145
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.33934327960014343,
+          "data_bits": 768,
+          "gradient_norm": 0.11347365379333496
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.36037692427635193,
+          "data_bits": 768,
+          "gradient_norm": 0.11129865050315857
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.3648117780685425,
+          "data_bits": 768,
+          "gradient_norm": 0.08104675263166428
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 13,
+      "seed": 226046,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.07185012102127075,
+          "data_bits": 768,
+          "gradient_norm": 0.18035092949867249
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.07514342665672302,
+          "data_bits": 768,
+          "gradient_norm": 0.03335225582122803
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.08218388259410858,
+          "data_bits": 768,
+          "gradient_norm": 0.12651830911636353
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.08230827748775482,
+          "data_bits": 768,
+          "gradient_norm": 0.024638863280415535
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 13,
+      "seed": 226046,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.06808876991271973,
+          "data_bits": 768,
+          "gradient_norm": 0.16419143974781036
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.07312756776809692,
+          "data_bits": 768,
+          "gradient_norm": 0.022296754643321037
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.07484744489192963,
+          "data_bits": 768,
+          "gradient_norm": 0.14590877294540405
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.07800178974866867,
+          "data_bits": 768,
+          "gradient_norm": 0.026048695668578148
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 14,
+      "seed": 226047,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.0013346652267500758,
+          "data_bits": 768,
+          "gradient_norm": 0.02061871998012066
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.00111256109084934,
+          "data_bits": 768,
+          "gradient_norm": 0.006201975513249636
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0004909345298074186,
+          "data_bits": 768,
+          "gradient_norm": 0.026983153074979782
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.0002506416058167815,
+          "data_bits": 768,
+          "gradient_norm": 0.004502879921346903
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 14,
+      "seed": 226047,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.0007856557494960725,
+          "data_bits": 768,
+          "gradient_norm": 0.014687981456518173
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.0006314684869721532,
+          "data_bits": 768,
+          "gradient_norm": 0.007224357686936855
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.00042070826748386025,
+          "data_bits": 768,
+          "gradient_norm": 0.02035909704864025
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.00023389788111671805,
+          "data_bits": 768,
+          "gradient_norm": 0.008937360718846321
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 15,
+      "seed": 226048,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 1.3663273405199855e-17,
+          "data_bits": 768,
+          "gradient_norm": 1.0185210539985888e-16
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 2.1723597158650843e-18,
+          "data_bits": 768,
+          "gradient_norm": 3.296300881447216e-14
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 8.548713934569141e-18,
+          "data_bits": 768,
+          "gradient_norm": 6.5112117222454816e-15
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 2.047867999700088e-18,
+          "data_bits": 768,
+          "gradient_norm": 3.8142603658863905e-11
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 402003,
+      "episode": 15,
+      "seed": 226048,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 2.0692566155940247e-18,
+          "data_bits": 768,
+          "gradient_norm": 2.2224678771907397e-17
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 2.097370623458324e-18,
+          "data_bits": 768,
+          "gradient_norm": 9.175458651330612e-14
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 4.026494778274893e-18,
+          "data_bits": 768,
+          "gradient_norm": 3.446638207568628e-16
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 2.175289589594747e-18,
+          "data_bits": 768,
+          "gradient_norm": 2.0561163448923336e-12
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    }
+  ],
+  "checkpoints": [
+    {
+      "repeat": 0,
+      "method": "acquisition",
+      "path": "pretrained\\continual_v2_p3_known_adapt_20261119\\repeat0_acquisition.pt",
+      "sha256": "837974ea437f4dd8a6601201a17705b2b520ca25ee39bcf10a77791759533fc3"
+    },
+    {
+      "repeat": 0,
+      "method": "recursive_pilot",
+      "path": "pretrained\\continual_v2_p3_known_adapt_20261119\\repeat0_recursive_pilot.pt",
+      "sha256": "94dd684d698983959c8b8646d0312790fb9d7766c33ead3965750742f9ca1e18"
+    },
+    {
+      "repeat": 1,
+      "method": "acquisition",
+      "path": "pretrained\\continual_v2_p3_known_adapt_20261119\\repeat1_acquisition.pt",
+      "sha256": "c709e643f1508753f0f21a4d81e687b4be56e09ff05b66d5721beb459c69fa9b"
+    },
+    {
+      "repeat": 1,
+      "method": "recursive_pilot",
+      "path": "pretrained\\continual_v2_p3_known_adapt_20261119\\repeat1_recursive_pilot.pt",
+      "sha256": "a64d5ceba83dc7bf4416e78826a110dba41b90592178f47a3d4f53d9621eed69"
+    },
+    {
+      "repeat": 2,
+      "method": "acquisition",
+      "path": "pretrained\\continual_v2_p3_known_adapt_20261119\\repeat2_acquisition.pt",
+      "sha256": "9f507ae3eb3546168512299cb610680df0311afd928d18a0c40d7cf6505d8df7"
+    },
+    {
+      "repeat": 2,
+      "method": "recursive_pilot",
+      "path": "pretrained\\continual_v2_p3_known_adapt_20261119\\repeat2_recursive_pilot.pt",
+      "sha256": "cdad8800924228a34000c4aaad1f7f99ef4efaf36a626ac648be71edeb6aa2bc"
+    }
+  ],
+  "status": "completed"
+}
