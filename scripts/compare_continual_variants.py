@@ -21,7 +21,12 @@ import torch
 
 from env.comm_env import CommunicationEnvironment
 from env.experiment_config import build_comm_env_config
-from evaluation.continual_variants import ForwardCounter, PhysicsBranch, validate_variants
+from evaluation.continual_variants import (
+    ForwardCounter,
+    KnownAdaptRealPhysicsBranch,
+    PhysicsBranch,
+    validate_variants,
+)
 from evaluation.pilot_transfer import _load_branch
 from evaluation.receiver_diagnostics import receiver_diagnostics
 from evaluation.seed_registry import reserve_seeds
@@ -59,7 +64,13 @@ def main():
         if checkpoint not in cache:
             cache[checkpoint], _ = _load_branch(Path(checkpoint), config, device)
         model = cache[checkpoint]
-        branch = model if row.get('decoder', 'neural') == 'neural' else PhysicsBranch(model)
+        decoder = row.get('decoder', 'neural')
+        if decoder == 'neural':
+            branch = model
+        elif decoder == 'known_adapt_real_physics':
+            branch = KnownAdaptRealPhysicsBranch(model)
+        else:
+            branch = PhysicsBranch(model)
         recorders[row['name']] = InputRecorder(branch)
         models[row['name']] = ForwardCounter(recorders[row['name']])
     protocol = dict(vars(args), variants=variants, arms=[row['name'] for row in variants],

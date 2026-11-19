@@ -932,6 +932,78 @@ class UnfoldedEqualizer(nn.Module):
         # 残差不再经过物理分支的硬截断，以保留错误饱和点的 head 梯度。
         return base + scale * 2.0 * correction / noise
 
+    def _real_bpsk_known_adapt_logits(
+        self,
+        rx_complex: torch.Tensor,
+        condition: CIRCondition,
+        soft_tail: torch.Tensor,
+        adapt_symbols: torch.Tensor,
+        adapt_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        """实值符号子空间上求线性高斯后验，并从观测中扣除已知 Adapt。"""
+
+        iterations = int(self.config.physics_warm_start_iterations)
+        if iterations <= 0:
+            return torch.zeros_like(rx_complex.real)
+        if rx_complex.ndim == 1:
+            rx_complex = rx_complex.unsqueeze(0)
+        if adapt_symbols.ndim == 1:
+            adapt_symbols = adapt_symbols.unsqueeze(0)
+        if adapt_mask.ndim == 1:
+            adapt_mask = adapt_mask.unsqueeze(0)
+        if rx_complex.shape != adapt_symbols.shape or rx_complex.shape != adapt_mask.shape:
+            raise ValueError("接收帧、Adapt 符号和掩码形状必须一致。")
+        if adapt_mask.dtype != torch.bool:
+            raise ValueError("Adapt 掩码必须为布尔类型。")
+
+        cir = condition.complex_cir.to(device=rx_complex.device, dtype=torch.complex64)
+        tail = soft_tail.to(device=rx_complex.device, dtype=torch.complex64)
+        if tail.ndim == 1:
+            tail = tail.unsqueeze(0)
+        known_mask = adapt_mask.to(device=rx_complex.device)
+        unknown_mask = (~known_mask).to(rx_complex.real.dtype)
+        known = torch.where(
+            known_mask,
+            adapt_symbols.to(device=rx_complex.device, dtype=rx_complex.real.dtype),
+            torch.zeros_like(rx_complex.real),
+        ).to(torch.complex64)
+        operator = LinearChannelOperator(
+            frame_len=rx_complex.shape[1], max_delay=cir.shape[1] - 1,
+        )
+        known_and_tail = operator.forward(known, cir, tail)
+        rhs = operator.adjoint(rx_complex - known_and_tail, cir).real * unknown_mask
+        noise = condition.noise_variance.to(
+            device=rx_complex.device, dtype=rx_complex.real.dtype,
+        ).reshape(-1, 1).clamp_min(1e-6)
+        zero_tail = torch.zeros_like(tail)
+
+        def normal_matvec(vector: torch.Tensor) -> torch.Tensor:
+            real_unknown = vector * unknown_mask
+            candidate = torch.complex(real_unknown, torch.zeros_like(real_unknown))
+            response = operator.forward(candidate, cir, zero_tail)
+            # 实参数的复高斯负对数似然使噪声正则项为 sigma^2 / 2。
+            projected = operator.adjoint(response, cir).real + (noise * 0.5) * real_unknown
+            return projected * unknown_mask
+
+        estimate = torch.zeros_like(rhs)
+        residual = rhs - normal_matvec(estimate)
+        direction = residual.clone()
+        residual_energy = residual.square().sum(dim=1, keepdim=True)
+        for _ in range(iterations):
+            mat_direction = normal_matvec(direction)
+            denominator = (direction * mat_direction).sum(dim=1, keepdim=True).clamp_min(1e-8)
+            step = residual_energy / denominator
+            estimate = estimate + step * direction
+            residual = residual - step * mat_direction
+            next_energy = residual.square().sum(dim=1, keepdim=True)
+            beta = next_energy / residual_energy.clamp_min(1e-8)
+            direction = residual + beta * direction
+            residual_energy = next_energy
+
+        logits = 2.0 * estimate / noise
+        known_logits = torch.where(known_mask, known.real * 40.0, logits)
+        return known_logits.clamp(-40.0, 40.0)
+
     def _analytic_logit_skip(self, proposal: torch.Tensor, condition: CIRCondition) -> torch.Tensor:
         """给神经 head 叠加 BPSK 解析 LLR warm-start，默认关闭。"""
 

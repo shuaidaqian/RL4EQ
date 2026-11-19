@@ -20,7 +20,7 @@ def validate_variants(manifest):
     for row in variants:
         if row.get('arm') not in ARMS or not row.get('checkpoint'):
             raise ValueError('每个候选必须声明接收臂与 checkpoint。')
-        if row.get('decoder', 'neural') not in {'neural', 'physics_branch'}:
+        if row.get('decoder', 'neural') not in {'neural', 'physics_branch', 'known_adapt_real_physics'}:
             raise ValueError('未知解码分支。')
         if row.get('phase_estimator', 'unwrap_median') not in {'unwrap_median', 'circular_all', 'circular_clean'}:
             raise ValueError('未知相位估计器。')
@@ -33,7 +33,7 @@ def validate_variants(manifest):
             raise ValueError('过程噪声须为非负有限数。')
         source = row.get('context_source')
         if source is not None:
-            if source not in previous or row.get('decoder') != 'physics_branch':
+            if source not in previous or row.get('decoder') not in {'physics_branch', 'known_adapt_real_physics'}:
                 raise ValueError('物理分支共享上下文必须引用排在前面的候选。')
             if row['checkpoint'] != previous[source]['checkpoint']:
                 raise ValueError('共享上下文的分支消融必须使用同一 checkpoint。')
@@ -67,6 +67,20 @@ class PhysicsBranch(nn.Module):
             corrected = self.model.online_phase_trend_adapter(corrected)
         rx = torch.complex(corrected[..., 0], corrected[..., 1])
         logits = self.model._physics_warm_start_logits(rx, condition, soft_tail)
+        return logits, logits.sigmoid()
+
+
+class KnownAdaptRealPhysicsBranch(PhysicsBranch):
+    """固定合法 Adapt 符号，并在实值 BPSK 子空间求物理 warm-start。"""
+
+    def forward(self, rx_iq, condition, region_ids, soft_tail, *, adapt_symbols, adapt_mask):
+        corrected = self.model._apply_phase_correction(rx_iq, condition)
+        if self.model.online_phase_trend_adapter is not None:
+            corrected = self.model.online_phase_trend_adapter(corrected)
+        rx = torch.complex(corrected[..., 0], corrected[..., 1])
+        logits = self.model._real_bpsk_known_adapt_logits(
+            rx, condition, soft_tail, adapt_symbols, adapt_mask,
+        )
         return logits, logits.sigmoid()
 
 

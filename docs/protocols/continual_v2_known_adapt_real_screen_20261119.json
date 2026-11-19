@@ -1,0 +1,50 @@
+{
+  "description": "匹配当前 CIR/相位/tail 的物理机制开发筛查。检验固定已知 Adapt 符号并将未知量约束为实值 BPSK 线性高斯变量的增量；所有在线输入仅来自接收波形和合法 Adapt，Data 标签仅事后评分。第三候选共享第二候选的实际输入状态，隔离解码器增量。此候选不是离散 BPSK 精确 MAP，也不是独立确认。",
+  "variants": [
+    {
+      "name": "acquisition_q1e6",
+      "arm": "acquisition",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "recursive_pilot_q1e6",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "recursive_pilot_known_adapt_real",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "context_source": "recursive_pilot_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    }
+  ],
+  "pairs": [
+    [
+      "acquisition_q1e6",
+      "recursive_pilot_q1e6"
+    ],
+    [
+      "acquisition_q1e6",
+      "recursive_pilot_known_adapt_real"
+    ],
+    [
+      "recursive_pilot_q1e6",
+      "recursive_pilot_known_adapt_real"
+    ]
+  ]
+}
