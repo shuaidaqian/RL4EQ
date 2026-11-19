@@ -13,6 +13,7 @@ from env.linear_operator import LinearChannelOperator
 from evaluation.continual_variants import (
     ForwardCounter,
     KnownAdaptRealPhysicsBranch,
+    KnownAdaptRealNeuralBranch,
     PhysicsBranch,
     validate_variants,
 )
@@ -109,4 +110,44 @@ def test_known_adapt_physics_branch_is_a_valid_matched_decoder():
         name='constrained', arm='recursive_pilot', checkpoint='model.pt',
         decoder='known_adapt_real_physics', context_source='base',
     )
-    assert validate_variants(dict(variants=[variant, constrained])) == [variant, constrained]
+    matched_neural = dict(
+        name='matched_neural', arm='recursive_pilot', checkpoint='model.pt',
+        decoder='neural', context_source='base',
+    )
+    assert validate_variants(dict(variants=[variant, constrained, matched_neural])) == [
+        variant, constrained, matched_neural,
+    ]
+
+
+def test_known_adapt_neural_branch_uses_real_physics_warm_start():
+    torch.manual_seed(32)
+    frame_len, max_delay = 16, 2
+    config = UnfoldedConfig(
+        frame_len=frame_len, max_delay=max_delay, iterations=1, d_model=8, num_heads=2,
+        physics_warm_start_iterations=4, neural_residual_scale=0.0,
+    )
+    model = UnfoldedEqualizer(config).eval()
+    cir = torch.tensor([[0.8 + 0.1j, 0.3 - 0.2j, 0.0j]], dtype=torch.complex64)
+    condition = CIRCondition(
+        complex_cir=cir, support_probability=torch.ones(1, 3),
+        noise_variance=torch.tensor([0.1]), confidence=torch.ones(1),
+        latent_residual=torch.zeros(1, 1),
+    )
+    rx_iq = torch.randn(1, frame_len, 2)
+    region_ids = torch.zeros(1, frame_len, dtype=torch.long)
+    tail = torch.zeros(1, max_delay, dtype=torch.complex64)
+    adapt_symbols = torch.zeros(1, frame_len, dtype=torch.complex64)
+    adapt_symbols[:, :4] = torch.tensor([1.0, -1.0, 1.0, -1.0])
+    adapt_mask = torch.zeros(1, frame_len, dtype=torch.bool)
+    adapt_mask[:, :4] = True
+    physical = KnownAdaptRealPhysicsBranch(model)
+    neural = KnownAdaptRealNeuralBranch(model)
+    physical_logits, _ = physical(
+        rx_iq, condition, region_ids, tail, adapt_symbols=adapt_symbols, adapt_mask=adapt_mask,
+    )
+    neural_logits, _ = neural(
+        rx_iq, condition, region_ids, tail, adapt_symbols=adapt_symbols, adapt_mask=adapt_mask,
+    )
+    torch.testing.assert_close(neural_logits, physical_logits, rtol=0, atol=0)
+    assert model.config.physics_real_bpsk_known_adapt is False
+    assert neural.config.physics_real_bpsk_known_adapt is True

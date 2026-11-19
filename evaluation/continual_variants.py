@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import copy
 import math
+from dataclasses import replace
 
 import torch
 from torch import nn
@@ -20,7 +22,9 @@ def validate_variants(manifest):
     for row in variants:
         if row.get('arm') not in ARMS or not row.get('checkpoint'):
             raise ValueError('每个候选必须声明接收臂与 checkpoint。')
-        if row.get('decoder', 'neural') not in {'neural', 'physics_branch', 'known_adapt_real_physics'}:
+        if row.get('decoder', 'neural') not in {
+            'neural', 'physics_branch', 'known_adapt_real_physics', 'known_adapt_real_neural',
+        }:
             raise ValueError('未知解码分支。')
         if row.get('phase_estimator', 'unwrap_median') not in {'unwrap_median', 'circular_all', 'circular_clean'}:
             raise ValueError('未知相位估计器。')
@@ -33,10 +37,10 @@ def validate_variants(manifest):
             raise ValueError('过程噪声须为非负有限数。')
         source = row.get('context_source')
         if source is not None:
-            if source not in previous or row.get('decoder') not in {'physics_branch', 'known_adapt_real_physics'}:
-                raise ValueError('物理分支共享上下文必须引用排在前面的候选。')
+            if source not in previous:
+                raise ValueError('共享上下文必须引用排在前面的候选。')
             if row['checkpoint'] != previous[source]['checkpoint']:
-                raise ValueError('共享上下文的分支消融必须使用同一 checkpoint。')
+                raise ValueError('共享上下文的候选必须使用同一 checkpoint。')
         previous[row['name']] = row
     for pair in manifest.get('pairs', []):
         if len(pair) != 2 or pair[0] not in names or pair[1] not in names or pair[0] == pair[1]:
@@ -82,6 +86,22 @@ class KnownAdaptRealPhysicsBranch(PhysicsBranch):
             rx, condition, soft_tail, adapt_symbols, adapt_mask,
         )
         return logits, logits.sigmoid()
+
+
+class KnownAdaptRealNeuralBranch(nn.Module):
+    """在相同 checkpoint 上启用实值已知 Adapt warm-start 与神经残差。"""
+
+    def __init__(self, model):
+        super().__init__()
+        self.model = copy.deepcopy(model)
+        self.model.config = replace(self.model.config, physics_real_bpsk_known_adapt=True)
+
+    @property
+    def config(self):
+        return self.model.config
+
+    def forward(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
 
 
 class ForwardCounter(nn.Module):

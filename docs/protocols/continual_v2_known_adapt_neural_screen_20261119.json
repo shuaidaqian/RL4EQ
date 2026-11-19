@@ -1,0 +1,80 @@
+{
+  "description": "已知 Adapt 实值物理约束接入完整神经均衡器的机制开发筛查。以递归 Pilot 物理分支的每帧实际输入为共同上下文，分别比较原物理warm-start、原warm-start神经修正、已知Adapt实值物理warm-start、已知Adapt实值warm-start加原神经修正。共享候选使用同一checkpoint和CIR/相位/tail状态，隔离解码器约束及神经修正增量。acquisition臂提供绝对接收锚点。非独立确认。",
+  "variants": [
+    {
+      "name": "acquisition_physics_q1e6",
+      "arm": "acquisition",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "recursive_pilot_physics_q1e6",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "recursive_pilot_neural_legacy_input",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "neural",
+      "context_source": "recursive_pilot_physics_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "recursive_pilot_known_adapt_real_physics",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "context_source": "recursive_pilot_physics_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "recursive_pilot_known_adapt_real_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_physics_q1e6",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    }
+  ],
+  "pairs": [
+    [
+      "acquisition_physics_q1e6",
+      "recursive_pilot_physics_q1e6"
+    ],
+    [
+      "recursive_pilot_physics_q1e6",
+      "recursive_pilot_neural_legacy_input"
+    ],
+    [
+      "recursive_pilot_physics_q1e6",
+      "recursive_pilot_known_adapt_real_physics"
+    ],
+    [
+      "recursive_pilot_neural_legacy_input",
+      "recursive_pilot_known_adapt_real_neural"
+    ],
+    [
+      "recursive_pilot_known_adapt_real_physics",
+      "recursive_pilot_known_adapt_real_neural"
+    ]
+  ]
+}

@@ -23,6 +23,7 @@ from env.comm_env import CommunicationEnvironment
 from env.experiment_config import build_comm_env_config
 from evaluation.continual_variants import (
     ForwardCounter,
+    KnownAdaptRealNeuralBranch,
     KnownAdaptRealPhysicsBranch,
     PhysicsBranch,
     validate_variants,
@@ -67,6 +68,8 @@ def main():
         decoder = row.get('decoder', 'neural')
         if decoder == 'neural':
             branch = model
+        elif decoder == 'known_adapt_real_neural':
+            branch = KnownAdaptRealNeuralBranch(model)
         elif decoder == 'known_adapt_real_physics':
             branch = KnownAdaptRealPhysicsBranch(model)
         else:
@@ -153,7 +156,9 @@ def main():
                         estimate = diagnostics.pop('decode_cir')
                         truth = original.true_cir.flatten()
                         scoring = receiver_diagnostics(logits, original.bits, mask, estimate, truth)
-                        diagnostics['neural_forwards'] = (decoder.calls-before)*int(row.get('decoder', 'neural')=='neural')
+                        diagnostics['neural_forwards'] = (decoder.calls-before)*int(
+                            row.get('decoder', 'neural') in {'neural', 'known_adapt_real_neural'}
+                        )
                         paired_logits = {}
                         for baseline, online in protocol['pairs']:
                             if online == name and baseline in frame_logits:

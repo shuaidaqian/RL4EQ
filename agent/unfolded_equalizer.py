@@ -31,6 +31,7 @@ class UnfoldedConfig:
     analytic_logit_skip_scale: float = 0.0
     physics_warm_start_iterations: int = 0
     physics_warm_start_scale: float = 1.0
+    physics_real_bpsk_known_adapt: bool = False
     neural_residual_scale: float = 1.0
     pilot_conditioned: bool = False
     enable_symbol_residual_branch: bool = False
@@ -561,13 +562,20 @@ class UnfoldedEqualizer(nn.Module):
         if self.config.pilot_conditioned:
             pilot_context = self._pilot_context(rx_iq, adapt_symbols, adapt_mask)
         rx_complex = torch.complex(rx_iq[..., 0], rx_iq[..., 1]).to(torch.complex64)
-        physics_logits = self._physics_warm_start_logits(
-            rx_complex,
-            condition,
-            soft_tail,
-            lookahead_rx_symbols=lookahead_rx_symbols,
-            lookahead_adapt_symbols=lookahead_adapt_symbols,
-        )
+        if self.config.physics_real_bpsk_known_adapt:
+            if adapt_symbols is None or adapt_mask is None or lookahead_rx_symbols is not None:
+                raise ValueError("实值已知 Adapt warm-start 需要当前帧 Adapt 输入，且暂不支持跨帧后缀。")
+            physics_logits = self._real_bpsk_known_adapt_logits(
+                rx_complex, condition, soft_tail, adapt_symbols, adapt_mask,
+            )
+        else:
+            physics_logits = self._physics_warm_start_logits(
+                rx_complex,
+                condition,
+                soft_tail,
+                lookahead_rx_symbols=lookahead_rx_symbols,
+                lookahead_adapt_symbols=lookahead_adapt_symbols,
+            )
         operator = LinearChannelOperator(frame_len=rx_complex.shape[1], max_delay=condition.complex_cir.shape[1] - 1)
         soft_symbols = torch.zeros_like(rx_complex)
         logits = torch.zeros_like(rx_complex.real)
