@@ -18,10 +18,13 @@ def interval(values):
     if not len(values) or not np.isfinite(values).all():
         raise ValueError("会话统计需要非空有限样本。")
     center = float(values.mean())
-    margin = (float(t.ppf(.975, len(values) - 1) * values.std(ddof=1) / len(values) ** .5)
-              if len(values) > 1 else None)
+    deviation = float(values.std(ddof=1)) if len(values) > 1 else None
+    margin = (float(t.ppf(.975, len(values) - 1) * deviation / len(values) ** .5)
+              if deviation is not None and deviation > 0 else None)
     return {"mean": center, "ci95": None if margin is None else [center - margin, center + margin],
-            "sessions": len(values)}
+            "sessions": len(values), "interval_status": (
+                "too_few_sessions" if len(values) == 1 else
+                "zero_empirical_variance_not_equivalence" if deviation == 0 else "t_descriptive")}
 
 
 def summarize_development(result):
@@ -103,7 +106,7 @@ def markdown_report(result, summary):
         for pair, comparison in value["paired"].items():
             gain = comparison["gain"]
             ci = gain["ci95"]
-            text = "样本不足" if ci is None else f"[{ci[0]:+.6f}, {ci[1]:+.6f}]"
+            text = "样本不足或方差退化" if ci is None else f"[{ci[0]:+.6f}, {ci[1]:+.6f}]"
             lines.append(f"| {snr} | {pair} | {gain['mean']:+.6f} | {text} | "
                          f"{comparison['positive_sessions']}/{gain['sessions']} |")
     lines += ["", "## 边界", "",
@@ -139,7 +142,7 @@ def variants_report(result, summary):
     for snr, value in summary['per_snr'].items():
         for pair, row in value['paired'].items():
             stat = row['gain']
-            ci = '样本不足' if stat['ci95'] is None else f"[{stat['ci95'][0]:+.6f}, {stat['ci95'][1]:+.6f}]"
+            ci = '样本不足或方差退化' if stat['ci95'] is None else f"[{stat['ci95'][0]:+.6f}, {stat['ci95'][1]:+.6f}]"
             lines.append(f"| {snr} | {pair} | {stat['mean']:+.6f} | {ci} | {row['positive_sessions']}/{stat['sessions']} |")
     lines += ['', '物理分支仍保留同一 checkpoint 的已学习同步，不是完全非神经基线。',
               '各窗口、自身改善、优势增长与成本分别报告；短期均值改善不能替代增长与饱和确认。', '']

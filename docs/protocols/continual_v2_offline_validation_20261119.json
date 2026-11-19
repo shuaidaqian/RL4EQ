@@ -1,0 +1,207 @@
+{
+  "description": "三次同源微调的独立开发验证；B/C 检验离线训练与递归的交互，未覆盖全部A/B/C/D且不作为确认。保持所有训练重复，不按结果挑选。",
+  "training_report": "docs/results/continual_v2_offline_20261119/training.json",
+  "training_report_sha256": "da60da4c17488bbefe5780ac45f5f61e0062a39030827bb8cb9d0ce0fa73f58a",
+  "variants": [
+    {
+      "name": "anchor_current_pilot",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft"
+    },
+    {
+      "name": "anchor_recursive_pilot",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft"
+    },
+    {
+      "name": "r0_acquisition_current_pilot",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat0_acquisition.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 0,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "r0_acquisition_recursive_pilot",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat0_acquisition.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 0,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "r0_recursive_pilot_current_pilot",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat0_recursive_pilot.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 0,
+      "training_method": "recursive_pilot"
+    },
+    {
+      "name": "r0_recursive_pilot_recursive_pilot",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat0_recursive_pilot.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 0,
+      "training_method": "recursive_pilot"
+    },
+    {
+      "name": "r1_acquisition_current_pilot",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat1_acquisition.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 1,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "r1_acquisition_recursive_pilot",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat1_acquisition.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 1,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "r1_recursive_pilot_current_pilot",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat1_recursive_pilot.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 1,
+      "training_method": "recursive_pilot"
+    },
+    {
+      "name": "r1_recursive_pilot_recursive_pilot",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat1_recursive_pilot.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 1,
+      "training_method": "recursive_pilot"
+    },
+    {
+      "name": "r2_acquisition_current_pilot",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat2_acquisition.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 2,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "r2_acquisition_recursive_pilot",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat2_acquisition.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 2,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "r2_recursive_pilot_current_pilot",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat2_recursive_pilot.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 2,
+      "training_method": "recursive_pilot"
+    },
+    {
+      "name": "r2_recursive_pilot_recursive_pilot",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat2_recursive_pilot.pt",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "training_repeat": 2,
+      "training_method": "recursive_pilot"
+    }
+  ],
+  "pairs": [
+    [
+      "anchor_current_pilot",
+      "anchor_recursive_pilot"
+    ],
+    [
+      "anchor_current_pilot",
+      "r0_acquisition_current_pilot"
+    ],
+    [
+      "anchor_recursive_pilot",
+      "r0_acquisition_recursive_pilot"
+    ],
+    [
+      "r0_acquisition_current_pilot",
+      "r0_acquisition_recursive_pilot"
+    ],
+    [
+      "anchor_current_pilot",
+      "r0_recursive_pilot_current_pilot"
+    ],
+    [
+      "anchor_recursive_pilot",
+      "r0_recursive_pilot_recursive_pilot"
+    ],
+    [
+      "r0_recursive_pilot_current_pilot",
+      "r0_recursive_pilot_recursive_pilot"
+    ],
+    [
+      "anchor_current_pilot",
+      "r1_acquisition_current_pilot"
+    ],
+    [
+      "anchor_recursive_pilot",
+      "r1_acquisition_recursive_pilot"
+    ],
+    [
+      "r1_acquisition_current_pilot",
+      "r1_acquisition_recursive_pilot"
+    ],
+    [
+      "anchor_current_pilot",
+      "r1_recursive_pilot_current_pilot"
+    ],
+    [
+      "anchor_recursive_pilot",
+      "r1_recursive_pilot_recursive_pilot"
+    ],
+    [
+      "r1_recursive_pilot_current_pilot",
+      "r1_recursive_pilot_recursive_pilot"
+    ],
+    [
+      "anchor_current_pilot",
+      "r2_acquisition_current_pilot"
+    ],
+    [
+      "anchor_recursive_pilot",
+      "r2_acquisition_recursive_pilot"
+    ],
+    [
+      "r2_acquisition_current_pilot",
+      "r2_acquisition_recursive_pilot"
+    ],
+    [
+      "anchor_current_pilot",
+      "r2_recursive_pilot_current_pilot"
+    ],
+    [
+      "anchor_recursive_pilot",
+      "r2_recursive_pilot_recursive_pilot"
+    ],
+    [
+      "r2_recursive_pilot_current_pilot",
+      "r2_recursive_pilot_recursive_pilot"
+    ]
+  ]
+}

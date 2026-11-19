@@ -3,7 +3,7 @@
 
 import pytest
 
-from evaluation.continual_summary import summarize_development
+from evaluation.continual_summary import interval, summarize_development
 
 
 def result_fixture():
@@ -35,3 +35,10 @@ def test_incomplete_run_or_waveform_mismatch_cannot_be_summarized():
     result["rows"][0]["rx_sha256"] = "different"
     with pytest.raises(ValueError, match="波形"):
         summarize_development(result)
+
+
+def test_zero_observed_difference_cannot_prove_population_equivalence():
+    result = interval([0., 0., 0.])
+    assert result['mean'] == 0
+    assert result['ci95'] is None
+    assert result['interval_status'] == 'zero_empirical_variance_not_equivalence'
