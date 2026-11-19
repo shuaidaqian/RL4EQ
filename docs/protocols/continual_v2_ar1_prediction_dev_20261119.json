@@ -1,0 +1,73 @@
+{
+  "description": "在同一波形和同一合法接收输入上，比较现有随机游走与从独立 offline_train 估计并冻结的 AR(1) CIR 预测。两递归臂只改变状态预测模型；同时保留 acquisition-Frozen 物理锚点。全程不读取在线真实 CIR、仿真真值、Data 标签或 Reward Pilot 回流。每个会话覆盖约 1200 s，按预先登记的固定二次幂窗口报告 BER 自身轨迹、相对优势、后验协方差、合法观测残差和成本。属于开发实验，不是独立确认。",
+  "variants": [
+    {
+      "name": "acquisition_known_adapt_real_physics",
+      "arm": "acquisition",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "random_walk"
+    },
+    {
+      "name": "recursive_pilot_rw",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-6,
+      "state_model": "random_walk"
+    },
+    {
+      "name": "recursive_pilot_ar1",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29"
+    }
+  ],
+  "pairs": [
+    ["recursive_pilot_rw", "recursive_pilot_ar1"],
+    ["acquisition_known_adapt_real_physics", "recursive_pilot_rw"],
+    ["acquisition_known_adapt_real_physics", "recursive_pilot_ar1"]
+  ],
+  "frames": 11719,
+  "snrs": [0, 5, 10, 15],
+  "seeds": [234001, 234002, 234003, 234004, 234005, 234006, 234007, 234008, 234009, 234010],
+  "state_split": "offline_train",
+  "noise_source": "acquisition_residual",
+  "timing": "current_pilot_then_decode",
+  "statistical_unit": "session",
+  "pre_registered_windows": [
+    [1, 4],
+    [4, 8],
+    [8, 16],
+    [16, 32],
+    [32, 64],
+    [64, 128],
+    [128, 256],
+    [256, 512],
+    [512, 1024],
+    [1024, 2048],
+    [2048, 4096],
+    [4096, 8192],
+    [8192, 11719]
+  ],
+  "interpretation_constraints": [
+    "自身 BER 下降、Frozen 相对优势扩大与后段饱和分别判定",
+    "AR(1) 与随机游走比较是主要增量；不得仅凭相对 Frozen 增益归因",
+    "0 dB 及其他 SNR 均保留；不按中途表现删减会话",
+    "在线 AR(1) 使用 rho 和 D 的冻结估计，不从本轮真实 CIR 更新参数"
+  ]
+}

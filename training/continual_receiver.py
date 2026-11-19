@@ -23,6 +23,32 @@ from training.pilot_transfer import TransferContext, context_logits, tail_from_l
 ARMS = ("acquisition", "current_pilot", "recursive_pilot", "recursive_soft")
 
 
+def predict_cir_state(mean, covariance, *, state_model, process_noise, state_rho=None,
+                      stationary_power=None):
+    """应用冻结的随机游走或离线估计 AR(1) CIR 预测。"""
+
+    if state_model == "random_walk":
+        if process_noise < 0 or not math.isfinite(process_noise):
+            raise ValueError("随机游走过程噪声必须非负且有限。")
+        predicted_covariance = covariance + float(process_noise) * torch.eye(
+            mean.numel(), device=mean.device, dtype=mean.dtype
+        )
+        return mean, predicted_covariance
+    if state_model != "ar1":
+        raise ValueError("state_model 必须为 random_walk 或 ar1。")
+    if state_rho is None or not math.isfinite(float(state_rho)) or not 0 <= float(state_rho) < 1:
+        raise ValueError("AR(1) rho 必须位于 [0,1) 且有限。")
+    power = torch.as_tensor(stationary_power, device=mean.device, dtype=mean.real.dtype)
+    if power.ndim != 1 or power.numel() != mean.numel() or not bool(torch.isfinite(power).all()) or bool((power < 0).any()):
+        raise ValueError("AR(1) stationary_power 必须是 CIR 维度一致的非负有限向量。")
+    rho = float(state_rho)
+    stationary_covariance = torch.diag(power.to(dtype=covariance.dtype))
+    predicted_mean = rho * mean
+    predicted_covariance = rho**2 * covariance + (1.0 - rho**2) * stationary_covariance
+    predicted_covariance = (predicted_covariance + predicted_covariance.mH) * 0.5
+    return predicted_mean, predicted_covariance
+
+
 def receiver_frame(frame: Frame) -> Frame:
     """在接收边界移除全部隐藏字段；发送符号只保留 Adapt 部分。"""
 
@@ -192,7 +218,8 @@ class ContinualReceiver:
     """每帧一次前向；Pilot 只更新一次，Data 只影响后续帧。"""
 
     def __init__(self, acquisition, tail, *, arm, process_noise=1e-4, phase_estimator="unwrap_median",
-                 phase_reference_backend="vectorized"):
+                 phase_reference_backend="vectorized", state_model="random_walk", state_rho=None,
+                 stationary_power=None):
         if arm not in ARMS or not math.isfinite(process_noise) or process_noise < 0:
             raise ValueError("接收臂或过程噪声非法。")
         self.acquisition, self.arm = acquisition, arm
@@ -200,6 +227,16 @@ class ContinualReceiver:
         self.covariance = acquisition.covariance.clone()
         self.tail = tail.detach().clone()
         self.process_noise = float(process_noise)
+        self.state_model = state_model
+        self.state_rho = state_rho
+        self.stationary_power = stationary_power
+        if state_model not in {"random_walk", "ar1"}:
+            raise ValueError("未知 CIR 状态预测模型。")
+        if state_model == "ar1":
+            # 在初始化时先验证参数，避免运行中才发现 manifest 错误。
+            predict_cir_state(self.mean, self.covariance, state_model=state_model,
+                              process_noise=self.process_noise, state_rho=state_rho,
+                              stationary_power=stationary_power)
         if phase_estimator not in {"unwrap_median", "circular_all", "circular_clean"}:
             raise ValueError("未知相位估计方法。")
         self.phase_estimator = phase_estimator
@@ -226,8 +263,10 @@ class ContinualReceiver:
         else:
             mean, covariance = self.mean, self.covariance
         if self.frames_seen and self.arm in {"recursive_pilot", "recursive_soft"}:
-            covariance = covariance + self.process_noise * torch.eye(
-                mean.numel(), device=mean.device, dtype=mean.dtype)
+            mean, covariance = predict_cir_state(
+                mean, covariance, state_model=self.state_model, process_noise=self.process_noise,
+                state_rho=self.state_rho, stationary_power=self.stationary_power,
+            )
         features = self._phase_features(frame, mean)
         if self.arm != "acquisition":
             mean, covariance = pilot_update(frame, mean, covariance,

@@ -1,0 +1,26 @@
+{
+  "experiment": "p5_offline_channel_dynamics_10x11719",
+  "purpose": "development",
+  "description": "只用独立 offline_train 状态样本估计 EME CIR 的共同复 AR(1) 系数 rho 与逐 tap 平稳功率 D。仿真真实 CIR 只在离线统计脚本内访问，估计结果在在线验证前冻结；不读取或拟合长会话测试 seed 的真实 CIR。",
+  "seeds": [233001, 233002, 233003, 233004, 233005, 233006, 233007, 233008, 233009, 233010],
+  "frames_per_seed": 11719,
+  "state_split": "offline_train",
+  "snr_db": 0,
+  "estimator": "rho = Re(sum conj(h[t-1])*h[t]) / sum |h[t-1]|^2; D = per-tap mean |h[t]|^2",
+  "assumptions": [
+    "复 CIR 条件均值为零",
+    "tap 间创新不相关，在线使用对角 D",
+    "所有有效 tap 共用一个 rho",
+    "rho 与 D 仅从离线训练状态样本估计并冻结"
+  ],
+  "output": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+  "frozen_estimate": {
+    "rho": 0.9999149638055597,
+    "rho_95_t_interval_across_10_seeds": [0.9998908390695648, 0.9999390885415546],
+    "energy_weighted_rho_diagnostic": 0.9999236278285532,
+    "implied_coherence_time_seconds_at_0.1024s_per_frame": 1204.1419157930534,
+    "output_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29"
+  },
+  "online_use": "m_pred = rho*m; P_pred = rho^2*P + (1-rho^2)*diag(D)",
+  "role_limit": "开发统计估计，不是独立性能确认；估计 seed 不可复用作在线验证或正式确认。"
+}

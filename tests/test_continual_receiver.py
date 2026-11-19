@@ -9,7 +9,8 @@ import torch
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from env.frame_structure import FrameConfig, FrameGenerator
 from training.continual_receiver import (
-    ARMS, ContinualReceiver, estimate_acquisition, gaussian_update, receiver_frame,
+    ARMS, ContinualReceiver, estimate_acquisition, gaussian_update, predict_cir_state,
+    receiver_frame,
 )
 
 
@@ -81,3 +82,26 @@ def test_hidden_labels_reward_and_truth_do_not_change_receiver(arm):
 def test_rank_deficient_acquisition_cannot_estimate_noise():
     with pytest.raises(ValueError, match="满列秩"):
         estimate_acquisition(torch.ones(128), torch.ones(128), 3, cfo_limit=0)
+
+
+def test_ar1_cir_prediction_matches_frozen_state_space_equations():
+    mean = torch.tensor([1 + 2j, -0.5 + 0.25j], dtype=torch.complex64)
+    covariance = torch.tensor([[.4 + 0j, .1 + .05j], [.1 - .05j, .2 + 0j]], dtype=torch.complex64)
+    power = torch.tensor([.7, .3])
+    rho = .8
+    predicted_mean, predicted_covariance = predict_cir_state(
+        mean, covariance, state_model="ar1", process_noise=0.0,
+        state_rho=rho, stationary_power=power,
+    )
+    expected_mean = rho * mean
+    expected_covariance = rho**2 * covariance + (1 - rho**2) * torch.diag(power).to(covariance.dtype)
+    torch.testing.assert_close(predicted_mean, expected_mean)
+    torch.testing.assert_close(predicted_covariance, expected_covariance)
+    torch.testing.assert_close(predicted_covariance, predicted_covariance.mH)
+
+
+def test_ar1_cir_prediction_rejects_invalid_stationary_power():
+    with pytest.raises(ValueError, match="stationary_power"):
+        predict_cir_state(torch.ones(2, dtype=torch.complex64), torch.eye(2, dtype=torch.complex64),
+                          state_model="ar1", process_noise=0, state_rho=.9,
+                          stationary_power=[1.0])

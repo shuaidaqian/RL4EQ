@@ -61,6 +61,18 @@ def main():
         raise ValueError('禁止覆盖或隐式重跑旧实验。')
     config = json.loads(Path(args.config).read_text(encoding='utf8'))
     manifest = json.loads(Path(args.manifest).read_text(encoding='utf8'))
+    variants = manifest.get('variants', [])
+    for row in variants:
+        if row.get('state_model', 'random_walk') == 'ar1' and row.get('dynamics_file'):
+            dynamics_path = Path(row['dynamics_file'])
+            if not dynamics_path.is_absolute():
+                dynamics_path = ROOT / dynamics_path
+            expected_hash = row.get('dynamics_file_sha256')
+            if not expected_hash or fingerprint(dynamics_path) != expected_hash:
+                raise ValueError(f"AR(1) 离线统计文件指纹不匹配：{dynamics_path}")
+            dynamics = json.loads(dynamics_path.read_text(encoding='utf8'))
+            row['state_rho'] = dynamics['rho_estimate']
+            row['stationary_power_by_tap'] = dynamics['stationary_power_by_tap']
     variants = validate_variants(manifest)
     torch.set_num_threads(1)
     device = torch.device(args.device)
@@ -144,7 +156,10 @@ def main():
                 receivers = {row['name']:ContinualReceiver(acquisition, start.initial_soft_tail.to(device),
                     arm=row['arm'], process_noise=row.get('process_noise', 1e-4),
                     phase_estimator=row.get('phase_estimator', 'unwrap_median'),
-                    phase_reference_backend=row.get('phase_reference_backend', 'vectorized')) for row in variants}
+                    phase_reference_backend=row.get('phase_reference_backend', 'vectorized'),
+                    state_model=row.get('state_model', 'random_walk'),
+                    state_rho=row.get('state_rho'),
+                    stationary_power=row.get('stationary_power_by_tap')) for row in variants}
                 for _ in range(args.frames):
                     original = frame_to_device(env.next_frame(), device)
                     visible = receiver_frame(original)

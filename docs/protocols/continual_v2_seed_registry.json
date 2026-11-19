@@ -3671,6 +3671,159 @@
         "result_rows": 160,
         "completion": "completed; compact JSONL streaming smoke, 1 session × 8 frames × 4 SNR × 5 candidates"
       }
+    },
+    {
+      "experiment": "p4_coherence1200s_long_session_10x11719",
+      "purpose": "development",
+      "seeds": [
+        232001,
+        232002,
+        232003,
+        232004,
+        232005,
+        232006,
+        232007,
+        232008,
+        232009,
+        232010
+      ],
+      "status": "reserved",
+      "details": {
+        "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+        "manifest": "docs/protocols/continual_v2_coherence1200s_long_session_20261119.json",
+        "seeds": [
+          232001,
+          232002,
+          232003,
+          232004,
+          232005,
+          232006,
+          232007,
+          232008,
+          232009,
+          232010
+        ],
+        "frames": 11719,
+        "snrs": [
+          0,
+          5,
+          10,
+          15
+        ],
+        "state_split": "offline_train",
+        "experiment": "p4_coherence1200s_long_session_10x11719",
+        "output": "docs/results/continual_v2_long_session_20261119/coherence1200s_10x11719.json",
+        "device": "cuda",
+        "stream_rows": true,
+        "checkpoint_interval": 128,
+        "variants": [
+          {
+            "name": "acquisition_frozen_physics",
+            "arm": "acquisition",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "decoder": "physics_branch",
+            "phase_estimator": "circular_all",
+            "phase_reference_backend": "vectorized",
+            "operator_backend": "fft",
+            "process_noise": 1e-06
+          },
+          {
+            "name": "online_known_adapt_real_pilot",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "decoder": "known_adapt_real_physics",
+            "phase_estimator": "circular_all",
+            "phase_reference_backend": "vectorized",
+            "operator_backend": "fft",
+            "process_noise": 1e-06
+          }
+        ],
+        "arms": [
+          "acquisition_frozen_physics",
+          "online_known_adapt_real_pilot"
+        ],
+        "pairs": [
+          [
+            "acquisition_frozen_physics",
+            "online_known_adapt_real_pilot"
+          ]
+        ],
+        "role": "development",
+        "noise_source": "acquisition_residual",
+        "statistical_unit": "session",
+        "timing": "current_pilot_then_decode",
+        "linear_operator_backend": "direct",
+        "torch_version": "2.11.0+cu128",
+        "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+        "manifest_sha256": "69f8691af59ed2aa5b1cfb13890a7bf3d1a9d575e664878c2cf92da858c6aa1a",
+        "checkpoint_sha256": {
+          "D:\\Research\\02_研究点二_神经均衡\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4"
+        },
+        "git_commit": "da8ee7e922a5ceb831db5845829b7e350f2d8333",
+        "sources": {
+          "training/continual_receiver.py": "281abf709f949244957b4eb07feed3f81cee166f4ec479d9b899b64546786b5c",
+          "training/continual_phase.py": "918470e6963c198d875cc4303474f973caa3757e5b2117bd350db47dce810ec7",
+          "evaluation/continual_variants.py": "3e7eabf34677817b9068bd9f9b62d77986bd37bee3bbe128f6f9b1198779b2f8",
+          "scripts/compare_continual_variants.py": "f8f1e3bb22b5705296574eb927764f310f27b50253cfbbfa25abe83b8e28c043",
+          "evaluation/receiver_diagnostics.py": "ed29b2bb94f14731298988a31d5f5fe5fe689827a9e13a545f60c49a31a1d9c4",
+          "agent/unfolded_equalizer.py": "cabc7006d53c1519047f91486a82453109f006f35d6e51bb65f41971087b1e07",
+          "env/linear_operator.py": "0b06279cbc0535c15446782f158af29aceafb452cdfec02d49cc5747dcf0bb1d"
+        }
+      }
+    },
+    {
+      "experiment": "p5_offline_channel_dynamics_10x11719",
+      "purpose": "development",
+      "seeds": [
+        233001,
+        233002,
+        233003,
+        233004,
+        233005,
+        233006,
+        233007,
+        233008,
+        233009,
+        233010
+      ],
+      "status": "completed",
+      "details": {
+        "manifest": "docs/protocols/continual_v2_offline_channel_dynamics_20261119.json",
+        "seeds": [233001, 233002, 233003, 233004, 233005, 233006, 233007, 233008, 233009, 233010],
+        "frames_per_seed": 11719,
+        "state_split": "offline_train",
+        "purpose": "Estimate rho and diagonal stationary CIR power from offline training channel trajectories only; freeze before online validation.",
+        "output": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+        "rho_estimate": 0.9999149638055597,
+        "rho_95_t_interval_across_10_seeds": [0.9998908390695648, 0.9999390885415546],
+        "output_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29"
+      }
+    },
+    {
+      "experiment": "p6_ar1_prediction_dev_10x11719",
+      "purpose": "development",
+      "seeds": [
+        234001,
+        234002,
+        234003,
+        234004,
+        234005,
+        234006,
+        234007,
+        234008,
+        234009,
+        234010
+      ],
+      "status": "reserved",
+      "details": {
+        "manifest": "docs/protocols/continual_v2_ar1_prediction_dev_20261119.json",
+        "seeds": [234001, 234002, 234003, 234004, 234005, 234006, 234007, 234008, 234009, 234010],
+        "frames": 11719,
+        "snrs": [0, 5, 10, 15],
+        "state_split": "offline_train",
+        "process_model_change": "random_walk versus frozen offline-estimated AR(1)",
+        "dynamics_estimate_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29"
+      }
     }
   ],
   "historical_reserved_ranges": [

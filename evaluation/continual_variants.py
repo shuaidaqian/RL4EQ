@@ -35,6 +35,19 @@ def validate_variants(manifest):
         noise = row.get('process_noise', 1e-4)
         if not isinstance(noise, (float, int)) or not math.isfinite(noise) or noise < 0:
             raise ValueError('过程噪声须为非负有限数。')
+        state_model = row.get('state_model', 'random_walk')
+        if state_model not in {'random_walk', 'ar1'}:
+            raise ValueError('CIR 状态预测模型须为 random_walk 或 ar1。')
+        if state_model == 'ar1':
+            rho = row.get('state_rho')
+            power = row.get('stationary_power_by_tap')
+            if not isinstance(rho, (float, int)) or not math.isfinite(rho) or not 0 <= rho < 1:
+                raise ValueError('AR(1) 候选必须给出 [0,1) 内的有限 state_rho。')
+            if not isinstance(power, list) or not power or any(
+                not isinstance(value, (float, int)) or not math.isfinite(value) or value < 0
+                for value in power
+            ):
+                raise ValueError('AR(1) 候选必须给出非负有限 stationary_power_by_tap。')
         source = row.get('context_source')
         if source is not None:
             if source not in previous:
