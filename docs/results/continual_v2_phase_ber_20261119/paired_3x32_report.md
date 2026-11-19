@@ -60,12 +60,12 @@
 | 10 | acquisition_minus_recursive_pilot | +0.000543 | [+0.000288, +0.000797] | 3/3 |
 | 10 | current_pilot_minus_recursive_pilot | +0.000244 | [+0.000143, +0.000345] | 3/3 |
 | 10 | recursive_pilot_minus_recursive_soft | +0.000651 | [-0.000313, +0.001615] | 3/3 |
-| 10 | pilot_shared_physics_minus_recursive_pilot | +0.000000 | [+0.000000, +0.000000] | 0/3 |
+| 10 | pilot_shared_physics_minus_recursive_pilot | +0.000000 | 样本不足或方差退化 | 0/3 |
 | 15 | legacy_recursive_pilot_minus_recursive_pilot | -0.000014 | [-0.000072, +0.000045] | 0/3 |
 | 15 | acquisition_minus_recursive_pilot | +0.000041 | [-0.000591, +0.000672] | 1/3 |
 | 15 | current_pilot_minus_recursive_pilot | -0.000014 | [-0.000469, +0.000442] | 1/3 |
 | 15 | recursive_pilot_minus_recursive_soft | +0.000014 | [-0.000045, +0.000072] | 1/3 |
-| 15 | pilot_shared_physics_minus_recursive_pilot | +0.000000 | [+0.000000, +0.000000] | 0/3 |
+| 15 | pilot_shared_physics_minus_recursive_pilot | +0.000000 | 样本不足或方差退化 | 0/3 |
 
 物理分支仍保留同一 checkpoint 的已学习同步，不是完全非神经基线。
 各窗口、自身改善、优势增长与成本分别报告；短期均值改善不能替代增长与饱和确认。

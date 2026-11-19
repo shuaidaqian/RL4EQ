@@ -23,6 +23,7 @@ from env.comm_env import CommunicationEnvironment
 from env.experiment_config import build_comm_env_config
 from evaluation.continual_variants import ForwardCounter, PhysicsBranch, validate_variants
 from evaluation.pilot_transfer import _load_branch
+from evaluation.receiver_diagnostics import receiver_diagnostics
 from evaluation.seed_registry import reserve_seeds
 from scripts.develop_continual_receiver import fingerprint, summarize, synchronize
 from training.continual_receiver import ContinualReceiver, estimate_acquisition, receiver_frame
@@ -72,6 +73,7 @@ def main():
                     sources={name:fingerprint(ROOT/name) for name in [
                         'training/continual_receiver.py', 'training/continual_phase.py',
                         'evaluation/continual_variants.py', 'scripts/compare_continual_variants.py',
+                        'evaluation/receiver_diagnostics.py',
                         'agent/unfolded_equalizer.py', 'env/linear_operator.py']})
     reserve_seeds(ROOT, experiment=args.experiment, seeds=args.seeds, purpose='development', details=protocol)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -139,8 +141,7 @@ def main():
                         errors = int(((logits[mask]>=0) != original.bits[mask].bool()).sum())
                         estimate = diagnostics.pop('decode_cir')
                         truth = original.true_cir.flatten()
-                        scale = torch.vdot(estimate, truth)/estimate.abs().square().sum().clamp_min(1e-12)
-                        nmse = float((truth-scale*estimate).abs().square().sum()/truth.abs().square().sum())
+                        scoring = receiver_diagnostics(logits, original.bits, mask, estimate, truth)
                         diagnostics['neural_forwards'] = (decoder.calls-before)*int(row.get('decoder', 'neural')=='neural')
                         paired_logits = {}
                         for baseline, online in protocol['pairs']:
@@ -152,8 +153,7 @@ def main():
                         frame_logits[name] = logits.detach()
                         result['rows'].append(dict(seed=seed, snr_db=snr, frame_index=original.frame_index,
                             arm=name, errors=errors, bits=int(mask.sum()), ber=errors/int(mask.sum()),
-                            elapsed_ms=elapsed, aligned_nmse_diagnostic=nmse,
-                            decode_cir_norm=float(estimate.norm()), model_calls=decoder.calls-before,
+                            elapsed_ms=elapsed, model_calls=decoder.calls-before, **scoring,
                             paired_logits_diagnostic=paired_logits,
                             noise_variance_used=acquisition.noise_variance, rx_sha256=rx_hash, **diagnostics))
                     if original.frame_index%8 == 0:
