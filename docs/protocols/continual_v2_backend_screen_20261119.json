@@ -1,0 +1,10 @@
+{
+  "description": "新开发数据比较 direct/FFT 的完整接收轨迹；不减物理 CG 次数，按实际数值差和判决记录是否可替换",
+  "variants": [
+    {"name": "acq_direct", "arm": "acquisition", "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt", "operator_backend": "direct"},
+    {"name": "acq_fft", "arm": "acquisition", "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt", "operator_backend": "fft"},
+    {"name": "pilot_direct", "arm": "recursive_pilot", "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt", "operator_backend": "direct"},
+    {"name": "pilot_fft", "arm": "recursive_pilot", "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt", "operator_backend": "fft"}
+  ],
+  "pairs": [["acq_direct", "acq_fft"], ["pilot_direct", "pilot_fft"]]
+}

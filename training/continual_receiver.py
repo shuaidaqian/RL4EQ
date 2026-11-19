@@ -191,7 +191,7 @@ def make_receiver_context(frame, mean, tail, noise, features):
 class ContinualReceiver:
     """每帧一次前向；Pilot 只更新一次，Data 只影响后续帧。"""
 
-    def __init__(self, acquisition, tail, *, arm, process_noise=1e-4):
+    def __init__(self, acquisition, tail, *, arm, process_noise=1e-4, phase_estimator="unwrap_median"):
         if arm not in ARMS or not math.isfinite(process_noise) or process_noise < 0:
             raise ValueError("接收臂或过程噪声非法。")
         self.acquisition, self.arm = acquisition, arm
@@ -199,7 +199,17 @@ class ContinualReceiver:
         self.covariance = acquisition.covariance.clone()
         self.tail = tail.detach().clone()
         self.process_noise = float(process_noise)
+        if phase_estimator not in {"unwrap_median", "circular_all", "circular_clean"}:
+            raise ValueError("未知相位估计方法。")
+        self.phase_estimator = phase_estimator
         self.frames_seen = 0
+
+    def _phase_features(self, frame, mean):
+        if self.phase_estimator == "unwrap_median":
+            return phase_features(frame, mean, self.tail, self.acquisition.cfo)
+        from training.continual_phase import circular_phase_features
+        return circular_phase_features(frame, mean, self.tail, self.acquisition.cfo,
+                                       clean_rows=self.phase_estimator == "circular_clean")
 
     def step(self, model, frame):
         if frame.true_cir is not None or frame.tail_symbols is not None or bool(frame.bits.any()):
@@ -214,12 +224,12 @@ class ContinualReceiver:
         if self.frames_seen and self.arm in {"recursive_pilot", "recursive_soft"}:
             covariance = covariance + self.process_noise * torch.eye(
                 mean.numel(), device=mean.device, dtype=mean.dtype)
-        features = phase_features(frame, mean, self.tail, self.acquisition.cfo)
+        features = self._phase_features(frame, mean)
         if self.arm != "acquisition":
             mean, covariance = pilot_update(frame, mean, covariance,
                                             self.acquisition.noise_variance, features)
         decode_mean, decode_covariance = mean.clone(), covariance.clone()
-        features = phase_features(frame, mean, self.tail, self.acquisition.cfo)
+        features = self._phase_features(frame, mean)
         context = make_receiver_context(frame, mean, self.tail,
                                         self.acquisition.noise_variance, features)
         with torch.no_grad():

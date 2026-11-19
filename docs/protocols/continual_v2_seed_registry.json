@@ -46,6 +46,147 @@
         "status": "development",
         "statistical_unit": "session"
       }
+    },
+    {
+      "experiment": "p1_phase_first_frame_12sessions",
+      "purpose": "development",
+      "seeds": [
+        211001,
+        211002,
+        211003,
+        211004,
+        211005,
+        211006,
+        211007,
+        211008,
+        211009,
+        211010,
+        211011,
+        211012
+      ],
+      "status": "completed",
+      "details": {
+        "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+        "seeds": [
+          211001,
+          211002,
+          211003,
+          211004,
+          211005,
+          211006,
+          211007,
+          211008,
+          211009,
+          211010,
+          211011,
+          211012
+        ],
+        "experiment": "p1_phase_first_frame_12sessions",
+        "output": "docs/results/continual_v2_phase_20261119/first_frame_12sessions.json",
+        "role": "development",
+        "frames": 1,
+        "snrs": [
+          0,
+          5,
+          10,
+          15
+        ],
+        "git_commit": "cea850bdc39caa38a20cf3abb33392b5be38aaaa",
+        "scope": "仅首帧同步与预测误差，不证明神经 BER 或递归增长",
+        "phase_source_sha256": "118f3415d52bbc176eb38fcc6c36dcfc294e76fe624a3cd5f7876dacc771d6b2"
+      },
+      "result": "docs/results/continual_v2_phase_20261119/first_frame_12sessions.json",
+      "result_sha256": "06652f9366b42304e3213f345f30925c59d25f5f6fe0f77c1d25d2cc2eb32be0"
+    },
+    {
+      "experiment": "p1_backend_full_receiver_1x8",
+      "purpose": "development",
+      "seeds": [
+        214001
+      ],
+      "status": "completed",
+      "details": {
+        "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+        "manifest": "docs/protocols/continual_v2_backend_screen_20261119.json",
+        "seeds": [
+          214001
+        ],
+        "frames": 8,
+        "snrs": [
+          0,
+          5,
+          10,
+          15
+        ],
+        "state_split": "offline_train",
+        "experiment": "p1_backend_full_receiver_1x8",
+        "output": "docs/results/continual_v2_backend_20261119/paired_1x8.json",
+        "device": "cpu",
+        "variants": [
+          {
+            "name": "acq_direct",
+            "arm": "acquisition",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "operator_backend": "direct"
+          },
+          {
+            "name": "acq_fft",
+            "arm": "acquisition",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "operator_backend": "fft"
+          },
+          {
+            "name": "pilot_direct",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "operator_backend": "direct"
+          },
+          {
+            "name": "pilot_fft",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "operator_backend": "fft"
+          }
+        ],
+        "arms": [
+          "acq_direct",
+          "acq_fft",
+          "pilot_direct",
+          "pilot_fft"
+        ],
+        "pairs": [
+          [
+            "acq_direct",
+            "acq_fft"
+          ],
+          [
+            "pilot_direct",
+            "pilot_fft"
+          ]
+        ],
+        "role": "development",
+        "noise_source": "acquisition_residual",
+        "statistical_unit": "session",
+        "timing": "current_pilot_then_decode",
+        "linear_operator_backend": "direct",
+        "torch_version": "2.11.0+cpu",
+        "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+        "manifest_sha256": "f05830b33709cf89e77a5a5f76ef1452672e8530af09c689ab00cdf2b54f8567",
+        "checkpoint_sha256": {
+          "D:\\Research\\02_研究点二_神经均衡\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4"
+        },
+        "git_commit": "cea850bdc39caa38a20cf3abb33392b5be38aaaa",
+        "sources": {
+          "training/continual_receiver.py": "ed34157c0db5eb4eeae1417191ceb0e2b33b782eb708d54e59148c3976f6121b",
+          "training/continual_phase.py": "118f3415d52bbc176eb38fcc6c36dcfc294e76fe624a3cd5f7876dacc771d6b2",
+          "evaluation/continual_variants.py": "32c034d4ea8d093162c1f874018925c5b8766a2eeec79687c6ce8b9b3aac3fee",
+          "scripts/compare_continual_variants.py": "5900984aa299b23bd9b8681942004d3d1408b06cdfcc8fa86a5750ebc35b6def",
+          "agent/unfolded_equalizer.py": "b86db3dd402b172e8c075303da75c632597bb3116f335e085aef8c89f10c72c8",
+          "env/linear_operator.py": "0b06279cbc0535c15446782f158af29aceafb452cdfec02d49cc5747dcf0bb1d"
+        }
+      },
+      "result": "docs/results/continual_v2_backend_20261119/paired_1x8.json",
+      "result_sha256": "6b5187057e440bfdb53e4f525648aef715c8664725343b78e4c6a3b021d00178"
     }
   ],
   "historical_reserved_ranges": [

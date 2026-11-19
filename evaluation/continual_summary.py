@@ -59,7 +59,7 @@ def summarize_development(result):
                             for a, b, values in zip(edges, edges[1:], window_values)],
                 "mean_elapsed_ms": interval([np.mean([r["elapsed_ms"] for r in f.values()]) for f in frames]),
             }
-        for baseline, online in PAIRS:
+        for baseline, online in result["protocol"].get("pairs", PAIRS):
             if baseline not in result["protocol"]["arms"] or online not in result["protocol"]["arms"]:
                 continue
             values, late_growth = [], []
@@ -81,6 +81,8 @@ def summarize_development(result):
 
 
 def markdown_report(result, summary):
+    if "variants" in result["protocol"]:
+        return variants_report(result, summary)
     lines = ["# 持续均衡 v2：四臂开发筛查", "",
              "状态：**开发诊断，不是独立确认，不证明增长至饱和。**", "",
              f"实验：`{result['protocol']['experiment']}`；{len(result['protocol']['seeds'])} 个会话 × "
@@ -111,3 +113,34 @@ def markdown_report(result, summary):
               "- 自身 BER 与相对优势分别检查；短时开发曲线不能证明饱和。",
               "- 各窗口、逐会话差值与耗时见同目录统计 JSON；无选择性删 seed。", ""]
     return "\n".join(lines)
+
+
+def variants_report(result, summary):
+    """候选可能改变同步、checkpoint 或分支，逐项明示后作开发比较。"""
+    protocol = result['protocol']
+    lines = ['# 持续均衡候选配对开发比较', '',
+             '**开发诊断，不是独立确认，不证明增长至饱和。**', '',
+             f"实验：`{protocol['experiment']}`；{len(protocol['seeds'])} 会话 × {protocol['frames']} 帧。", '',
+             '所有候选同波形、同 acquisition，噪声由 acquisition 合法估计。', '',
+             '| 候选 | 接收状态/上下文来源 | 相位估计 | 解码分支 | checkpoint |',
+             '|---|---|---|---|---|']
+    for row in protocol['variants']:
+        state = f"共享 {row['context_source']} 的实际输入" if row.get('context_source') else row['arm']
+        lines.append(f"| {row['name']} | {state} | {row.get('phase_estimator', 'unwrap_median')} | "
+                     f"{row.get('decoder', 'neural')} | `{row['checkpoint']}` |")
+    lines += ['', '| SNR | 候选 | 平均 BER | 早期减晚期 BER | 平均 ms/帧 |',
+              '|---|---|---:|---:|---:|']
+    for snr, value in summary['per_snr'].items():
+        for name, row in value['arms'].items():
+            lines.append(f"| {snr} | {name} | {row['ber']['mean']:.6f} | "
+                         f"{row['early_minus_late_ber']['mean']:+.6f} | {row['mean_elapsed_ms']['mean']:.2f} |")
+    lines += ['', '配对差为前者 BER 减后者 BER；正值表示后者更好。双侧 t 区间未作多重性校正。', '',
+              '| SNR | 比较 | 均值 | 95% 区间 | 正向会话 |', '|---|---|---:|---|---:|']
+    for snr, value in summary['per_snr'].items():
+        for pair, row in value['paired'].items():
+            stat = row['gain']
+            ci = '样本不足' if stat['ci95'] is None else f"[{stat['ci95'][0]:+.6f}, {stat['ci95'][1]:+.6f}]"
+            lines.append(f"| {snr} | {pair} | {stat['mean']:+.6f} | {ci} | {row['positive_sessions']}/{stat['sessions']} |")
+    lines += ['', '物理分支仍保留同一 checkpoint 的已学习同步，不是完全非神经基线。',
+              '各窗口、自身改善、优势增长与成本分别报告；短期均值改善不能替代增长与饱和确认。', '']
+    return '\n'.join(lines)

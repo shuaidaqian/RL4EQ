@@ -1,0 +1,794 @@
+{
+  "status": "development_descriptive_only",
+  "statistical_unit": "session",
+  "per_snr": {
+    "0": {
+      "arms": {
+        "acq_direct": {
+          "ber": {
+            "mean": 0.13802083333333334,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.015950520833333343,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.140625,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.13151041666666666,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.14225260416666666,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 578.2849375973456,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "acq_fft": {
+          "ber": {
+            "mean": 0.13802083333333334,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.015950520833333343,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.140625,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.13151041666666666,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.14225260416666666,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 319.37446241499856,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct": {
+          "ber": {
+            "mean": 0.14957682291666666,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": 0.025390625,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.22265625,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.1427951388888889,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.13639322916666666,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 608.8823500322178,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_fft": {
+          "ber": {
+            "mean": 0.14957682291666666,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": 0.025390625,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.22265625,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.1427951388888889,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.13639322916666666,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 323.90293746721,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "paired": {
+        "acq_direct_minus_acq_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct_minus_pilot_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9826272780239511,
+        "ci95": null,
+        "sessions": 1
+      }
+    },
+    "5": {
+      "arms": {
+        "acq_direct": {
+          "ber": {
+            "mean": 0.035481770833333336,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": 0.001953125,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.044270833333333336,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.035590277777777776,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.033203125,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 588.0739625426941,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "acq_fft": {
+          "ber": {
+            "mean": 0.035481770833333336,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": 0.001953125,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.044270833333333336,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.035590277777777776,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.033203125,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 320.8926875377074,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct": {
+          "ber": {
+            "mean": 0.03466796875,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0016276041666666644,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0390625,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.03342013888888889,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.034505208333333336,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 604.210737568792,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_fft": {
+          "ber": {
+            "mean": 0.03466796875,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0016276041666666644,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0390625,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.03342013888888889,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.034505208333333336,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 352.3824873846024,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "paired": {
+        "acq_direct_minus_acq_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct_minus_pilot_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9825332635221807,
+        "ci95": null,
+        "sessions": 1
+      }
+    },
+    "10": {
+      "arms": {
+        "acq_direct": {
+          "ber": {
+            "mean": 0.0017903645833333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.00032552083333333326,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0026041666666666665,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0013020833333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.001953125,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 561.1617875401862,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "acq_fft": {
+          "ber": {
+            "mean": 0.0017903645833333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.00032552083333333326,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0026041666666666665,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0013020833333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.001953125,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 312.80288752168417,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct": {
+          "ber": {
+            "mean": 0.0021158854166666665,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.0006510416666666665,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.00390625,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0013020833333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0022786458333333335,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 552.5462625664659,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_fft": {
+          "ber": {
+            "mean": 0.0021158854166666665,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.0006510416666666665,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.00390625,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0013020833333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0022786458333333335,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 353.11113740317523,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "paired": {
+        "acq_direct_minus_acq_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct_minus_pilot_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9825141803726761,
+        "ci95": null,
+        "sessions": 1
+      }
+    },
+    "15": {
+      "arms": {
+        "acq_direct": {
+          "ber": {
+            "mean": 0.00048828125,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0003255208333333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0013020833333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0006510416666666666,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 500.8309750119224,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "acq_fft": {
+          "ber": {
+            "mean": 0.00048828125,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0003255208333333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0013020833333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0006510416666666666,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 278.33683748031035,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct": {
+          "ber": {
+            "mean": 0.00048828125,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0003255208333333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0013020833333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0006510416666666666,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 507.56337493658066,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_fft": {
+          "ber": {
+            "mean": 0.00048828125,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0003255208333333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0013020833333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0006510416666666666,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 293.594025017228,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "paired": {
+        "acq_direct_minus_acq_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct_minus_pilot_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9825875447481993,
+        "ci95": null,
+        "sessions": 1
+      }
+    }
+  }
+}

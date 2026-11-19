@@ -60,3 +60,17 @@ python scripts/summarize_continual_receiver.py --input docs/results/continual_v2
 最近一次可核实运行句柄：工具 exec session `51194`。结果每 8 帧原子保存，文件 `status=running` 本身不足以证明进程仍活跃，须检查句柄或实际进程。完成后记录完整结果并更新本节。
 
 截至本次中间记录，0 dB 的前两个完整会话已出现相反方向的 Pilot 递归增量，不能据首个会话升级方案；噪声估计均接近生成方差。先完成全部预定会话，再结合状态误差/协方差诊断决定修正，不删除负向 seed。
+
+## 同步诊断与下一步实现
+
+新增 `training/continual_phase.py`，在 acquisition CFO 给定时用复圆周相关估计公共相位；并提供全合法 Adapt 参考与不依赖 tail 的完整已知卷积行两种候选。没有使用 Reward 或 Data 标签拟合同步。旧解缠绕中位数仍是默认锚点，不据理论最优性宣称实际接收收益。
+
+已完成首帧诊断 `p1_phase_first_frame_12sessions`，全新 seed 211001–211012 × 四 SNR。所有相位估计结束后，才用真实符号计算 Reward/Data 预测误差。0 dB 的 Data 预测 MSE：旧方法 1.403319，圆周相关全 Adapt 1.175302；配对下降 0.228017，未校正 95% t 区间 [-0.072148, 0.528182]。5/10/15 dB 差异很小且区间跨零。**尚不能认定 BER 改进或递归稳定性成立**。结果见 `docs/results/continual_v2_phase_20261119/first_frame_12sessions.json`。
+
+新增 `scripts/compare_continual_variants.py` 以清单预先声明 checkpoint、状态臂、同步方法、线性算子后端和指定配对差；保存实际前向调用计数及配对 logits/判决差。物理分支消融保留同一已学习同步，仅移除 Transformer 修正，不能称完全非神经基线。
+
+`p1_backend_full_receiver_1x8` 已在 CPU 完成，seed 214001、四 SNR、8 帧，配对 acquisition/递归 Pilot 两种接收轨迹的 direct/FFT 实现。不减 CG 迭代数，128 行结果中已记录 Data 判决全部一致，配对 logits 最大绝对差 0.000309；FFT 平均耗时约为 direct 的 55%–64%，仍不实时。该筛查与 GPU 实验并发，成本仅作初步诊断，需后续 GPU 核查；一会话不能证明任意轨迹数值或判决等价。启动源码按原记录 SHA 逐字节校验后归档在同目录 `source_snapshot.json`，没有把启动后的实现反写进该实验。
+
+已实现 `training/continual_offline.py` 与 `scripts/train_continual_offline.py`：匹配 acquisition 条件训练与递归 Pilot 条件训练，同会话波形、同初始化、同训练帧与梯度次数；每会话接收时固定权重，轨迹完成后用独立保存的 Data 标签训练。实际模型输入被快照，监督不进入接收视图；历史状态/soft-tail 截断梯度。**尚未启动重训或证明协同**。训练权重保存在忽略目录，报告及权重 SHA 保存到研究结果目录。
+
+全量测试 **179 passed**；定向验证覆盖原接收机契约、圆周相位恢复与未知标签隔离、输入快照、离线梯度更新、物理支路等价及真实调用计数。新增相同实际上下文的物理支路评分，复用神经臂已经生成的 CIR/相位/tail，避免把独立 soft-tail 轨迹差异误当纯 Transformer 增量。后续修改未注入正在运行的 P1 进程；P1 使用启动时导入的实现，源码 SHA 已记录，准确对应提交 `0929c06` 中的接收模块。

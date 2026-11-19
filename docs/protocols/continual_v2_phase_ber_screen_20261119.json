@@ -1,0 +1,18 @@
+{
+  "description": "同步候选的四臂配对开发筛查；固定既有 checkpoint、合法估噪和过程噪声，先检验同步特征与神经分支，不能据此宣称增长至饱和",
+  "variants": [
+    {"name": "legacy_recursive_pilot", "arm": "recursive_pilot", "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt", "phase_estimator": "unwrap_median", "operator_backend": "fft"},
+    {"name": "acquisition", "arm": "acquisition", "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt", "phase_estimator": "circular_all", "operator_backend": "fft"},
+    {"name": "current_pilot", "arm": "current_pilot", "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt", "phase_estimator": "circular_all", "operator_backend": "fft"},
+    {"name": "recursive_pilot", "arm": "recursive_pilot", "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt", "phase_estimator": "circular_all", "operator_backend": "fft"},
+    {"name": "recursive_soft", "arm": "recursive_soft", "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt", "phase_estimator": "circular_all", "operator_backend": "fft"},
+    {"name": "pilot_shared_physics", "arm": "recursive_pilot", "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt", "phase_estimator": "circular_all", "operator_backend": "fft", "decoder": "physics_branch", "context_source": "recursive_pilot"}
+  ],
+  "pairs": [
+    ["legacy_recursive_pilot", "recursive_pilot"],
+    ["acquisition", "recursive_pilot"],
+    ["current_pilot", "recursive_pilot"],
+    ["recursive_pilot", "recursive_soft"],
+    ["pilot_shared_physics", "recursive_pilot"]
+  ]
+}
