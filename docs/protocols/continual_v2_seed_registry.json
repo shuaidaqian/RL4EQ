@@ -1514,7 +1514,7 @@
         223009,
         223010
       ],
-      "status": "reserved",
+      "status": "completed",
       "details": {
         "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
         "manifest": "docs/protocols/continual_v2_q_physics_screen_20261119.json",
@@ -1667,7 +1667,10 @@
           "evaluation/receiver_diagnostics.py": "ed29b2bb94f14731298988a31d5f5fe5fe689827a9e13a545f60c49a31a1d9c4",
           "agent/unfolded_equalizer.py": "b86db3dd402b172e8c075303da75c632597bb3116f335e085aef8c89f10c72c8",
           "env/linear_operator.py": "0b06279cbc0535c15446782f158af29aceafb452cdfec02d49cc5747dcf0bb1d"
-        }
+        },
+        "result_sha256": "3746425167430ac5e7c65058816e1425013a9cb03e35514e899d1b109c50dfb8",
+        "result_rows": 15360,
+        "completion": "completed; 10 sessions × 64 frames × 4 SNR × 6 candidates"
       }
     },
     {

@@ -1,0 +1,3235 @@
+{
+  "status": "development_descriptive_only",
+  "statistical_unit": "session",
+  "per_snr": {
+    "0": {
+      "arms": {
+        "acquisition": {
+          "ber": {
+            "mean": 0.14424235026041668,
+            "ci95": [
+              0.13851097569906995,
+              0.1499737248217634
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.002156575520833323,
+            "ci95": [
+              -0.0011983810806976722,
+              0.005511532122364318
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.1484375,
+              "ci95": [
+                0.13829077416811114,
+                0.15858422583188886
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.14483506944444444,
+              "ci95": [
+                0.13889685941638585,
+                0.15077327947250302
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.14342447916666665,
+              "ci95": [
+                0.13484166700099123,
+                0.15200729133234206
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.14361979166666666,
+              "ci95": [
+                0.13593466643676105,
+                0.15130491689657227
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.14482421875,
+              "ci95": [
+                0.13796614373264374,
+                0.15168229376735629
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.14402262369791669,
+              "ci95": [
+                0.13854425597046507,
+                0.1495009914253683
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 13.49087578637409,
+            "ci95": [
+              12.586650607922646,
+              14.395100964825534
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot": {
+          "ber": {
+            "mean": 0.14150594075520834,
+            "ci95": [
+              0.13583064143243304,
+              0.14718124007798364
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.002677408854166666,
+            "ci95": [
+              -0.0015912671380984241,
+              0.006946084846431756
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.14609374999999997,
+              "ci95": [
+                0.13391894582491715,
+                0.1582685541750828
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.14249131944444443,
+              "ci95": [
+                0.13641933309792473,
+                0.14856330579096413
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.14059244791666664,
+              "ci95": [
+                0.13129963180147594,
+                0.14988526403185734
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.14057617187500002,
+              "ci95": [
+                0.13303910816132447,
+                0.14811323558867556
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.1425048828125,
+              "ci95": [
+                0.13576833982569148,
+                0.14924142579930855
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.14111735026041666,
+              "ci95": [
+                0.1357531900588848,
+                0.14648151046194852
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 21.257214667275548,
+            "ci95": [
+              19.984744500730354,
+              22.529684833820742
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e4": {
+          "ber": {
+            "mean": 0.13048095703124998,
+            "ci95": [
+              0.12507322410196475,
+              0.1358886899605352
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.012386067708333328,
+            "ci95": [
+              0.009272161264277386,
+              0.015499974152389271
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.14609374999999997,
+              "ci95": [
+                0.13391894582491715,
+                0.1582685541750828
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.1374565972222222,
+              "ci95": [
+                0.13145023480692775,
+                0.14346295963751665
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.13525390625,
+              "ci95": [
+                0.12647944931660332,
+                0.14402836318339668
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.13053385416666666,
+              "ci95": [
+                0.12349981506140839,
+                0.13756789327192492
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.13056640625,
+              "ci95": [
+                0.12378147484817259,
+                0.1373513376518274
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.1286865234375,
+              "ci95": [
+                0.12383067572714215,
+                0.13354237114785786
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 21.70109640501323,
+            "ci95": [
+              20.362306874529224,
+              23.03988593549724
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6": {
+          "ber": {
+            "mean": 0.12748819986979168,
+            "ci95": [
+              0.12228440837489848,
+              0.13269199136468487
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0169677734375,
+            "ci95": [
+              0.013952730875638718,
+              0.019982815999361282
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.14609374999999997,
+              "ci95": [
+                0.13391894582491715,
+                0.1582685541750828
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.1377604166666667,
+              "ci95": [
+                0.13179135204445194,
+                0.14372948128888144
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.13509114583333331,
+              "ci95": [
+                0.12662509667620353,
+                0.1435571949904631
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.128515625,
+              "ci95": [
+                0.12127348042666027,
+                0.1357577695733397
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.12769368489583333,
+              "ci95": [
+                0.12115064830568265,
+                0.134236721485984
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.12463378906249997,
+              "ci95": [
+                0.1198997314847868,
+                0.12936784664021314
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 21.53447094387957,
+            "ci95": [
+              20.306120334832666,
+              22.76282155292647
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q0": {
+          "ber": {
+            "mean": 0.1274169921875,
+            "ci95": [
+              0.12217147505013962,
+              0.13266250932486037
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.016992187500000002,
+            "ci95": [
+              0.013953934997023697,
+              0.020030440002976307
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.14609374999999997,
+              "ci95": [
+                0.13391894582491715,
+                0.1582685541750828
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.13771701388888888,
+              "ci95": [
+                0.13182407078839373,
+                0.14360995698938403
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.13509114583333331,
+              "ci95": [
+                0.1266115856908334,
+                0.14357070597583324
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.12845052083333333,
+              "ci95": [
+                0.12112882191630725,
+                0.1357722197503594
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.12759602864583336,
+              "ci95": [
+                0.12105684918424531,
+                0.1341352081074214
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.124560546875,
+              "ci95": [
+                0.11975118736223828,
+                0.12936990638776172
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 21.42398890646291,
+            "ci95": [
+              20.14940799808896,
+              22.69856981483686
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "soft_q1e6": {
+          "ber": {
+            "mean": 0.13003133138020834,
+            "ci95": [
+              0.12394400719787492,
+              0.13611865556254174
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.012760416666666663,
+            "ci95": [
+              0.009676036264527342,
+              0.015844797068805982
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.14609374999999997,
+              "ci95": [
+                0.13391894582491715,
+                0.1582685541750828
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.13763020833333334,
+              "ci95": [
+                0.13094304265242776,
+                0.1443173740142389
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.13333333333333333,
+              "ci95": [
+                0.12490065619603952,
+                0.14176601047062715
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.1302734375,
+              "ci95": [
+                0.12303503763704354,
+                0.13751183736295647
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.13090820312499998,
+              "ci95": [
+                0.12391840508309988,
+                0.13789800116690007
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.12790527343750002,
+              "ci95": [
+                0.12183073012252925,
+                0.13397981675247078
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 31.49514858814655,
+            "ci95": [
+              29.582923487688667,
+              33.40737368860443
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "paired": {
+        "acquisition_minus_recursive_q1e4": {
+          "gain": {
+            "mean": 0.013761393229166663,
+            "ci95": [
+              0.012276615267307361,
+              0.015246171191025965
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.010229492187500005,
+            "ci95": [
+              0.006957865983989616,
+              0.013501118391010394
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 0.016754150390624997,
+            "ci95": [
+              0.015260978434465408,
+              0.018247322346784584
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.01481119791666668,
+            "ci95": [
+              0.01196053387928034,
+              0.017661861954053018
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_recursive_q0": {
+          "gain": {
+            "mean": 0.016825358072916664,
+            "ci95": [
+              0.015326871963802868,
+              0.01832384418203046
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.014835611979166682,
+            "ci95": [
+              0.012078959791604834,
+              0.01759226416672853
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_soft_q1e6": {
+          "gain": {
+            "mean": 0.014211018880208332,
+            "ci95": [
+              0.01192637723988534,
+              0.016495660520531325
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.010603841145833341,
+            "ci95": [
+              0.00655179838249999,
+              0.014655883909166691
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q1e4": {
+          "gain": {
+            "mean": 0.011024983723958336,
+            "ci95": [
+              0.009666830323679152,
+              0.01238313712423752
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.009708658854166663,
+            "ci95": [
+              0.006477568929421898,
+              0.012939748778911428
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 0.014017740885416671,
+            "ci95": [
+              0.012773775763089433,
+              0.01526170600774391
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.014290364583333335,
+            "ci95": [
+              0.011498806064038566,
+              0.017081923102628103
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q0": {
+          "gain": {
+            "mean": 0.014088948567708337,
+            "ci95": [
+              0.012858293659121956,
+              0.015319603476294718
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.014314778645833337,
+            "ci95": [
+              0.011583873324618103,
+              0.01704568396704857
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e4_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 0.002992757161458336,
+            "ci95": [
+              0.0021791378277921367,
+              0.003806376495124535
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0045817057291666725,
+            "ci95": [
+              0.0032638445216382267,
+              0.005899566936695118
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6_minus_recursive_q0": {
+          "gain": {
+            "mean": 7.120768229166297e-05,
+            "ci95": [
+              -1.5643221531884836e-05,
+              0.00015805858611521077
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 8,
+          "late_minus_early_gain": {
+            "mean": 2.4414062500001387e-05,
+            "ci95": [
+              -0.000276274145453154,
+              0.00032510227045315674
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6_minus_soft_q1e6": {
+          "gain": {
+            "mean": -0.002543131510416667,
+            "ci95": [
+              -0.004283979811035935,
+              -0.0008022832097973986
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 1,
+          "late_minus_early_gain": {
+            "mean": -0.004207356770833337,
+            "ci95": [
+              -0.007389358227102767,
+              -0.0010253553145639074
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9940890437343022,
+        "ci95": [
+          0.9738957117177777,
+          1.0142823757508268
+        ],
+        "sessions": 10,
+        "interval_status": "t_descriptive"
+      }
+    },
+    "5": {
+      "arms": {
+        "acquisition": {
+          "ber": {
+            "mean": 0.04354451497395834,
+            "ci95": [
+              0.038313513504072666,
+              0.04877551644384401
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0018717447916666667,
+            "ci95": [
+              -0.0005249469960489099,
+              0.004268436579382243
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.045703125,
+              "ci95": [
+                0.03762514903875743,
+                0.05378110096124256
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.04474826388888889,
+              "ci95": [
+                0.03898321579886863,
+                0.050513311978909146
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.04384765624999999,
+              "ci95": [
+                0.03802963851628097,
+                0.049665673983719016
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.041796875,
+              "ci95": [
+                0.035687737061511765,
+                0.04790601293848823
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.04360351562499999,
+              "ci95": [
+                0.03809372305267914,
+                0.04911330819732084
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.04373372395833333,
+              "ci95": [
+                0.03864406164336915,
+                0.04882338627329751
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 11.939397346577607,
+            "ci95": [
+              11.538369894692405,
+              12.34042479846281
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot": {
+          "ber": {
+            "mean": 0.04226888020833334,
+            "ci95": [
+              0.03716055667551707,
+              0.04737720374114961
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0026529947916666663,
+            "ci95": [
+              0.0001417962703764413,
+              0.005164193312956891
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.04401041666666668,
+              "ci95": [
+                0.03678472164351256,
+                0.05123611168982079
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.043923611111111115,
+              "ci95": [
+                0.03792126248176507,
+                0.04992595974045716
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.04300130208333333,
+              "ci95": [
+                0.03635351032544329,
+                0.049649093841223374
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.040852864583333336,
+              "ci95": [
+                0.03497334748964791,
+                0.046732381677018764
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0429931640625,
+              "ci95": [
+                0.03776437779545637,
+                0.04822195032954363
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.04195963541666667,
+              "ci95": [
+                0.03703770812877966,
+                0.046881562704553674
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 19.013992500549648,
+            "ci95": [
+              18.35979092030068,
+              19.668194080798617
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e4": {
+          "ber": {
+            "mean": 0.03958333333333333,
+            "ci95": [
+              0.03457353233378087,
+              0.044593134332885795
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.004606119791666667,
+            "ci95": [
+              0.0015633591624242844,
+              0.007648880420909049
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.04401041666666668,
+              "ci95": [
+                0.03678472164351256,
+                0.05123611168982079
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.04214409722222222,
+              "ci95": [
+                0.036761465685044896,
+                0.04752672875939954
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.04108072916666666,
+              "ci95": [
+                0.034259950480843265,
+                0.04790150785249006
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.03940429687500001,
+              "ci95": [
+                0.033883238929729366,
+                0.04492535482027065
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0396728515625,
+              "ci95": [
+                0.03425079807944265,
+                0.04509490504555735
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.039017740885416666,
+              "ci95": [
+                0.034288250338497785,
+                0.04374723143233555
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 18.816053136106348,
+            "ci95": [
+              18.331064359828215,
+              19.30104191238448
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6": {
+          "ber": {
+            "mean": 0.03614095052083333,
+            "ci95": [
+              0.03141586405673885,
+              0.040866036984927814
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0089599609375,
+            "ci95": [
+              0.00586173631298708,
+              0.012058185562012921
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.04401041666666668,
+              "ci95": [
+                0.03678472164351256,
+                0.05123611168982079
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.04205729166666667,
+              "ci95": [
+                0.036578019838195884,
+                0.047536563495137456
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.041243489583333334,
+              "ci95": [
+                0.034971956648315795,
+                0.04751502251835087
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.036702473958333336,
+              "ci95": [
+                0.031216228640301897,
+                0.04218871927636477
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.035994466145833334,
+              "ci95": [
+                0.030669555486619277,
+                0.041319376805047395
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.03463541666666666,
+              "ci95": [
+                0.03024542527224805,
+                0.03902540806108527
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 19.08472687136964,
+            "ci95": [
+              18.548207392783826,
+              19.621246349955452
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q0": {
+          "ber": {
+            "mean": 0.036173502604166664,
+            "ci95": [
+              0.03145531079983284,
+              0.04089169440850049
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.008902994791666669,
+            "ci95": [
+              0.005945586628580177,
+              0.011860402954753161
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.04401041666666668,
+              "ci95": [
+                0.03678472164351256,
+                0.05123611168982079
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.04205729166666667,
+              "ci95": [
+                0.036578019838195884,
+                0.047536563495137456
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0412109375,
+              "ci95": [
+                0.03491720370003422,
+                0.04750467129996579
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.03668619791666666,
+              "ci95": [
+                0.031138535784992837,
+                0.04223386004834049
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.03600260416666666,
+              "ci95": [
+                0.03079603577740702,
+                0.0412091725559263
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.03470458984375,
+              "ci95": [
+                0.03029368300749783,
+                0.03911549668000217
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 18.791072969906963,
+            "ci95": [
+              18.344179799784932,
+              19.237966140028995
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "soft_q1e6": {
+          "ber": {
+            "mean": 0.03671468098958334,
+            "ci95": [
+              0.03173332643732547,
+              0.04169603554184121
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.006038411458333334,
+            "ci95": [
+              0.0029960716349656984,
+              0.00908075128170097
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.04401041666666668,
+              "ci95": [
+                0.03678472164351256,
+                0.05123611168982079
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.040234375,
+              "ci95": [
+                0.033851078653882635,
+                0.04661767134611737
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.04033203125,
+              "ci95": [
+                0.03404955590324287,
+                0.04661450659675712
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.036360677083333334,
+              "ci95": [
+                0.03064214943817298,
+                0.04207920472849369
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.03613281250000001,
+              "ci95": [
+                0.030802674830152987,
+                0.041462950169847024
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.036083984375,
+              "ci95": [
+                0.03129133145816779,
+                0.04087663729183222
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 27.926616108015878,
+            "ci95": [
+              27.24276716910512,
+              28.610465046926635
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "paired": {
+        "acquisition_minus_recursive_q1e4": {
+          "gain": {
+            "mean": 0.003961181640625,
+            "ci95": [
+              0.0027574654754295063,
+              0.005164897805820494
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 9,
+          "late_minus_early_gain": {
+            "mean": 0.0027343750000000003,
+            "ci95": [
+              0.0011487828355909895,
+              0.004319967164409011
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 0.007403564453124999,
+            "ci95": [
+              0.006068516440963973,
+              0.008738612465286025
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.007088216145833335,
+            "ci95": [
+              0.005288130243965682,
+              0.008888302047700986
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_recursive_q0": {
+          "gain": {
+            "mean": 0.0073710123697916675,
+            "ci95": [
+              0.0061184674615786345,
+              0.0086235572780047
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.007031250000000001,
+            "ci95": [
+              0.005301629324464761,
+              0.008760870675535241
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_soft_q1e6": {
+          "gain": {
+            "mean": 0.006829833984375,
+            "ci95": [
+              0.005413661812438212,
+              0.008246006156311788
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0041666666666666675,
+            "ci95": [
+              0.0022850931069932036,
+              0.006048240226340131
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q1e4": {
+          "gain": {
+            "mean": 0.0026855468749999996,
+            "ci95": [
+              0.0017763408402257067,
+              0.0035947529097742925
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 9,
+          "late_minus_early_gain": {
+            "mean": 0.001953125000000001,
+            "ci95": [
+              0.0005629686731519442,
+              0.0033432813268480573
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 0.006127929687499999,
+            "ci95": [
+              0.005090499152151936,
+              0.007165360222848061
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.006306966145833334,
+            "ci95": [
+              0.005090376216779887,
+              0.007523556074886781
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q0": {
+          "gain": {
+            "mean": 0.006095377604166666,
+            "ci95": [
+              0.005137705994975657,
+              0.007053049213357676
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.006250000000000003,
+            "ci95": [
+              0.005114897878511343,
+              0.007385102121488663
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e4_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 0.0034423828124999986,
+            "ci95": [
+              0.002968450369108404,
+              0.003916315255891593
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.004353841145833334,
+            "ci95": [
+              0.0035522120663566237,
+              0.005155470225310044
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6_minus_recursive_q0": {
+          "gain": {
+            "mean": -3.2552083333332174e-05,
+            "ci95": [
+              -0.00015260643767335595,
+              8.75022710066916e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 4,
+          "late_minus_early_gain": {
+            "mean": -5.6966145833332175e-05,
+            "ci95": [
+              -0.00025495725175577475,
+              0.0001410249600891104
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6_minus_soft_q1e6": {
+          "gain": {
+            "mean": -0.0005737304687499983,
+            "ci95": [
+              -0.0011959797393953995,
+              4.851880189540294e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 3,
+          "late_minus_early_gain": {
+            "mean": -0.0029215494791666667,
+            "ci95": [
+              -0.004606897098041628,
+              -0.0012362018602917054
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9941065774829214,
+        "ci95": [
+          0.9739275602996175,
+          1.0142855946662253
+        ],
+        "sessions": 10,
+        "interval_status": "t_descriptive"
+      }
+    },
+    "10": {
+      "arms": {
+        "acquisition": {
+          "ber": {
+            "mean": 0.0053955078125,
+            "ci95": [
+              0.003766447780297326,
+              0.007024567844702675
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -0.00019531249999999982,
+            "ci95": [
+              -0.0010909884096307304,
+              0.0007003634096307307
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.005208333333333334,
+              "ci95": [
+                0.002884878080320292,
+                0.007531788586346375
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.005512152777777778,
+              "ci95": [
+                0.0034419956018126125,
+                0.007582309953742944
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.00556640625,
+              "ci95": [
+                0.0033316437359410733,
+                0.007801168764058927
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.004752604166666667,
+              "ci95": [
+                0.0029540355543994008,
+                0.006551172778933934
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.005192057291666667,
+              "ci95": [
+                0.0034921709074654103,
+                0.006891943675867924
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.005631510416666666,
+              "ci95": [
+                0.00410192234351782,
+                0.007161098489815511
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 11.722733433998656,
+            "ci95": [
+              11.116762761609223,
+              12.328704106388088
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot": {
+          "ber": {
+            "mean": 0.005055745442708334,
+            "ci95": [
+              0.0035064288008031207,
+              0.006605062084613547
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -0.00015462239583333327,
+            "ci95": [
+              -0.0011900182530074038,
+              0.0008807734613407374
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.005078124999999999,
+              "ci95": [
+                0.002819895193331411,
+                0.007336354806668588
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.005034722222222222,
+              "ci95": [
+                0.002958623358734135,
+                0.0071108210857103085
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.005240885416666666,
+              "ci95": [
+                0.0033476601470559643,
+                0.007134110686277368
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.004524739583333334,
+              "ci95": [
+                0.002781456776182828,
+                0.0062680223904838395
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.004899088541666667,
+              "ci95": [
+                0.003303883339247412,
+                0.006494293744085921
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.0052449544270833336,
+              "ci95": [
+                0.0037623560047189324,
+                0.006727552849447735
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 19.339900784689235,
+            "ci95": [
+              18.472227726143302,
+              20.207573843235167
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e4": {
+          "ber": {
+            "mean": 0.0051005045572916664,
+            "ci95": [
+              0.0035830857850078918,
+              0.006617923329575441
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.000341796875,
+            "ci95": [
+              -0.0006245012360787549,
+              0.0013080949860787548
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.005078124999999999,
+              "ci95": [
+                0.002819895193331411,
+                0.007336354806668588
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.00490451388888889,
+              "ci95": [
+                0.00328754027005204,
+                0.006521487507725739
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0060546875,
+              "ci95": [
+                0.0038368393591119696,
+                0.008272535640888031
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0053873697916666675,
+              "ci95": [
+                0.00336962933665523,
+                0.0074051102466781045
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.005135091145833334,
+              "ci95": [
+                0.0033666625844266376,
+                0.00690351970724003
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.004911295572916667,
+              "ci95": [
+                0.003554932565078831,
+                0.006267658580754502
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 19.02846140365,
+            "ci95": [
+              18.32624872019762,
+              19.73067408710238
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6": {
+          "ber": {
+            "mean": 0.003997802734375,
+            "ci95": [
+              0.002768353243749814,
+              0.005227252225000186
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0015299479166666667,
+            "ci95": [
+              0.0003275082120447481,
+              0.002732387621288585
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.005078124999999999,
+              "ci95": [
+                0.002819895193331411,
+                0.007336354806668588
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.004991319444444444,
+              "ci95": [
+                0.003245657356594304,
+                0.006736981532294585
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0048828125,
+              "ci95": [
+                0.0031786781631921003,
+                0.0065869468368079
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.003987630208333333,
+              "ci95": [
+                0.0023956859795635204,
+                0.005579574437103146
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.003938802083333333,
+              "ci95": [
+                0.0026977122826028787,
+                0.005179891884063788
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.003792317708333333,
+              "ci95": [
+                0.0026641536949634495,
+                0.004920481721703216
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 18.926805624505505,
+            "ci95": [
+              18.320743347643855,
+              19.532867901367155
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q0": {
+          "ber": {
+            "mean": 0.0040140787760416675,
+            "ci95": [
+              0.002746665258914709,
+              0.005281492293168626
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.00146484375,
+            "ci95": [
+              0.00033233220348567586,
+              0.0025973552965143244
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.005078124999999999,
+              "ci95": [
+                0.002819895193331411,
+                0.007336354806668588
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.004991319444444444,
+              "ci95": [
+                0.003245657356594304,
+                0.006736981532294585
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0048828125,
+              "ci95": [
+                0.0031786781631921003,
+                0.0065869468368079
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0039713541666666664,
+              "ci95": [
+                0.002355975288669436,
+                0.005586733044663897
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.003963216145833333,
+              "ci95": [
+                0.0026889365513154692,
+                0.005237495740351196
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.003816731770833333,
+              "ci95": [
+                0.0026312761077656624,
+                0.005002187433901004
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 18.941932806774275,
+            "ci95": [
+              18.178811574572393,
+              19.705054038976158
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "soft_q1e6": {
+          "ber": {
+            "mean": 0.0037821451822916663,
+            "ci95": [
+              0.0025635169942577578,
+              0.005000773370325575
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0009765625,
+            "ci95": [
+              0.00013115047516148808,
+              0.001821974524838512
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.005078124999999999,
+              "ci95": [
+                0.002819895193331411,
+                0.007336354806668588
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.004079861111111111,
+              "ci95": [
+                0.0025021150430363376,
+                0.005657607179185885
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.004687500000000001,
+              "ci95": [
+                0.0028271805630106306,
+                0.006547819436989371
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0035319010416666663,
+              "ci95": [
+                0.001894434207118632,
+                0.005169367876214701
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0037190755208333327,
+              "ci95": [
+                0.002354881690271697,
+                0.005083269351394968
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.0036946614583333337,
+              "ci95": [
+                0.0026270349377581553,
+                0.004762287978908512
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 27.8854156313173,
+            "ci95": [
+              26.709149919778284,
+              29.061681342856318
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "paired": {
+        "acquisition_minus_recursive_q1e4": {
+          "gain": {
+            "mean": 0.00029500325520833337,
+            "ci95": [
+              -4.356567342972303e-05,
+              0.0006335721838463897
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 7,
+          "late_minus_early_gain": {
+            "mean": 0.0005371093749999998,
+            "ci95": [
+              5.689195763990514e-05,
+              0.0010173267923600945
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 0.001397705078125,
+            "ci95": [
+              0.0008985110943998295,
+              0.0018968990618501705
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0017252604166666668,
+            "ci95": [
+              0.001048685858739246,
+              0.0024018349745940876
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_recursive_q0": {
+          "gain": {
+            "mean": 0.0013814290364583333,
+            "ci95": [
+              0.0009191790131861217,
+              0.001843679059730545
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0016601562499999997,
+            "ci95": [
+              0.0010366449701010622,
+              0.0022836675298989373
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_soft_q1e6": {
+          "gain": {
+            "mean": 0.0016133626302083331,
+            "ci95": [
+              0.0010991199444816344,
+              0.002127605315935032
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0011718749999999997,
+            "ci95": [
+              0.0005850772695836774,
+              0.0017586727304163222
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q1e4": {
+          "gain": {
+            "mean": -4.47591145833333e-05,
+            "ci95": [
+              -0.00032977597745490454,
+              0.00024025774828823795
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 4,
+          "late_minus_early_gain": {
+            "mean": 0.0004964192708333332,
+            "ci95": [
+              4.4271662899113176e-05,
+              0.0009485668787675532
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 0.0010579427083333333,
+            "ci95": [
+              0.0006470381003399585,
+              0.001468847316326708
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0016845703125,
+            "ci95": [
+              0.0011207804443987947,
+              0.0022483601806012055
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q0": {
+          "gain": {
+            "mean": 0.0010416666666666664,
+            "ci95": [
+              0.0006670262925609113,
+              0.0014163070407724216
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0016194661458333337,
+            "ci95": [
+              0.0010862969750673676,
+              0.0021526353165992997
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e4_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 0.0011027018229166664,
+            "ci95": [
+              0.0007634003119971469,
+              0.001442003333836186
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0011881510416666668,
+            "ci95": [
+              0.0007150436677040789,
+              0.0016612584156292546
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6_minus_recursive_q0": {
+          "gain": {
+            "mean": -1.6276041666666697e-05,
+            "ci95": [
+              -6.659903441907019e-05,
+              3.404695108573679e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 5,
+          "late_minus_early_gain": {
+            "mean": -6.510416666666668e-05,
+            "ci95": [
+              -0.00019898666041469443,
+              6.877832708136107e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6_minus_soft_q1e6": {
+          "gain": {
+            "mean": 0.00021565755208333343,
+            "ci95": [
+              0.00011247135103941534,
+              0.0003188437531272515
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 9,
+          "late_minus_early_gain": {
+            "mean": -0.0005533854166666668,
+            "ci95": [
+              -0.001254021487993127,
+              0.00014725065465979353
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9941189478773381,
+        "ci95": [
+          0.973953203943637,
+          1.014284691811039
+        ],
+        "sessions": 10,
+        "interval_status": "t_descriptive"
+      }
+    },
+    "15": {
+      "arms": {
+        "acquisition": {
+          "ber": {
+            "mean": 0.0007893880208333332,
+            "ci95": [
+              0.0004663612026439783,
+              0.001112414839022688
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -0.00012207031250000003,
+            "ci95": [
+              -0.00037095791709601306,
+              0.00012681729209601297
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0009114583333333332,
+              "ci95": [
+                -7.52776962721968e-05,
+                0.0018981943629388632
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0004774305555555555,
+              "ci95": [
+                0.00010571229190844858,
+                0.0008491488192026624
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0007161458333333334,
+              "ci95": [
+                0.0003234102147822745,
+                0.0011088814518843922
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0006510416666666667,
+              "ci95": [
+                0.0003711744786460252,
+                0.0009309088546873083
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0008138020833333333,
+              "ci95": [
+                0.00041422254107764976,
+                0.0012133816255890167
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.0008463541666666666,
+              "ci95": [
+                0.00048518617150832124,
+                0.0012075221618250119
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 12.036826704570558,
+            "ci95": [
+              11.0039537319958,
+              13.069699677145316
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot": {
+          "ber": {
+            "mean": 0.0007649739583333334,
+            "ci95": [
+              0.0004730709280196128,
+              0.001056876988647054
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -9.765625e-05,
+            "ci95": [
+              -0.00037454748194880425,
+              0.00017923498194880426
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.00078125,
+              "ci95": [
+                -0.00022003329133739118,
+                0.0017825332913373913
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0005208333333333333,
+              "ci95": [
+                0.00013916291680607699,
+                0.0009025037498605897
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.00078125,
+              "ci95": [
+                0.00039782959531182413,
+                0.001164670404688176
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0006673177083333333,
+              "ci95": [
+                0.00040725775342710657,
+                0.0009273776632395601
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0007649739583333334,
+              "ci95": [
+                0.00041011689748410974,
+                0.0011198310191825572
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.0008097330729166666,
+              "ci95": [
+                0.00047154320889019404,
+                0.0011479229369431392
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 19.343971092894208,
+            "ci95": [
+              17.654642414198914,
+              21.0332997715895
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e4": {
+          "ber": {
+            "mean": 0.00079345703125,
+            "ci95": [
+              0.00047965470167014336,
+              0.0011072593608298566
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -8.951822916666665e-05,
+            "ci95": [
+              -0.0005177118609081278,
+              0.00033867540257479455
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.00078125,
+              "ci95": [
+                -0.00022003329133739118,
+                0.0017825332913373913
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0005208333333333334,
+              "ci95": [
+                0.00011206114137481355,
+                0.0009296055252918533
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.00078125,
+              "ci95": [
+                0.0005079175773771761,
+                0.001054582422622824
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.000830078125,
+              "ci95": [
+                0.0004363848468497277,
+                0.0012237714031502723
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0008951822916666666,
+              "ci95": [
+                0.0005179001778543488,
+                0.0012724644054789844
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.0007609049479166666,
+              "ci95": [
+                0.0004287255802455073,
+                0.0010930843155878259
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 19.037492497591302,
+            "ci95": [
+              17.47108249490645,
+              20.603902500276153
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6": {
+          "ber": {
+            "mean": 0.0007100423177083334,
+            "ci95": [
+              0.00042513695328416423,
+              0.0009949476821325025
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -4.0690104166666644e-05,
+            "ci95": [
+              -0.0003113227102065036,
+              0.00022994250187317032
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.00078125,
+              "ci95": [
+                -0.00022003329133739118,
+                0.0017825332913373913
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0004774305555555555,
+              "ci95": [
+                0.00010571229190844858,
+                0.0008491488192026624
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.00078125,
+              "ci95": [
+                0.00039782959531182413,
+                0.001164670404688176
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0006998697916666667,
+              "ci95": [
+                0.0004251631400564685,
+                0.0009745764432768649
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0007405598958333334,
+              "ci95": [
+                0.00038543764022259887,
+                0.001095682151444068
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.0007080078125,
+              "ci95": [
+                0.0003962521725505312,
+                0.0010197634524494689
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 19.264036240201676,
+            "ci95": [
+              17.471898725986613,
+              21.05617375441674
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q0": {
+          "ber": {
+            "mean": 0.0007263183593749999,
+            "ci95": [
+              0.00043547751042818115,
+              0.0010171592083218187
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -5.696614583333331e-05,
+            "ci95": [
+              -0.00031593782721820997,
+              0.00020200553555154338
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.00078125,
+              "ci95": [
+                -0.00022003329133739118,
+                0.0017825332913373913
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0004774305555555555,
+              "ci95": [
+                0.00010571229190844858,
+                0.0008491488192026624
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.00078125,
+              "ci95": [
+                0.00039782959531182413,
+                0.001164670404688176
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0006998697916666667,
+              "ci95": [
+                0.0004251631400564685,
+                0.0009745764432768649
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0007568359375,
+              "ci95": [
+                0.0003855400139166095,
+                0.0011281318610833905
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.000732421875,
+              "ci95": [
+                0.0004192201245918444,
+                0.0010456236254081557
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 19.103476103919093,
+            "ci95": [
+              17.49568471900326,
+              20.711267488834924
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "soft_q1e6": {
+          "ber": {
+            "mean": 0.00069580078125,
+            "ci95": [
+              0.0003968395077933944,
+              0.0009947620547066057
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -4.0690104166666644e-05,
+            "ci95": [
+              -0.0003071157296343366,
+              0.00022573552130100336
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.00078125,
+              "ci95": [
+                -0.00022003329133739118,
+                0.0017825332913373913
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0004774305555555555,
+              "ci95": [
+                0.00010571229190844858,
+                0.0008491488192026624
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0007161458333333333,
+              "ci95": [
+                0.0003234102147822744,
+                0.0011088814518843922
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0006510416666666666,
+              "ci95": [
+                0.0003821539698964675,
+                0.0009199293634368658
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0007161458333333334,
+              "ci95": [
+                0.000348160797594022,
+                0.0010841308690726448
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.0007120768229166667,
+              "ci95": [
+                0.0003852689041770888,
+                0.0010388847416562446
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 28.880595461669145,
+            "ci95": [
+              26.22384298199532,
+              31.537347941342972
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "paired": {
+        "acquisition_minus_recursive_q1e4": {
+          "gain": {
+            "mean": -4.069010416666661e-06,
+            "ci95": [
+              -5.2968821284693544e-05,
+              4.4830800451360227e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 5,
+          "late_minus_early_gain": {
+            "mean": 3.2552083333333326e-05,
+            "ci95": [
+              -0.00033584205207176827,
+              0.0004009462187384349
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 7.934570312499999e-05,
+            "ci95": [
+              2.1759847779672106e-05,
+              0.00013693155847032787
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 8,
+          "late_minus_early_gain": {
+            "mean": 8.138020833333334e-05,
+            "ci95": [
+              -8.327920546646571e-05,
+              0.0002460396221331324
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_recursive_q0": {
+          "gain": {
+            "mean": 6.306966145833331e-05,
+            "ci95": [
+              1.836897726547566e-05,
+              0.00010777034565119097
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 8,
+          "late_minus_early_gain": {
+            "mean": 6.510416666666668e-05,
+            "ci95": [
+              -5.3886867542077786e-05,
+              0.00018409520087541115
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "acquisition_minus_soft_q1e6": {
+          "gain": {
+            "mean": 9.358723958333333e-05,
+            "ci95": [
+              3.904488751635668e-05,
+              0.00014812959165030998
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 9,
+          "late_minus_early_gain": {
+            "mean": 8.138020833333336e-05,
+            "ci95": [
+              -7.386217577871962e-05,
+              0.00023662259244538634
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q1e4": {
+          "gain": {
+            "mean": -2.8483072916666654e-05,
+            "ci95": [
+              -8.954041769207311e-05,
+              3.257427185873981e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 3,
+          "late_minus_early_gain": {
+            "mean": 8.138020833333326e-06,
+            "ci95": [
+              -0.0002655386059588869,
+              0.0002818146476255535
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 5.4931640625e-05,
+            "ci95": [
+              8.882373699362315e-06,
+              0.0001009809075506377
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 7,
+          "late_minus_early_gain": {
+            "mean": 5.6966145833333334e-05,
+            "ci95": [
+              -7.190022900373286e-05,
+              0.00018583252067039951
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "current_pilot_minus_recursive_q0": {
+          "gain": {
+            "mean": 3.8655598958333325e-05,
+            "ci95": [
+              -4.9793614467878925e-06,
+              8.229055936345454e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 6,
+          "late_minus_early_gain": {
+            "mean": 4.0690104166666664e-05,
+            "ci95": [
+              -7.329021382695945e-05,
+              0.00015467042216029276
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e4_minus_recursive_q1e6": {
+          "gain": {
+            "mean": 8.341471354166664e-05,
+            "ci95": [
+              2.7487547152273884e-05,
+              0.0001393418799310594
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 4.882812499999999e-05,
+            "ci95": [
+              -0.00023663429616097427,
+              0.00033429054616097425
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6_minus_recursive_q0": {
+          "gain": {
+            "mean": -1.627604166666667e-05,
+            "ci95": [
+              -3.4166842441381836e-05,
+              1.6147591080484965e-06
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 2,
+          "late_minus_early_gain": {
+            "mean": -1.627604166666667e-05,
+            "ci95": [
+              -7.640115849581827e-05,
+              4.3849075162484926e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_q1e6_minus_soft_q1e6": {
+          "gain": {
+            "mean": 1.4241536458333334e-05,
+            "ci95": [
+              -1.0542987348651394e-05,
+              3.902606026531806e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 6,
+          "late_minus_early_gain": {
+            "mean": 6.776263578034403e-21,
+            "ci95": [
+              -2.7443235633299823e-05,
+              2.7443235633299837e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9942000007702558,
+        "ci95": [
+          0.9740486472677705,
+          1.0143513542727411
+        ],
+        "sessions": 10,
+        "interval_status": "t_descriptive"
+      }
+    }
+  },
+  "analysis_source_sha256": "295b079d2c397334c5e0da33d34fee99f148cbb5f7d229c92c554071d3c36c0f"
+}
