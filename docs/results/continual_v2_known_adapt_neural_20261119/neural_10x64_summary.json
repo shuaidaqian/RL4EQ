@@ -1,0 +1,2406 @@
+{
+  "status": "development_descriptive_only",
+  "statistical_unit": "session",
+  "per_snr": {
+    "0": {
+      "arms": {
+        "acquisition_physics_q1e6": {
+          "ber": {
+            "mean": 0.14632568359375,
+            "ci95": [
+              0.13794658298267273,
+              0.15470478420482728
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -0.0016927083333333384,
+            "ci95": [
+              -0.00738728222515248,
+              0.004001865558485803
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.14361979166666666,
+              "ci95": [
+                0.12928998617090448,
+                0.15794959716242885
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.14357638888888888,
+              "ci95": [
+                0.13448908675532462,
+                0.15266369102245314
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.14420572916666669,
+              "ci95": [
+                0.13510119016579578,
+                0.1533102681675376
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.14472656250000002,
+              "ci95": [
+                0.1362926351008025,
+                0.15316048989919753
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.14807942708333333,
+              "ci95": [
+                0.13903242823868062,
+                0.15712642592798604
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.14645589192708333,
+              "ci95": [
+                0.13819049857779822,
+                0.15472128527636844
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 21.13529752168688,
+            "ci95": [
+              17.71179216619288,
+              24.55880287718088
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_physics_q1e6": {
+          "ber": {
+            "mean": 0.12869466145833336,
+            "ci95": [
+              0.12076523366464824,
+              0.13662408925201847
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.012467447916666662,
+            "ci95": [
+              0.006520314494251024,
+              0.0184145813390823
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.14166666666666666,
+              "ci95": [
+                0.12983723774343098,
+                0.15349609558990235
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.1365017361111111,
+              "ci95": [
+                0.1300050077197983,
+                0.1429984645024239
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.13359375,
+              "ci95": [
+                0.12417743236425724,
+                0.14301006763574278
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.12799479166666666,
+              "ci95": [
+                0.11903614925912308,
+                0.13695343407421026
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.1301513671875,
+              "ci95": [
+                0.12190267509933177,
+                0.13840005927566826
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.1263916015625,
+              "ci95": [
+                0.11828828276345074,
+                0.13449492036154928
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 32.81750906389789,
+            "ci95": [
+              32.54618883349277,
+              33.088829294303004
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_neural_legacy_input": {
+          "ber": {
+            "mean": 0.128729248046875,
+            "ci95": [
+              0.12082897058253399,
+              0.136629525511216
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.012638346354166666,
+            "ci95": [
+              0.006667625948913724,
+              0.01860906675941961
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.14179687500000002,
+              "ci95": [
+                0.1302007780797763,
+                0.15339297192022372
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.13663194444444446,
+              "ci95": [
+                0.13006870149357896,
+                0.14319518739530995
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.13375651041666667,
+              "ci95": [
+                0.12429471315796847,
+                0.14321830767536486
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.12805989583333333,
+              "ci95": [
+                0.11917730428307602,
+                0.13694248738359063
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.13015950520833336,
+              "ci95": [
+                0.12192154136358928,
+                0.13839746905307745
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.12640380859375,
+              "ci95": [
+                0.11831728946332208,
+                0.13449032772417793
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 29.847954685101286,
+            "ci95": [
+              29.345357814757303,
+              30.350551555445268
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_physics": {
+          "ber": {
+            "mean": 0.120074462890625,
+            "ci95": [
+              0.11243664306867401,
+              0.12771228271257598
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0130615234375,
+            "ci95": [
+              0.005432489027453503,
+              0.020690557847546497
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.13463541666666665,
+              "ci95": [
+                0.11978268726062696,
+                0.14948814607270633
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.12890625,
+              "ci95": [
+                0.11983286718158563,
+                0.13797963281841436
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.12483723958333334,
+              "ci95": [
+                0.11571732756522193,
+                0.13395715160144475
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.12019856770833333,
+              "ci95": [
+                0.11189559420428036,
+                0.1285015412123863
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.12080078125,
+              "ci95": [
+                0.11344808335973387,
+                0.12815347914026612
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.11780192057291665,
+              "ci95": [
+                0.10990598552774078,
+                0.12569785561809252
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 9.69603577759699,
+            "ci95": [
+              9.614218484787582,
+              9.777853070406398
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_neural": {
+          "ber": {
+            "mean": 0.120074462890625,
+            "ci95": [
+              0.11240996141468787,
+              0.12773896436656212
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.013053385416666669,
+            "ci95": [
+              0.005411038016014102,
+              0.020695732817319235
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.13502604166666668,
+              "ci95": [
+                0.12020027206636422,
+                0.14985181126696914
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.12881944444444443,
+              "ci95": [
+                0.11975811080588886,
+                0.137880778083
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.12480468750000002,
+              "ci95": [
+                0.11569406231133303,
+                0.13391531268866702
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.12021484375,
+              "ci95": [
+                0.1118178952705755,
+                0.12861179222942448
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.12071940104166667,
+              "ci95": [
+                0.11334129339383514,
+                0.1280975086894982
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.11783854166666667,
+              "ci95": [
+                0.10993338914479207,
+                0.12574369418854126
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 29.11386796622537,
+            "ci95": [
+              28.869178253430672,
+              29.35855767902007
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "paired": {
+        "acquisition_physics_q1e6_minus_recursive_pilot_physics_q1e6": {
+          "gain": {
+            "mean": 0.017631022135416664,
+            "ci95": [
+              0.015208396773343468,
+              0.02005364749748986
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.01416015625,
+            "ci95": [
+              0.010118912668847265,
+              0.018201399831152737
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_physics_q1e6_minus_recursive_pilot_neural_legacy_input": {
+          "gain": {
+            "mean": -3.4586588541662966e-05,
+            "ci95": [
+              -0.00010523959708240587,
+              3.606641999907994e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 2,
+          "late_minus_early_gain": {
+            "mean": 0.00017089843750000278,
+            "ci95": [
+              -0.00011489357899204495,
+              0.0004566904539920505
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_physics_q1e6_minus_recursive_pilot_known_adapt_real_physics": {
+          "gain": {
+            "mean": 0.008620198567708338,
+            "ci95": [
+              0.007758243659025506,
+              0.00948215347639117
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0005940755208333371,
+            "ci95": [
+              -0.0038323788715801657,
+              0.005020529913246839
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_neural_legacy_input_minus_recursive_pilot_known_adapt_real_neural": {
+          "gain": {
+            "mean": 0.008654785156249997,
+            "ci95": [
+              0.00782629596189823,
+              0.009483274350601765
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0004150390625000014,
+            "ci95": [
+              -0.004205577958750673,
+              0.005035656083750676
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_physics_minus_recursive_pilot_known_adapt_real_neural": {
+          "gain": {
+            "mean": -2.7755575615628915e-18,
+            "ci95": [
+              -7.971539593036497e-05,
+              7.971539593035941e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 4,
+          "late_minus_early_gain": {
+            "mean": -8.13802083333287e-06,
+            "ci95": [
+              -0.0003333722049459262,
+              0.00031709616327926045
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9881212934659231,
+        "ci95": [
+          0.9590453102443003,
+          1.0171972766875461
+        ],
+        "sessions": 10,
+        "interval_status": "t_descriptive"
+      }
+    },
+    "5": {
+      "arms": {
+        "acquisition_physics_q1e6": {
+          "ber": {
+            "mean": 0.04333902994791666,
+            "ci95": [
+              0.036394570142528726,
+              0.0502834897533046
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -0.0022705078125,
+            "ci95": [
+              -0.005045051508408857,
+              0.0005040358834088568
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.044661458333333334,
+              "ci95": [
+                0.03499096674089961,
+                0.05433194992576706
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.040364583333333336,
+              "ci95": [
+                0.033127335011453485,
+                0.047601831655213186
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.04065755208333333,
+              "ci95": [
+                0.03317006367366071,
+                0.048145040493005956
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.04168294270833333,
+              "ci95": [
+                0.03532192272257405,
+                0.04804396269409261
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.04383138020833333,
+              "ci95": [
+                0.03656875720012586,
+                0.051094003216540805
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.04407958984375,
+              "ci95": [
+                0.037075902844589365,
+                0.05108327684291064
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 19.74247687976458,
+            "ci95": [
+              19.453943308508226,
+              20.031010451020936
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_physics_q1e6": {
+          "ber": {
+            "mean": 0.03622233072916667,
+            "ci95": [
+              0.03034963780358361,
+              0.04209502365474973
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.004174804687500002,
+            "ci95": [
+              0.0005862356498470452,
+              0.007763373725152959
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.043229166666666666,
+              "ci95": [
+                0.033691672935612205,
+                0.05276666039772113
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.03832465277777777,
+              "ci95": [
+                0.0318381544217711,
+                0.04481115113378445
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.036393229166666666,
+              "ci95": [
+                0.02899857306616574,
+                0.04378788526716759
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.03606770833333334,
+              "ci95": [
+                0.03005239146602319,
+                0.042083025200643484
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0365966796875,
+              "ci95": [
+                0.030650796943687428,
+                0.042542562431312575
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.03563639322916667,
+              "ci95": [
+                0.029867422995241626,
+                0.041405363463091704
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 32.984656084590824,
+            "ci95": [
+              32.619830152797604,
+              33.349482016384044
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_neural_legacy_input": {
+          "ber": {
+            "mean": 0.03622233072916667,
+            "ci95": [
+              0.030348267367471538,
+              0.0420963940908618
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.004207356770833335,
+            "ci95": [
+              0.0006185778698190201,
+              0.0077961356718476505
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.04335937499999999,
+              "ci95": [
+                0.03379916630820098,
+                0.052919583691799006
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.03832465277777777,
+              "ci95": [
+                0.0318381544217711,
+                0.04481115113378445
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.03642578125,
+              "ci95": [
+                0.02903141032949187,
+                0.04382015217050812
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.03600260416666667,
+              "ci95": [
+                0.030025822781936624,
+                0.04197938555139671
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.036604817708333334,
+              "ci95": [
+                0.030673789077161603,
+                0.042535846339505065
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.03564046223958332,
+              "ci95": [
+                0.029852875618529753,
+                0.0414280488606369
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 30.447578120947583,
+            "ci95": [
+              29.94771246686711,
+              30.947443775028056
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_physics": {
+          "ber": {
+            "mean": 0.02458292643229167,
+            "ci95": [
+              0.01963647804687752,
+              0.029529374817705817
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.004508463541666666,
+            "ci95": [
+              0.0008575641612794662,
+              0.008159362922053867
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0296875,
+              "ci95": [
+                0.022488537199537875,
+                0.03688646280046212
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.02725694444444444,
+              "ci95": [
+                0.020780774979817854,
+                0.03373311390907103
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.026171875,
+              "ci95": [
+                0.02098784851526557,
+                0.03135590148473443
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.024300130208333333,
+              "ci95": [
+                0.0191853559840835,
+                0.029414904432583166
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.024772135416666667,
+              "ci95": [
+                0.01932341246338167,
+                0.030220858369951663
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.0239501953125,
+              "ci95": [
+                0.01925938444939843,
+                0.028641006175601568
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 9.934751556284027,
+            "ci95": [
+              9.6911168879458,
+              10.178386224622255
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_neural": {
+          "ber": {
+            "mean": 0.02457275390625,
+            "ci95": [
+              0.019621479664072416,
+              0.029524028148427587
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.004524739583333333,
+            "ci95": [
+              0.0008883089267377521,
+              0.008161170239928914
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0296875,
+              "ci95": [
+                0.022488537199537875,
+                0.03688646280046212
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.02725694444444444,
+              "ci95": [
+                0.020780774979817854,
+                0.03373311390907103
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.026171875,
+              "ci95": [
+                0.02098784851526557,
+                0.03135590148473443
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.024300130208333333,
+              "ci95": [
+                0.0191853559840835,
+                0.029414904432583166
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.024755859375,
+              "ci95": [
+                0.01930398588017686,
+                0.03020773286982314
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.023937988281250003,
+              "ci95": [
+                0.019239199622075827,
+                0.02863677694042418
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 29.428041412029415,
+            "ci95": [
+              29.167664300729225,
+              29.688418523329606
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "paired": {
+        "acquisition_physics_q1e6_minus_recursive_pilot_physics_q1e6": {
+          "gain": {
+            "mean": 0.00711669921875,
+            "ci95": [
+              0.0056219432355094304,
+              0.008611455201990569
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.006445312500000003,
+            "ci95": [
+              0.004273860519314963,
+              0.008616764480685043
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_physics_q1e6_minus_recursive_pilot_neural_legacy_input": {
+          "gain": {
+            "mean": -3.4694469519536144e-19,
+            "ci95": [
+              -1.680548104813755e-05,
+              1.680548104813686e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 3,
+          "late_minus_early_gain": {
+            "mean": 3.255208333333322e-05,
+            "ci95": [
+              -5.068737170229561e-05,
+              0.00011579153836896204
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_physics_q1e6_minus_recursive_pilot_known_adapt_real_physics": {
+          "gain": {
+            "mean": 0.011639404296875,
+            "ci95": [
+              0.010224755243381142,
+              0.013054053350368857
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0003336588541666645,
+            "ci95": [
+              -0.00197050273112306,
+              0.002637820439456389
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_neural_legacy_input_minus_recursive_pilot_known_adapt_real_neural": {
+          "gain": {
+            "mean": 0.011649576822916665,
+            "ci95": [
+              0.01023200685290509,
+              0.01306714679292824
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.00031738281249999773,
+            "ci95": [
+              -0.0019857979932624828,
+              0.002620563618262478
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_physics_minus_recursive_pilot_known_adapt_real_neural": {
+          "gain": {
+            "mean": 1.0172526041667303e-05,
+            "ci95": [
+              -6.9794962291446525e-06,
+              2.732454831247926e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 7,
+          "late_minus_early_gain": {
+            "mean": 1.6276041666666436e-05,
+            "ci95": [
+              -8.269934492774397e-06,
+              4.082201782610727e-05
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9881337051512636,
+        "ci95": [
+          0.9590873859595784,
+          1.0171800243429487
+        ],
+        "sessions": 10,
+        "interval_status": "t_descriptive"
+      }
+    },
+    "10": {
+      "arms": {
+        "acquisition_physics_q1e6": {
+          "ber": {
+            "mean": 0.005010986328125,
+            "ci95": [
+              0.0033671380885846236,
+              0.006654834567665376
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -0.0014485677083333332,
+            "ci95": [
+              -0.0025625737952738384,
+              -0.0003345616213928282
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.003515625,
+              "ci95": [
+                0.00017016062717603803,
+                0.006861089372823962
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.004210069444444445,
+              "ci95": [
+                0.0023758427364442398,
+                0.00604429615244465
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0044921875,
+              "ci95": [
+                0.0023641773563966312,
+                0.006620197643603368
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.004150390625,
+              "ci95": [
+                0.0025765264448117517,
+                0.005724254805188248
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.004939778645833333,
+              "ci95": [
+                0.0031299705987783318,
+                0.006749586692888334
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.005448404947916667,
+              "ci95": [
+                0.0038115907787099838,
+                0.0070852191171233495
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 20.00628734676866,
+            "ci95": [
+              19.801164022923682,
+              20.211410670613635
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_physics_q1e6": {
+          "ber": {
+            "mean": 0.003759765625,
+            "ci95": [
+              0.0024761561324614704,
+              0.00504337511753853
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -0.0001953125000000001,
+            "ci95": [
+              -0.0013114798715466935,
+              0.0009208548715466932
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.003255208333333333,
+              "ci95": [
+                0.00026906145228848934,
+                0.006241355214378177
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0038194444444444448,
+              "ci95": [
+                0.002230873233503058,
+                0.005408015655385831
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.003515625,
+              "ci95": [
+                0.0018955905734768822,
+                0.005135659426523118
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0035970052083333336,
+              "ci95": [
+                0.0020617039435969053,
+                0.005132306473069762
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0038248697916666665,
+              "ci95": [
+                0.0023693430777119505,
+                0.005280396505621383
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.00380859375,
+              "ci95": [
+                0.002624854665270482,
+                0.004992332834729518
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 33.71580126113258,
+            "ci95": [
+              33.2756843520443,
+              34.155918170220865
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_neural_legacy_input": {
+          "ber": {
+            "mean": 0.0037577311197916664,
+            "ci95": [
+              0.002473420493982221,
+              0.005042041745601112
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -0.0001953125000000001,
+            "ci95": [
+              -0.0013114798715466935,
+              0.0009208548715466932
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.003255208333333333,
+              "ci95": [
+                0.00026906145228848934,
+                0.006241355214378177
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0038194444444444448,
+              "ci95": [
+                0.002230873233503058,
+                0.005408015655385831
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0034830729166666673,
+              "ci95": [
+                0.001854692044243701,
+                0.005111453789089634
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0035970052083333336,
+              "ci95": [
+                0.0020617039435969053,
+                0.005132306473069762
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0038248697916666665,
+              "ci95": [
+                0.0023693430777119505,
+                0.005280396505621383
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.00380859375,
+              "ci95": [
+                0.002624854665270482,
+                0.004992332834729518
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 31.10946281158249,
+            "ci95": [
+              30.45127502388077,
+              31.76765059928421
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_physics": {
+          "ber": {
+            "mean": 0.0010640462239583331,
+            "ci95": [
+              0.00048892175522094,
+              0.0016391706926957264
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0001220703125,
+            "ci95": [
+              -0.0006190240907251215,
+              0.0008631647157251215
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0015625,
+              "ci95": [
+                -0.00018285526614325305,
+                0.0033078552661432534
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0010416666666666667,
+              "ci95": [
+                0.00013704762743541184,
+                0.0019462857058979216
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0009440104166666666,
+              "ci95": [
+                0.00036887980963440283,
+                0.0015191410236989303
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0010579427083333335,
+              "ci95": [
+                0.0004291391853128039,
+                0.001686746231353863
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0010986328125,
+              "ci95": [
+                0.00039400402246239316,
+                0.0018032616025376068
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.0010498046875,
+              "ci95": [
+                0.0005117142834511622,
+                0.0015878950915488377
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 10.041671401268104,
+            "ci95": [
+              9.883524937194949,
+              10.19981786534126
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_neural": {
+          "ber": {
+            "mean": 0.0010640462239583331,
+            "ci95": [
+              0.00048892175522094,
+              0.0016391706926957264
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.0001220703125,
+            "ci95": [
+              -0.0006190240907251215,
+              0.0008631647157251215
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0015625,
+              "ci95": [
+                -0.00018285526614325305,
+                0.0033078552661432534
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0010416666666666667,
+              "ci95": [
+                0.00013704762743541184,
+                0.0019462857058979216
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0009440104166666666,
+              "ci95": [
+                0.00036887980963440283,
+                0.0015191410236989303
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0010579427083333335,
+              "ci95": [
+                0.0004291391853128039,
+                0.001686746231353863
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0010986328125,
+              "ci95": [
+                0.00039400402246239316,
+                0.0018032616025376068
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.0010498046875,
+              "ci95": [
+                0.0005117142834511622,
+                0.0015878950915488377
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 30.891673610312864,
+            "ci95": [
+              30.112094384681015,
+              31.671252835944713
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "paired": {
+        "acquisition_physics_q1e6_minus_recursive_pilot_physics_q1e6": {
+          "gain": {
+            "mean": 0.001251220703125,
+            "ci95": [
+              0.0007590921493968355,
+              0.0017433492568531645
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0012532552083333332,
+            "ci95": [
+              0.0007652592249930525,
+              0.001741251191673614
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_physics_q1e6_minus_recursive_pilot_neural_legacy_input": {
+          "gain": {
+            "mean": 2.0345052083333477e-06,
+            "ci95": [
+              -2.567865321561907e-06,
+              6.636875738228603e-06
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 1,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 10,
+            "interval_status": "zero_empirical_variance_not_equivalence"
+          }
+        },
+        "recursive_pilot_physics_q1e6_minus_recursive_pilot_known_adapt_real_physics": {
+          "gain": {
+            "mean": 0.002695719401041667,
+            "ci95": [
+              0.0018819323096173086,
+              0.0035095064924660253
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0003173828125000001,
+            "ci95": [
+              -0.0006278962420195348,
+              0.001262661867019535
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_neural_legacy_input_minus_recursive_pilot_known_adapt_real_neural": {
+          "gain": {
+            "mean": 0.0026936848958333333,
+            "ci95": [
+              0.0018796679167567382,
+              0.0035077018749099286
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.0003173828125000001,
+            "ci95": [
+              -0.0006278962420195348,
+              0.001262661867019535
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_physics_minus_recursive_pilot_known_adapt_real_neural": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 10,
+            "interval_status": "zero_empirical_variance_not_equivalence"
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 10,
+            "interval_status": "zero_empirical_variance_not_equivalence"
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9882487440752147,
+        "ci95": [
+          0.9592459043469989,
+          1.0172515838034306
+        ],
+        "sessions": 10,
+        "interval_status": "t_descriptive"
+      }
+    },
+    "15": {
+      "arms": {
+        "acquisition_physics_q1e6": {
+          "ber": {
+            "mean": 0.0007364908854166667,
+            "ci95": [
+              0.0004641418312790227,
+              0.0010088399395543105
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -0.00020345052083333334,
+            "ci95": [
+              -0.0006512464310581901,
+              0.00024434538939152334
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0006510416666666666,
+              "ci95": [
+                -0.0005312491071441005,
+                0.0018333324404774336
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0007378472222222222,
+              "ci95": [
+                2.0066842510618787e-05,
+                0.0014556276019338256
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0005533854166666667,
+              "ci95": [
+                0.00039621448178869996,
+                0.0007105563515446333
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0006022135416666666,
+              "ci95": [
+                0.00043709737410788866,
+                0.0007673297092254445
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0006917317708333333,
+              "ci95": [
+                0.0004253061453656633,
+                0.0009581573963010031
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.0008178710937500001,
+              "ci95": [
+                0.000493898495595567,
+                0.0011418436919044333
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 20.080480779870413,
+            "ci95": [
+              19.878308650117436,
+              20.28265290962339
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_physics_q1e6": {
+          "ber": {
+            "mean": 0.00064697265625,
+            "ci95": [
+              0.00041231694345828136,
+              0.0008816283690417186
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -6.510416666666667e-05,
+            "ci95": [
+              -0.0005091421644259773,
+              0.00037893383109264395
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0006510416666666666,
+              "ci95": [
+                -0.0005312491071441005,
+                0.0018333324404774336
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0006944444444444444,
+              "ci95": [
+                8.743106177193675e-05,
+                0.001301457827116952
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0004557291666666666,
+              "ci95": [
+                0.00033547893300836344,
+                0.0005759794003249698
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0005208333333333334,
+              "ci95": [
+                0.000324465524057804,
+                0.0007172011426088629
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0006754557291666667,
+              "ci95": [
+                0.0004194087229446441,
+                0.0009315027353886892
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.00068359375,
+              "ci95": [
+                0.0004284306831465747,
+                0.0009387568168534252
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 33.464306721725734,
+            "ci95": [
+              33.050936947051795,
+              33.87767649639967
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_neural_legacy_input": {
+          "ber": {
+            "mean": 0.00064697265625,
+            "ci95": [
+              0.00041231694345828136,
+              0.0008816283690417186
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -6.510416666666667e-05,
+            "ci95": [
+              -0.0005091421644259773,
+              0.00037893383109264395
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0006510416666666666,
+              "ci95": [
+                -0.0005312491071441005,
+                0.0018333324404774336
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0006944444444444444,
+              "ci95": [
+                8.743106177193675e-05,
+                0.001301457827116952
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.0004557291666666666,
+              "ci95": [
+                0.00033547893300836344,
+                0.0005759794003249698
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.0005208333333333334,
+              "ci95": [
+                0.000324465524057804,
+                0.0007172011426088629
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.0006754557291666667,
+              "ci95": [
+                0.0004194087229446441,
+                0.0009315027353886892
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.00068359375,
+              "ci95": [
+                0.0004284306831465747,
+                0.0009387568168534252
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 32.00740188040072,
+            "ci95": [
+              31.465363469789207,
+              32.54944029101223
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_physics": {
+          "ber": {
+            "mean": 0.0002197265625,
+            "ci95": [
+              0.0001015293399160476,
+              0.0003379237850839524
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.00013834635416666666,
+            "ci95": [
+              -0.00013200782319242027,
+              0.0004087005315257536
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0005208333333333333,
+              "ci95": [
+                -0.00013044501093766871,
+                0.0011721116776043355
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.00030381944444444445,
+              "ci95": [
+                4.820584131899391e-05,
+                0.000559433047569895
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.00016276041666666666,
+              "ci95": [
+                -1.8989971331324256e-06,
+                0.00032741983046646574
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.00021158854166666665,
+              "ci95": [
+                6.58548827779258e-05,
+                0.0003573222005554075
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.00019531249999999998,
+              "ci95": [
+                5.7548550481174735e-05,
+                0.00033307644951882523
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.00022379557291666666,
+              "ci95": [
+                7.841763856770339e-05,
+                0.00036917350726562993
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 10.003260155644966,
+            "ci95": [
+              9.910141957184578,
+              10.096378354105354
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_neural": {
+          "ber": {
+            "mean": 0.0002197265625,
+            "ci95": [
+              0.0001015293399160476,
+              0.0003379237850839524
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.00013834635416666666,
+            "ci95": [
+              -0.00013200782319242027,
+              0.0004087005315257536
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0005208333333333333,
+              "ci95": [
+                -0.00013044501093766871,
+                0.0011721116776043355
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.00030381944444444445,
+              "ci95": [
+                4.820584131899391e-05,
+                0.000559433047569895
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.00016276041666666666,
+              "ci95": [
+                -1.8989971331324256e-06,
+                0.00032741983046646574
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.00021158854166666665,
+              "ci95": [
+                6.58548827779258e-05,
+                0.0003573222005554075
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.00019531249999999998,
+              "ci95": [
+                5.7548550481174735e-05,
+                0.00033307644951882523
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.00022379557291666666,
+              "ci95": [
+                7.841763856770339e-05,
+                0.00036917350726562993
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 31.676192326267483,
+            "ci95": [
+              30.982615362052524,
+              32.369769290482445
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "paired": {
+        "acquisition_physics_q1e6_minus_recursive_pilot_physics_q1e6": {
+          "gain": {
+            "mean": 8.951822916666665e-05,
+            "ci95": [
+              2.4358601799216823e-05,
+              0.00015467785653411646
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 8,
+          "late_minus_early_gain": {
+            "mean": 0.00013834635416666666,
+            "ci95": [
+              -4.384856413820412e-06,
+              0.00028107756474715374
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_physics_q1e6_minus_recursive_pilot_neural_legacy_input": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 10,
+            "interval_status": "zero_empirical_variance_not_equivalence"
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 10,
+            "interval_status": "zero_empirical_variance_not_equivalence"
+          }
+        },
+        "recursive_pilot_physics_q1e6_minus_recursive_pilot_known_adapt_real_physics": {
+          "gain": {
+            "mean": 0.0004272460937500001,
+            "ci95": [
+              0.0002896873028699783,
+              0.0005648048846300219
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.00020345052083333334,
+            "ci95": [
+              -9.244050625330396e-05,
+              0.0004993415479199706
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_neural_legacy_input_minus_recursive_pilot_known_adapt_real_neural": {
+          "gain": {
+            "mean": 0.0004272460937500001,
+            "ci95": [
+              0.0002896873028699783,
+              0.0005648048846300219
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.00020345052083333334,
+            "ci95": [
+              -9.244050625330396e-05,
+              0.0004993415479199706
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "recursive_pilot_known_adapt_real_physics_minus_recursive_pilot_known_adapt_real_neural": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 10,
+            "interval_status": "zero_empirical_variance_not_equivalence"
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 10,
+            "interval_status": "zero_empirical_variance_not_equivalence"
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9886053887920265,
+        "ci95": [
+          0.9596860066058654,
+          1.0175247709781876
+        ],
+        "sessions": 10,
+        "interval_status": "t_descriptive"
+      }
+    }
+  },
+  "analysis_source_sha256": "295b079d2c397334c5e0da33d34fee99f148cbb5f7d229c92c554071d3c36c0f"
+}
