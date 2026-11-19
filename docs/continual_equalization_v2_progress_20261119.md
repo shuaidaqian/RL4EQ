@@ -353,3 +353,5 @@ P6 启动前全量测试通过：`194 passed`。seed registry 曾因文件尾部
 审阅实际写盘路径发现，`compare_continual_variants.py` 的内存行含 `decode_covariance_trace`、`posterior_covariance_trace` 等诊断，但开启 `--stream-rows` 后只序列化 BER、耗时和波形哈希字段；合法观测残差当前也没有实现。因此本轮 P6 可用于配对评估 AR(1) 对随机游走的 BER/成本增量，不足以回答协议描述中的后验协方差轨迹或合法观测残差校准。保持当前运行和已收集数据，不追补或改写结果；完整度在 P6 汇总中明确标注。若 BER 结果使协方差/残差成为下一关键诊断，再用新 seed 和扩展的流式字段单独登记开发实验。
 
 为 P6 完成后的证据核验新增 `scripts/summarize_ar1_prediction_dev.py`：逐项检查主 JSON 完成状态、声明行数、各 seed/SNR/arm 帧连续性和逐帧波形配对哈希，再按预登记窗口以 session 为统计单位输出 O/F/G、会话级区间、时间变化和耗时。使用 2 session、20 帧的合成数据验证了汇总逻辑；真实 P6 尚未完成，暂不生成或解释结果报告。
+
+P6 首个完整 session 检查点：0 dB、seed 234001 三臂均完成 11,719 帧；逐帧记录齐全并共享同波形。会话 BER 为 acquisition 锚点 0.245220、递归随机游走 0.114561、递归 AR(1) 0.113701，AR(1) 相对随机游走的单会话差值约 0.000860。该数值仅作执行记录，不据单个 session 选方法或推断总体；seed 234002 已开始。
