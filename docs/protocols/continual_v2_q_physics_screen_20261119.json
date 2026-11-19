@@ -1,0 +1,101 @@
+{
+  "description": "物理支路低成本过程噪声开发诊断，保留同一已学习同步；全神经接收结论须在后续新会话复核。Q=0是静态近似诊断，不预设适用于长期跟踪；所有臂同初始协方差、圆周同步与合法估噪。",
+  "variants": [
+    {
+      "name": "acquisition",
+      "arm": "acquisition",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "process_noise": 0.0001
+    },
+    {
+      "name": "current_pilot",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "process_noise": 0.0001
+    },
+    {
+      "name": "recursive_q1e4",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "process_noise": 0.0001
+    },
+    {
+      "name": "recursive_q1e6",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "recursive_q0",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "process_noise": 0.0
+    },
+    {
+      "name": "soft_q1e6",
+      "arm": "recursive_soft",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    }
+  ],
+  "pairs": [
+    [
+      "acquisition",
+      "recursive_q1e4"
+    ],
+    [
+      "acquisition",
+      "recursive_q1e6"
+    ],
+    [
+      "acquisition",
+      "recursive_q0"
+    ],
+    [
+      "acquisition",
+      "soft_q1e6"
+    ],
+    [
+      "current_pilot",
+      "recursive_q1e4"
+    ],
+    [
+      "current_pilot",
+      "recursive_q1e6"
+    ],
+    [
+      "current_pilot",
+      "recursive_q0"
+    ],
+    [
+      "recursive_q1e4",
+      "recursive_q1e6"
+    ],
+    [
+      "recursive_q1e6",
+      "recursive_q0"
+    ],
+    [
+      "recursive_q1e6",
+      "soft_q1e6"
+    ]
+  ]
+}
