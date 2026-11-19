@@ -7,6 +7,7 @@ import argparse
 from dataclasses import replace
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -37,6 +38,76 @@ from training.continual_offline import InputRecorder
 from training.pilot_transfer import frame_to_device
 
 
+def inspect_stream_for_resume(rows_output, *, snrs, seeds, arms, frames):
+    """检查已有流文件，只允许完整会话加一个连续前缀会话。"""
+    session_order = {(snr, seed): index
+                     for index, (snr, seed) in enumerate((snr, seed) for snr in snrs for seed in seeds)}
+    completed = set()
+    current_key = None
+    current_rows = None
+    partial_key = None
+    partial_rows = None
+    total_rows = 0
+    last_order = -1
+
+    def finish_session(key, rows_by_arm):
+        nonlocal partial_key, partial_rows
+        if key is None:
+            return
+        sets = {arm: set(rows_by_arm[arm]) for arm in arms}
+        if all(values == set(range(frames)) for values in sets.values()):
+            complete = True
+        else:
+            lengths = {len(values) for values in sets.values()}
+            count = next(iter(lengths)) if len(lengths) == 1 else -1
+            complete = False
+            if count <= 0 or count >= frames or any(values != set(range(count)) for values in sets.values()):
+                raise ValueError(f"续跑流文件中的会话不是完整数据或共同连续前缀：{key}")
+            partial_key = key
+            partial_rows = rows_by_arm
+            for frame_index in range(count):
+                hashes = {rows_by_arm[arm][frame_index].get('rx_sha256') for arm in arms}
+                if len(hashes) != 1 or None in hashes:
+                    raise ValueError(f"续跑流文件已有部分会话的配对波形不一致：{key} 帧 {frame_index}")
+        if complete:
+            for frame_index in range(frames):
+                hashes = {rows_by_arm[arm][frame_index].get('rx_sha256') for arm in arms}
+                if len(hashes) != 1 or None in hashes:
+                    raise ValueError(f"续跑流文件已有完整会话的配对波形不一致：{key} 帧 {frame_index}")
+            completed.add(key)
+
+    with Path(rows_output).open('r', encoding='utf8') as stream:
+        for line_number, line in enumerate(stream, 1):
+            row = json.loads(line)
+            if 'frame_index' not in row:
+                raise ValueError(f"逐帧流第 {line_number} 行缺少帧索引。")
+            key = (row.get('snr_db'), row.get('seed'))
+            if key not in session_order or row.get('arm') not in arms:
+                raise ValueError(f"逐帧流第 {line_number} 行超出预登记协议。")
+            order = session_order[key]
+            if key != current_key:
+                if order != last_order + 1:
+                    raise ValueError(f"逐帧流会话顺序异常或会话缺失：{key}")
+                finish_session(current_key, current_rows)
+                if partial_key is not None:
+                    raise ValueError("不完整会话之后又出现了后续会话，拒绝自动续跑。")
+                current_key = key
+                current_rows = {arm: {} for arm in arms}
+                last_order = order
+            frame_index = row['frame_index']
+            if not isinstance(frame_index, int) or not 0 <= frame_index < frames:
+                raise ValueError(f"逐帧流第 {line_number} 行帧索引越界。")
+            arm_rows = current_rows[row['arm']]
+            if frame_index in arm_rows:
+                raise ValueError(f"逐帧流出现重复记录：{key} {row['arm']} 帧 {frame_index}")
+            arm_rows[frame_index] = row
+            total_rows += 1
+    finish_session(current_key, current_rows)
+    if partial_key is None and current_key is not None and current_key not in completed:
+        raise ValueError("无法分类续跑流文件的末尾会话。")
+    return completed, partial_key, partial_rows, total_rows
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', default='configs/eme_long_memory_v2_online_dd_tail_v1.json')
@@ -52,12 +123,17 @@ def main():
                         help='将逐帧结果追加到 JSONL，主 JSON 只保存协议与状态。')
     parser.add_argument('--checkpoint-interval', type=int, default=8,
                         help='按多少帧原子保存一次；流式长会话可设为较大值。')
+    parser.add_argument('--resume', action='store_true',
+                        help='续跑已登记且中断的流式实验；验证已有前缀后只追加新帧。')
     args = parser.parse_args()
     if args.frames < 1 or args.checkpoint_interval < 1 or not args.snrs or len(set(args.snrs)) != len(args.snrs):
         parser.error('需要正帧数和互异的 SNR。')
     output = Path(args.output)
     rows_output = output.with_suffix('.jsonl')
-    if output.exists() or (args.stream_rows and rows_output.exists()):
+    if args.resume:
+        if not args.stream_rows or not output.exists() or not rows_output.exists():
+            raise ValueError('续跑要求流式模式且主 JSON、JSONL 文件均存在。')
+    elif output.exists() or (args.stream_rows and rows_output.exists()):
         raise ValueError('禁止覆盖或隐式重跑旧实验。')
     config = json.loads(Path(args.config).read_text(encoding='utf8'))
     manifest = json.loads(Path(args.manifest).read_text(encoding='utf8'))
@@ -111,10 +187,74 @@ def main():
                         'evaluation/continual_variants.py', 'scripts/compare_continual_variants.py',
                         'evaluation/receiver_diagnostics.py',
                         'agent/unfolded_equalizer.py', 'env/linear_operator.py']})
-    reserve_seeds(ROOT, experiment=args.experiment, seeds=args.seeds, purpose='development', details=protocol)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    result = dict(protocol=protocol, acquisitions=[], rows=[], status='running')
-    streamed_rows = 0
+    completed_sessions, partial_session, partial_rows = set(), None, None
+    previous_acquisitions = {}
+    if args.resume:
+        registry_path = ROOT / 'docs/protocols/continual_v2_seed_registry.json'
+        registry = json.loads(registry_path.read_text(encoding='utf8'))
+        registration = next((row for row in registry['experiments']
+                             if row.get('experiment') == args.experiment), None)
+        if (registration is None or registration.get('status') != 'running'
+                or registration.get('purpose') != 'development'
+                or registration.get('seeds') != args.seeds):
+            raise ValueError('续跑只允许使用完全匹配且状态为 running 的开发登记。')
+        metadata_candidates = [output.with_suffix('.tmp'), output]
+        previous = None
+        for candidate in metadata_candidates:
+            if candidate.exists():
+                loaded = json.loads(candidate.read_text(encoding='utf8'))
+                if candidate == output.with_suffix('.tmp') and loaded.get('status') != 'failed':
+                    continue
+                previous = loaded
+                break
+        if previous is None or previous.get('status') not in {'failed', 'running'}:
+            raise ValueError('找不到可安全续跑的失败或运行中主元数据。')
+        previous_protocol = previous.get('protocol', {})
+        if registration.get('details') != previous_protocol:
+            raise ValueError('种子登记与结果文件协议不一致，拒绝续跑。')
+        compatible_fields = (
+            'config', 'manifest', 'seeds', 'frames', 'snrs', 'state_split', 'experiment',
+            'output', 'device', 'stream_rows', 'checkpoint_interval', 'config_sha256',
+            'manifest_sha256', 'checkpoint_sha256', 'variants', 'arms', 'pairs',
+            'role', 'noise_source', 'statistical_unit', 'timing', 'linear_operator_backend',
+        )
+        for field in compatible_fields:
+            if previous_protocol.get(field) != protocol.get(field):
+                raise ValueError(f'续跑参数与原协议不一致：{field}')
+        for name, digest in previous_protocol.get('sources', {}).items():
+            if name == 'scripts/compare_continual_variants.py':
+                continue
+            if fingerprint(ROOT / name) != digest:
+                raise ValueError(f'续跑时检测到算法源文件已变化：{name}')
+        completed_sessions, partial_session, partial_rows, streamed_rows = inspect_stream_for_resume(
+            rows_output, snrs=args.snrs, seeds=args.seeds,
+            arms=[row['name'] for row in variants], frames=args.frames)
+        if previous.get('row_count') != streamed_rows:
+            raise ValueError('失败元数据的 row_count 与逐帧流记录数不一致，拒绝续跑。')
+        result = previous
+        result['protocol'] = previous_protocol
+        result['rows'] = []
+        result['status'] = 'running'
+        result.pop('failure', None)
+        result.setdefault('recovery_events', []).append({
+            'unix_time': time.time(),
+            'resume_git_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+            'resume_script_sha256': fingerprint(ROOT / 'scripts/compare_continual_variants.py'),
+            'replayed_session': list(partial_session) if partial_session else None,
+            'replayed_through_frame': max(max(partial_rows[arm]) for arm in partial_rows)
+                if partial_rows else None,
+            'reason': previous.get('failure'),
+        })
+        protocol = previous_protocol
+        previous_acquisitions = {
+            (row['snr_db'], row['seed']): row for row in result.get('acquisitions', [])
+        }
+    else:
+        reserve_seeds(ROOT, experiment=args.experiment, seeds=args.seeds,
+                      purpose='development', details=protocol)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        result = dict(protocol=protocol, acquisitions=[], rows=[], status='running')
+        streamed_rows = 0
     session_errors, session_bits = {}, {}
 
     def save():
@@ -136,21 +276,39 @@ def main():
             result['summary'] = summarize(result['rows'])
         temporary = output.with_suffix('.tmp')
         temporary.write_text(json.dumps(result, ensure_ascii=False, indent=2)+'\n', encoding='utf8')
-        temporary.replace(output)
+        for attempt in range(20):
+            try:
+                temporary.replace(output)
+                break
+            except PermissionError:
+                if attempt == 19:
+                    raise
+                time.sleep(min(0.25 * (attempt + 1), 2.0))
 
     save()
     try:
         for snr in args.snrs:
             for seed in args.seeds:
+                session_id = (snr, seed)
+                if session_id in completed_sessions:
+                    continue
                 env = CommunicationEnvironment(build_comm_env_config(config, level='B', snr_db=snr, seed=seed,
                     max_delay=config['max_delay'], total_pilot=config['pilot_total'],
                     reward_pilot_total=config['reward_pilot_total'], pilot_layout='prefix', state_split=args.state_split))
                 start = env.reset_episode()
                 acquisition = estimate_acquisition(start.acquisition.tx_symbols, start.acquisition.rx_symbols,
                     config['max_delay'], cfo_limit=config['acquisition_cfo_limit'])
-                result['acquisitions'].append(dict(seed=seed, snr_db=snr,
+                acquisition_record = dict(seed=seed, snr_db=snr,
                     noise_estimate=acquisition.noise_variance, noise_truth_diagnostic=10**(-snr/10),
-                    cfo_estimate=acquisition.cfo, cir_norm=float(acquisition.mean.norm())))
+                    cfo_estimate=acquisition.cfo, cir_norm=float(acquisition.mean.norm()))
+                prior_acquisition = previous_acquisitions.get(session_id)
+                if prior_acquisition is None:
+                    result['acquisitions'].append(acquisition_record)
+                else:
+                    for field in ('noise_estimate', 'noise_truth_diagnostic', 'cfo_estimate', 'cir_norm'):
+                        if not math.isclose(float(prior_acquisition[field]), float(acquisition_record[field]),
+                                            rel_tol=1e-9, abs_tol=1e-9):
+                            raise ValueError(f'重放会话的 acquisition 估计不一致：{session_id} {field}')
                 acquisition = replace(acquisition, mean=acquisition.mean.to(device),
                                       covariance=acquisition.covariance.to(device))
                 receivers = {row['name']:ContinualReceiver(acquisition, start.initial_soft_tail.to(device),
@@ -217,6 +375,19 @@ def main():
                             elapsed_ms=elapsed, model_calls=decoder.calls-before, **scoring,
                             paired_logits_diagnostic=paired_logits,
                             noise_variance_used=acquisition.noise_variance, rx_sha256=rx_hash, **diagnostics))
+                    if partial_session == session_id and original.frame_index <= max(
+                            max(partial_rows[arm]) for arm in partial_rows):
+                        replayed_rows = result['rows'][-len(variants):]
+                        for replayed in replayed_rows:
+                            stored = partial_rows[replayed['arm']].get(original.frame_index)
+                            if stored is None or any(replayed[field] != stored[field]
+                                                     for field in ('errors', 'bits', 'rx_sha256')):
+                                del result['rows'][-len(variants):]
+                                raise ValueError(
+                                    f'重放前缀与已保存帧不一致：{session_id} '
+                                    f"{original.frame_index} {replayed['arm']}"
+                                )
+                        del result['rows'][-len(variants):]
                     if ((original.frame_index + 1) % args.checkpoint_interval == 0
                             or original.frame_index + 1 == args.frames):
                         save()
