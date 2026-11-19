@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "experiments": [
+    {
+      "experiment": "p1_four_arms_estimated_noise_3x32",
+      "purpose": "development",
+      "seeds": [
+        210001,
+        210002,
+        210003
+      ],
+      "status": "reserved",
+      "details": {
+        "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+        "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+        "seeds": [
+          210001,
+          210002,
+          210003
+        ],
+        "frames": 32,
+        "snrs": [
+          0,
+          5,
+          10,
+          15
+        ],
+        "arms": [
+          "acquisition",
+          "current_pilot",
+          "recursive_pilot",
+          "recursive_soft"
+        ],
+        "state_split": "offline_train",
+        "process_noise": 0.0001,
+        "noise_source": "estimated",
+        "experiment": "p1_four_arms_estimated_noise_3x32",
+        "output": "docs/results/continual_v2_p1_20261119/four_arms_3x32.json",
+        "device": "cuda",
+        "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+        "checkpoint_sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4",
+        "git_commit": "9516241d4499393c465d3540e574776a62677c5a",
+        "receiver_sha256": "0d776dea51a48d713e4204adea15732fa3e5c1c40be28f5128a6b356a5924ec5",
+        "torch_version": "2.11.0+cu128",
+        "timing": "current_pilot_then_decode",
+        "status": "development",
+        "statistical_unit": "session"
+      }
+    }
+  ],
+  "historical_reserved_ranges": [
+    [
+      80000,
+      99010
+    ],
+    [
+      100001,
+      100010
+    ],
+    [
+      130001,
+      130003
+    ],
+    [
+      140001,
+      140002
+    ],
+    [
+      145001,
+      145010
+    ],
+    [
+      160001,
+      160201
+    ],
+    [
+      170001,
+      170060
+    ]
+  ]
+}

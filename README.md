@@ -1,6 +1,6 @@
-# RL4EQ：离线神经均衡器 + 在线贝叶斯 CIR 适配
+# RL4EQ：离线学习与在线持续均衡
 
-本分支 `bayes-cir` 是物理算法快照；历史 PEFT/RL 实验在 `peft-experiments` 与 `route-v4-docs` 分支。
+当前分支 `continual-equalization-v2` 按[第一性原理研究路线](docs/研究点二_第一性原理审视与研究路线_20261119.md)开展新研究，[执行记录](docs/continual_equalization_v2_progress_20261119.md)维护当前状态。`bayes-cir` 已在提交 `9516241` 保存并推送；以下确认结果属于该历史方法，不属于新方法。历史 PEFT/RL 实验在 `peft-experiments` 与 `route-v4-docs` 分支。
 
 ## 结论（独立确认 v1）
 
