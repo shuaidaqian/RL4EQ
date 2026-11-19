@@ -1,0 +1,682 @@
+{
+  "status": "development_descriptive_only",
+  "statistical_unit": "session",
+  "per_snr": {
+    "0": {
+      "arms": {
+        "acq_direct": {
+          "ber": {
+            "mean": 0.2555338541666667,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.09342447916666663,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.17578125,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.2821180555555556,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 1310.3726750705391,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "acq_fft": {
+          "ber": {
+            "mean": 0.2555338541666667,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.09342447916666663,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.17578125,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.2821180555555556,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 576.3518748572096,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct": {
+          "ber": {
+            "mean": 0.2825520833333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.12890625,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.17447916666666666,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.3185763888888889,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 1024.3716501863673,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_fft": {
+          "ber": {
+            "mean": 0.2825520833333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.12890625,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.17447916666666666,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.3185763888888889,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 552.3691748967394,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "paired": {
+        "acq_direct_minus_acq_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct_minus_pilot_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9759678339865069,
+        "ci95": null,
+        "sessions": 1
+      }
+    },
+    "5": {
+      "arms": {
+        "acq_direct": {
+          "ber": {
+            "mean": 0.056315104166666664,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.011393229166666664,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.055989583333333336,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.05642361111111111,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 962.0909999357536,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "acq_fft": {
+          "ber": {
+            "mean": 0.056315104166666664,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.011393229166666664,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.055989583333333336,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.05642361111111111,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 623.7323499517515,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct": {
+          "ber": {
+            "mean": 0.047526041666666664,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.009765625,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.049479166666666664,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.046875,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 976.489374996163,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_fft": {
+          "ber": {
+            "mean": 0.047526041666666664,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.009765625,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.049479166666666664,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.046875,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 549.0099500166252,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "paired": {
+        "acq_direct_minus_acq_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct_minus_pilot_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9759639233012053,
+        "ci95": null,
+        "sessions": 1
+      }
+    },
+    "10": {
+      "arms": {
+        "acq_direct": {
+          "ber": {
+            "mean": 0.007161458333333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.008463541666666668,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.005208333333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0078125,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 977.9644248774275,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "acq_fft": {
+          "ber": {
+            "mean": 0.007161458333333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.008463541666666668,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.005208333333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0078125,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 543.5724999988452,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct": {
+          "ber": {
+            "mean": 0.0068359375,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.006184895833333334,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.005208333333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.007378472222222222,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 975.8559251204133,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_fft": {
+          "ber": {
+            "mean": 0.0068359375,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.006184895833333334,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.005208333333333333,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.007378472222222222,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 553.8145999889821,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "paired": {
+        "acq_direct_minus_acq_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct_minus_pilot_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.97580995838279,
+        "ci95": null,
+        "sessions": 1
+      }
+    },
+    "15": {
+      "arms": {
+        "acq_direct": {
+          "ber": {
+            "mean": 0.0009765625,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.0016276041666666665,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0013020833333333333,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 982.2558750165626,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "acq_fft": {
+          "ber": {
+            "mean": 0.0009765625,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.0016276041666666665,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.0013020833333333333,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 561.506574973464,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct": {
+          "ber": {
+            "mean": 0.0013020833333333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.002604166666666667,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.001736111111111111,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 1046.1495999479666,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_fft": {
+          "ber": {
+            "mean": 0.0013020833333333333,
+            "ci95": null,
+            "sessions": 1
+          },
+          "early_minus_late_ber": {
+            "mean": -0.002604166666666667,
+            "ci95": null,
+            "sessions": 1
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.0,
+              "ci95": null,
+              "sessions": 1
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.001736111111111111,
+              "ci95": null,
+              "sessions": 1
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 592.2883250750601,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "paired": {
+        "acq_direct_minus_acq_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        },
+        "pilot_direct_minus_pilot_fft": {
+          "gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          },
+          "positive_sessions": 0,
+          "late_minus_early_gain": {
+            "mean": 0.0,
+            "ci95": null,
+            "sessions": 1
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 0.9755126778915968,
+        "ci95": null,
+        "sessions": 1
+      }
+    }
+  }
+}
