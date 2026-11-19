@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+当前开发分支为 `continual-equalization-v2`；优先遵循 [AGENTS.md](AGENTS.md) 的新分支说明、[用户确认路线](docs/研究点二_第一性原理审视与研究路线_20261119.md)和[执行记录](docs/continual_equalization_v2_progress_20261119.md)。以下物理快照内容描述历史 `bayes-cir`，不代表新方法已确认。
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 项目定位

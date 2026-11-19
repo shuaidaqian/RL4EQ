@@ -58,3 +58,5 @@ python scripts/summarize_continual_receiver.py --input docs/results/continual_v2
 ```
 
 最近一次可核实运行句柄：工具 exec session `51194`。结果每 8 帧原子保存，文件 `status=running` 本身不足以证明进程仍活跃，须检查句柄或实际进程。完成后记录完整结果并更新本节。
+
+截至本次中间记录，0 dB 的前两个完整会话已出现相反方向的 Pilot 递归增量，不能据首个会话升级方案；噪声估计均接近生成方差。先完成全部预定会话，再结合状态误差/协方差诊断决定修正，不删除负向 seed。
