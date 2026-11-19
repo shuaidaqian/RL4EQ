@@ -26,6 +26,8 @@ def validate_variants(manifest):
             raise ValueError('未知相位估计器。')
         if row.get('operator_backend', 'direct') not in {'direct', 'fft'}:
             raise ValueError('线性算子后端须为 direct 或 fft。')
+        if row.get('phase_reference_backend', 'vectorized') not in {'legacy', 'vectorized'}:
+            raise ValueError('相位参考实现须为 legacy 或 vectorized。')
         noise = row.get('process_noise', 1e-4)
         if not isinstance(noise, (float, int)) or not math.isfinite(noise) or noise < 0:
             raise ValueError('过程噪声须为非负有限数。')

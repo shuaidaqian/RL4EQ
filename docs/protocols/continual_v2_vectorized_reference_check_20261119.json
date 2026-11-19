@@ -1,0 +1,51 @@
+{
+  "description": "新会话完整轨迹检验相位参考向量化；不减少观测或CG迭代。本开发核查采用最大logit差<=0.005及记录到的Data判决全部一致作为后续使用门槛，不宣称任意输入逐位等价。",
+  "acceptance": {
+    "max_abs_logit_difference": 0.005,
+    "total_data_disagreements": 0
+  },
+  "variants": [
+    {
+      "name": "recursive_pilot_legacy",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "legacy",
+      "operator_backend": "fft"
+    },
+    {
+      "name": "recursive_pilot_vectorized",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft"
+    },
+    {
+      "name": "recursive_soft_legacy",
+      "arm": "recursive_soft",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "legacy",
+      "operator_backend": "fft"
+    },
+    {
+      "name": "recursive_soft_vectorized",
+      "arm": "recursive_soft",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft"
+    }
+  ],
+  "pairs": [
+    [
+      "recursive_pilot_legacy",
+      "recursive_pilot_vectorized"
+    ],
+    [
+      "recursive_soft_legacy",
+      "recursive_soft_vectorized"
+    ]
+  ]
+}

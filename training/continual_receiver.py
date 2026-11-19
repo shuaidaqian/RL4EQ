@@ -191,7 +191,8 @@ def make_receiver_context(frame, mean, tail, noise, features):
 class ContinualReceiver:
     """每帧一次前向；Pilot 只更新一次，Data 只影响后续帧。"""
 
-    def __init__(self, acquisition, tail, *, arm, process_noise=1e-4, phase_estimator="unwrap_median"):
+    def __init__(self, acquisition, tail, *, arm, process_noise=1e-4, phase_estimator="unwrap_median",
+                 phase_reference_backend="vectorized"):
         if arm not in ARMS or not math.isfinite(process_noise) or process_noise < 0:
             raise ValueError("接收臂或过程噪声非法。")
         self.acquisition, self.arm = acquisition, arm
@@ -202,6 +203,9 @@ class ContinualReceiver:
         if phase_estimator not in {"unwrap_median", "circular_all", "circular_clean"}:
             raise ValueError("未知相位估计方法。")
         self.phase_estimator = phase_estimator
+        if phase_reference_backend not in {"legacy", "vectorized"}:
+            raise ValueError("未知相位参考计算实现。")
+        self.phase_reference_backend = phase_reference_backend
         self.frames_seen = 0
 
     def _phase_features(self, frame, mean):
@@ -209,7 +213,7 @@ class ContinualReceiver:
             return phase_features(frame, mean, self.tail, self.acquisition.cfo)
         from training.continual_phase import circular_phase_features
         return circular_phase_features(frame, mean, self.tail, self.acquisition.cfo,
-                                       clean_rows=self.phase_estimator == "circular_clean")
+            clean_rows=self.phase_estimator == "circular_clean", reference_backend=self.phase_reference_backend)
 
     def step(self, model, frame):
         if frame.true_cir is not None or frame.tail_symbols is not None or bool(frame.bits.any()):

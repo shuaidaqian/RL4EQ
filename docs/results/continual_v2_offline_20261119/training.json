@@ -1,0 +1,1850 @@
+{
+  "protocol": {
+    "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+    "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+    "seeds": [
+      212001,
+      212002,
+      212003,
+      212004,
+      212005,
+      212006,
+      212007,
+      212008,
+      212009,
+      212010,
+      212011,
+      212012,
+      212013,
+      212014,
+      212015,
+      212016,
+      212017,
+      212018,
+      212019,
+      212020,
+      212021,
+      212022,
+      212023,
+      212024
+    ],
+    "training_seeds": [
+      401001,
+      401002,
+      401003
+    ],
+    "frames": 8,
+    "sample_frames": [
+      0,
+      1,
+      3,
+      7
+    ],
+    "learning_rate": 0.0001,
+    "process_noise": 0.0001,
+    "phase_estimator": "circular_all",
+    "operator_backend": "fft",
+    "experiment": "p3_matched_offline_finetune_3repeats_32updates",
+    "output_dir": "pretrained/continual_v2_p3_20261119",
+    "report": "docs/results/continual_v2_offline_20261119/training.json",
+    "device": "cuda",
+    "role": "training",
+    "repeats": 3,
+    "episodes_per_repeat": 8,
+    "methods": [
+      "acquisition",
+      "recursive_pilot"
+    ],
+    "snr_schedule": [
+      0,
+      5,
+      10,
+      15,
+      0,
+      5,
+      10,
+      15
+    ],
+    "supervision": "仅离线 Data BCE，接收输入不含 Data/Reward 标签",
+    "trajectory": "每个会话内权重固定，轨迹结束后训练；历史状态截断梯度",
+    "inference_mode": "eval，保留梯度；在线部署权重冻结",
+    "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+    "checkpoint_sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4",
+    "git_commit": "f6cbeadeef6edfc1bc92b369468375d19d3c9496",
+    "sources": {
+      "training/continual_receiver.py": "ed34157c0db5eb4eeae1417191ceb0e2b33b782eb708d54e59148c3976f6121b",
+      "training/continual_offline.py": "83bb389304df5d75840f9affeef7ef9d030249de1999b4944a6af1f4e36a6102",
+      "scripts/train_continual_offline.py": "cab9d6806ed218a976d1a133626c6845b78775a63f455ed25e23cd9ecd14c74c",
+      "agent/unfolded_equalizer.py": "b86db3dd402b172e8c075303da75c632597bb3116f335e085aef8c89f10c72c8"
+    }
+  },
+  "rows": [
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 0,
+      "seed": 212001,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.43474122881889343,
+          "data_bits": 768,
+          "gradient_norm": 0.076212577521801
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.4248872995376587,
+          "data_bits": 768,
+          "gradient_norm": 0.10337865352630615
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.43448513746261597,
+          "data_bits": 768,
+          "gradient_norm": 0.058322105556726456
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.4276273250579834,
+          "data_bits": 768,
+          "gradient_norm": 0.10494741797447205
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 0,
+      "seed": 212001,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.4308634400367737,
+          "data_bits": 768,
+          "gradient_norm": 0.07524382323026657
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.42083773016929626,
+          "data_bits": 768,
+          "gradient_norm": 0.11990322172641754
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.4274841248989105,
+          "data_bits": 768,
+          "gradient_norm": 0.06112115457653999
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.42113766074180603,
+          "data_bits": 768,
+          "gradient_norm": 0.10210918635129929
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 1,
+      "seed": 212002,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.11168062686920166,
+          "data_bits": 768,
+          "gradient_norm": 0.016290323808789253
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.1245041936635971,
+          "data_bits": 768,
+          "gradient_norm": 0.03632344305515289
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.11238950490951538,
+          "data_bits": 768,
+          "gradient_norm": 0.14927813410758972
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.122589610517025,
+          "data_bits": 768,
+          "gradient_norm": 0.10284864157438278
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 1,
+      "seed": 212002,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.10521101206541061,
+          "data_bits": 768,
+          "gradient_norm": 0.021889962255954742
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.12376807630062103,
+          "data_bits": 768,
+          "gradient_norm": 0.044770125299692154
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.10523935407400131,
+          "data_bits": 768,
+          "gradient_norm": 0.13499228656291962
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.1160316988825798,
+          "data_bits": 768,
+          "gradient_norm": 0.08956924080848694
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 2,
+      "seed": 212003,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.012698955833911896,
+          "data_bits": 768,
+          "gradient_norm": 0.051433172076940536
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.00735004898160696,
+          "data_bits": 768,
+          "gradient_norm": 0.030414847657084465
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.003386753611266613,
+          "data_bits": 768,
+          "gradient_norm": 0.01065538078546524
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.006721151527017355,
+          "data_bits": 768,
+          "gradient_norm": 0.04709819704294205
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 2,
+      "seed": 212003,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.015206384472548962,
+          "data_bits": 768,
+          "gradient_norm": 0.04260784015059471
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.0053934152238070965,
+          "data_bits": 768,
+          "gradient_norm": 0.04841116815805435
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0036603377666324377,
+          "data_bits": 768,
+          "gradient_norm": 0.033852674067020416
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.003987736068665981,
+          "data_bits": 768,
+          "gradient_norm": 0.025728072971105576
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 3,
+      "seed": 212004,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.0023964704014360905,
+          "data_bits": 768,
+          "gradient_norm": 0.08022283017635345
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.01219614502042532,
+          "data_bits": 768,
+          "gradient_norm": 0.010027616284787655
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 1.5047838530790614e-08,
+          "data_bits": 768,
+          "gradient_norm": 5.942595180385979e-07
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 5.513377532295749e-10,
+          "data_bits": 768,
+          "gradient_norm": 4.51380044452776e-09
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 3,
+      "seed": 212004,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.006805214565247297,
+          "data_bits": 768,
+          "gradient_norm": 0.09088988602161407
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.014533545821905136,
+          "data_bits": 768,
+          "gradient_norm": 0.009874770417809486
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 1.8684097824461787e-08,
+          "data_bits": 768,
+          "gradient_norm": 8.170872547452745e-07
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 6.862902246496105e-09,
+          "data_bits": 768,
+          "gradient_norm": 3.770259127122699e-08
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 4,
+      "seed": 212005,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.42906004190444946,
+          "data_bits": 768,
+          "gradient_norm": 0.1084144338965416
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.42325934767723083,
+          "data_bits": 768,
+          "gradient_norm": 0.1328236311674118
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.4199194312095642,
+          "data_bits": 768,
+          "gradient_norm": 0.079313725233078
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.4163047969341278,
+          "data_bits": 768,
+          "gradient_norm": 0.07741356641054153
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 4,
+      "seed": 212005,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.41520628333091736,
+          "data_bits": 768,
+          "gradient_norm": 0.10034465789794922
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.42038142681121826,
+          "data_bits": 768,
+          "gradient_norm": 0.13552126288414001
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.413921058177948,
+          "data_bits": 768,
+          "gradient_norm": 0.07946166396141052
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.403902143239975,
+          "data_bits": 768,
+          "gradient_norm": 0.07919245213270187
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 5,
+      "seed": 212006,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.09939664602279663,
+          "data_bits": 768,
+          "gradient_norm": 0.061553411185741425
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.13900704681873322,
+          "data_bits": 768,
+          "gradient_norm": 0.022482413798570633
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.10749289393424988,
+          "data_bits": 768,
+          "gradient_norm": 0.02410256676375866
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.10436594486236572,
+          "data_bits": 768,
+          "gradient_norm": 0.07437728345394135
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 5,
+      "seed": 212006,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.08604037761688232,
+          "data_bits": 768,
+          "gradient_norm": 0.02862246334552765
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.13468784093856812,
+          "data_bits": 768,
+          "gradient_norm": 0.025997532531619072
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.09841813892126083,
+          "data_bits": 768,
+          "gradient_norm": 0.018962321802973747
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.09952279180288315,
+          "data_bits": 768,
+          "gradient_norm": 0.07379373908042908
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 6,
+      "seed": 212007,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.035399969667196274,
+          "data_bits": 768,
+          "gradient_norm": 0.00904669426381588
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.023544173687696457,
+          "data_bits": 768,
+          "gradient_norm": 0.13626325130462646
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.028333276510238647,
+          "data_bits": 768,
+          "gradient_norm": 0.014927479438483715
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.024283280596137047,
+          "data_bits": 768,
+          "gradient_norm": 0.04914714768528938
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 6,
+      "seed": 212007,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.029964139685034752,
+          "data_bits": 768,
+          "gradient_norm": 0.03052031807601452
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.02321602962911129,
+          "data_bits": 768,
+          "gradient_norm": 0.13005630671977997
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.027500808238983154,
+          "data_bits": 768,
+          "gradient_norm": 0.00685605313628912
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.027995333075523376,
+          "data_bits": 768,
+          "gradient_norm": 0.0061944532208144665
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 7,
+      "seed": 212008,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.015267211943864822,
+          "data_bits": 768,
+          "gradient_norm": 0.010578005574643612
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.0003193597076460719,
+          "data_bits": 768,
+          "gradient_norm": 0.028159070760011673
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.014306793920695782,
+          "data_bits": 768,
+          "gradient_norm": 0.10177276283502579
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 1.797133154468611e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.0012864882592111826
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 0,
+      "training_seed": 401001,
+      "episode": 7,
+      "seed": 212008,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.003919088281691074,
+          "data_bits": 768,
+          "gradient_norm": 0.024293115362524986
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 4.2145209590671584e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.00422673299908638
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.013666816055774689,
+          "data_bits": 768,
+          "gradient_norm": 0.009456099942326546
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 9.039331780513749e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.0060567548498511314
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 0,
+      "seed": 212009,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.46263062953948975,
+          "data_bits": 768,
+          "gradient_norm": 0.06978236138820648
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.42660582065582275,
+          "data_bits": 768,
+          "gradient_norm": 0.08860907703638077
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.44355377554893494,
+          "data_bits": 768,
+          "gradient_norm": 0.053276125341653824
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.4201016128063202,
+          "data_bits": 768,
+          "gradient_norm": 0.05929668992757797
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 0,
+      "seed": 212009,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 0.45807504653930664,
+          "data_bits": 768,
+          "gradient_norm": 0.07245496660470963
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.4158822000026703,
+          "data_bits": 768,
+          "gradient_norm": 0.08928531408309937
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.441906213760376,
+          "data_bits": 768,
+          "gradient_norm": 0.055695511400699615
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.4083477258682251,
+          "data_bits": 768,
+          "gradient_norm": 0.0588388666510582
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 1,
+      "seed": 212010,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.17410866916179657,
+          "data_bits": 768,
+          "gradient_norm": 0.08453113585710526
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.11518203467130661,
+          "data_bits": 768,
+          "gradient_norm": 0.13543486595153809
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.1339207887649536,
+          "data_bits": 768,
+          "gradient_norm": 0.019363954663276672
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.13427874445915222,
+          "data_bits": 768,
+          "gradient_norm": 0.21543052792549133
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 1,
+      "seed": 212010,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.1602114588022232,
+          "data_bits": 768,
+          "gradient_norm": 0.08246346563100815
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.11598266661167145,
+          "data_bits": 768,
+          "gradient_norm": 0.17485450208187103
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.1300237476825714,
+          "data_bits": 768,
+          "gradient_norm": 0.016428910195827484
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.13346074521541595,
+          "data_bits": 768,
+          "gradient_norm": 0.16783097386360168
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 2,
+      "seed": 212011,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.02158661186695099,
+          "data_bits": 768,
+          "gradient_norm": 0.0442274734377861
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.008470732718706131,
+          "data_bits": 768,
+          "gradient_norm": 0.005926233716309071
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0056384252384305,
+          "data_bits": 768,
+          "gradient_norm": 0.016387687996029854
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.016653597354888916,
+          "data_bits": 768,
+          "gradient_norm": 0.015000870451331139
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 2,
+      "seed": 212011,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.016554828733205795,
+          "data_bits": 768,
+          "gradient_norm": 0.022443756461143494
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.007183673791587353,
+          "data_bits": 768,
+          "gradient_norm": 0.02060624025762081
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.007472643628716469,
+          "data_bits": 768,
+          "gradient_norm": 0.028284601867198944
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.010021763853728771,
+          "data_bits": 768,
+          "gradient_norm": 0.017759378999471664
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 3,
+      "seed": 212012,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 1.2645898325898408e-13,
+          "data_bits": 768,
+          "gradient_norm": 5.578168135733641e-13
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 5.353619023790168e-13,
+          "data_bits": 768,
+          "gradient_norm": 1.921929143611223e-10
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 3.3403237011953024e-06,
+          "data_bits": 768,
+          "gradient_norm": 3.61870952474419e-05
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 6.537993044730683e-07,
+          "data_bits": 768,
+          "gradient_norm": 9.702126590127591e-06
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 3,
+      "seed": 212012,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 0,
+          "data_bce": 1.6201506824499445e-13,
+          "data_bits": 768,
+          "gradient_norm": 1.712987932923904e-13
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 7.552221001350112e-12,
+          "data_bits": 768,
+          "gradient_norm": 1.3155400380160387e-10
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 2.66890820057597e-05,
+          "data_bits": 768,
+          "gradient_norm": 0.00014232692774385214
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 2.6645197976904456e-06,
+          "data_bits": 768,
+          "gradient_norm": 3.338038004585542e-05
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 4,
+      "seed": 212013,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.4414260983467102,
+          "data_bits": 768,
+          "gradient_norm": 0.06424755603075027
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.43579623103141785,
+          "data_bits": 768,
+          "gradient_norm": 0.06136685237288475
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.4626438021659851,
+          "data_bits": 768,
+          "gradient_norm": 0.09526745229959488
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.45417916774749756,
+          "data_bits": 768,
+          "gradient_norm": 0.13915355503559113
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 4,
+      "seed": 212013,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.4349198043346405,
+          "data_bits": 768,
+          "gradient_norm": 0.06476413458585739
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.4331889748573303,
+          "data_bits": 768,
+          "gradient_norm": 0.06272813677787781
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.4571602940559387,
+          "data_bits": 768,
+          "gradient_norm": 0.08826220035552979
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.444476455450058,
+          "data_bits": 768,
+          "gradient_norm": 0.13292934000492096
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 5,
+      "seed": 212014,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.1257423609495163,
+          "data_bits": 768,
+          "gradient_norm": 0.015211689285933971
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.13951115310192108,
+          "data_bits": 768,
+          "gradient_norm": 0.020929565653204918
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.11208926886320114,
+          "data_bits": 768,
+          "gradient_norm": 0.014147981069982052
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.10755869001150131,
+          "data_bits": 768,
+          "gradient_norm": 0.02651432901620865
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 5,
+      "seed": 212014,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.11984177678823471,
+          "data_bits": 768,
+          "gradient_norm": 0.014522792771458626
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.1299818754196167,
+          "data_bits": 768,
+          "gradient_norm": 0.022902561351656914
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.11165903508663177,
+          "data_bits": 768,
+          "gradient_norm": 0.0133525924757123
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.10381585359573364,
+          "data_bits": 768,
+          "gradient_norm": 0.03338273987174034
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 6,
+      "seed": 212015,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.006537215318530798,
+          "data_bits": 768,
+          "gradient_norm": 0.01779520884156227
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.017332574352622032,
+          "data_bits": 768,
+          "gradient_norm": 0.093255415558815
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.026348954066634178,
+          "data_bits": 768,
+          "gradient_norm": 0.0037177104968577623
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.014593052677810192,
+          "data_bits": 768,
+          "gradient_norm": 0.015970032662153244
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 6,
+      "seed": 212015,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.008068784140050411,
+          "data_bits": 768,
+          "gradient_norm": 0.012487501837313175
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.014961935579776764,
+          "data_bits": 768,
+          "gradient_norm": 0.07371655106544495
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.01856931671500206,
+          "data_bits": 768,
+          "gradient_norm": 0.08265670388936996
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.0187041237950325,
+          "data_bits": 768,
+          "gradient_norm": 0.03456006571650505
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 7,
+      "seed": 212016,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.010961886495351791,
+          "data_bits": 768,
+          "gradient_norm": 0.0031774044036865234
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 1.2712284558347164e-09,
+          "data_bits": 768,
+          "gradient_norm": 5.553450677098226e-08
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.028827888891100883,
+          "data_bits": 768,
+          "gradient_norm": 0.02780340239405632
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.0003108044038526714,
+          "data_bits": 768,
+          "gradient_norm": 0.008571269921958447
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 1,
+      "training_seed": 401002,
+      "episode": 7,
+      "seed": 212016,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.004383616615086794,
+          "data_bits": 768,
+          "gradient_norm": 0.016386695206165314
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 2.4994011305068398e-09,
+          "data_bits": 768,
+          "gradient_norm": 8.850691557427126e-08
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.027737533673644066,
+          "data_bits": 768,
+          "gradient_norm": 0.032242801040410995
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.0019124515820294619,
+          "data_bits": 768,
+          "gradient_norm": 0.032924357801675797
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 0,
+      "seed": 212017,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.46490272879600525,
+          "data_bits": 768,
+          "gradient_norm": 0.05641759932041168
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.4750635027885437,
+          "data_bits": 768,
+          "gradient_norm": 0.03363942727446556
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.4570087790489197,
+          "data_bits": 768,
+          "gradient_norm": 0.04798354580998421
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.48129820823669434,
+          "data_bits": 768,
+          "gradient_norm": 0.09151707589626312
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 0,
+      "seed": 212017,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.45566076040267944,
+          "data_bits": 768,
+          "gradient_norm": 0.04201812297105789
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.4635177552700043,
+          "data_bits": 768,
+          "gradient_norm": 0.0406867079436779
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.4517992436885834,
+          "data_bits": 768,
+          "gradient_norm": 0.04718002304434776
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.4708244800567627,
+          "data_bits": 768,
+          "gradient_norm": 0.08395057916641235
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 1,
+      "seed": 212018,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.10296496003866196,
+          "data_bits": 768,
+          "gradient_norm": 0.09056805074214935
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.11912614107131958,
+          "data_bits": 768,
+          "gradient_norm": 0.05215992033481598
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.09625224769115448,
+          "data_bits": 768,
+          "gradient_norm": 0.06991293281316757
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.10719262063503265,
+          "data_bits": 768,
+          "gradient_norm": 0.04512540251016617
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 1,
+      "seed": 212018,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.1009264588356018,
+          "data_bits": 768,
+          "gradient_norm": 0.09248415380716324
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.10788685083389282,
+          "data_bits": 768,
+          "gradient_norm": 0.033109698444604874
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.09339918196201324,
+          "data_bits": 768,
+          "gradient_norm": 0.07100393623113632
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.09447406977415085,
+          "data_bits": 768,
+          "gradient_norm": 0.034616079181432724
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 2,
+      "seed": 212019,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.0039382027462124825,
+          "data_bits": 768,
+          "gradient_norm": 0.03431572765111923
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.014132283627986908,
+          "data_bits": 768,
+          "gradient_norm": 0.009807061403989792
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.016105879098176956,
+          "data_bits": 768,
+          "gradient_norm": 0.032435186207294464
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.009397979825735092,
+          "data_bits": 768,
+          "gradient_norm": 0.0794440284371376
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 2,
+      "seed": 212019,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.002869507297873497,
+          "data_bits": 768,
+          "gradient_norm": 0.02481938526034355
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.015133494511246681,
+          "data_bits": 768,
+          "gradient_norm": 0.009278539568185806
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.018189439550042152,
+          "data_bits": 768,
+          "gradient_norm": 0.027112234383821487
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.006678759586066008,
+          "data_bits": 768,
+          "gradient_norm": 0.08203872293233871
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 3,
+      "seed": 212020,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.004756872076541185,
+          "data_bits": 768,
+          "gradient_norm": 0.1117917001247406
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.012924822978675365,
+          "data_bits": 768,
+          "gradient_norm": 0.14021876454353333
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.001350535312667489,
+          "data_bits": 768,
+          "gradient_norm": 0.029049819335341454
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.011632165871560574,
+          "data_bits": 768,
+          "gradient_norm": 0.11782018095254898
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 3,
+      "seed": 212020,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.004538764711469412,
+          "data_bits": 768,
+          "gradient_norm": 0.0444771945476532
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.010329019278287888,
+          "data_bits": 768,
+          "gradient_norm": 0.13209326565265656
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.0023101773113012314,
+          "data_bits": 768,
+          "gradient_norm": 0.08908095955848694
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.011143740266561508,
+          "data_bits": 768,
+          "gradient_norm": 0.13394895195960999
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 4,
+      "seed": 212021,
+      "snr_db": 0,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.4360530376434326,
+          "data_bits": 768,
+          "gradient_norm": 0.06880570948123932
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.44289061427116394,
+          "data_bits": 768,
+          "gradient_norm": 0.07643605768680573
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.433142751455307,
+          "data_bits": 768,
+          "gradient_norm": 0.07181970030069351
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.4365670680999756,
+          "data_bits": 768,
+          "gradient_norm": 0.0926288291811943
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 4,
+      "seed": 212021,
+      "snr_db": 0,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 3,
+          "data_bce": 0.43287765979766846,
+          "data_bits": 768,
+          "gradient_norm": 0.07408511638641357
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.4401366412639618,
+          "data_bits": 768,
+          "gradient_norm": 0.07647450268268585
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.4277738034725189,
+          "data_bits": 768,
+          "gradient_norm": 0.07345758378505707
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.4305838942527771,
+          "data_bits": 768,
+          "gradient_norm": 0.09552411735057831
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 5,
+      "seed": 212022,
+      "snr_db": 5,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.10570081323385239,
+          "data_bits": 768,
+          "gradient_norm": 0.01437904592603445
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.10402067005634308,
+          "data_bits": 768,
+          "gradient_norm": 0.02404545433819294
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.08610507845878601,
+          "data_bits": 768,
+          "gradient_norm": 0.048489537090063095
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.11817296594381332,
+          "data_bits": 768,
+          "gradient_norm": 0.10811068117618561
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 5,
+      "seed": 212022,
+      "snr_db": 5,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 7,
+          "data_bce": 0.09328433126211166,
+          "data_bits": 768,
+          "gradient_norm": 0.019964702427387238
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.103463314473629,
+          "data_bits": 768,
+          "gradient_norm": 0.024981092661619186
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0857587605714798,
+          "data_bits": 768,
+          "gradient_norm": 0.059328094124794006
+        },
+        {
+          "frame_index": 1,
+          "data_bce": 0.11718177795410156,
+          "data_bits": 768,
+          "gradient_norm": 0.09302061051130295
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 6,
+      "seed": 212023,
+      "snr_db": 10,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.011496497318148613,
+          "data_bits": 768,
+          "gradient_norm": 0.02451341226696968
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.0074900127947330475,
+          "data_bits": 768,
+          "gradient_norm": 0.006919806357473135
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.006369070615619421,
+          "data_bits": 768,
+          "gradient_norm": 0.057395514100790024
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.004471298307180405,
+          "data_bits": 768,
+          "gradient_norm": 0.004857196938246489
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 6,
+      "seed": 212023,
+      "snr_db": 10,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.00588628463447094,
+          "data_bits": 768,
+          "gradient_norm": 0.01204861979931593
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 0.007418637629598379,
+          "data_bits": 768,
+          "gradient_norm": 0.003651389153674245
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 0.0039057645481079817,
+          "data_bits": 768,
+          "gradient_norm": 0.06714731454849243
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 0.0033841324038803577,
+          "data_bits": 768,
+          "gradient_norm": 0.014454000629484653
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 7,
+      "seed": 212024,
+      "snr_db": 15,
+      "method": "acquisition",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.013281777501106262,
+          "data_bits": 768,
+          "gradient_norm": 0.09365908056497574
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 5.739332920029483e-08,
+          "data_bits": 768,
+          "gradient_norm": 6.13939391769236e-07
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 1.5328085467558594e-09,
+          "data_bits": 768,
+          "gradient_norm": 6.391534412841793e-08
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 9.87356984366583e-12,
+          "data_bits": 768,
+          "gradient_norm": 7.045333066946213e-11
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    },
+    {
+      "repeat": 2,
+      "training_seed": 401003,
+      "episode": 7,
+      "seed": 212024,
+      "snr_db": 15,
+      "method": "recursive_pilot",
+      "metrics": [
+        {
+          "frame_index": 1,
+          "data_bce": 0.015381673350930214,
+          "data_bits": 768,
+          "gradient_norm": 0.08694659918546677
+        },
+        {
+          "frame_index": 7,
+          "data_bce": 5.241067810857203e-07,
+          "data_bits": 768,
+          "gradient_norm": 1.5468061747014872e-06
+        },
+        {
+          "frame_index": 3,
+          "data_bce": 1.3055592162913854e-09,
+          "data_bits": 768,
+          "gradient_norm": 1.1264059907034607e-07
+        },
+        {
+          "frame_index": 0,
+          "data_bce": 7.32602433578533e-12,
+          "data_bits": 768,
+          "gradient_norm": 6.053830214902689e-10
+        }
+      ],
+      "rollout_forwards": 8,
+      "gradient_forwards": 4
+    }
+  ],
+  "checkpoints": [
+    {
+      "repeat": 0,
+      "method": "acquisition",
+      "path": "pretrained\\continual_v2_p3_20261119\\repeat0_acquisition.pt",
+      "sha256": "302dffb0f603e469d9a4f647e24489b2121209efd2eae76d3dac75e546cb34d7"
+    },
+    {
+      "repeat": 0,
+      "method": "recursive_pilot",
+      "path": "pretrained\\continual_v2_p3_20261119\\repeat0_recursive_pilot.pt",
+      "sha256": "105a3675f5632ac2aa88cf80ac0fee87d449d56dc493bd26b2c4db8710047b2f"
+    },
+    {
+      "repeat": 1,
+      "method": "acquisition",
+      "path": "pretrained\\continual_v2_p3_20261119\\repeat1_acquisition.pt",
+      "sha256": "3aa07ac6d68d6a0c5580d592d2e5b65c2b7f7da512d9d49708af1cf551167796"
+    },
+    {
+      "repeat": 1,
+      "method": "recursive_pilot",
+      "path": "pretrained\\continual_v2_p3_20261119\\repeat1_recursive_pilot.pt",
+      "sha256": "a3524208d8de423880eab04cec87c1134be3dbe832f255b6e9b3e5f3d8676078"
+    },
+    {
+      "repeat": 2,
+      "method": "acquisition",
+      "path": "pretrained\\continual_v2_p3_20261119\\repeat2_acquisition.pt",
+      "sha256": "e5c50fde5c7923547440a53dcc848fbecc1b2eafc8e1d7549f130ed011feae4e"
+    },
+    {
+      "repeat": 2,
+      "method": "recursive_pilot",
+      "path": "pretrained\\continual_v2_p3_20261119\\repeat2_recursive_pilot.pt",
+      "sha256": "3bc99e5884f26281cb8855bde3ca3db7c6f474c741e0e08042787f6cdad52faf"
+    }
+  ],
+  "status": "completed"
+}

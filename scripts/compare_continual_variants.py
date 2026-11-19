@@ -100,7 +100,8 @@ def main():
                                       covariance=acquisition.covariance.to(device))
                 receivers = {row['name']:ContinualReceiver(acquisition, start.initial_soft_tail.to(device),
                     arm=row['arm'], process_noise=row.get('process_noise', 1e-4),
-                    phase_estimator=row.get('phase_estimator', 'unwrap_median')) for row in variants}
+                    phase_estimator=row.get('phase_estimator', 'unwrap_median'),
+                    phase_reference_backend=row.get('phase_reference_backend', 'vectorized')) for row in variants}
                 for _ in range(args.frames):
                     original = frame_to_device(env.next_frame(), device)
                     visible = receiver_frame(original)
