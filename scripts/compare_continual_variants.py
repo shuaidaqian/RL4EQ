@@ -48,11 +48,16 @@ def main():
     parser.add_argument('--experiment', required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--device', default='cuda')
+    parser.add_argument('--stream-rows', action='store_true',
+                        help='将逐帧结果追加到 JSONL，主 JSON 只保存协议与状态。')
+    parser.add_argument('--checkpoint-interval', type=int, default=8,
+                        help='按多少帧原子保存一次；流式长会话可设为较大值。')
     args = parser.parse_args()
-    if args.frames < 1 or not args.snrs or len(set(args.snrs)) != len(args.snrs):
+    if args.frames < 1 or args.checkpoint_interval < 1 or not args.snrs or len(set(args.snrs)) != len(args.snrs):
         parser.error('需要正帧数和互异的 SNR。')
     output = Path(args.output)
-    if output.exists():
+    rows_output = output.with_suffix('.jsonl')
+    if output.exists() or (args.stream_rows and rows_output.exists()):
         raise ValueError('禁止覆盖或隐式重跑旧实验。')
     config = json.loads(Path(args.config).read_text(encoding='utf8'))
     manifest = json.loads(Path(args.manifest).read_text(encoding='utf8'))
@@ -97,9 +102,26 @@ def main():
     reserve_seeds(ROOT, experiment=args.experiment, seeds=args.seeds, purpose='development', details=protocol)
     output.parent.mkdir(parents=True, exist_ok=True)
     result = dict(protocol=protocol, acquisitions=[], rows=[], status='running')
+    streamed_rows = 0
+    session_errors, session_bits = {}, {}
 
     def save():
-        result['summary'] = summarize(result['rows'])
+        nonlocal streamed_rows
+        if args.stream_rows:
+            if result['rows']:
+                with rows_output.open('a', encoding='utf8', newline='\n') as stream:
+                    for row in result['rows']:
+                        compact = {key:row[key] for key in (
+                            'seed', 'snr_db', 'frame_index', 'arm', 'errors', 'bits', 'elapsed_ms', 'rx_sha256',
+                        )}
+                        stream.write(json.dumps(compact, ensure_ascii=False, separators=(',', ':'))+'\n')
+                    stream.flush()
+                streamed_rows += len(result['rows'])
+                result['rows'] = []
+            result['rows_file'] = rows_output.name
+            result['row_count'] = streamed_rows
+        else:
+            result['summary'] = summarize(result['rows'])
         temporary = output.with_suffix('.tmp')
         temporary.write_text(json.dumps(result, ensure_ascii=False, indent=2)+'\n', encoding='utf8')
         temporary.replace(output)
@@ -158,6 +180,9 @@ def main():
                         # 接收已结束，以下全部为事后评分，不回流任何更新。
                         mask = original.data_mask
                         errors = int(((logits[mask]>=0) != original.bits[mask].bool()).sum())
+                        session_key = (snr, seed, name)
+                        session_errors[session_key] = session_errors.get(session_key, 0) + errors
+                        session_bits[session_key] = session_bits.get(session_key, 0) + int(mask.sum())
                         estimate = diagnostics.pop('decode_cir')
                         truth = original.true_cir.flatten()
                         scoring = receiver_diagnostics(logits, original.bits, mask, estimate, truth)
@@ -177,11 +202,12 @@ def main():
                             elapsed_ms=elapsed, model_calls=decoder.calls-before, **scoring,
                             paired_logits_diagnostic=paired_logits,
                             noise_variance_used=acquisition.noise_variance, rx_sha256=rx_hash, **diagnostics))
-                    if original.frame_index%8 == 0:
+                    if ((original.frame_index + 1) % args.checkpoint_interval == 0
+                            or original.frame_index + 1 == args.frames):
                         save()
                 save()
                 print(f'候选比较 SNR={snr} seed={seed} '+ ' '.join(
-                    f"{name}={result['summary'][str(snr)][name]['session_ber'][str(seed)]:.6f}"
+                    f"{name}={session_errors[(snr, seed, name)]/session_bits[(snr, seed, name)]:.6f}"
                     for name in receivers), flush=True)
         result['status'] = 'completed'
     except BaseException as exc:

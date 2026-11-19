@@ -20,6 +20,11 @@ def main():
     args = parser.parse_args()
     source = Path(args.input)
     result = json.loads(source.read_text(encoding="utf-8"))
+    if result.get('rows_file'):
+        rows_file = source.parent / result['rows_file']
+        if not rows_file.exists():
+            parser.error(f'流式帧结果文件不存在：{rows_file}')
+        result['rows'] = [json.loads(line) for line in rows_file.read_text(encoding='utf-8').splitlines() if line]
     summary = summarize_development(result)
     summary['analysis_source_sha256'] = hashlib.sha256(
         (ROOT/'evaluation/continual_summary.py').read_bytes()).hexdigest()
