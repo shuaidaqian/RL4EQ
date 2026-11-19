@@ -1,0 +1,421 @@
+{
+  "status": "development_descriptive_only",
+  "statistical_unit": "session",
+  "per_snr": {
+    "0": {
+      "arms": {
+        "acquisition_frozen_physics": {
+          "ber": {
+            "mean": 0.27339717863796686,
+            "ci95": [
+              0.25197279050637905,
+              0.2948215667695547
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": -0.20976222420194607,
+            "ci95": [
+              -0.2455777981317148,
+              -0.17394665027217734
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.1515625,
+              "ci95": [
+                0.13814179813819777,
+                0.1649832018618022
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.14921875,
+              "ci95": [
+                0.14172583195342825,
+                0.15671166804657177
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.14514973958333333,
+              "ci95": [
+                0.13597174339995177,
+                0.15432773576671488
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.14449869791666664,
+              "ci95": [
+                0.13721598497038281,
+                0.15178141086295047
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.14381510416666668,
+              "ci95": [
+                0.13598575537247393,
+                0.15164445296085943
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.144921875,
+              "ci95": [
+                0.13759375767972895,
+                0.15224999232027106
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 64,
+              "stop": 128,
+              "mean": 0.14923909505208333,
+              "ci95": [
+                0.14206071754207583,
+                0.15641747256209082
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 128,
+              "stop": 256,
+              "mean": 0.15217488606770832,
+              "ci95": [
+                0.14121319344644995,
+                0.1631365786889667
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 256,
+              "stop": 512,
+              "mean": 0.15514577229817708,
+              "ci95": [
+                0.144362428015914,
+                0.16592911658044016
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 512,
+              "stop": 1024,
+              "mean": 0.15992762247721357,
+              "ci95": [
+                0.14348703921994657,
+                0.17636820573448056
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1024,
+              "stop": 2048,
+              "mean": 0.1849365234375,
+              "ci95": [
+                0.1633369875847433,
+                0.2065360592902567
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 2048,
+              "stop": 4096,
+              "mean": 0.22828400929768877,
+              "ci95": [
+                0.2054499171033188,
+                0.2511181014920587
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4096,
+              "stop": 8192,
+              "mean": 0.27827205657958987,
+              "ci95": [
+                0.2509887908908822,
+                0.3055553222682975
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8192,
+              "stop": 11719,
+              "mean": 0.3536530322630186,
+              "ci95": [
+                0.32098880195778784,
+                0.38631726256824933
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 23.473771356009006,
+            "ci95": [
+              22.576228732099732,
+              24.37131397991828
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        },
+        "online_known_adapt_real_pilot": {
+          "ber": {
+            "mean": 0.11784209714637199,
+            "ci95": [
+              0.10668249070019416,
+              0.1290017035925498
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "early_minus_late_ber": {
+            "mean": 0.009343681539490153,
+            "ci95": [
+              -0.017015526469844246,
+              0.03570288954882456
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "windows": [
+            {
+              "start": 0,
+              "stop": 1,
+              "mean": 0.13802083333333331,
+              "ci95": [
+                0.12403867310128296,
+                0.15200299356538366
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1,
+              "stop": 4,
+              "mean": 0.13411458333333331,
+              "ci95": [
+                0.12654882840512924,
+                0.1416803382615374
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4,
+              "stop": 8,
+              "mean": 0.12649739583333333,
+              "ci95": [
+                0.11892051776658036,
+                0.1340742739000863
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8,
+              "stop": 16,
+              "mean": 0.12122395833333333,
+              "ci95": [
+                0.11501479663747866,
+                0.127433120029188
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 16,
+              "stop": 32,
+              "mean": 0.1161865234375,
+              "ci95": [
+                0.10851924241148625,
+                0.12385380446351374
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 32,
+              "stop": 64,
+              "mean": 0.11541748046875,
+              "ci95": [
+                0.1091295313253306,
+                0.1217054296121694
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 64,
+              "stop": 128,
+              "mean": 0.11620076497395834,
+              "ci95": [
+                0.10993664261106967,
+                0.12246488733684702
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 128,
+              "stop": 256,
+              "mean": 0.11598612467447915,
+              "ci95": [
+                0.10608599498188362,
+                0.12588625436707468
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 256,
+              "stop": 512,
+              "mean": 0.11275736490885417,
+              "ci95": [
+                0.1002706435722191,
+                0.12524408624548924
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 512,
+              "stop": 1024,
+              "mean": 0.10937652587890626,
+              "ci95": [
+                0.09064066657845754,
+                0.12811238517935497
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 1024,
+              "stop": 2048,
+              "mean": 0.11323725382486978,
+              "ci95": [
+                0.09345760141161145,
+                0.1330169062381281
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 2048,
+              "stop": 4096,
+              "mean": 0.11441809336344402,
+              "ci95": [
+                0.09994716587535543,
+                0.12888902085153262
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 4096,
+              "stop": 8192,
+              "mean": 0.11624778111775717,
+              "ci95": [
+                0.10544334169726338,
+                0.12705222053825097
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            },
+            {
+              "start": 8192,
+              "stop": 11719,
+              "mean": 0.1247063205864285,
+              "ci95": [
+                0.10391214138777165,
+                0.14550049978508534
+              ],
+              "sessions": 10,
+              "interval_status": "t_descriptive"
+            }
+          ],
+          "mean_elapsed_ms": {
+            "mean": 38.927151620086356,
+            "ci95": [
+              37.465067166016034,
+              40.38923607415668
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "paired": {
+        "acquisition_frozen_physics_minus_online_known_adapt_real_pilot": {
+          "gain": {
+            "mean": 0.15555508149159483,
+            "ci95": [
+              0.1389197442579415,
+              0.17219041872524815
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          },
+          "positive_sessions": 10,
+          "late_minus_early_gain": {
+            "mean": 0.21910590574143618,
+            "ci95": [
+              0.18022374641700095,
+              0.2579880650658714
+            ],
+            "sessions": 10,
+            "interval_status": "t_descriptive"
+          }
+        }
+      },
+      "noise_ratio": {
+        "mean": 1.0088619836451251,
+        "ci95": [
+          0.9901847119211716,
+          1.0275392553690788
+        ],
+        "sessions": 10,
+        "interval_status": "t_descriptive"
+      }
+    }
+  },
+  "checkpoint_status": "partial_p4_checkpoint; 0 dB complete, other SNRs still running",
+  "source_experiment_status": "running",
+  "source_result": "docs/results/continual_v2_long_session_20261119/coherence1200s_10x11719.json",
+  "source_jsonl": "docs/results/continual_v2_long_session_20261119/coherence1200s_10x11719.jsonl",
+  "source_jsonl_sha256_at_analysis": "513b0fa7bc8bab74ad4bfe1a69f627ad50726540d7d3ea93ace3fbfa94e8ffe0",
+  "verified_cells": 20,
+  "verified_frames_per_cell": 11719,
+  "waveform_pairing": "all 10 sessions × 11719 frames matched by rx_sha256",
+  "interpretation_limit": "中间开发分析；不代表四 SNR 完成，不是独立确认；分别检验 Online BER 自身趋势、Frozen 相对优势和饱和。"
+}
