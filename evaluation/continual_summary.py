@@ -49,7 +49,12 @@ def summarize_development(result):
     for snr in result["protocol"]["snrs"]:
         current = {"arms": {}, "paired": {}, "noise_ratio": None}
         seeds = result["protocol"]["seeds"]
-        edges = sorted(set(x for x in [0, 1, 4, 8, 16, 32, 64, 128, expected] if x <= expected))
+        window_edges = {0, 1, 4, 8, 16, 32, 64, 128, expected}
+        edge = 256
+        while edge < expected:
+            window_edges.add(edge)
+            edge *= 2
+        edges = sorted(x for x in window_edges if x <= expected)
         for arm in result["protocol"]["arms"]:
             frames = [groups[(snr, arm, seed)] for seed in seeds]
             window_values = [[ber(f, range(a, b)) for f in frames] for a, b in zip(edges, edges[1:])]

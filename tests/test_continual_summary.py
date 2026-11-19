@@ -42,3 +42,20 @@ def test_zero_observed_difference_cannot_prove_population_equivalence():
     assert result['mean'] == 0
     assert result['ci95'] is None
     assert result['interval_status'] == 'zero_empirical_variance_not_equivalence'
+
+
+def test_long_sessions_get_power_of_two_windows_through_observation_horizon():
+    result = result_fixture()
+    result['protocol']['frames'] = 256
+    result['protocol']['seeds'] = [1]
+    result['rows'] = []
+    for arm in result['protocol']['arms']:
+        for frame in range(256):
+            result['rows'].append({
+                'seed':1,'arm':arm,'snr_db':0,'frame_index':frame,
+                'errors':10,'bits':100,'rx_sha256':str(frame),'elapsed_ms':1.0,
+            })
+    windows = summarize_development(result)['per_snr']['0']['arms']['recursive_pilot']['windows']
+    assert [(x['start'],x['stop']) for x in windows] == [
+        (0,1),(1,4),(4,8),(8,16),(16,32),(32,64),(64,128),(128,256),
+    ]

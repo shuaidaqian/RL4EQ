@@ -1,0 +1,31 @@
+{
+  "description": "一倍当前 1200 s 相干时间的长会话开发轨迹；帧长 0.1024 s，11719 帧约 1200.0256 s。比较同源 acquisition-Frozen 物理均衡与 Pilot 递归 CIR + 合法已知 Adapt 实值物理均衡；每 SNR 十个独立会话，0/5/10/15 dB。保存全部帧 Data 错误数并按固定二次幂窗口审计 O/F/G；此设计检查当前物理假设下的完整时间轨迹，不预先宣称达到饱和。饱和容差和确认功效须用本轮开发估计后另行冻结。",
+  "variants": [
+    {
+      "name": "acquisition_frozen_physics",
+      "arm": "acquisition",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "physics_branch",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    },
+    {
+      "name": "online_known_adapt_real_pilot",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06
+    }
+  ],
+  "pairs": [
+    [
+      "acquisition_frozen_physics",
+      "online_known_adapt_real_pilot"
+    ]
+  ]
+}

@@ -1,0 +1,165 @@
+{
+  "protocol": {
+    "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+    "manifest": "docs/protocols/continual_v2_known_adapt_neural_screen_20261119.json",
+    "seeds": [
+      231001
+    ],
+    "frames": 8,
+    "snrs": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "state_split": "offline_train",
+    "experiment": "p2_streaming_writer_smoke_1x8",
+    "output": "docs/results/continual_v2_known_adapt_neural_20261119/streaming_writer_smoke_1x8.json",
+    "device": "cuda",
+    "stream_rows": true,
+    "checkpoint_interval": 4,
+    "variants": [
+      {
+        "name": "acquisition_physics_q1e6",
+        "arm": "acquisition",
+        "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+        "decoder": "physics_branch",
+        "phase_estimator": "circular_all",
+        "phase_reference_backend": "vectorized",
+        "operator_backend": "fft",
+        "process_noise": 1e-06
+      },
+      {
+        "name": "recursive_pilot_physics_q1e6",
+        "arm": "recursive_pilot",
+        "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+        "decoder": "physics_branch",
+        "phase_estimator": "circular_all",
+        "phase_reference_backend": "vectorized",
+        "operator_backend": "fft",
+        "process_noise": 1e-06
+      },
+      {
+        "name": "recursive_pilot_neural_legacy_input",
+        "arm": "recursive_pilot",
+        "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+        "decoder": "neural",
+        "context_source": "recursive_pilot_physics_q1e6",
+        "phase_estimator": "circular_all",
+        "phase_reference_backend": "vectorized",
+        "operator_backend": "fft",
+        "process_noise": 1e-06
+      },
+      {
+        "name": "recursive_pilot_known_adapt_real_physics",
+        "arm": "recursive_pilot",
+        "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+        "decoder": "known_adapt_real_physics",
+        "context_source": "recursive_pilot_physics_q1e6",
+        "phase_estimator": "circular_all",
+        "phase_reference_backend": "vectorized",
+        "operator_backend": "fft",
+        "process_noise": 1e-06
+      },
+      {
+        "name": "recursive_pilot_known_adapt_real_neural",
+        "arm": "recursive_pilot",
+        "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+        "decoder": "known_adapt_real_neural",
+        "context_source": "recursive_pilot_physics_q1e6",
+        "phase_estimator": "circular_all",
+        "phase_reference_backend": "vectorized",
+        "operator_backend": "fft",
+        "process_noise": 1e-06
+      }
+    ],
+    "arms": [
+      "acquisition_physics_q1e6",
+      "recursive_pilot_physics_q1e6",
+      "recursive_pilot_neural_legacy_input",
+      "recursive_pilot_known_adapt_real_physics",
+      "recursive_pilot_known_adapt_real_neural"
+    ],
+    "pairs": [
+      [
+        "acquisition_physics_q1e6",
+        "recursive_pilot_physics_q1e6"
+      ],
+      [
+        "recursive_pilot_physics_q1e6",
+        "recursive_pilot_neural_legacy_input"
+      ],
+      [
+        "recursive_pilot_physics_q1e6",
+        "recursive_pilot_known_adapt_real_physics"
+      ],
+      [
+        "recursive_pilot_neural_legacy_input",
+        "recursive_pilot_known_adapt_real_neural"
+      ],
+      [
+        "recursive_pilot_known_adapt_real_physics",
+        "recursive_pilot_known_adapt_real_neural"
+      ]
+    ],
+    "role": "development",
+    "noise_source": "acquisition_residual",
+    "statistical_unit": "session",
+    "timing": "current_pilot_then_decode",
+    "linear_operator_backend": "direct",
+    "torch_version": "2.11.0+cu128",
+    "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+    "manifest_sha256": "0e977cec2235dd5a47f03d347003ab01e93f9d9b802d8eb770549514ec9a3b1b",
+    "checkpoint_sha256": {
+      "D:\\Research\\02_研究点二_神经均衡\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4"
+    },
+    "git_commit": "807e0efa34fe9f68604612bbadc5faa694fc5ad4",
+    "sources": {
+      "training/continual_receiver.py": "281abf709f949244957b4eb07feed3f81cee166f4ec479d9b899b64546786b5c",
+      "training/continual_phase.py": "918470e6963c198d875cc4303474f973caa3757e5b2117bd350db47dce810ec7",
+      "evaluation/continual_variants.py": "3e7eabf34677817b9068bd9f9b62d77986bd37bee3bbe128f6f9b1198779b2f8",
+      "scripts/compare_continual_variants.py": "f8f1e3bb22b5705296574eb927764f310f27b50253cfbbfa25abe83b8e28c043",
+      "evaluation/receiver_diagnostics.py": "ed29b2bb94f14731298988a31d5f5fe5fe689827a9e13a545f60c49a31a1d9c4",
+      "agent/unfolded_equalizer.py": "cabc7006d53c1519047f91486a82453109f006f35d6e51bb65f41971087b1e07",
+      "env/linear_operator.py": "0b06279cbc0535c15446782f158af29aceafb452cdfec02d49cc5747dcf0bb1d"
+    }
+  },
+  "acquisitions": [
+    {
+      "seed": 231001,
+      "snr_db": 0,
+      "noise_estimate": 1.0504445823377477,
+      "noise_truth_diagnostic": 1.0,
+      "cfo_estimate": 0.00040854946261375364,
+      "cir_norm": 1.1123137474060059
+    },
+    {
+      "seed": 231001,
+      "snr_db": 5,
+      "noise_estimate": 0.3321532507304368,
+      "noise_truth_diagnostic": 0.31622776601683794,
+      "cfo_estimate": 0.0004077734207703431,
+      "cir_norm": 1.0462862253189087
+    },
+    {
+      "seed": 231001,
+      "snr_db": 10,
+      "noise_estimate": 0.10502179241336379,
+      "noise_truth_diagnostic": 0.1,
+      "cfo_estimate": 0.0004077859947061865,
+      "cir_norm": 1.0203073024749756
+    },
+    {
+      "seed": 231001,
+      "snr_db": 15,
+      "noise_estimate": 0.03320363269050195,
+      "noise_truth_diagnostic": 0.03162277660168379,
+      "cfo_estimate": 0.0004079426024618345,
+      "cir_norm": 1.0095555782318115
+    }
+  ],
+  "rows": [],
+  "status": "completed",
+  "rows_file": "streaming_writer_smoke_1x8.jsonl",
+  "row_count": 160
+}
