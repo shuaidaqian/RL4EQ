@@ -63,7 +63,12 @@ def main():
     for row in variants:
         checkpoint = str(Path(row['checkpoint']).resolve())
         if checkpoint not in cache:
-            cache[checkpoint], _ = _load_branch(Path(checkpoint), config, device)
+            cache[checkpoint], _ = _load_branch(
+                Path(checkpoint), config, device,
+                allow_real_bpsk_known_adapt_override=(
+                    row.get('decoder') == 'known_adapt_real_neural'
+                ),
+            )
         model = cache[checkpoint]
         decoder = row.get('decoder', 'neural')
         if decoder == 'neural':

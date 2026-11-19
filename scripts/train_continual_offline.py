@@ -46,6 +46,8 @@ def main():
     parser.add_argument('--process-noise', type=float, default=1e-4)
     parser.add_argument('--phase-estimator', choices=['unwrap_median', 'circular_all', 'circular_clean'], default='unwrap_median')
     parser.add_argument('--operator-backend', choices=['direct', 'fft'], default='direct')
+    parser.add_argument('--physics-real-bpsk-known-adapt', action='store_true',
+                        help='显式以合法已知 Adapt 和实值符号子空间构造物理 warm-start。')
     parser.add_argument('--experiment', required=True)
     parser.add_argument('--output-dir', required=True)
     parser.add_argument('--report', required=True)
@@ -72,8 +74,14 @@ def main():
     config = json.loads(Path(args.config).read_text(encoding='utf8'))
     model_config = UnfoldedConfig.from_dict(config['model'])
     payload = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
-    if model_config.to_dict() != UnfoldedConfig.from_dict(payload['model_config']).to_dict():
+    checkpoint_config = UnfoldedConfig.from_dict(payload['model_config'])
+    if model_config.to_dict() != checkpoint_config.to_dict():
         raise ValueError('禁止静默更改起始 checkpoint 模型配置。')
+    # 该开关不新增可学习参数；明确改变物理 warm-start 假设以适配离线训练。
+    model_config = replace(
+        model_config,
+        physics_real_bpsk_known_adapt=bool(args.physics_real_bpsk_known_adapt),
+    )
     protocol = dict(vars(args), role='training', repeats=repeats, episodes_per_repeat=episodes,
                     methods=['acquisition', 'recursive_pilot'], snr_schedule=[0, 5, 10, 15]*(episodes//4),
                     supervision='仅离线 Data BCE，接收输入不含 Data/Reward 标签',

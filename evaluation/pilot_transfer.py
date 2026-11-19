@@ -8,6 +8,7 @@ import json
 import math
 import os
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -90,11 +91,15 @@ def _metrics(logits, frame, mask):
     return ber, loss
 
 
-def _load_branch(path, config, device):
+def _load_branch(path, config, device, *, allow_real_bpsk_known_adapt_override=False):
     payload = torch.load(path, map_location="cpu", weights_only=False)
     model_config = UnfoldedConfig.from_dict(payload["model_config"])
-    if model_config.to_dict() != UnfoldedConfig.from_dict(config["model"]).to_dict():
-        raise ValueError("配对实验禁止静默覆盖 checkpoint 的模型配置。")
+    expected_config = UnfoldedConfig.from_dict(config["model"])
+    if model_config.to_dict() != expected_config.to_dict():
+        permitted_config = replace(expected_config, physics_real_bpsk_known_adapt=True)
+        if (not allow_real_bpsk_known_adapt_override
+                or model_config.to_dict() != permitted_config.to_dict()):
+            raise ValueError("配对实验禁止静默覆盖 checkpoint 的模型配置。")
     model = _build_equalizer(model_config, path, device)
     model.attach_online_phase_trend_adapter()
     model.eval()
