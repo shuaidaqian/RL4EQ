@@ -1498,6 +1498,453 @@
       "result": "docs\\results\\continual_v2_vectorized_reference_20261119\\paired_1x16.json",
       "result_sha256": "edf0b95c7ffa1757605ca36116d5282526fb548d0a390159597c1387d5806e0b",
       "acceptance": "本开发轨迹的logits与Data判决全部一致，通过预设使用门槛。"
+    },
+    {
+      "experiment": "p2_q_physics_vectorized_10x64",
+      "purpose": "development",
+      "seeds": [
+        223001,
+        223002,
+        223003,
+        223004,
+        223005,
+        223006,
+        223007,
+        223008,
+        223009,
+        223010
+      ],
+      "status": "reserved",
+      "details": {
+        "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+        "manifest": "docs/protocols/continual_v2_q_physics_screen_20261119.json",
+        "seeds": [
+          223001,
+          223002,
+          223003,
+          223004,
+          223005,
+          223006,
+          223007,
+          223008,
+          223009,
+          223010
+        ],
+        "frames": 64,
+        "snrs": [
+          0,
+          5,
+          10,
+          15
+        ],
+        "state_split": "offline_train",
+        "experiment": "p2_q_physics_vectorized_10x64",
+        "output": "docs/results/continual_v2_q_20261119/physics_vectorized_10x64.json",
+        "device": "cpu",
+        "variants": [
+          {
+            "name": "acquisition",
+            "arm": "acquisition",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "decoder": "physics_branch",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "process_noise": 0.0001
+          },
+          {
+            "name": "current_pilot",
+            "arm": "current_pilot",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "decoder": "physics_branch",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "process_noise": 0.0001
+          },
+          {
+            "name": "recursive_q1e4",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "decoder": "physics_branch",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "process_noise": 0.0001
+          },
+          {
+            "name": "recursive_q1e6",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "decoder": "physics_branch",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "process_noise": 1e-06
+          },
+          {
+            "name": "recursive_q0",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "decoder": "physics_branch",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "process_noise": 0.0
+          },
+          {
+            "name": "soft_q1e6",
+            "arm": "recursive_soft",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "decoder": "physics_branch",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "process_noise": 1e-06
+          }
+        ],
+        "arms": [
+          "acquisition",
+          "current_pilot",
+          "recursive_q1e4",
+          "recursive_q1e6",
+          "recursive_q0",
+          "soft_q1e6"
+        ],
+        "pairs": [
+          [
+            "acquisition",
+            "recursive_q1e4"
+          ],
+          [
+            "acquisition",
+            "recursive_q1e6"
+          ],
+          [
+            "acquisition",
+            "recursive_q0"
+          ],
+          [
+            "acquisition",
+            "soft_q1e6"
+          ],
+          [
+            "current_pilot",
+            "recursive_q1e4"
+          ],
+          [
+            "current_pilot",
+            "recursive_q1e6"
+          ],
+          [
+            "current_pilot",
+            "recursive_q0"
+          ],
+          [
+            "recursive_q1e4",
+            "recursive_q1e6"
+          ],
+          [
+            "recursive_q1e6",
+            "recursive_q0"
+          ],
+          [
+            "recursive_q1e6",
+            "soft_q1e6"
+          ]
+        ],
+        "role": "development",
+        "noise_source": "acquisition_residual",
+        "statistical_unit": "session",
+        "timing": "current_pilot_then_decode",
+        "linear_operator_backend": "direct",
+        "torch_version": "2.11.0+cpu",
+        "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+        "manifest_sha256": "c982bf51b7005cbe15e400cb88fb43a7af2a44887e1943dd25a7d4c586c81b12",
+        "checkpoint_sha256": {
+          "D:\\Research\\02_研究点二_神经均衡\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4"
+        },
+        "git_commit": "150cf172276ff5169f3652c0cf3b60a97efc5a5c",
+        "sources": {
+          "training/continual_receiver.py": "281abf709f949244957b4eb07feed3f81cee166f4ec479d9b899b64546786b5c",
+          "training/continual_phase.py": "918470e6963c198d875cc4303474f973caa3757e5b2117bd350db47dce810ec7",
+          "evaluation/continual_variants.py": "0d0945f56eb5c4e0395c94ca78e8b7b40d747f0c274e8f46201aefc50115a8df",
+          "scripts/compare_continual_variants.py": "29b886f5efda29940b68a857b40bdd2b7af5cb0346342b3203183a14585f68cd",
+          "evaluation/receiver_diagnostics.py": "ed29b2bb94f14731298988a31d5f5fe5fe689827a9e13a545f60c49a31a1d9c4",
+          "agent/unfolded_equalizer.py": "b86db3dd402b172e8c075303da75c632597bb3116f335e085aef8c89f10c72c8",
+          "env/linear_operator.py": "0b06279cbc0535c15446782f158af29aceafb452cdfec02d49cc5747dcf0bb1d"
+        }
+      }
+    },
+    {
+      "experiment": "p3_matched_finetune_validation_vectorized_2x16",
+      "purpose": "development",
+      "seeds": [
+        222001,
+        222002
+      ],
+      "status": "completed",
+      "details": {
+        "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+        "manifest": "docs/protocols/continual_v2_offline_validation_20261119.json",
+        "seeds": [
+          222001,
+          222002
+        ],
+        "frames": 16,
+        "snrs": [
+          0,
+          5,
+          10,
+          15
+        ],
+        "state_split": "offline_train",
+        "experiment": "p3_matched_finetune_validation_vectorized_2x16",
+        "output": "docs/results/continual_v2_offline_20261119/validation_vectorized_2x16.json",
+        "device": "cuda",
+        "variants": [
+          {
+            "name": "anchor_current_pilot",
+            "arm": "current_pilot",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft"
+          },
+          {
+            "name": "anchor_recursive_pilot",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft"
+          },
+          {
+            "name": "r0_acquisition_current_pilot",
+            "arm": "current_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat0_acquisition.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 0,
+            "training_method": "acquisition"
+          },
+          {
+            "name": "r0_acquisition_recursive_pilot",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat0_acquisition.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 0,
+            "training_method": "acquisition"
+          },
+          {
+            "name": "r0_recursive_pilot_current_pilot",
+            "arm": "current_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat0_recursive_pilot.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 0,
+            "training_method": "recursive_pilot"
+          },
+          {
+            "name": "r0_recursive_pilot_recursive_pilot",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat0_recursive_pilot.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 0,
+            "training_method": "recursive_pilot"
+          },
+          {
+            "name": "r1_acquisition_current_pilot",
+            "arm": "current_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat1_acquisition.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 1,
+            "training_method": "acquisition"
+          },
+          {
+            "name": "r1_acquisition_recursive_pilot",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat1_acquisition.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 1,
+            "training_method": "acquisition"
+          },
+          {
+            "name": "r1_recursive_pilot_current_pilot",
+            "arm": "current_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat1_recursive_pilot.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 1,
+            "training_method": "recursive_pilot"
+          },
+          {
+            "name": "r1_recursive_pilot_recursive_pilot",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat1_recursive_pilot.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 1,
+            "training_method": "recursive_pilot"
+          },
+          {
+            "name": "r2_acquisition_current_pilot",
+            "arm": "current_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat2_acquisition.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 2,
+            "training_method": "acquisition"
+          },
+          {
+            "name": "r2_acquisition_recursive_pilot",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat2_acquisition.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 2,
+            "training_method": "acquisition"
+          },
+          {
+            "name": "r2_recursive_pilot_current_pilot",
+            "arm": "current_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat2_recursive_pilot.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 2,
+            "training_method": "recursive_pilot"
+          },
+          {
+            "name": "r2_recursive_pilot_recursive_pilot",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained\\continual_v2_p3_20261119\\repeat2_recursive_pilot.pt",
+            "phase_estimator": "circular_all",
+            "operator_backend": "fft",
+            "training_repeat": 2,
+            "training_method": "recursive_pilot"
+          }
+        ],
+        "arms": [
+          "anchor_current_pilot",
+          "anchor_recursive_pilot",
+          "r0_acquisition_current_pilot",
+          "r0_acquisition_recursive_pilot",
+          "r0_recursive_pilot_current_pilot",
+          "r0_recursive_pilot_recursive_pilot",
+          "r1_acquisition_current_pilot",
+          "r1_acquisition_recursive_pilot",
+          "r1_recursive_pilot_current_pilot",
+          "r1_recursive_pilot_recursive_pilot",
+          "r2_acquisition_current_pilot",
+          "r2_acquisition_recursive_pilot",
+          "r2_recursive_pilot_current_pilot",
+          "r2_recursive_pilot_recursive_pilot"
+        ],
+        "pairs": [
+          [
+            "anchor_current_pilot",
+            "anchor_recursive_pilot"
+          ],
+          [
+            "anchor_current_pilot",
+            "r0_acquisition_current_pilot"
+          ],
+          [
+            "anchor_recursive_pilot",
+            "r0_acquisition_recursive_pilot"
+          ],
+          [
+            "r0_acquisition_current_pilot",
+            "r0_acquisition_recursive_pilot"
+          ],
+          [
+            "anchor_current_pilot",
+            "r0_recursive_pilot_current_pilot"
+          ],
+          [
+            "anchor_recursive_pilot",
+            "r0_recursive_pilot_recursive_pilot"
+          ],
+          [
+            "r0_recursive_pilot_current_pilot",
+            "r0_recursive_pilot_recursive_pilot"
+          ],
+          [
+            "anchor_current_pilot",
+            "r1_acquisition_current_pilot"
+          ],
+          [
+            "anchor_recursive_pilot",
+            "r1_acquisition_recursive_pilot"
+          ],
+          [
+            "r1_acquisition_current_pilot",
+            "r1_acquisition_recursive_pilot"
+          ],
+          [
+            "anchor_current_pilot",
+            "r1_recursive_pilot_current_pilot"
+          ],
+          [
+            "anchor_recursive_pilot",
+            "r1_recursive_pilot_recursive_pilot"
+          ],
+          [
+            "r1_recursive_pilot_current_pilot",
+            "r1_recursive_pilot_recursive_pilot"
+          ],
+          [
+            "anchor_current_pilot",
+            "r2_acquisition_current_pilot"
+          ],
+          [
+            "anchor_recursive_pilot",
+            "r2_acquisition_recursive_pilot"
+          ],
+          [
+            "r2_acquisition_current_pilot",
+            "r2_acquisition_recursive_pilot"
+          ],
+          [
+            "anchor_current_pilot",
+            "r2_recursive_pilot_current_pilot"
+          ],
+          [
+            "anchor_recursive_pilot",
+            "r2_recursive_pilot_recursive_pilot"
+          ],
+          [
+            "r2_recursive_pilot_current_pilot",
+            "r2_recursive_pilot_recursive_pilot"
+          ]
+        ],
+        "role": "development",
+        "noise_source": "acquisition_residual",
+        "statistical_unit": "session",
+        "timing": "current_pilot_then_decode",
+        "linear_operator_backend": "direct",
+        "torch_version": "2.11.0+cu128",
+        "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+        "manifest_sha256": "ca4da3a5967a6f2cd8fad6c034fa46f714ad65cbeba35ba419a98d185f5f7617",
+        "checkpoint_sha256": {
+          "D:\\Research\\02_研究点二_神经均衡\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4",
+          "D:\\Research\\02_研究点二_神经均衡\\pretrained\\continual_v2_p3_20261119\\repeat0_acquisition.pt": "302dffb0f603e469d9a4f647e24489b2121209efd2eae76d3dac75e546cb34d7",
+          "D:\\Research\\02_研究点二_神经均衡\\pretrained\\continual_v2_p3_20261119\\repeat0_recursive_pilot.pt": "105a3675f5632ac2aa88cf80ac0fee87d449d56dc493bd26b2c4db8710047b2f",
+          "D:\\Research\\02_研究点二_神经均衡\\pretrained\\continual_v2_p3_20261119\\repeat1_acquisition.pt": "3aa07ac6d68d6a0c5580d592d2e5b65c2b7f7da512d9d49708af1cf551167796",
+          "D:\\Research\\02_研究点二_神经均衡\\pretrained\\continual_v2_p3_20261119\\repeat1_recursive_pilot.pt": "a3524208d8de423880eab04cec87c1134be3dbe832f255b6e9b3e5f3d8676078",
+          "D:\\Research\\02_研究点二_神经均衡\\pretrained\\continual_v2_p3_20261119\\repeat2_acquisition.pt": "e5c50fde5c7923547440a53dcc848fbecc1b2eafc8e1d7549f130ed011feae4e",
+          "D:\\Research\\02_研究点二_神经均衡\\pretrained\\continual_v2_p3_20261119\\repeat2_recursive_pilot.pt": "3bc99e5884f26281cb8855bde3ca3db7c6f474c741e0e08042787f6cdad52faf"
+        },
+        "git_commit": "150cf172276ff5169f3652c0cf3b60a97efc5a5c",
+        "sources": {
+          "training/continual_receiver.py": "281abf709f949244957b4eb07feed3f81cee166f4ec479d9b899b64546786b5c",
+          "training/continual_phase.py": "918470e6963c198d875cc4303474f973caa3757e5b2117bd350db47dce810ec7",
+          "evaluation/continual_variants.py": "0d0945f56eb5c4e0395c94ca78e8b7b40d747f0c274e8f46201aefc50115a8df",
+          "scripts/compare_continual_variants.py": "29b886f5efda29940b68a857b40bdd2b7af5cb0346342b3203183a14585f68cd",
+          "evaluation/receiver_diagnostics.py": "ed29b2bb94f14731298988a31d5f5fe5fe689827a9e13a545f60c49a31a1d9c4",
+          "agent/unfolded_equalizer.py": "b86db3dd402b172e8c075303da75c632597bb3116f335e085aef8c89f10c72c8",
+          "env/linear_operator.py": "0b06279cbc0535c15446782f158af29aceafb452cdfec02d49cc5747dcf0bb1d"
+        },
+        "result_sha256": "627a64bcbb1902582d88b9b35157b4e3aaf92f745752e3986ec731d6c1a04764",
+        "result_rows": 1792,
+        "completion": "completed; 14 candidates, 2 receiver sessions, 4 SNR, 16 frames"
+      }
     }
   ],
   "historical_reserved_ranges": [

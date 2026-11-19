@@ -113,3 +113,11 @@ GPU 后端核查 `p1_backend_gpu_full_receiver_1x4` 已完成，seed 214002、�
 后续新实验增加严格事后评分的幅度、相位对齐 NMSE、BCE/Brier 与高置信错误计数，避免最优复幅度对齐 NMSE 掩盖增益错误，或把高置信输出直接当作可靠 soft 反馈。真值只传入评分函数，不进入接收模块；新增代码有对应隔离/统计回归检查。
 
 接下来使用新 seed 继续相同 Q 开发和匹配微调验证；此前中断结果保留。离线训练本身已经完成，不再次训练或复用其 seed。P4/P5 的长会话、判据、样本量与独立确认均尚未完成。
+
+## 2026-11-19 续接记录
+
+`p3_matched_finetune_validation_vectorized_2x16` 已完成：使用新 seed 222001–222002，四 SNR、16 帧、14 个候选，共 1792 行；完整结果为 `docs/results/continual_v2_offline_20261119/validation_vectorized_2x16.json`，SHA-256 `627a64bcbb1902582d88b9b35157b4e3aaf92f745752e3986ec731d6c1a04764`。清单 `docs/protocols/continual_v2_offline_validation_20261119.json` 和结果身份已登记到 seed registry。分别按训练重复轴与接收会话轴统计后，离线 acquisition 条件训练和递归 Pilot 条件训练的交互很小、方向不一致，未建立稳定协同证据；15 dB 的递归增量仍多为负。该结论只适用于同源 checkpoint 的小预算微调验证，不能排除充分重训或新结构。
+
+同批结果的推理成本约 63–75 ms/帧，运行时有并发负载，只作开发测量，不视为实时验收。完成本轮结果后全量测试为 186 passed。
+
+`p2_q_physics_vectorized_10x64` 正在用 CPU 运行，seed 223001–223010、10 会话×64 帧×四 SNR×六臂；使用 `physics_branch` 的物理机制筛查，不等价于神经整臂确认。续接时进程仍活跃，SNR=10 dB 正在输出，0/5 dB 已完成。初步小 Q 结果优于旧 Q，soft 相对 Pilot-only 的增量仍需结合四 SNR 完整统计和失败会话诊断；不据此提前升级结论。当前 exec session 为 21468，不得重启或复用这些 seed。最近一次推送已将分支 `continual-equalization-v2` 推至 `150cf17`；本段、微调验证结果和其登记尚待提交，运行中的 Q 结果不应纳入提交。
