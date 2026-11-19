@@ -1948,6 +1948,126 @@
         "result_rows": 1792,
         "completion": "completed; 14 candidates, 2 receiver sessions, 4 SNR, 16 frames"
       }
+    },
+    {
+      "experiment": "p2_known_adapt_real_physics_10x64",
+      "purpose": "development",
+      "seeds": [
+        224001,
+        224002,
+        224003,
+        224004,
+        224005,
+        224006,
+        224007,
+        224008,
+        224009,
+        224010
+      ],
+      "status": "completed",
+      "details": {
+        "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+        "manifest": "docs/protocols/continual_v2_known_adapt_real_screen_20261119.json",
+        "seeds": [
+          224001,
+          224002,
+          224003,
+          224004,
+          224005,
+          224006,
+          224007,
+          224008,
+          224009,
+          224010
+        ],
+        "frames": 64,
+        "snrs": [
+          0,
+          5,
+          10,
+          15
+        ],
+        "state_split": "offline_train",
+        "experiment": "p2_known_adapt_real_physics_10x64",
+        "output": "docs/results/continual_v2_known_adapt_real_20261119/physics_10x64.json",
+        "device": "cuda",
+        "variants": [
+          {
+            "name": "acquisition_q1e6",
+            "arm": "acquisition",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "decoder": "physics_branch",
+            "phase_estimator": "circular_all",
+            "phase_reference_backend": "vectorized",
+            "operator_backend": "fft",
+            "process_noise": 1e-06
+          },
+          {
+            "name": "recursive_pilot_q1e6",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "decoder": "physics_branch",
+            "phase_estimator": "circular_all",
+            "phase_reference_backend": "vectorized",
+            "operator_backend": "fft",
+            "process_noise": 1e-06
+          },
+          {
+            "name": "recursive_pilot_known_adapt_real",
+            "arm": "recursive_pilot",
+            "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+            "decoder": "known_adapt_real_physics",
+            "context_source": "recursive_pilot_q1e6",
+            "phase_estimator": "circular_all",
+            "phase_reference_backend": "vectorized",
+            "operator_backend": "fft",
+            "process_noise": 1e-06
+          }
+        ],
+        "arms": [
+          "acquisition_q1e6",
+          "recursive_pilot_q1e6",
+          "recursive_pilot_known_adapt_real"
+        ],
+        "pairs": [
+          [
+            "acquisition_q1e6",
+            "recursive_pilot_q1e6"
+          ],
+          [
+            "acquisition_q1e6",
+            "recursive_pilot_known_adapt_real"
+          ],
+          [
+            "recursive_pilot_q1e6",
+            "recursive_pilot_known_adapt_real"
+          ]
+        ],
+        "role": "development",
+        "noise_source": "acquisition_residual",
+        "statistical_unit": "session",
+        "timing": "current_pilot_then_decode",
+        "linear_operator_backend": "direct",
+        "torch_version": "2.11.0+cu128",
+        "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+        "manifest_sha256": "9e85503f554af86f885f0fed575e20549e65c219528123bef60f64142b2658a0",
+        "checkpoint_sha256": {
+          "D:\\Research\\02_研究点二_神经均衡\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4"
+        },
+        "git_commit": "34b04eaf0c0719111afd72d877ec569f908d026b",
+        "sources": {
+          "training/continual_receiver.py": "281abf709f949244957b4eb07feed3f81cee166f4ec479d9b899b64546786b5c",
+          "training/continual_phase.py": "918470e6963c198d875cc4303474f973caa3757e5b2117bd350db47dce810ec7",
+          "evaluation/continual_variants.py": "2871b1aa3717e262d2a882432b9bb023c86e7d8120bbdcd32f8a9d3c94637c40",
+          "scripts/compare_continual_variants.py": "ce1ee90674dc1a11314bfefc2ed3326920e5552e54bce6234d6035f61ad6a5e0",
+          "evaluation/receiver_diagnostics.py": "ed29b2bb94f14731298988a31d5f5fe5fe689827a9e13a545f60c49a31a1d9c4",
+          "agent/unfolded_equalizer.py": "fa38e67a2610a597b0aefd98f2ffef89a299961b30fc096a25933522e3a8f243",
+          "env/linear_operator.py": "0b06279cbc0535c15446782f158af29aceafb452cdfec02d49cc5747dcf0bb1d"
+        },
+        "result_sha256": "bd542d5d0200aeaad44089188536c89d310e4c29f61a612717b15e2b30aeaf18",
+        "result_rows": 7680,
+        "completion": "completed; 10 sessions × 64 frames × 4 SNR × 3 candidates"
+      }
     }
   ],
   "historical_reserved_ranges": [

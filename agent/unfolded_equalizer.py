@@ -964,7 +964,7 @@ class UnfoldedEqualizer(nn.Module):
         unknown_mask = (~known_mask).to(rx_complex.real.dtype)
         known = torch.where(
             known_mask,
-            adapt_symbols.to(device=rx_complex.device, dtype=rx_complex.real.dtype),
+            adapt_symbols.real.to(device=rx_complex.device, dtype=rx_complex.real.dtype),
             torch.zeros_like(rx_complex.real),
         ).to(torch.complex64)
         operator = LinearChannelOperator(
