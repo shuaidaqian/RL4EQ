@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """warm-start 迭代数与 AMP 的成本-精度扫描。
 
-固定已确认的 Bayes CIR 逻辑与 tail 复用，只改变：
+固定已确认的**跨帧因果** Bayes CIR 逻辑与 tail 复用，只改变：
 - ``physics_warm_start_iterations``（8/4/2）；
 - 模型前向是否使用 autocast（CUDA fp16 / CPU bf16）。
 
+本帧判决只使用更新前的 CIR（与 ``diagnose_bayesian_cir.py`` 一致），本轮后验
+只作用于下一帧；因此每帧只有一次模型前向，``total_ms`` 与实际部署成本同一口径。
 报告每 SNR 的 Data BER、逐帧总耗时、相对 102.4 ms 预算比、相对
 (ws=8, amp=0) 的“不退化”检查，以及 tail 复用与独立 dd_soft 的一致性。
 """
@@ -91,26 +93,23 @@ def _run(config, model, *, seed, snr, frames, warm_start, amp, device):
         data_ms = (time.perf_counter() - start) * 1000.0
         final_covariance = add_process_noise(final_covariance, 1e-4)
 
-        final_context = make_context(frame, final_cir, cfo, tail_state, snr)
-        with _autocast(device, amp):
-            with torch.no_grad():
-                final_logits = context_logits(model, final_context, None, visible="data").float()
-        ber_data = _ber(final_logits, frame)
+        # 跨帧因果：本帧判决、BER 与 tail 都来自更新前的 logits；后验只影响下一帧。
+        ber_data = _ber(logits, frame)
         nmse = _nmse(final_cir, frame.true_cir.to(device=device, dtype=torch.complex64))
 
         start = time.perf_counter()
-        reuse_tail = tail_from_logits(final_logits, tail_state, 1.0)
+        reuse_tail = tail_from_logits(logits, tail_state, 1.0)
         reuse_ms = (time.perf_counter() - start) * 1000.0
         with _autocast(device, amp):
             with torch.no_grad():
-                forward_tail = next_pilot_tail(model, final_context, alpha=1.0, mode="dd_soft")
+                forward_tail = next_pilot_tail(model, context, alpha=1.0, mode="dd_soft")
         forward_tail_ms = (time.perf_counter() - start) * 1000.0 - reuse_ms
         tail_match = bool(torch.allclose(reuse_tail, forward_tail, rtol=0, atol=0))
 
         cir, covariance, tail_state = final_cir, final_covariance, reuse_tail
         rows.append({
             "seed": int(seed), "snr_db": int(snr), "frame_index": int(frame.frame_index),
-            "warm_start": int(warm_start), "amp": bool(amp),
+            "warm_start": int(warm_start), "amp": bool(amp), "timing": "causal",
             "ber_data": ber_data, "nmse": nmse,
             "forward_ms": forward_ms, "pilot_ms": pilot_ms, "data_ms": data_ms,
             "tail_forward_ms": forward_tail_ms, "tail_reuse_ms": reuse_ms,
@@ -159,7 +158,7 @@ def _summarize(rows, config, seeds, frames):
                 "tail_match_all": all(row["tail_match"] for row in items),
             }
         per_snr[str(snr)] = summary
-    return {"seeds": list(seeds), "frames": int(frames), "per_snr": per_snr}
+    return {"seeds": list(seeds), "frames": int(frames), "timing": "causal", "per_snr": per_snr}
 
 
 def main() -> None:

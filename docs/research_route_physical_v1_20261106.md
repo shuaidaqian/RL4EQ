@@ -88,45 +88,47 @@ python scripts/diagnose_bayesian_cir.py --config configs/eme_long_memory_v2_onli
 python scripts/diagnose_tail_protocol_alignment.py --config configs/eme_long_memory_v2_online_dd_tail_v1.json --checkpoint D:/Research/02_研究点二_神经均衡/pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt --seeds 90001 90002 90003 --frames 6 --device cuda --output docs/results/tail_alignment_v1_20261106/tail_protocol_alignment.json
 ```
 
-## 7. 传统基线公平比较（2026-11-07）
+## 7. 传统基线公平比较（2026-11-07，2026-11-19 修正 CFO 先验）
 
 [对照归档](results/traditional_comparison_v1_20261107/README.md)（3 seed × 16 帧，seed 130001–130003）：
 
 - 同一 episode、同一接收波形、同一 Pilot 预算（256：Adapt 224 / Reward 32）与同一 acquisition CIR/CFO；传统方法不读 Reward/Data 标签、不使用神经网络/RL。
+- 2026-11-19 修正：传统 DD-Phase 跟踪器的 CFO 状态改为以同一 acquisition CFO 初始化（旧版从 0 开始）；同 seed 重跑，旧表见 git 历史。
 - 四 SNR 的 Data BER：
 
 | SNR | Frozen | Bayes | CFO+DD-Phase LMMSE-FIR | CFO+DD-Phase DFE-RLS | SC-FDE-MMSE |
 |---:|---:|---:|---:|---:|---:|
-| 0 dB | 0.214572 | **0.181424** | 0.436551 | 0.406359 | 0.490641 |
-| 5 dB | 0.052544 | **0.049344** | 0.149495 | 0.170546 | 0.485677 |
-| 10 dB | 0.008138 | **0.007270** | 0.041314 | 0.035862 | 0.484185 |
-| 15 dB | 0.001519 | **0.001383** | 0.016710 | 0.017442 | 0.482829 |
+| 0 dB | 0.214572 | **0.181424** | 0.412842 | 0.406114 | 0.490641 |
+| 5 dB | 0.052544 | **0.049344** | 0.135634 | 0.165392 | 0.485677 |
+| 10 dB | 0.008138 | **0.007270** | 0.032986 | 0.028781 | 0.484185 |
+| 15 dB | 0.001519 | **0.001383** | 0.011475 | 0.008328 | 0.482829 |
 
-- Bayes−Frozen：0/5/10/15 dB `−0.0331/−0.0032/−0.00087/−0.00014`。
+- Bayes−Frozen：0/5/10/15 dB `−0.0331/−0.0032/−0.00087/−0.00014`（与修正前一致）。
 - 逐 (seed, frame) 配对差（传统−Bayes / 传统−Frozen）全部为正；48 对/SNR。
-- 成本（当前 GPU，逐帧均值）：Frozen ≈795 ms、Bayes ≈829 ms、LMMSE ≈268 ms、DFE-RLS ≈761 ms、SC-FDE ≈2 ms；102.4 ms 帧预算下不实时。
+- 成本（当前 GPU，逐帧均值）：Frozen ≈422 ms、Bayes ≈460 ms、LMMSE ≈279 ms、DFE-RLS ≈791 ms、SC-FDE ≈1.3 ms；102.4 ms 帧预算下不实时。
 - 强传统为 CFO+DD-Phase LMMSE/DFE；`SC-FDE-MMSE` 未做 CFO/相位补偿，接近随机，仅作弱对照。
-- 公平性检查：同帧 rx hash 一致、Frozen/传统共享同一 acquisition CIR、传统 `uses_neural_network=False`、`uses_reward_or_data_labels=False`。
+- 公平性检查：同帧 rx hash 一致、Frozen/传统共享同一 acquisition CIR、传统 CFO 先验为 acquisition（逐行记录）、传统 `uses_neural_network=False`、`uses_reward_or_data_labels=False`。
 - 开发对照；传统方法使用代码默认实现，未加载 clean 分支未包含的 frozen calibration 资产。
 
-## 8. 0 dB Data 后验变体（2026-11-07）
+## 8. 0 dB Data 后验变体（2026-11-07，2026-11-19 修正 EM 评分）
 
 [变体筛查归档](results/diagnose_0db_data_posterior_v1_20261107/README.md)（2 seed × 16 帧，seed 140001–140002；同帧重解码，非跨帧因果）：
 
 | SNR | Frozen | soft | oracle | EM2 | EM3 | block_phase | EM+block |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 0 dB | 0.186808 | 0.168457 | 0.168050 | **0.162557** | 0.164144 | 0.166585 | 0.169312 |
-| 5 dB | 0.052327 | **0.047526** | 0.047648 | 0.048462 | 0.049276 | 0.047892 | 0.048584 |
-| 10 dB | 0.006673 | **0.005941** | 0.006063 | 0.006144 | 0.006144 | 0.006022 | 0.006185 |
-| 15 dB | 0.001017 | 0.001221 | 0.001180 | 0.001221 | 0.001180 | 0.001221 | 0.001180 |
+| 0 dB | 0.186808 | 0.168457 | 0.168050 | 0.160807 | **0.154012** | 0.166585 | 0.174194 |
+| 5 dB | 0.052327 | **0.047526** | 0.047648 | 0.048910 | 0.049438 | 0.047892 | 0.048787 |
+| 10 dB | 0.006673 | **0.005941** | 0.006063 | 0.006104 | 0.006063 | 0.006022 | 0.006144 |
+| 15 dB | 0.001017 | 0.001221 | 0.001180 | 0.001221 | 0.001180 | 0.001221 | 0.001221 |
 
-- 0 dB 的 2-seed 增益：soft `+0.0184`、oracle `+0.0188`、EM2 `+0.0243`（seed `0.0395/0.0090`，异质）、EM3 `+0.0227`、block_phase `+0.0202`（`0.0151/0.0254`，同向）、EM+block `+0.0175`。
-- **0 dB 的 H3 斜率仍为负**：soft `−0.0152`、oracle `−0.0109`、EM2 `−0.0110`、block `−0.0135`；但第四窗已转正（`+0.010 ~ +0.025`）。按 2026-11-07 用户决定，0 dB 改按早期收敛/后段饱和+晚窗为正判据；该斜率仅作旧增长判据的对照记录。
-- **0 dB 的形状是“早期收敛 → 第三窗负 → 第四窗正”**，不是增长；**0 dB 应写成早期收敛/后段饱和且晚窗为正，5/10/15 dB 才是增长**。
+- 2026-11-19 修正：旧版 EM 最后一轮更新后未重解码，EM2/EM3 的 BER/tail 落后一次更新；现统一为“每轮 Data 后验 → 用最终 CIR 重解码”。soft/oracle/block_phase 的 BER/NMSE 逐位不变（仅耗时随运行变化），EM2/EM3/EM+block 已更新。
+- 0 dB 的 2-seed 增益：soft `+0.0184`、oracle `+0.0188`、EM2 `+0.0260`（seed `0.0372/0.0148`，仍偏异质）、EM3 `+0.0328`（`0.0387/0.0269`，同向）、block_phase `+0.0202`（`0.0151/0.0254`，同向）、EM+block `+0.0126`（0 dB 低于 soft）。
+- **0 dB 的 H3 斜率仍为负**：soft `−0.0152`、oracle `−0.0109`、EM2 `−0.0095`、EM3 `−0.0118`、block `−0.0135`。按 2026-11-07 用户决定，0 dB 改按早期收敛/后段饱和+晚窗为正判据；该斜率仅作旧增长判据的对照记录。
+- **0 dB 的形状**：soft/oracle/block 仍是“早期收敛 → 第三窗负 → 第四窗正”；EM2/EM3 第三窗转正但首窗最高、整体斜率仍为负，不是持续增长。**0 dB 应写成早期收敛/后段饱和且晚窗为正，5/10/15 dB 才是增长**。
 - 5/10 dB 的 soft 最好；EM2/EM3 略差；15 dB 两个 seed 的 Bayes 都略差于 Frozen，属于 session 噪声。
 - 误差 lag-1 约 0；EM 的收益来自“更新 CIR 后重解码”，不是误差相关模型。
-- 成本：soft/block ≈1.7 s/帧、EM2 ≈2.1 s、EM3 ≈2.8 s；102.4 ms 帧预算下不实时。
-- 同帧重解码与已确认的跨帧因果不同；正式使用需明确时序或改为跨帧。
+- 成本：soft/block ≈1.35 s/帧、EM2 ≈2.47 s、EM3 ≈3.12 s；102.4 ms 帧预算下不实时。
+- 同帧重解码与已确认的跨帧因果不同；正式使用需明确时序或改为跨帧。EM3 的 0 dB 改善仍是 2-seed 开发筛查，不能升级为确认结论。
 
 ### 8.1 block_phase 10×64 两种时序（2026-11-07，无独立增量）
 
@@ -160,12 +162,14 @@ python scripts/diagnose_tail_protocol_alignment.py --config configs/eme_long_mem
 - 模型前向 ~400 ms 是剩余瓶颈；Pilot/Data 后验合计 ~30 ms；102.4 ms 下约 4.2×。
 - 优先级：tail 复用（立即）→ 模型前向（warm-start/层数/batch/蒸馏）→ 后验。
 
-### 9.1 warm-start / AMP 扫描（2026-11-07）
+### 9.1 warm-start / AMP 扫描（2026-11-07，2026-11-19 修正时序）
 
-[扫描归档](results/profile_bayes_cost_sweep_v1_20261107/README.md)（1 seed × 4 帧 × 4 SNR）：
+[扫描归档](results/profile_bayes_cost_sweep_v1_20261107/README.md)（1 seed × 4 帧 × 4 SNR，因果时序）：
 
-- AMP 在 GTX 1650 上无 BER 变化、无加速；warm-start 4 在 0/5 dB 更好但 10/15 dB 退化；warm-start 2 更差；**只有 8 满足四 SNR 不退化**。
-- 成本：ws8 ≈430 ms（4.2×）、ws4 ≈320 ms（3.1×）、ws2 ≈270 ms（2.6×）；tail 复用逐位一致；102.4 ms 下仍不实时。
+- 2026-11-19 修正：旧版 BER/tail 取自同帧重解码，但耗时只计一次前向；现统一为跨帧因果，BER/tail 用更新前 CIR，每帧一次前向。
+- AMP 在 GTX 1650 上无 BER 变化、无加速；warm-start 4 只在 5 dB 略好，0 dB 略差、10/15 dB 退化；warm-start 2 四 SNR 全部退化；**只有 8 满足四 SNR 不退化**。
+- 成本：ws8 ≈473 ms（4.6×）、ws4 ≈328 ms（3.2×）、ws2 ≈268 ms（2.6×）；tail 复用逐位一致；102.4 ms 下仍不实时。
+- 旧版 0 dB 的 ws4/ws2 优势是同帧重解码带来的，因果时序下消失，不能作为按 SNR 降 warm-start 的依据。
 - 结论：tail 复用是唯一零精度 2×；warm-start/AMP 不能免费加速；模型前向需蒸馏/剪枝/重训/batch/更大 GPU。
 
 ## 10. 文档

@@ -8,6 +8,7 @@ from pathlib import Path
 import torch
 
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+import scripts.profile_bayes_cost_sweep as sweep
 from scripts.profile_bayes_cost_sweep import run_sweep
 
 CONFIG = json.loads(
@@ -41,3 +42,24 @@ def test_sweep_warm_start_and_amp_are_finite():
             assert math.isfinite(row[key])
             assert row[key] >= 0.0
         assert row["tail_match"] is True
+        assert row["timing"] == "causal"
+
+
+def test_sweep_decodes_once_per_frame(monkeypatch):
+    """跨帧因果：每帧只允许一次判决前向，且 BER/tail 都取自它。"""
+
+    model = _model()
+    calls = []
+    real_context_logits = sweep.context_logits
+
+    def spy(*args, **kwargs):
+        calls.append(1)
+        return real_context_logits(*args, **kwargs)
+
+    monkeypatch.setattr(sweep, "context_logits", spy)
+    rows = run_sweep(
+        CONFIG, model, seeds=[160201], snr=0, frames=1,
+        variants=((8, False),), device="cpu",
+    )
+    assert len(calls) == 1
+    assert len(rows) == 1

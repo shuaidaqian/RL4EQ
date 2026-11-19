@@ -8,7 +8,8 @@ acquisition CIR 和合法 Pilot/判决反馈，不读取 Reward/Data 标签。
 口径：
 - Frozen：acquisition 先验 CIR + dd_soft tail + 冻结神经模型；
 - Bayes：同一先验 → Pilot/Data 后验 CIR + dd_soft tail + 冻结神经模型；
-- 传统：CFO+DD-Phase LMMSE-FIR / DFE-RLS / SC-FDE-MMSE，使用同一 acquisition CIR。
+- 传统：CFO+DD-Phase LMMSE-FIR / DFE-RLS / SC-FDE-MMSE，使用同一 acquisition CIR，
+  DD-Phase 跟踪器以同一 acquisition CFO 为初始状态（再按当前帧 Pilot 平滑跟踪）。
 """
 
 from __future__ import annotations
@@ -49,8 +50,17 @@ def _ber(logits: torch.Tensor, frame, mask_name: str) -> float:
     return float(((logits[mask] >= 0) != labels).float().mean())
 
 
+def _traditional_phase_state(config, acquisition_cfo):
+    """传统 DD-Phase 跟踪的初始状态：与神经两臂共用同一 acquisition CFO。"""
+    return TraditionalPhaseState(
+        cfo_cycles_per_symbol=float(acquisition_cfo),
+        smoothing=float(config.get("online_phase_tracking_smoothing", 0.5)),
+    )
+
+
 def _row(frame, method, logits, *, seed, snr, rx_sha256, cir_sha256, uses_neural_network,
-         uses_reward_or_data_labels, iterations, pilot_total, pilot_layout, elapsed_ms):
+         uses_reward_or_data_labels, iterations, pilot_total, pilot_layout, elapsed_ms,
+         acquisition_cfo):
     return {
         "seed": int(seed),
         "snr_db": int(snr),
@@ -61,6 +71,7 @@ def _row(frame, method, logits, *, seed, snr, rx_sha256, cir_sha256, uses_neural
         "ber_reward": _ber(logits, frame, "reward"),
         "rx_sha256": rx_sha256,
         "cir_sha256": cir_sha256,
+        "acquisition_cfo_cycles_per_symbol": float(acquisition_cfo),
         "uses_neural_network": bool(uses_neural_network),
         "uses_reward_or_data_labels": bool(uses_reward_or_data_labels),
         "iterations": int(iterations),
@@ -94,9 +105,7 @@ def run_comparison(config, model, *, seed, snr, frames, methods=DEFAULT_METHODS,
     traditional = {
         method: {
             "tail": tail.clone(),
-            "phase": TraditionalPhaseState(
-                smoothing=float(config.get("online_phase_tracking_smoothing", 0.5)),
-            ),
+            "phase": _traditional_phase_state(config, cfo),
         }
         for method in TRADITIONAL_COMPARISON_METHODS if method in methods
     }
@@ -118,6 +127,7 @@ def run_comparison(config, model, *, seed, snr, frames, methods=DEFAULT_METHODS,
                 uses_reward_or_data_labels=False, iterations=neural_iterations,
                 pilot_total=pilot_total, pilot_layout=pilot_layout,
                 elapsed_ms=(time.perf_counter() - start) * 1000.0,
+                acquisition_cfo=cfo,
             ))
 
         if "bayes" in methods:
@@ -143,6 +153,7 @@ def run_comparison(config, model, *, seed, snr, frames, methods=DEFAULT_METHODS,
                 uses_reward_or_data_labels=False, iterations=neural_iterations,
                 pilot_total=pilot_total, pilot_layout=pilot_layout,
                 elapsed_ms=(time.perf_counter() - start) * 1000.0,
+                acquisition_cfo=cfo,
             ))
 
         for method in TRADITIONAL_COMPARISON_METHODS:
@@ -161,6 +172,7 @@ def run_comparison(config, model, *, seed, snr, frames, methods=DEFAULT_METHODS,
                 uses_reward_or_data_labels=bool(result.extra.get("uses_reward_or_data_labels", True)),
                 iterations=result.iterations, pilot_total=pilot_total, pilot_layout=pilot_layout,
                 elapsed_ms=(time.perf_counter() - start) * 1000.0,
+                acquisition_cfo=cfo,
             ))
 
     return rows
@@ -223,6 +235,7 @@ def _summarize(rows, config, methods, seeds, frames, checkpoint):
         ),
         "pilot_total": int(config["pilot_total"]),
         "pilot_layout": str(config["pilot_layout"]),
+        "traditional_phase_cfo_prior": "acquisition",
         "acquisition_cir_shared_by_frozen_and_traditional": all(
             len({row["cir_sha256"] for row in rows if row["seed"] == seed and row["snr_db"] == snr
                  and row["frame_index"] == frame and row["method"] in ("frozen", *TRADITIONAL_COMPARISON_METHODS)}) == 1

@@ -67,8 +67,14 @@ def _error_lag1(logits: torch.Tensor, frame) -> float:
 
 def _em_posterior(
     model, frame, context, tail, cir, covariance, cfo, snr, max_delay,
-    noise_variance, phase0, cfo_est, steps, block_phase,
+    noise_variance, phase0, cfo_est, steps, block_phase, redecode_final=True,
 ):
+    """Pilot 后验后交替做 Data 后验与重解码。
+
+    ``redecode_final=True`` 时最后一轮 CIR 更新后仍用最终 CIR 重解码，使返回的
+    ``logits`` 与返回的 ``cir`` 对应同一状态；``same_frame`` 时序必须如此。
+    ``causal`` 时序不使用返回的 ``logits``，可置 False 省一次前向。
+    """
     logits = context_logits(model, context, None, visible="data")
     for step in range(int(steps)):
         if block_phase:
@@ -84,7 +90,7 @@ def _em_posterior(
                 frame, logits, cir, covariance, max_delay, noise_variance,
                 phase0, cfo_est,
             )
-        if step < int(steps) - 1:
+        if step < int(steps) - 1 or redecode_final:
             context = make_context(frame, cir, cfo, tail, snr)
             logits = context_logits(model, context, None, visible="data")
     return cir, covariance, context, logits
@@ -167,6 +173,7 @@ def run_variant(
                 final_cir, final_covariance, context, updated_logits = _em_posterior(
                     model, frame, context, state["tail"], pilot_cir, pilot_covariance,
                     cfo, snr, max_delay, noise_variance, phase0, cfo_est, steps, False,
+                    redecode_final=(timing == "same_frame"),
                 )
             elif variant == "block_phase":
                 phases = estimate_data_block_phases(
@@ -180,13 +187,14 @@ def run_variant(
                 final_cir, final_covariance, context, updated_logits = _em_posterior(
                     model, frame, context, state["tail"], pilot_cir, pilot_covariance,
                     cfo, snr, max_delay, noise_variance, phase0, cfo_est, 2, True,
+                    redecode_final=(timing == "same_frame"),
                 )
             else:
                 raise ValueError(f"未知变体：{variant}")
 
             final_covariance = add_process_noise(final_covariance, 1e-4)
             if timing == "same_frame":
-                # 历史语义：更新后重解码本帧；EM 变体内部已重解码，直接复用。
+                # 历史语义：更新后重解码本帧；EM 变体已在最后一轮更新后用最终 CIR 重解码。
                 if updated_logits is None:
                     final_context = make_context(frame, final_cir, cfo, state["tail"], snr)
                     with torch.no_grad():

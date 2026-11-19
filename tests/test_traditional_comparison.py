@@ -12,6 +12,7 @@ from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from baseline.traditional_equalizers import run_traditional_equalizer
 from scripts.compare_traditional_baselines import (
     TRADITIONAL_COMPARISON_METHODS,
+    _traditional_phase_state,
     run_comparison,
 )
 from training.pilot_transfer import make_episode
@@ -54,6 +55,21 @@ def test_comparison_uses_same_episode_and_no_data_label_baselines():
         else:
             assert row["uses_neural_network"] is True
             assert row["uses_reward_or_data_labels"] is False
+
+    _, _, cfo, _, _ = make_episode(
+        CONFIG, model, seed=70001, snr=5, frames=1,
+        state_split="offline_train", device=torch.device("cpu"),
+    )
+    assert {row["acquisition_cfo_cycles_per_symbol"] for row in rows} == {cfo}
+
+
+def test_traditional_phase_state_starts_from_acquisition_cfo():
+    """传统 DD-Phase 跟踪器与神经两臂共用同一 acquisition CFO 先验。"""
+
+    state = _traditional_phase_state(CONFIG, 0.0004)
+    assert state.cfo_cycles_per_symbol == 0.0004
+    assert state.phase0 == 0.0
+    assert state.smoothing == 0.5
 
 
 def test_traditional_decisions_ignore_data_bits():

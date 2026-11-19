@@ -9,7 +9,10 @@ import pytest
 import torch
 
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
+import scripts.diagnose_0db_data_posterior as diagnose
 from scripts.diagnose_0db_data_posterior import run_variant
+from training.bayesian_cir import acquisition_prior
+from training.pilot_transfer import make_context, make_episode
 
 CONFIG = json.loads(
     Path("configs/eme_long_memory_v2_online_dd_tail_v1.json").read_text(encoding="utf-8")
@@ -64,6 +67,39 @@ def test_causal_timing_does_not_redecode_current_frame():
         variants=("soft", "block_phase"), device="cpu", timing="same_frame",
     )
     assert all(row["timing"] == "same_frame" for row in rows_same)
+
+
+def test_em_same_frame_scores_with_final_cir(monkeypatch):
+    """same_frame 下 EM 的判决必须来自最终 CIR 的重解码，而不是倒数第二次更新。"""
+
+    model = _model()
+    device = torch.device("cpu")
+    _, _, cfo, tail, frames, acquisition = make_episode(
+        CONFIG, model, seed=140001, snr=0, frames=1,
+        state_split="offline_train", device=device, return_acquisition=True,
+    )
+    frame = frames[0]
+    max_delay = int(CONFIG["max_delay"])
+    noise_variance = 1.0
+    prior_mean, prior_covariance = acquisition_prior(
+        acquisition, cfo, max_delay, noise_variance, ridge=1e-2,
+    )
+    context = make_context(frame, prior_mean, cfo, tail, 0)
+
+    recorded = []
+    real_make_context = diagnose.make_context
+
+    def spy(frame_, cir, cfo_, tail_, snr_):
+        recorded.append(cir.detach().clone())
+        return real_make_context(frame_, cir, cfo_, tail_, snr_)
+
+    monkeypatch.setattr(diagnose, "make_context", spy)
+    final_cir, _, _, _ = diagnose._em_posterior(
+        model, frame, context, tail, prior_mean, prior_covariance, cfo, 0,
+        max_delay, noise_variance, 0.0, cfo, 2, False, redecode_final=True,
+    )
+    assert len(recorded) == 2
+    torch.testing.assert_close(recorded[-1], final_cir, rtol=0, atol=0)
 
 
 def test_unknown_timing_is_rejected():
