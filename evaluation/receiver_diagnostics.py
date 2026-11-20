@@ -4,6 +4,7 @@
 import torch
 import torch.nn.functional as F
 
+from agent.unfolded_equalizer import OnlinePhaseTrendAdapter
 from env.linear_operator import LinearChannelOperator
 
 
@@ -57,8 +58,11 @@ def long_receiver_diagnostics(branch, actual_inputs, frame, true_phase, true_cfo
     """
 
     model = getattr(branch, 'model', branch)
-    if model.training or model.online_phase_trend_adapter is not None:
-        raise ValueError('长程事后诊断要求冻结 eval 模型且无额外在线相位适配器。')
+    if model.training:
+        raise ValueError('长程事后诊断要求冻结 eval 模型。')
+    phase_adapter = model.online_phase_trend_adapter
+    if phase_adapter is not None and type(phase_adapter) is not OnlinePhaseTrendAdapter:
+        raise ValueError('长程评分只支持已审计的确定性相位趋势适配器。')
     if model.config.enable_channel_state_branch:
         raise ValueError('当前长程评分不支持解码器内部另行改变 CIR。')
     args, _ = actual_inputs
@@ -75,6 +79,8 @@ def long_receiver_diagnostics(branch, actual_inputs, frame, true_phase, true_cfo
     unit_iq = torch.zeros_like(rx_iq)
     unit_iq[..., 0] = 1
     corrected_iq = model._apply_phase_correction(unit_iq, condition)
+    if phase_adapter is not None:
+        corrected_iq = phase_adapter(corrected_iq)
     rotation = torch.complex(corrected_iq[..., 0], corrected_iq[..., 1]).flatten()
     effective_cfo = -torch.angle((rotation[1:] * rotation[:-1].conj()).sum()) / (2 * torch.pi)
     alignment_phase = torch.angle(torch.vdot(estimate, truth))

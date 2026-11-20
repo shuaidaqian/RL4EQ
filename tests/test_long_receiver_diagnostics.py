@@ -46,13 +46,29 @@ def _fixture(*, gauge=.7, amplitude=1., cfo=.001, phase_offset=.3, learned_offse
 
 
 @pytest.mark.parametrize('gauge', [-2., .7, 2.9])
-def test_phase_score_respects_cir_gauge_and_learned_decoder_correction(gauge):
+@pytest.mark.parametrize('attach_identity_adapter', [False, True])
+def test_phase_score_respects_cir_gauge_and_learned_decoder_correction(gauge, attach_identity_adapter):
     model, actual, frame, phase, cfo = _fixture(gauge=gauge)
+    if attach_identity_adapter:
+        model.attach_online_phase_trend_adapter()
     result = long_receiver_diagnostics(KnownAdaptRealPhysicsBranch(model), actual, frame, phase, cfo, .1)
     assert result['decoder_phase_data_rms_rad_diagnostic'] < 1e-5
     assert result['decoder_signal_mismatch_nmse_diagnostic'] < 1e-10
     assert result['decoder_effective_cfo_estimate_diagnostic'] == pytest.approx(cfo, abs=1e-8)
     assert result['realized_data_noise_power_diagnostic'] < 1e-10
+
+
+def test_phase_score_includes_nonzero_frozen_trend_adapter():
+    model, actual, frame, phase, cfo = _fixture()
+    adapter = model.attach_online_phase_trend_adapter()
+    with torch.no_grad():
+        adapter.raw_phase.fill_(.4)
+        adapter.raw_cfo.fill_(.2)
+    result = long_receiver_diagnostics(model, actual, frame, phase, cfo, .1)
+    assert result['decoder_cfo_error_diagnostic'] == pytest.approx(.0012 * torch.tanh(torch.tensor(.2)).item(), abs=1e-8)
+    positions = torch.arange(128)[frame.data_mask]
+    expected = .5 * torch.tanh(torch.tensor(.4)) + 2 * torch.pi * .0012 * torch.tanh(torch.tensor(.2)) * positions
+    assert result['decoder_phase_data_rms_rad_diagnostic'] == pytest.approx(float(expected.square().mean().sqrt()), abs=1e-5)
 
 
 def test_waveform_score_exposes_amplitude_mismatch_even_with_exact_phase():
