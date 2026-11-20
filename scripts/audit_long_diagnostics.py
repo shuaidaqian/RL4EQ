@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 from evaluation.receiver_diagnostics import LONG_DIAGNOSTIC_FIELDS, RECEIVER_SCORE_FIELDS
 from evaluation.long_diagnostic_summary import DERIVED_METRIC_FIELDS, derived_diagnostics
 from evaluation.source_snapshot import verify_source_snapshot
-from scripts.compare_continual_variants import compact_stream_row
+from scripts.compare_continual_variants import compact_stream_row, validate_solver_diagnostics
 
 
 def sha(path):
@@ -122,6 +122,7 @@ def audit(result_path, *, source_snapshot_path=None):
                     '概率或频谱平坦度越界。')
             require(row['model_calls'] == 1, '每帧完整解码调用数不为1。')
             variant = variants[arm]
+            solver_fields = validate_solver_diagnostics(row, variant)
             require(row['neural_forwards'] == int(variant['decoder'] in {'neural', 'known_adapt_real_neural'}),
                     '神经前向计数不匹配。')
             require(row['pilot_updates'] == int(variant['arm'] != 'acquisition') and
@@ -140,7 +141,7 @@ def audit(result_path, *, source_snapshot_path=None):
                 item['n'] += 1
                 item['errors'] += row['errors']
                 item['bits'] += row['bits']
-                for field in metric_fields:
+                for field in metric_fields + solver_fields:
                     item['sums'][field] += row[field]
             row_count += 1
     require(row_count == expected_count == result['row_count'], '总记录数不匹配或未完成。')
@@ -151,7 +152,7 @@ def audit(result_path, *, source_snapshot_path=None):
         session_summary.append(dict(snr_db=snr, seed=seed, arm=arm, window=bounds,
             scope='whole_session' if window_index == -1 else 'registered_window',
             frames=item['n'], errors=item['errors'], bits=item['bits'], ber=item['errors'] / item['bits'],
-            means={field: item['sums'][field] / item['n'] for field in metric_fields}))
+            means={field: value / item['n'] for field, value in sorted(item['sums'].items())}))
     return dict(status='completed_development_audit', schema_version=3, sessions=len(sessions),
         rows=row_count, paired_frames=len(sessions) * frames, session_arm_groups=len(sessions) * len(arms),
         duplicates=0, missing=0, hash_mismatches=0, invalid_fields=0,

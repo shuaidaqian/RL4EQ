@@ -947,11 +947,15 @@ class UnfoldedEqualizer(nn.Module):
         soft_tail: torch.Tensor,
         adapt_symbols: torch.Tensor,
         adapt_mask: torch.Tensor,
-    ) -> torch.Tensor:
+        *,
+        return_solver_diagnostics: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, dict]:
         """实值符号子空间上求线性高斯后验，并从观测中扣除已知 Adapt。"""
 
         iterations = int(self.config.physics_warm_start_iterations)
         if iterations <= 0:
+            if return_solver_diagnostics:
+                raise ValueError("求解诊断要求正的物理迭代次数。")
             return torch.zeros_like(rx_complex.real)
         if rx_complex.ndim == 1:
             rx_complex = rx_complex.unsqueeze(0)
@@ -1010,7 +1014,18 @@ class UnfoldedEqualizer(nn.Module):
 
         logits = 2.0 * estimate / noise
         known_logits = torch.where(known_mask, known.real * 40.0, logits)
-        return known_logits.clamp(-40.0, 40.0)
+        result = known_logits.clamp(-40.0, 40.0)
+        if return_solver_diagnostics:
+            # 在未截断的实数解上重新计算真实正规方程残差。
+            # 递推残差可能累积舍入误差，不能用它代替此项。
+            with torch.no_grad():
+                actual_residual = rhs - normal_matvec(estimate)
+                rhs_norm = rhs.norm(dim=1)
+                relative_residual = actual_residual.norm(dim=1) / rhs_norm.clamp_min(
+                    torch.finfo(rhs.dtype).tiny)
+            return result, dict(iterations=iterations,
+                relative_residual=relative_residual, rhs_norm=rhs_norm)
+        return result
 
     def _analytic_logit_skip(self, proposal: torch.Tensor, condition: CIRCondition) -> torch.Tensor:
         """给神经 head 叠加 BPSK 解析 LLR warm-start，默认关闭。"""

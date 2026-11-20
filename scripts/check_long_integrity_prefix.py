@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.compare_continual_variants import compact_stream_row
+from scripts.compare_continual_variants import compact_stream_row, validate_solver_diagnostics
 
 
 def inspect_prefix(rows_path, manifest, config):
@@ -69,6 +69,7 @@ def inspect_prefix(rows_path, manifest, config):
                     row['bits'] != expected_bits or row['pilot_observations'] != expected_observations):
                 raise ValueError('比特计数或Adapt观测行数非法。')
             variant = variants[arm_index]
+            validate_solver_diagnostics(row, variant)
             expected_neural = int(variant.get('decoder', 'neural') in {'neural', 'known_adapt_real_neural'})
             if (row['model_calls'] != 1 or row['neural_forwards'] != expected_neural or
                     row['pilot_updates'] != int(variant['arm'] != 'acquisition') or

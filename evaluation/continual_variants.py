@@ -31,6 +31,14 @@ def validate_variants(manifest):
             'neural', 'physics_branch', 'known_adapt_real_physics', 'known_adapt_real_neural',
         }:
             raise ValueError('未知解码分支。')
+        solver_iterations = row.get('physics_solver_iterations')
+        solver_diagnostics = row.get('physics_solver_diagnostics', False)
+        if solver_iterations is not None and (type(solver_iterations) is not int or solver_iterations <= 0):
+            raise ValueError('物理解码迭代次数须为正整数。')
+        if type(solver_diagnostics) is not bool:
+            raise ValueError('物理求解诊断开关须为布尔类型。')
+        if (solver_iterations is not None or solver_diagnostics) and row.get('decoder') != 'known_adapt_real_physics':
+            raise ValueError('显式物理求解对照只适用于 known_adapt_real_physics。')
         if row.get('phase_estimator', 'unwrap_median') not in {'unwrap_median', 'circular_all', 'circular_clean'}:
             raise ValueError('未知相位估计器。')
         if row.get('operator_backend', 'direct') not in {'direct', 'fft'}:
@@ -97,14 +105,34 @@ class PhysicsBranch(nn.Module):
 class KnownAdaptRealPhysicsBranch(PhysicsBranch):
     """固定合法 Adapt 符号，并在实值 BPSK 子空间求物理 warm-start。"""
 
+    def __init__(self, model, *, solver_iterations=None, solver_diagnostics=False):
+        if solver_iterations is not None:
+            if type(solver_iterations) is not int or solver_iterations <= 0:
+                raise ValueError('物理解码迭代次数须为正整数。')
+            # 候选可能共享缓存的checkpoint；配置覆盖必须局限于本分支。
+            model = copy.deepcopy(model)
+            model.config = replace(model.config, physics_warm_start_iterations=solver_iterations)
+        super().__init__(model)
+        if type(solver_diagnostics) is not bool:
+            raise ValueError('物理求解诊断开关须为布尔类型。')
+        if solver_diagnostics and model.config.physics_warm_start_iterations <= 0:
+            raise ValueError('求解诊断要求正的物理迭代次数。')
+        self.solver_diagnostics = solver_diagnostics
+        self.last_solver_diagnostics = None
+
     def forward(self, rx_iq, condition, region_ids, soft_tail, *, adapt_symbols, adapt_mask):
         corrected = self.model._apply_phase_correction(rx_iq, condition)
         if self.model.online_phase_trend_adapter is not None:
             corrected = self.model.online_phase_trend_adapter(corrected)
         rx = torch.complex(corrected[..., 0], corrected[..., 1])
-        logits = self.model._real_bpsk_known_adapt_logits(
+        output = self.model._real_bpsk_known_adapt_logits(
             rx, condition, soft_tail, adapt_symbols, adapt_mask,
+            return_solver_diagnostics=self.solver_diagnostics,
         )
+        if self.solver_diagnostics:
+            logits, self.last_solver_diagnostics = output
+        else:
+            logits = output
         return logits, logits.sigmoid()
 
 

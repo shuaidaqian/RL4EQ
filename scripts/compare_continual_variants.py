@@ -48,6 +48,28 @@ STREAM_ROW_FIELDS = (
     'pilot_observations', 'pilot_innovation_mse', 'pilot_innovation_variance_mean',
     'noise_variance_used', 'pilot_updates', 'data_updates', 'neural_forwards', 'model_calls',
 )
+SOLVER_DIAGNOSTIC_FIELDS = (
+    'physics_solver_iterations', 'physics_solver_relative_residual', 'physics_solver_rhs_norm',
+)
+
+
+def validate_solver_diagnostics(row, variant):
+    """求解诊断必须与预登记开关和实际迭代次数一致。"""
+
+    present = [key in row for key in SOLVER_DIAGNOSTIC_FIELDS]
+    enabled = variant.get('physics_solver_diagnostics', False)
+    if (enabled and not all(present)) or (not enabled and any(present)):
+        raise ValueError('物理求解诊断与预登记开关不一致或字段缺失。')
+    if not enabled:
+        return ()
+    iterations = row['physics_solver_iterations']
+    if (type(iterations) is not int or iterations <= 0 or
+            iterations != variant.get('physics_solver_iterations', iterations)):
+        raise ValueError('物理求解诊断中的迭代次数不匹配。')
+    for key in SOLVER_DIAGNOSTIC_FIELDS[1:]:
+        if type(row[key]) not in {int, float} or not math.isfinite(row[key]) or row[key] < 0:
+            raise ValueError('物理求解残差与右端范数须为非负有限数。')
+    return SOLVER_DIAGNOSTIC_FIELDS
 
 
 def compact_stream_row(row, *, schema_version=2):
@@ -62,6 +84,11 @@ def compact_stream_row(row, *, schema_version=2):
     compact = {key: row[key] for key in fields}
     if 'shared_state_from' in row:
         compact['shared_state_from'] = row['shared_state_from']
+    solver_fields = SOLVER_DIAGNOSTIC_FIELDS
+    if any(key in row for key in solver_fields):
+        if any(key not in row for key in solver_fields):
+            raise ValueError('物理求解诊断字段必须完整保存。')
+        compact.update({key: row[key] for key in solver_fields})
     return compact
 
 
@@ -206,7 +233,9 @@ def main():
         elif decoder == 'known_adapt_real_neural':
             branch = KnownAdaptRealNeuralBranch(model)
         elif decoder == 'known_adapt_real_physics':
-            branch = KnownAdaptRealPhysicsBranch(model)
+            branch = KnownAdaptRealPhysicsBranch(model,
+                solver_iterations=row.get('physics_solver_iterations'),
+                solver_diagnostics=row.get('physics_solver_diagnostics', False))
         else:
             branch = PhysicsBranch(model)
         recorders[row['name']] = InputRecorder(branch)
@@ -394,6 +423,11 @@ def main():
                                 os.environ['RL4EQ_LINEAR_OPERATOR_BACKEND'] = previous_backend
                         synchronize(device)
                         elapsed = (time.perf_counter()-began)*1000
+                        if row.get('physics_solver_diagnostics', False):
+                            solver = recorders[name].model.last_solver_diagnostics
+                            diagnostics.update(physics_solver_iterations=solver['iterations'],
+                                physics_solver_relative_residual=float(solver['relative_residual'].item()),
+                                physics_solver_rhs_norm=float(solver['rhs_norm'].item()))
                         frame_diagnostics[name] = dict(diagnostics)
                         # 接收已结束，以下全部为事后评分，不回流任何更新。
                         mask = original.data_mask
