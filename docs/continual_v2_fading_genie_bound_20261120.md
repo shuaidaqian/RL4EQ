@@ -75,3 +75,5 @@ Q\!\left(\sqrt{2E/\sigma^2}\right)
 对显式说明性功率向量 `[1]`、`[0.5,0.5]`、`[0.7,0.2,0.1]`，四 SNR、七个归一化时刻，共 84 个积分已核验：零时刻等于 AWGN 闭式；单 tap 长时刻趋于瑞利衰落闭式；各组下界非下降。没有生成研究会话、没有使用 seed，也不把这些说明性 PDP 当作项目真实 PDP。
 
 结果见[确定性积分](results/continual_v2_genie_bound_math_20261120/deterministic_quadrature.json)。这些核验用于检查推导和量纲，不是方法性能实验或独立确认。
+
+补充实现：`evaluation/physical_ber_bounds.py` 已提供固定 CIR 的帧内截断下界及条件于基准 PDP 的演化期望积分，18 项定向物理边界测试通过。说明性 117 tap 模板另完成 56 个整体积分与完整列/截断列加权核验，见[数学核验说明](results/continual_v2_genie_bound_math_20261120/README.md)。新函数没有接入正在运行的 P8；不能从仅有总功率的旧记录重建精确帧末下界。

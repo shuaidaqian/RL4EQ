@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from evaluation.receiver_diagnostics import LONG_DIAGNOSTIC_FIELDS, RECEIVER_SCORE_FIELDS
+from evaluation.long_diagnostic_summary import DERIVED_METRIC_FIELDS, derived_diagnostics
 from scripts.compare_continual_variants import compact_stream_row
 
 
@@ -73,7 +74,7 @@ def audit(result_path):
     expected_observations = config['pilot_total'] - config['reward_pilot_total'] - config['max_delay']
     metric_fields = ('elapsed_ms', 'pilot_innovation_mse', 'pilot_innovation_variance_mean',
         'prior_covariance_trace', 'decode_covariance_trace', 'posterior_covariance_trace',
-        'noise_variance_used') + RECEIVER_SCORE_FIELDS + LONG_DIAGNOSTIC_FIELDS
+        'noise_variance_used') + RECEIVER_SCORE_FIELDS + LONG_DIAGNOSTIC_FIELDS + DERIVED_METRIC_FIELDS
     accumulated = defaultdict(lambda: dict(n=0, errors=0, bits=0, sums=defaultdict(float)))
     rows_path = result_path.parent / result['rows_file']
     expected_count = len(sessions) * frames * len(arms)
@@ -87,6 +88,7 @@ def audit(result_path):
         for index, line in enumerate(stream):
             row = json.loads(line)
             compact_stream_row(row, schema_version=3)
+            row.update(derived_diagnostics(row))
             require(index < expected_count, '出现多余记录。')
             session_index, within = divmod(index, frames * len(arms))
             frame_index, arm_index = divmod(within, len(arms))
