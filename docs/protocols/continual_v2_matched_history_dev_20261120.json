@@ -1,0 +1,121 @@
+{
+  "description": "P9匹配历史信息开发比较：六组独立新seed，四SNR，连续1024帧；acquisition Frozen、同动态老化acquisition先验仅当前Pilot、递归AR1。主要检验递归策略在匹配时间先验后的历史信息增量；不是1200秒后段回升的重复确认，不缩短最终目标时域。",
+  "variants": [
+    {
+      "name": "acquisition_known_adapt_real_physics",
+      "arm": "acquisition",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "random_walk",
+      "initial_prediction_intervals": 1.0
+    },
+    {
+      "name": "current_pilot_aged_ar1",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "aged_acquisition"
+    },
+    {
+      "name": "recursive_pilot_ar1",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0
+    }
+  ],
+  "pairs": [
+    [
+      "current_pilot_aged_ar1",
+      "recursive_pilot_ar1"
+    ],
+    [
+      "acquisition_known_adapt_real_physics",
+      "recursive_pilot_ar1"
+    ]
+  ],
+  "frames": 1024,
+  "snrs": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "seeds": [
+    237101,
+    237102,
+    237103,
+    237104,
+    237105,
+    237106
+  ],
+  "state_split": "offline_train",
+  "noise_source": "acquisition_residual",
+  "timing": "current_pilot_then_decode",
+  "statistical_unit": "session",
+  "expected_stream_schema_version": 3,
+  "pre_registered_windows": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      4
+    ],
+    [
+      4,
+      16
+    ],
+    [
+      16,
+      64
+    ],
+    [
+      64,
+      256
+    ],
+    [
+      256,
+      1024
+    ]
+  ],
+  "interpretation_constraints": [
+    "六seed四SNR三臂全部完成后分析；不依中途BER改算法、窗口、会话长度或停止",
+    "匹配对照与递归臂使用同冻结rho和D、同当前Adapt预算、同噪声估计和解码规则；两臂各自同步和soft-tail轨迹仍可能改变",
+    "配对差归于完整递归接收策略，不能未经专门消融称纯CIR中介贡献",
+    "从首帧完整报告，窗口事先固定；每SNR六个独立开发会话，同seed四SNR不额外算独立样本",
+    "该约105秒实验不解释1200秒末段BER回升，不替代后续长会话和独立确认",
+    "未冻结实质差、饱和容差及总体功效，不以不显著证明等价或保持",
+    "当前物理分支不证明离线神经贡献；四SNR自身改善、优势增长至饱和保持目标不变",
+    "真实状态与Data仅事后评分，在线合法acquisition残差估噪"
+  ],
+  "device": "cpu",
+  "expected_rows": 73728,
+  "observation_duration_seconds": 104.8576,
+  "implementation_precondition": "P9a四SNR128行全部完成审计，首帧匹配诊断及soft评分精确一致；整合全量324 passed",
+  "primary_questions": [
+    "相同冻结动态下，递归策略相对仅当前Pilot的增量及其跨会话异质性",
+    "从首帧开始的自身BER、Frozen优势和状态不确定性轨迹",
+    "首帧匹配，以及acquisition估噪和schema3完整性"
+  ]
+}

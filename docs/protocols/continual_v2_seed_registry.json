@@ -5802,6 +5802,26 @@
         "completion_audit": "docs/results/continual_v2_aged_prior_smoke_dev_20261120/smoke_1x8_audit.json",
         "interpretation": "真实入口与首帧匹配核验通过；不是性能目标确认。"
       }
+    },
+    {
+      "experiment": "p9_matched_history_dev_6x1024",
+      "purpose": "development",
+      "seeds": [
+        237101,
+        237102,
+        237103,
+        237104,
+        237105,
+        237106
+      ],
+      "status": "reserved",
+      "details": {
+        "manifest": "docs/protocols/continual_v2_matched_history_dev_20261120.json",
+        "frames": 1024,
+        "expected_rows": 73728,
+        "role": "development",
+        "purpose": "匹配物理动态下的历史信息增量，不作长程确认"
+      }
     }
   ],
   "historical_reserved_ranges": [
