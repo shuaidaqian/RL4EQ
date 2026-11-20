@@ -1,0 +1,35 @@
+{
+  "role": "integrity_only_no_performance_analysis",
+  "verified_at_local": "2026-11-20T19:03:33+08:00",
+  "audited_byte_prefix": 146563774,
+  "rows": 82218,
+  "paired_frames": 27406,
+  "complete_sessions": [
+    {
+      "snr_db": 0,
+      "seed": 236101,
+      "arms": 3,
+      "rows": 35157,
+      "paired_frames": 11719
+    },
+    {
+      "snr_db": 0,
+      "seed": 236102,
+      "arms": 3,
+      "rows": 35157,
+      "paired_frames": 11719
+    }
+  ],
+  "last": {
+    "snr_db": 5,
+    "seed": 236101,
+    "frame_index": 3967,
+    "arm": "recursive_pilot_ar1"
+  },
+  "duplicates": 0,
+  "missing_within_saved_prefix": 0,
+  "hash_mismatches": 0,
+  "invalid_counts_or_schema3_fields": 0,
+  "protocol_unchanged": true,
+  "source_snapshot_sha256": "bb4f7562358ec5e15d038f32f897328066869838d69e5a351c6041f1f1e45b5f"
+}

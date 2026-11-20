@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 
 from evaluation.receiver_diagnostics import LONG_DIAGNOSTIC_FIELDS, RECEIVER_SCORE_FIELDS
 from evaluation.long_diagnostic_summary import DERIVED_METRIC_FIELDS, derived_diagnostics
+from evaluation.source_snapshot import verify_source_snapshot
 from scripts.compare_continual_variants import compact_stream_row
 
 
@@ -33,26 +34,35 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def audit(result_path):
+def audit(result_path, *, source_snapshot_path=None):
     """完整验证后才生成性能汇总，缺失或失败实验不能作为完整结果。"""
     result_path = Path(result_path)
     result = json.loads(result_path.read_text(encoding='utf8'))
     require(result.get('status') == 'completed', '只汇总全部完成的实验。')
     protocol = result['protocol']
+    snapshot = verify_source_snapshot(source_snapshot_path, protocol) if source_snapshot_path else None
+
+    def input_text(name):
+        if snapshot:
+            return snapshot['files'][name]['content_utf8']
+        return (ROOT / name).read_text(encoding='utf8')
+
     manifest_path = ROOT / protocol['manifest']
-    manifest = json.loads(manifest_path.read_text(encoding='utf8'))
+    manifest = json.loads(input_text(protocol['manifest']))
     require(protocol['stream_rows_schema_version'] == 3 and protocol['long_diagnostics'], '需要显式 schema 3。')
     for field in ('seeds', 'snrs', 'frames', 'state_split', 'device'):
         require(protocol[field] == manifest[field], f'运行与预登记不匹配：{field}')
-    require(protocol['manifest_sha256'] == sha(manifest_path), '协议指纹不匹配。')
-    require(protocol['config_sha256'] == sha(ROOT / protocol['config']), '配置指纹不匹配。')
+    if not snapshot:
+        require(protocol['manifest_sha256'] == sha(manifest_path), '协议指纹不匹配。')
+        require(protocol['config_sha256'] == sha(ROOT / protocol['config']), '配置指纹不匹配。')
     for path, digest in protocol['checkpoint_sha256'].items():
         require(sha(path) == digest, 'checkpoint 指纹不匹配。')
-    for path, digest in protocol['sources'].items():
-        require(sha(ROOT / path) == digest, f'当前算法源码与运行版本不匹配：{path}')
-    for variant in protocol['variants']:
-        if variant.get('dynamics_file'):
-            require(sha(ROOT / variant['dynamics_file']) == variant['dynamics_file_sha256'], '动态参数指纹不匹配。')
+    if not snapshot:
+        for path, digest in protocol['sources'].items():
+            require(sha(ROOT / path) == digest, f'当前算法源码与运行版本不匹配：{path}')
+        for variant in protocol['variants']:
+            if variant.get('dynamics_file'):
+                require(sha(ROOT / variant['dynamics_file']) == variant['dynamics_file_sha256'], '动态参数指纹不匹配。')
     arms = protocol['arms']
     require(arms == [variant['name'] for variant in manifest['variants']], '臂顺序不匹配。')
     variants = {row['name']: row for row in protocol['variants']}
@@ -69,7 +79,7 @@ def audit(result_path):
     acquisition = {(row['snr_db'], row['seed']): row for row in result['acquisitions']}
     require(len(result['acquisitions']) == len(acquisition) == len(sessions), 'acquisition 不齐或重复。')
     require(set(acquisition) == set(sessions), 'acquisition 会话不匹配。')
-    config = json.loads((ROOT / protocol['config']).read_text(encoding='utf8'))
+    config = json.loads(input_text(protocol['config']))
     expected_bits = config['frame_len'] - config['pilot_total']
     expected_observations = config['pilot_total'] - config['reward_pilot_total'] - config['max_delay']
     metric_fields = ('elapsed_ms', 'pilot_innovation_mse', 'pilot_innovation_variance_mean',
@@ -145,7 +155,9 @@ def audit(result_path):
     return dict(status='completed_development_audit', schema_version=3, sessions=len(sessions),
         rows=row_count, paired_frames=len(sessions) * frames, session_arm_groups=len(sessions) * len(arms),
         duplicates=0, missing=0, hash_mismatches=0, invalid_fields=0,
-        result_sha256=sha(result_path), rows_sha256=sha(rows_path), manifest_sha256=sha(manifest_path),
+        result_sha256=sha(result_path), rows_sha256=sha(rows_path), manifest_sha256=protocol['manifest_sha256'],
+        source_verification='archived_runtime_bytes' if snapshot else 'current_worktree',
+        source_snapshot_sha256=sha(source_snapshot_path) if snapshot else None, manifest=manifest,
         interpretation='逐会话、预登记窗口的开发描述；不作总体确认、等价、饱和或机制因果归因。',
         session_summary=session_summary)
 
@@ -153,9 +165,10 @@ def audit(result_path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--result', required=True)
+    parser.add_argument('--source-snapshot', help='显式使用与运行协议及全部指纹一致的源码原始字节归档。')
     args = parser.parse_args()
     result_path = Path(args.result)
-    summary = audit(result_path)
+    summary = audit(result_path, source_snapshot_path=args.source_snapshot)
     output = result_path.with_name(result_path.stem + '_audit.json')
     output.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + '\n', encoding='utf8')
     print(f"完整审计通过：{summary['sessions']}会话，{summary['rows']}行，{summary['paired_frames']}个配对帧。")

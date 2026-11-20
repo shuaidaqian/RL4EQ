@@ -1,2 +1,5 @@
 # 路线来源快照保留原始字节与空白，确保归档 SHA256 跨平台一致。
 docs/archive/route_before_v3_20261103/*.txt -text -whitespace
+# 逐帧原始记录与运行源码快照保留字节，避免检出换行转换改变已登记指纹。
+docs/results/**/*.jsonl -text
+docs/results/**/source_snapshot.json -text

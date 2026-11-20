@@ -19,3 +19,5 @@ python scripts/audit_long_diagnostics.py --result docs/results/continual_v2_long
 ```
 
 后续长程诊断另用 seeds 236101–236102，独立预登记；不会把本次短会话并入长程或确认数据。
+
+完成后分析链路验证：使用本轮完整96行生成[全部预登记窗口报告](smoke_v2_1x8_report.md)和[逐会话配对汇总](smoke_v2_1x8_paired_summary.json)。这只是8帧入口核验，不是长程研究结论。另按原运行全部指纹保存[source_snapshot.json](source_snapshot.json)；对当前工作树与归档字节两种审计方式，逐会话所有数值完全一致。归档不执行其中代码，未来接收源码升级后可显式使用 `--source-snapshot` 复核，不需要重跑旧seed。

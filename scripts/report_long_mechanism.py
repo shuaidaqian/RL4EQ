@@ -84,21 +84,24 @@ def render_report(summary, manifest, audit_result):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--result', required=True)
+    parser.add_argument('--source-snapshot', help='在当前源码已升级时，核验归档的完整运行源码与输入字节。')
     args = parser.parse_args()
     result_path = Path(args.result)
     result = json.loads(result_path.read_text(encoding='utf8'))
     if result.get('status') != 'completed':
         raise ValueError('所有预定会话完成前禁止生成性能报告。')
-    manifest = json.loads((ROOT / result['protocol']['manifest']).read_text(encoding='utf8'))
-    audit_result = audit(result_path)
+    audit_result = audit(result_path, source_snapshot_path=args.source_snapshot)
+    manifest = audit_result['manifest']
     summary = paired_window_summary(audit_result, manifest)
     summary['result_sha256'] = audit_result['result_sha256']
     summary['rows_sha256'] = audit_result['rows_sha256']
     summary['manifest_sha256'] = audit_result['manifest_sha256']
+    summary['source_verification'] = audit_result['source_verification']
+    summary['source_snapshot_sha256'] = audit_result['source_snapshot_sha256']
     summary['analysis_git_commit'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     summary['analysis_sources'] = {path: sha(ROOT / path) for path in (
         'scripts/report_long_mechanism.py', 'scripts/audit_long_diagnostics.py',
-        'evaluation/long_diagnostic_summary.py')}
+        'evaluation/long_diagnostic_summary.py', 'evaluation/source_snapshot.py')}
     text = render_report(summary, manifest, audit_result)
     result_path.with_name(result_path.stem + '_audit.json').write_text(
         json.dumps(audit_result, ensure_ascii=False, indent=2) + '\n', encoding='utf8')
