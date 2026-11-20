@@ -5178,7 +5178,7 @@
         236101,
         236102
       ],
-      "status": "running",
+      "status": "completed",
       "details": {
         "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
         "manifest": "docs/protocols/continual_v2_long_mechanism_dev_20261120.json",
@@ -5405,6 +5405,18 @@
           "env/eme_channel_profiles.py": "332b51e599aec09fcf4209713520e45fb18aed368d8a5bdc1b9f4d1f6b7a002b",
           "training/continual_offline.py": "83bb389304df5d75840f9affeef7ef9d030249de1999b4944a6af1f4e36a6102",
           "training/pilot_transfer.py": "6d9260783a29a5be12d272475e701d85177fbc2d0c1f96322156638b963b90a4"
+        },
+        "result_rows": 281256,
+        "output_sha256": "7abe688e240ccf312601e2e9aa2bfe8bd17012111f05450d65c8e3448aa1edf7",
+        "rows_sha256": "4d5d406405ed7d63bd757690ceaeb3600c7fde387ad7e43f4df25382f9a569f7",
+        "completion_audit": "docs/results/continual_v2_long_mechanism_dev_20261120/mechanism_2x11719_audit.json",
+        "completion": {
+          "verified_at": "2026-11-20T20:36:48+08:00",
+          "process_exit_code": 0,
+          "session_handle": 78511,
+          "sessions": 8,
+          "paired_frames": 93752,
+          "interpretation": "全部开发会话完成且全量审计通过；不等于研究目标或独立确认完成。"
         }
       }
     }

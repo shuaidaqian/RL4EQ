@@ -1,0 +1,82 @@
+{
+  "role": "integrity_only_no_performance_analysis",
+  "verified_at_local": "2026-11-20T20:33:49+08:00",
+  "file_size_at_snapshot": 502891906,
+  "audited_byte_prefix": 502891906,
+  "trailing_incomplete_line_bytes": 0,
+  "prefix_sha256": "4d5d406405ed7d63bd757690ceaeb3600c7fde387ad7e43f4df25382f9a569f7",
+  "rows": 281256,
+  "paired_frames": 93752,
+  "complete_sessions": [
+    {
+      "snr_db": 0,
+      "seed": 236101,
+      "arms": 3,
+      "rows": 35157,
+      "paired_frames": 11719
+    },
+    {
+      "snr_db": 0,
+      "seed": 236102,
+      "arms": 3,
+      "rows": 35157,
+      "paired_frames": 11719
+    },
+    {
+      "snr_db": 5,
+      "seed": 236101,
+      "arms": 3,
+      "rows": 35157,
+      "paired_frames": 11719
+    },
+    {
+      "snr_db": 5,
+      "seed": 236102,
+      "arms": 3,
+      "rows": 35157,
+      "paired_frames": 11719
+    },
+    {
+      "snr_db": 10,
+      "seed": 236101,
+      "arms": 3,
+      "rows": 35157,
+      "paired_frames": 11719
+    },
+    {
+      "snr_db": 10,
+      "seed": 236102,
+      "arms": 3,
+      "rows": 35157,
+      "paired_frames": 11719
+    },
+    {
+      "snr_db": 15,
+      "seed": 236101,
+      "arms": 3,
+      "rows": 35157,
+      "paired_frames": 11719
+    },
+    {
+      "snr_db": 15,
+      "seed": 236102,
+      "arms": 3,
+      "rows": 35157,
+      "paired_frames": 11719
+    }
+  ],
+  "last": {
+    "snr_db": 15,
+    "seed": 236102,
+    "frame_index": 11718,
+    "arm": "recursive_pilot_ar1"
+  },
+  "all_expected_rows_saved": true,
+  "duplicates": 0,
+  "missing_within_saved_prefix": 0,
+  "hash_mismatches": 0,
+  "invalid_counts_or_checked_schema3_fields": 0,
+  "interpretation": "只说明保存前缀完整性，不证明进程存活、主结果completed或研究性能。",
+  "source_snapshot_sha256": "bb4f7562358ec5e15d038f32f897328066869838d69e5a351c6041f1f1e45b5f",
+  "run_git_commit": "7d12a3a6b9a77b3abb2b1db1122064ec0ce8548f"
+}
