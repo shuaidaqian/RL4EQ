@@ -55,6 +55,14 @@ def test_variant_manifest_rejects_unknown_or_ambiguous_comparisons():
     assert len(validate_variants(dict(variants=[variant, dict(physical, checkpoint='other.pt')]))) == 2
 
 
+@pytest.mark.parametrize('intervals', [-1, float('nan'), float('inf'), '1'])
+def test_variant_manifest_rejects_invalid_initial_prediction_interval(intervals):
+    variant = dict(name='c', arm='recursive_pilot', checkpoint='example.pt',
+                   initial_prediction_intervals=intervals)
+    with pytest.raises(ValueError, match='首帧预测'):
+        validate_variants(dict(variants=[variant]))
+
+
 def test_real_bpsk_known_adapt_solver_matches_reduced_real_normal_equations():
     torch.manual_seed(31)
     frame_len, max_delay = 9, 2

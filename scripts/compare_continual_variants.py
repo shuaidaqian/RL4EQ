@@ -33,7 +33,9 @@ from evaluation.pilot_transfer import _load_branch
 from evaluation.receiver_diagnostics import receiver_diagnostics
 from evaluation.seed_registry import reserve_seeds
 from scripts.develop_continual_receiver import fingerprint, summarize, synchronize
-from training.continual_receiver import ContinualReceiver, estimate_acquisition, receiver_frame
+from training.continual_receiver import (
+    ContinualReceiver, acquisition_transition_intervals, estimate_acquisition, receiver_frame,
+)
 from training.continual_offline import InputRecorder
 from training.pilot_transfer import frame_to_device
 
@@ -138,7 +140,11 @@ def main():
     config = json.loads(Path(args.config).read_text(encoding='utf8'))
     manifest = json.loads(Path(args.manifest).read_text(encoding='utf8'))
     variants = manifest.get('variants', [])
+    initial_intervals = acquisition_transition_intervals(
+        config['frame_duration_seconds'], config.get('acquisition_to_data_gap_seconds', 0.0))
     for row in variants:
+        # 显式写入实际采用的时序；0 仅用于另行登记的历史初始化对照。
+        row.setdefault('initial_prediction_intervals', initial_intervals)
         if row.get('state_model', 'random_walk') == 'ar1' and row.get('dynamics_file'):
             dynamics_path = Path(row['dynamics_file'])
             if not dynamics_path.is_absolute():
@@ -317,7 +323,8 @@ def main():
                     phase_reference_backend=row.get('phase_reference_backend', 'vectorized'),
                     state_model=row.get('state_model', 'random_walk'),
                     state_rho=row.get('state_rho'),
-                    stationary_power=row.get('stationary_power_by_tap')) for row in variants}
+                    stationary_power=row.get('stationary_power_by_tap'),
+                    initial_prediction_intervals=row['initial_prediction_intervals']) for row in variants}
                 for _ in range(args.frames):
                     original = frame_to_device(env.next_frame(), device)
                     visible = receiver_frame(original)

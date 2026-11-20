@@ -40,3 +40,15 @@
 | `training/continual_receiver.py` | `4fcc2dee9a70c944c9ed9382d2218f4e9d2dc6e093127cad558b624337074b81` |
 | `env/comm_env.py` | `2357ca25c6ab052516de27f9d378982fa8600aff7501f0920f38c97bd5e956d6` |
 | `env/extreme_delay_channel.py` | `b65fb8b0191dec2561bf06bac9c04c3c52e6d7fb7d357951fca82004f564bc56` |
+
+## 隔离修复状态（2026-11-20 09:49）
+
+修复在 `continual-initial-timing-fix-20261120` 分支的独立工作树准备，未应用于正在运行的 P6。
+
+递归臂默认从首个 Data 帧开始预测。开发比较、四臂开发和离线训练入口统一按 `1 + gap_seconds / frame_duration_seconds` 传入首帧转移间隔，并写入各自协议。AR(1) 使用该间隔对应的系数幂及创新协方差；随机游走按其接收模型的假设线性缩放过程噪声。后续每帧使用一个间隔。额外空档只在初始化计算一次。Frozen 和 current-Pilot 没有新增状态预测。
+
+显式 `initial_prediction_intervals=0` 仅用于未来另行登记的历史初始化对照，不会把当前 P6 数据改写为已修正。旧实验复现仍须使用旧源码指纹与协议。
+
+隔离工作树使用原 GPU 虚拟环境解释器运行 `python -m pytest -q -p no:cacheprovider`，完整结果为 **248 passed in 34.53s**。新测试直接检查传入 Pilot 更新的均值和协方差，覆盖默认首帧、显式零间隔、额外空档、第二帧不重复计数、RW/AR(1)、两个递归臂、两个非递归锚点和非法输入。测试也核验分段预测与一次等效预测一致。
+
+这证明修复的数值和调用时序契约通过测试，不证明 BER 改善；尚未使用修复版本开展研究性能实验，也未占用新的开发或确认 seed。当前 P6 完成审计后，再将修复整合回研究分支，冻结新的开发协议。

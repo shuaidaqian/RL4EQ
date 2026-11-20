@@ -25,7 +25,9 @@ from env.experiment_config import build_comm_env_config
 from evaluation.seed_registry import reserve_seeds
 from training.checkpointing import save_checkpoint
 from training.continual_offline import InputRecorder, train_examples
-from training.continual_receiver import ContinualReceiver, estimate_acquisition, receiver_frame
+from training.continual_receiver import (
+    ContinualReceiver, acquisition_transition_intervals, estimate_acquisition, receiver_frame,
+)
 from training.pilot_transfer import frame_to_device
 from training.rl_modulated_online import _build_equalizer
 
@@ -72,6 +74,8 @@ def main():
     os.environ['RL4EQ_LINEAR_OPERATOR_BACKEND'] = args.operator_backend
     device = torch.device(args.device)
     config = json.loads(Path(args.config).read_text(encoding='utf8'))
+    initial_intervals = acquisition_transition_intervals(
+        config['frame_duration_seconds'], config.get('acquisition_to_data_gap_seconds', 0.0))
     model_config = UnfoldedConfig.from_dict(config['model'])
     payload = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
     checkpoint_config = UnfoldedConfig.from_dict(payload['model_config'])
@@ -83,6 +87,7 @@ def main():
         physics_real_bpsk_known_adapt=bool(args.physics_real_bpsk_known_adapt),
     )
     protocol = dict(vars(args), role='training', repeats=repeats, episodes_per_repeat=episodes,
+                    initial_prediction_intervals=initial_intervals,
                     methods=['acquisition', 'recursive_pilot'], snr_schedule=[0, 5, 10, 15]*(episodes//4),
                     supervision='仅离线 Data BCE，接收输入不含 Data/Reward 标签',
                     trajectory='每个会话内权重固定，轨迹结束后训练；历史状态截断梯度',
@@ -130,7 +135,8 @@ def main():
                 acquisition = replace(acquisition, mean=acquisition.mean.to(device),
                                       covariance=acquisition.covariance.to(device))
                 receivers = {arm:ContinualReceiver(acquisition, start.initial_soft_tail.to(device),
-                    arm=arm, process_noise=args.process_noise, phase_estimator=args.phase_estimator) for arm in models}
+                    arm=arm, process_noise=args.process_noise, phase_estimator=args.phase_estimator,
+                    initial_prediction_intervals=initial_intervals) for arm in models}
                 examples = {arm:[] for arm in models}
                 began = time.perf_counter()
                 # 同一波形只生成一次，两模型独立生成自己的 soft-tail 和接收状态。
