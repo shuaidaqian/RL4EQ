@@ -24,9 +24,12 @@ def render_report(summary, manifest, audit_result):
     static_controls = [variant for variant in manifest['variants']
                        if variant['arm'] == 'current_pilot'
                        and variant.get('current_pilot_prior', 'acquisition') == 'acquisition']
-    online = 'recursive_pilot_ar1'
-    if online not in arms:
-        raise ValueError('本报告的机制诊断需要显式 recursive_pilot_ar1 臂。')
+    online = 'recursive_pilot_ar1' if 'recursive_pilot_ar1' in arms else next(
+        (variant['name'] for variant in manifest['variants']
+         if variant.get('arm') in {'recursive_pilot', 'recursive_soft'}), None,
+    )
+    if online is None:
+        raise ValueError('本报告的机制诊断需要显式递归接收臂。')
     aggregate = {(row['snr_db'], row['arm'], row['scope'], tuple(row['window'])): row
                  for row in summary['aggregate_windows']}
     windows = manifest['pre_registered_windows']
