@@ -17,7 +17,13 @@ from scripts.audit_long_diagnostics import audit, sha
 
 def render_report(summary, manifest, audit_result):
     arms = [variant['name'] for variant in manifest['variants']]
-    short_names = {variant['name']: variant['arm'] for variant in manifest['variants']}
+    short_names = {variant['name']: variant['name'] for variant in manifest['variants']}
+    aged_controls = [variant for variant in manifest['variants']
+                     if variant['arm'] == 'current_pilot'
+                     and variant.get('current_pilot_prior', 'acquisition') == 'aged_acquisition']
+    static_controls = [variant for variant in manifest['variants']
+                       if variant['arm'] == 'current_pilot'
+                       and variant.get('current_pilot_prior', 'acquisition') == 'acquisition']
     online = 'recursive_pilot_ar1'
     if online not in arms:
         raise ValueError('本报告的机制诊断需要显式 recursive_pilot_ar1 臂。')
@@ -34,9 +40,16 @@ def render_report(summary, manifest, audit_result):
         '不选择窗口、不拟合单调曲线。尚未冻结实质改善阈值、饱和等价容差或确认功效；'
         '本报告不给总体通过、等价或饱和判定。', '',
         '在线使用合法 acquisition 残差估噪；真值仅用于接收结束后的评分。神经权重冻结，'
-        '当前物理解码分支不证明 Transformer 或离线闭环训练贡献。', '',
-        '本轮 current_pilot 使用未老化的 acquisition 先验，其长期差值混合了历史观测与先验模型差异。'
-        '不能将该差值全部归因于新增普通帧 Pilot。匹配动态的老化先验对照需另行独立验证。', '']
+        '当前物理解码分支不证明 Transformer 或离线闭环训练贡献。', '']
+    if static_controls:
+        lines += ['未老化 acquisition 先验的当前 Pilot 对照为：'
+                  + '、'.join(variant['name'] for variant in static_controls)
+                  + '。它与递归臂的差值混合历史观测及先验模型差异，不能全部归因于新增普通帧 Pilot。', '']
+    if aged_controls:
+        lines += ['显式使用老化 acquisition 先验的当前 Pilot 对照为：'
+                  + '、'.join(variant['name'] for variant in aged_controls)
+                  + '。请核对配套协议中冻结动态是否与递归臂相同；各臂自己的同步和 soft-tail '
+                  '仍可能随解码轨迹变化，配对差描述整个递归接收策略的增量。', '']
 
     for snr in manifest['snrs']:
         lines += [f'## {snr} dB', '', '全会话结果：', '',

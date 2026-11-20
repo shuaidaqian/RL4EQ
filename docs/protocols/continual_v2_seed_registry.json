@@ -5419,6 +5419,21 @@
           "interpretation": "全部开发会话完成且全量审计通过；不等于研究目标或独立确认完成。"
         }
       }
+    },
+    {
+      "experiment": "p9a_aged_prior_smoke_dev_1x8",
+      "purpose": "development",
+      "seeds": [
+        237001
+      ],
+      "status": "reserved",
+      "details": {
+        "manifest": "docs/protocols/continual_v2_aged_prior_smoke_dev_20261120.json",
+        "frames": 8,
+        "expected_rows": 128,
+        "role": "development",
+        "purpose": "真实入口首帧一致性及schema3完整性核验"
+      }
     }
   ],
   "historical_reserved_ranges": [

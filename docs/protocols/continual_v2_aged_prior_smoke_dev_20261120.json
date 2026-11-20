@@ -1,0 +1,115 @@
+{
+  "description": "P9a真实入口核验：匹配老化单帧先验与递归臂首帧一致性及schema3保存链路；四SNR完整8帧，不据此挑方法或宣称BER收益。",
+  "variants": [
+    {
+      "name": "acquisition_known_adapt_real_physics",
+      "arm": "acquisition",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "random_walk",
+      "initial_prediction_intervals": 1.0
+    },
+    {
+      "name": "current_pilot_static",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "random_walk",
+      "initial_prediction_intervals": 1.0
+    },
+    {
+      "name": "current_pilot_aged_ar1",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "aged_acquisition"
+    },
+    {
+      "name": "recursive_pilot_ar1",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0
+    }
+  ],
+  "pairs": [
+    [
+      "current_pilot_static",
+      "current_pilot_aged_ar1"
+    ],
+    [
+      "current_pilot_aged_ar1",
+      "recursive_pilot_ar1"
+    ],
+    [
+      "acquisition_known_adapt_real_physics",
+      "recursive_pilot_ar1"
+    ]
+  ],
+  "frames": 8,
+  "snrs": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "seeds": [
+    237001
+  ],
+  "state_split": "offline_train",
+  "noise_source": "acquisition_residual",
+  "timing": "current_pilot_then_decode",
+  "statistical_unit": "session",
+  "expected_stream_schema_version": 3,
+  "pre_registered_windows": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      4
+    ],
+    [
+      4,
+      8
+    ]
+  ],
+  "interpretation_constraints": [
+    "预定四SNR四臂8帧全部完成后分析；不据中途结果调参或停止",
+    "仅核验真实入口与完整性，不作BER、增长、饱和或神经贡献证明",
+    "主路径合法acquisition估噪；真实状态和Data仅事后评分",
+    "旧current_pilot_static保留历史锚点，匹配增量只比较current_pilot_aged_ar1与recursive_pilot_ar1"
+  ],
+  "device": "cpu",
+  "expected_rows": 128,
+  "observation_duration_seconds": 0.8192,
+  "implementation_precondition": "整合7e9d080后全量324 passed",
+  "primary_questions": [
+    "首帧匹配两臂的实际CIR诊断、错误数、soft评分和先验迹一致性",
+    "合法信息、全量配对、schema3诊断保存链路"
+  ]
+}
