@@ -1,0 +1,16 @@
+{
+  "role": "deterministic_moment_calculation_not_estimator_confidence_interval",
+  "research_seeds_used": [],
+  "frozen_dynamics_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+  "assumed_known_rho": 0.9999149638055597,
+  "power_average_indices": [
+    2,
+    11719
+  ],
+  "states_per_session": 11718,
+  "sessions": 10,
+  "one_tap_mean_power_relative_variance": 0.38089930270405137,
+  "one_tap_relative_std": 0.6171704000550021,
+  "ten_identical_independent_sessions_relative_std": 0.19516641686111147,
+  "interpretation": "条件于固定单会话基准功率、固定初始幅度与已知rho的精确矩计算。没有计入会话PDP异质性或rho估计误差，不是当前D的置信区间或实际有效样本数。"
+}
