@@ -1,0 +1,601 @@
+{
+  "role": "read_only_point1_temporal_source_inventory",
+  "source_root": "D:\\Research\\01_研究点一_宽带EME信道建模",
+  "research_seeds_used": [],
+  "mat_files": 27,
+  "mat_metadata": [
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\berList_LMS_DFE.mat",
+      "sha256": "bf178a68bedbf4027958a17d3d0be76061c292526124906b96c07aec6e101b38",
+      "variables": [
+        {
+          "name": "berList_LMS_DFE",
+          "shape": [
+            1,
+            7
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\berList_LMS_DFE01.mat",
+      "sha256": "32a96dc12445e8f7fe8df7dcc0dcaf915b149aeb80d3a636c19a9e9e22470738",
+      "variables": [
+        {
+          "name": "berList_LMS_DFE01",
+          "shape": [
+            1,
+            7
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\berList_LMS_Linear.mat",
+      "sha256": "5e92d17f5f80be2cd82a88c077c9f1662fe32408e28a1e8fd0b612afbfe46400",
+      "variables": [
+        {
+          "name": "berList_LMS_Linear",
+          "shape": [
+            1,
+            7
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\berList_LMS_Linear01.mat",
+      "sha256": "ce248a2a18cb25241c865f85f30b11c53a670d4057ba126dec14d5d47d03f6c1",
+      "variables": [
+        {
+          "name": "berList_LMS_Linear01",
+          "shape": [
+            1,
+            7
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\berList_RAKE_MRC.mat",
+      "sha256": "6947be5734132fbb07cdabf2b45390c6e242294a337b6ac67c354ac6befd56ca",
+      "variables": [
+        {
+          "name": "berList_RAKE_MRC",
+          "shape": [
+            1,
+            7
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\berList_RAKE_MRC01.mat",
+      "sha256": "791cc7dc3e0d2d0e3ea706a9b5d7af534429c24ec496a448a646b9d675ca41bd",
+      "variables": [
+        {
+          "name": "berList_RAKE_MRC01",
+          "shape": [
+            1,
+            7
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\berList_RLS_DFE.mat",
+      "sha256": "87b262d2b8eaeeb1659b260ac8c00fc4178b2e6447d25f24e552c3994a1b71fd",
+      "variables": [
+        {
+          "name": "berList_RLS_DFE",
+          "shape": [
+            1,
+            7
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\berList_RLS_DFE01.mat",
+      "sha256": "807a8ae7e8a57d2b726c3949fb98b25e6f0f7daca58610dd9097e50352d62126",
+      "variables": [
+        {
+          "name": "berList_RLS_DFE01",
+          "shape": [
+            1,
+            7
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\berList_RLS_Linear.mat",
+      "sha256": "580dd312939d942dc4a8c3c698161e8e5efe63909b2223e89a71d3b3feb9bcb4",
+      "variables": [
+        {
+          "name": "berList_RLS_Linear",
+          "shape": [
+            1,
+            7
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\berList_RLS_Linear01.mat",
+      "sha256": "77cdff812de00da2bc3a1c5aad5e1714c4e9a124e9471b7f093b210caa6b3952",
+      "variables": [
+        {
+          "name": "berList_RLS_Linear01",
+          "shape": [
+            1,
+            7
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\channel.mat",
+      "sha256": "41f2cb4d74c11cf095d45cb4775cb6ed5c74e8455058159e4e3a197ad8a2733c",
+      "variables": [
+        {
+          "name": "Delay",
+          "shape": [
+            1,
+            1001
+          ],
+          "matlab_class": "double"
+        },
+        {
+          "name": "R",
+          "shape": [
+            1,
+            1001
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\channel_100.mat",
+      "sha256": "15947d0e9b891926b9fe56b98e98d19963e0130684efc043ea506610241fb08d",
+      "variables": [
+        {
+          "name": "Delay",
+          "shape": [
+            1,
+            100
+          ],
+          "matlab_class": "double"
+        },
+        {
+          "name": "R",
+          "shape": [
+            1,
+            100
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\berVec_diffEbN0_FFT.mat",
+      "sha256": "5e08fc1307bf66bbd7dbb4e6fff3c5f1612d4bc25ef21d95acd2ff480ca9c884",
+      "variables": [
+        {
+          "name": "berVec_diffEbN0_FFT",
+          "shape": [
+            1,
+            31
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\berVec_diffEbN0_MLE.mat",
+      "sha256": "ca938d28c591df20ed3adb969137e6782c08a0599c9f06b9c91684bd2b74081a",
+      "variables": [
+        {
+          "name": "berVec_diffEbN0_MLE",
+          "shape": [
+            1,
+            31
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\berVec_diffEbN0_Noshift.mat",
+      "sha256": "cfb0c2fcebb582686064c8db34e4cae7694ca71034e32f0e59edc28a9283da6c",
+      "variables": [
+        {
+          "name": "berVec_diffEbN0_Noshift",
+          "shape": [
+            1,
+            31
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\berVec_diffEbN0_Uncorr.mat",
+      "sha256": "2cc3017119863ee1f27cce2502969f4af4064a2d2644aa52d57a4668fe3a6bae",
+      "variables": [
+        {
+          "name": "berVec_diffEbN0_Uncorr",
+          "shape": [
+            1,
+            31
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\berVec_diffshift_FFT.mat",
+      "sha256": "6fe8e50b68dff764bac5331ac5ad32c4fca608fff209996c468dc160c6b67a84",
+      "variables": [
+        {
+          "name": "berVec_diffshift_FFT",
+          "shape": [
+            1,
+            16
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\berVec_diffshift_MLE.mat",
+      "sha256": "85b943b14edbbacf951b5db5cb2a46368eae618f46de06aef0a87e996e218072",
+      "variables": [
+        {
+          "name": "berVec_diffshift_MLE",
+          "shape": [
+            1,
+            16
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\berVec_diffshift_Perfectshift.mat",
+      "sha256": "5ccbe9bc76ee6ef23fecb1d474026bc36cff0bc7152883ead5f963d26124b38e",
+      "variables": [
+        {
+          "name": "berVec_diffshift_Perfectshift",
+          "shape": [
+            1,
+            16
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\berVec_diffshift_Uncorr.mat",
+      "sha256": "a7d3a478659fd8b150dbb31d7531f39c25ba82466dc0f88a807a25e432032657",
+      "variables": [
+        {
+          "name": "berVec_diffshift_Uncorr",
+          "shape": [
+            1,
+            16
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\channel_100.mat",
+      "sha256": "15947d0e9b891926b9fe56b98e98d19963e0130684efc043ea506610241fb08d",
+      "variables": [
+        {
+          "name": "Delay",
+          "shape": [
+            1,
+            100
+          ],
+          "matlab_class": "double"
+        },
+        {
+          "name": "R",
+          "shape": [
+            1,
+            100
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\berList_LMS_DFE.mat",
+      "sha256": "685a03ed80a06609522abf3272562e9171abb79d9187ad4d6e25c21523c070d2",
+      "variables": [
+        {
+          "name": "berList_LMS_DFE",
+          "shape": [
+            1,
+            16
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\berList_LMS_Linear.mat",
+      "sha256": "2e8bfc944d75c1ff58a85879e7db712bfc23113070f523666296b904604a3030",
+      "variables": [
+        {
+          "name": "berList_LMS_Linear",
+          "shape": [
+            1,
+            16
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\berList_RAKE_MRC.mat",
+      "sha256": "382b3d4df40eff3f2ef29d07440c87d4588e0c40a930973c40e48bb953125804",
+      "variables": [
+        {
+          "name": "berList_RAKE_MRC",
+          "shape": [
+            1,
+            16
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\berList_RLS_DFE.mat",
+      "sha256": "774460c723d95e020f34bf7ebed476e08d6dcb570fde3cf17d6425ab85ef9b0d",
+      "variables": [
+        {
+          "name": "berList_RLS_DFE",
+          "shape": [
+            1,
+            16
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\berList_RLS_Linear.mat",
+      "sha256": "1eab9f293d9fee0f4bbf76e061b59bee66cc59e9f99e70b7f93acd635a81adc7",
+      "variables": [
+        {
+          "name": "berList_RLS_Linear",
+          "shape": [
+            1,
+            16
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\channel_100.mat",
+      "sha256": "15947d0e9b891926b9fe56b98e98d19963e0130684efc043ea506610241fb08d",
+      "variables": [
+        {
+          "name": "Delay",
+          "shape": [
+            1,
+            100
+          ],
+          "matlab_class": "double"
+        },
+        {
+          "name": "R",
+          "shape": [
+            1,
+            100
+          ],
+          "matlab_class": "double"
+        }
+      ]
+    }
+  ],
+  "maximum_doppler_declarations": [
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\Copy_of_Doppler_Spread_RLS_DFE.m",
+      "line": 60,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "b5154dd37b52a188f4dbd14bb64db8d2f61b8260b47ef0a51de5ff19197af936"
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\Doppler_Spread_LMS_DFE.m",
+      "line": 83,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "8a5849f5dcd68242cd09a3267124776a52917762df3d8850f35b3afb86154ff4"
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\Doppler_Spread_LMS_Linear.m",
+      "line": 83,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "6a421a14512a91b70200b57185b98013eb85d34758bb2c809606df90348d78bd"
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\Doppler_Spread_RAKE_MRC.m",
+      "line": 78,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "612b841b6ee9112b37581c9b5f829813f96f9ce5b205e3aa2f9911eea35b35a7"
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\Doppler_Spread_RLS_DFE.m",
+      "line": 84,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "6729c188ede3395f3a2836f0e271ae53e4a8a7dbf0160044a1ce54445e131378"
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\Doppler_Spread_RLS_DFE01.m",
+      "line": 72,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "9c0c83955eb03c160f820161698335965909a640476fd5c63db4fce88ecd74df"
+    },
+    {
+      "path": "03_仿真程序\\Copy_of_Multipath\\Doppler_Spread_RLS_Linear.m",
+      "line": 83,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "21da28a0ca57c04515f7d4fd96f6bd5aa721b1be398c687f501d0739326b7929"
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\Doppler_Shift.m",
+      "line": 34,
+      "declaration": "'MaximumDopplerShift', 0);  % 多径间不引入小尺度多普勒（由 freqOffset 控制主频偏）",
+      "source_sha256": "def30f029390bb68ae672dd2b46f9f404bbe6763b69a5910bfa4a174571daffc"
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\Doppler_Spread01.m",
+      "line": 59,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "6d09a3d8e1aaa394fbcb6021aea4c963a0da19d9ba4b7137496e19dc30927ff3"
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\Doppler_Spread02.m",
+      "line": 79,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "f8a6f61b10eacc46b7f871b371de659f6409cdb39e26995956d54095e1aefaea"
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\Doppler_Spread03.m",
+      "line": 61,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "30c0c01ab97dc9241b5314a6e3429248e92b5157436a32245db68a3554dc0020"
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\Doppler_Spread04.m",
+      "line": 84,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "25feb73f514dfb66f2028d7602f2386b738e169109e1199710daa0deaf8075ea"
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\Doppler_Spread05.m",
+      "line": 83,
+      "declaration": "'MaximumDopplerShift', 1500);",
+      "source_sha256": "9d7886d7795ad04c6ae2ee71fb17b7f6d604d72a1db375abfc8d6081111a068c"
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\Doppler_Spread06.m",
+      "line": 65,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "0a212e6df83f88c1b67f86ebe056105bec8b2a5a49d51899857c2f1a615ac264"
+    },
+    {
+      "path": "03_仿真程序\\Doppler\\Spread_channel03.m",
+      "line": 16,
+      "declaration": "'MaximumDopplerShift', max_doppler);",
+      "source_sha256": "63239267c79df76467fbc89e64d81d1e257693506440c91123c8719bf1172d00"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Doppler_Spread_LMS_DFE.m",
+      "line": 83,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "8a5849f5dcd68242cd09a3267124776a52917762df3d8850f35b3afb86154ff4"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Doppler_Spread_LMS_DFE01.m",
+      "line": 72,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "516c1439dffa51d60e4e60b3599f56fe9f194a8f6aa6d6fd03f5cdf1ab4cb78a"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Doppler_Spread_LMS_Linear.m",
+      "line": 83,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "6a421a14512a91b70200b57185b98013eb85d34758bb2c809606df90348d78bd"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Doppler_Spread_LMS_Linear01.m",
+      "line": 72,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "c4f306236fda8e9131ae4f45832e2497ee282fc76e14716bcabc9b888bd11c55"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Doppler_Spread_RAKE_MRC01.m",
+      "line": 84,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "7924836e7e4df53791b5772079c652e899e08446bbeff56e8efb476082698f19"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Doppler_Spread_RLS_DFE.m",
+      "line": 83,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "d6430b113830a0af487b0bc06651d65cfb3e1ce346885c4105304e30745c6625"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Doppler_Spread_RLS_DFE01.m",
+      "line": 72,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "9c0c83955eb03c160f820161698335965909a640476fd5c63db4fce88ecd74df"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Doppler_Spread_RLS_Linear.m",
+      "line": 83,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "21da28a0ca57c04515f7d4fd96f6bd5aa721b1be398c687f501d0739326b7929"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Doppler_Spread_RLS_Linear01.m",
+      "line": 72,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "8ace2c4f34aff35068afaee27778197c9a0de260ef482ec0452e99ccabe3a163"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Nofor_Doppler_Spread_RAKE_MRC.m",
+      "line": 57,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "cb63c5cc452777d0c6d8798b375a61d78f97126f6432fdc4028f8f780a0ca5fa"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Nofor_Doppler_Spread_RAKE_MRC01.m",
+      "line": 62,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "4abb73a4d3f256d4e4953aa34ebb51c488d2d1dfe412b93d728b02383f612d5f"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Nofor_Doppler_Spread_RAKE_MRC02.m",
+      "line": 62,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "1aa520b6b5e42ea11395dc867a556eb19a5a1bda4668d7e8ad74cdfa10450723"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Nofor_Doppler_Spread_RLS_DFE.m",
+      "line": 60,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "430af87a3eeb2dad5560df93b2a5bbdb6587e9aaca35eb323cbf2028d4ceb69f"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Nofor_Doppler_Spread_RLS_DFE01.m",
+      "line": 66,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "216738ab0887218bf74546f45ff4e40c3fd94ad373f49e886c07bf4414e69cad"
+    },
+    {
+      "path": "03_仿真程序\\Multipath\\Nofor_Doppler_Spread_RLS_DFE02.m",
+      "line": 67,
+      "declaration": "'MaximumDopplerShift', 0);",
+      "source_sha256": "62ef5f6d5cd44b591fbff3835707384cbc3fdad76edb1f59a8ecd2b62e05dce4"
+    }
+  ],
+  "interpretation": "所列27个MAT元数据仅见PDP和BER数组，未发现CIR时间序列；不排除其他格式或未纳入的材料。不同脚本的手设Doppler参数不是物理拟合，不能导出当前1200秒AR1时间常数。本次不执行MATLAB程序、不改源目录。"
+}
