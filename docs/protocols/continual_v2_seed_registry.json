@@ -6694,6 +6694,26 @@
           "interpretation": "固定物理迭代的数值残差及短窗闭环差异描述；不证明四SNR自身改善、饱和或独立确认。"
         }
       }
+    },
+    {
+      "experiment": "p11_matched_history_long_dev_6x11719",
+      "purpose": "development",
+      "seeds": [
+        237301,
+        237302,
+        237303,
+        237304,
+        237305,
+        237306
+      ],
+      "status": "reserved",
+      "details": {
+        "manifest": "docs/protocols/continual_v2_matched_history_long_dev_20261120.json",
+        "frames": 11719,
+        "expected_rows": 843768,
+        "role": "development",
+        "purpose": "原1200秒时域下匹配老化先验与递归历史增量及自身BER形状"
+      }
     }
   ],
   "historical_reserved_ranges": [

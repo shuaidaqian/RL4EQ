@@ -20,7 +20,7 @@ P9已完整结束并更新registry为completed，仍属development。seed237101�
 
 P10求解精度比较已完成并完整审计：新seed237201–237204，四SNR、256帧、8/32/64 CG三臂共12,288行。32次将8次的方程残差明显降低；会话级BER增量只在5 dB的四个开发会话区间排除零，0/10/15 dB仍不确定。64次进一步降残差，未观察到一致BER收益，平均多耗约18ms/帧（本次计时包含额外残差诊断，CPU开发成本）。不将无显著差解释为等价，也不认定数值求解已解释长程回升。见[P10归档](results/continual_v2_solver_precision_dev_20261120/README.md)。
 
-下一项P9已预登记seeds237101–237106、四SNR三臂、1024连续帧，共73,728行，协议 `docs/protocols/continual_v2_matched_history_dev_20261120.json`。主要比较匹配冻结AR1动态的当前Pilot与递归策略，保留acquisition Frozen整体增益。窗口在启动前固定，从首帧完整报告，全部会话结束后才分析，不据中途BER调参或停止。约105秒观察用于历史信息增量开发诊断，不替代1200秒后段回升研究或最终长程确认；神经贡献、四SNR自身改善/增长至饱和保持和P5确认均未完成。
+下一阶段针对P8长程Online回升，使用全新六会话seed，在原约1200秒时域同时比较 acquisition Frozen、匹配老化acquisition先验的当前Pilot与递归Pilot。此设计补足P8原current_pilot未计老化的归因缺陷，主要检验六会话中自身BER与历史增量的时域形状；仍属development，不能替代独立确认或预先冻结的饱和/功效判据。P10所见数值残差与BER改善并不一一对应，因此长程臂先保留P9已验证递归求解版本，不混入CG次数变更。新增工作将采用新协议、新seed且全程保存schema3诊断；完成前不据中途表现调参或停止。随后再决定是否需要为10/15 dB改善设计新的离散推断或协方差感知方法。四SNR目标、离线神经贡献和P5确认仍未完成。
 
 - `bayes-cir`：当前修正与研究路线已提交为 `9516241` 并推送到 `RL4EQ/bayes-cir`。
 - 提交前全量测试：`python -m pytest -q -p no:cacheprovider`，160 passed。
