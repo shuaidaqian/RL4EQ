@@ -6184,6 +6184,24 @@
           "interpretation": "全量逐帧审计完成；匹配历史信息正增量的六会话开发证据不等于自身改善四SNR目标、饱和或独立确认。"
         }
       }
+    },
+    {
+      "experiment": "p10_solver_precision_dev_4x256",
+      "purpose": "development",
+      "seeds": [
+        237201,
+        237202,
+        237203,
+        237204
+      ],
+      "status": "reserved",
+      "details": {
+        "manifest": "docs/protocols/continual_v2_solver_precision_dev_20261120.json",
+        "frames": 256,
+        "expected_rows": 12288,
+        "role": "development",
+        "purpose": "同一物理模型求解精度数值诊断与闭环增量"
+      }
     }
   ],
   "historical_reserved_ranges": [

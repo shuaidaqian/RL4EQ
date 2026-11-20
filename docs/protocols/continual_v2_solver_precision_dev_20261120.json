@@ -1,0 +1,122 @@
+{
+  "description": "P10物理解码求解精度开发比较：四个新独立seed，四SNR，每会话256帧；在线AR1 Pilot-only三臂只改变实值BPSK线性松弛CG次数8/32/64，同波形、同初始状态、同合法估噪。逐帧记录真实正规方程残差。当前soft映射保持不变，不做噪声/状态/权重/结构联调。development，不作长程饱和或独立确认。",
+  "variants": [
+    {
+      "name": "recursive_physics_cg8",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "physics_solver_iterations": 8,
+      "physics_solver_diagnostics": true
+    },
+    {
+      "name": "recursive_physics_cg32",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "physics_solver_iterations": 32,
+      "physics_solver_diagnostics": true
+    },
+    {
+      "name": "recursive_physics_cg64",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "physics_solver_iterations": 64,
+      "physics_solver_diagnostics": true
+    }
+  ],
+  "pairs": [
+    [
+      "recursive_physics_cg8",
+      "recursive_physics_cg32"
+    ],
+    [
+      "recursive_physics_cg32",
+      "recursive_physics_cg64"
+    ],
+    [
+      "recursive_physics_cg8",
+      "recursive_physics_cg64"
+    ]
+  ],
+  "frames": 256,
+  "snrs": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "seeds": [
+    237201,
+    237202,
+    237203,
+    237204
+  ],
+  "state_split": "offline_train",
+  "noise_source": "acquisition_residual",
+  "timing": "current_pilot_then_decode",
+  "statistical_unit": "session",
+  "expected_stream_schema_version": 3,
+  "pre_registered_windows": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      16
+    ],
+    [
+      16,
+      64
+    ],
+    [
+      64,
+      256
+    ]
+  ],
+  "interpretation_constraints": [
+    "四seed四SNR三臂256帧全部完成并全量审计后分析；不据中途BER或残差调参或停止",
+    "只改变物理CG迭代次数；soft输出映射保持2*z/noise不变，不能将其称为校准LLR",
+    "每臂均用合法acquisition残差估噪、同冻结AR1 Pilot状态与相同checkpoint；不同soft-tail构成求解策略真实闭环效果",
+    "相对增益与Online自身BER分开报告；每SNR只有4个开发会话，不能作为总体确认",
+    "solver residual是正规方程数值诊断，不是模型失配或BER改善的充分证据",
+    "诊断额外算子开销记入接收elapsed；不能外推硬件实时性",
+    "不覆盖约1200秒目标时域；不证明饱和、保持、神经增量或协同",
+    "估计CIR/同步/真实状态/Data只在接收结束后诊断或评分"
+  ],
+  "device": "cpu",
+  "expected_rows": 12288,
+  "observation_duration_seconds": 26.2144,
+  "implementation_precondition": "P9a四SNR128行全部完成审计，首帧匹配诊断及soft评分精确一致；整合全量324 passed",
+  "primary_questions": [
+    "8次求解的实际正规方程相对残差是否按SNR/窗口偏大",
+    "增加CG次数是否减少残差及改变同波形整条接收策略BER",
+    "改善大小是否值得增加迭代耗时，并在独立会话方向上是否稳定"
+  ]
+}
