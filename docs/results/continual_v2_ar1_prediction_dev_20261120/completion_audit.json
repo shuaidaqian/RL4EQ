@@ -1,0 +1,363 @@
+{
+  "status": "completed_development_audit",
+  "sessions": 40,
+  "session_arm_groups": 120,
+  "frames_per_group": 11719,
+  "rows": 1406280,
+  "paired_frames": 468760,
+  "duplicates": 0,
+  "missing": 0,
+  "hash_mismatches": 0,
+  "invalid_bits_or_errors": 0,
+  "acquisitions": 40,
+  "manifest_sha256": "69d1279f6ca8f39de9f39c18039634234eeb33b1e2c70bace1070fd94895a5be",
+  "result_sha256": "b683c7e99a4f8ee7324f1c9a9b858f8063bcc3f77c59b45c871e97cd3b09ad10",
+  "rows_sha256": "cae2e6714b00eec34d1077c02431bb2724ca9072a453cdc4f3e7d82a99619f3b",
+  "recovery_events": [
+    {
+      "unix_time": 1795131190.2316506,
+      "resume_git_commit": "7dd9744f391e2fa6e99c317d7f13306b21a5faf6",
+      "resume_script_sha256": "f797b99fc2f2f1bdfe211c4d03659282d852600520644129227c7bafdab40c57",
+      "replayed_session": [
+        5,
+        234003
+      ],
+      "replayed_through_frame": 7423,
+      "reason": null
+    }
+  ],
+  "source_validation": "算法源文件与运行记录指纹一致；比较入口因显式续跑修复而变化，恢复事件记录该入口指纹。",
+  "full_session_descriptive": {
+    "0": {
+      "arms": {
+        "acquisition_known_adapt_real_physics": {
+          "ber_mean_ci95_t": [
+            0.25788866504181246,
+            0.23616802591993194,
+            0.279609304163693
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            20.4946791606032,
+            20.426131255497015,
+            20.563227065709388
+          ],
+          "errors": 23210475,
+          "bits": 90001920
+        },
+        "recursive_pilot_rw": {
+          "ber_mean_ci95_t": [
+            0.1232894920463919,
+            0.1157622193625202,
+            0.1308167647302636
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            34.6459166674702,
+            34.54870036279247,
+            34.74313297214794
+          ],
+          "errors": 11096291,
+          "bits": 90001920
+        },
+        "recursive_pilot_ar1": {
+          "ber_mean_ci95_t": [
+            0.1223331902252752,
+            0.11484559567620967,
+            0.12982078477434073
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            35.638878751339995,
+            35.53804125939243,
+            35.73971624328756
+          ],
+          "errors": 11010222,
+          "bits": 90001920
+        }
+      },
+      "pairs": {
+        "recursive_pilot_rw|recursive_pilot_ar1": {
+          "ber_gain_mean_ci95_t": [
+            0.0009563018211167062,
+            0.0008873578867183141,
+            0.0010252457555150983
+          ],
+          "positive_sessions": 10
+        },
+        "acquisition_known_adapt_real_physics|recursive_pilot_rw": {
+          "ber_gain_mean_ci95_t": [
+            0.1345991729954205,
+            0.11651768134152536,
+            0.15268066464931568
+          ],
+          "positive_sessions": 10
+        },
+        "acquisition_known_adapt_real_physics|recursive_pilot_ar1": {
+          "ber_gain_mean_ci95_t": [
+            0.13555547481653724,
+            0.11744109247790843,
+            0.15366985715516604
+          ],
+          "positive_sessions": 10
+        }
+      },
+      "noise_ratio_mean_ci95_t": [
+        1.0004869894510193,
+        0.9812600669442711,
+        1.0197139119577674
+      ],
+      "noise_ratio_min_max": [
+        0.9551890575066699,
+        1.0412565065337778
+      ]
+    },
+    "5": {
+      "arms": {
+        "acquisition_known_adapt_real_physics": {
+          "ber_mean_ci95_t": [
+            0.19284037496088974,
+            0.1673938615212816,
+            0.21828688840049787
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            20.463098204473837,
+            20.364741416481156,
+            20.56145499246652
+          ],
+          "errors": 17356004,
+          "bits": 90001920
+        },
+        "recursive_pilot_rw": {
+          "ber_mean_ci95_t": [
+            0.029165822240236654,
+            0.024040528471096233,
+            0.03429111600937707
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            34.68143649827074,
+            34.512523752307665,
+            34.85034924423382
+          ],
+          "errors": 2624980,
+          "bits": 90001920
+        },
+        "recursive_pilot_ar1": {
+          "ber_mean_ci95_t": [
+            0.028599678762408626,
+            0.0235395433542672,
+            0.033659814170550056
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            35.64384501506168,
+            35.4949142000438,
+            35.792775830079556
+          ],
+          "errors": 2574026,
+          "bits": 90001920
+        }
+      },
+      "pairs": {
+        "recursive_pilot_rw|recursive_pilot_ar1": {
+          "ber_gain_mean_ci95_t": [
+            0.0005661434778280284,
+            0.00048576270682989674,
+            0.0006465242488261601
+          ],
+          "positive_sessions": 10
+        },
+        "acquisition_known_adapt_real_physics|recursive_pilot_rw": {
+          "ber_gain_mean_ci95_t": [
+            0.16367455272065307,
+            0.1401242777635316,
+            0.18722482767777454
+          ],
+          "positive_sessions": 10
+        },
+        "acquisition_known_adapt_real_physics|recursive_pilot_ar1": {
+          "ber_gain_mean_ci95_t": [
+            0.16424069619848108,
+            0.14064656626413916,
+            0.187834826132823
+          ],
+          "positive_sessions": 10
+        }
+      },
+      "noise_ratio_mean_ci95_t": [
+        1.0004854031989545,
+        0.981292144400027,
+        1.0196786619978822
+      ],
+      "noise_ratio_min_max": [
+        0.955571138327567,
+        1.0410154718313636
+      ]
+    },
+    "10": {
+      "arms": {
+        "acquisition_known_adapt_real_physics": {
+          "ber_mean_ci95_t": [
+            0.1656462884347356,
+            0.13869774861256648,
+            0.19259482825690474
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            20.261973531996844,
+            20.12326222007019,
+            20.4006848439235
+          ],
+          "errors": 14908484,
+          "bits": 90001920
+        },
+        "recursive_pilot_rw": {
+          "ber_mean_ci95_t": [
+            0.0019281144224478765,
+            0.0009739307889049486,
+            0.002882298055990804
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            34.44357411393535,
+            34.254659423497216,
+            34.63248880437348
+          ],
+          "errors": 173534,
+          "bits": 90001920
+        },
+        "recursive_pilot_ar1": {
+          "ber_mean_ci95_t": [
+            0.001843505116335296,
+            0.0009232755147146871,
+            0.002763734717955905
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            35.318896760276374,
+            35.0809756077768,
+            35.55681791277595
+          ],
+          "errors": 165919,
+          "bits": 90001920
+        }
+      },
+      "pairs": {
+        "recursive_pilot_rw|recursive_pilot_ar1": {
+          "ber_gain_mean_ci95_t": [
+            8.460930611258071e-05,
+            4.981732644165606e-05,
+            0.00011940128578350536
+          ],
+          "positive_sessions": 10
+        },
+        "acquisition_known_adapt_real_physics|recursive_pilot_rw": {
+          "ber_gain_mean_ci95_t": [
+            0.16371817401228775,
+            0.13696011382056636,
+            0.19047623420400914
+          ],
+          "positive_sessions": 10
+        },
+        "acquisition_known_adapt_real_physics|recursive_pilot_ar1": {
+          "ber_gain_mean_ci95_t": [
+            0.1638027833184003,
+            0.1370346685305721,
+            0.19057089810622851
+          ],
+          "positive_sessions": 10
+        }
+      },
+      "noise_ratio_mean_ci95_t": [
+        1.000523940848792,
+        0.9814155082835414,
+        1.0196323734140427
+      ],
+      "noise_ratio_min_max": [
+        0.9561974758589166,
+        1.040608548558244
+      ]
+    },
+    "15": {
+      "arms": {
+        "acquisition_known_adapt_real_physics": {
+          "ber_mean_ci95_t": [
+            0.15776982313266205,
+            0.13040624675414894,
+            0.18513339951117516
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            20.139811188272628,
+            20.08099838796331,
+            20.198623988581947
+          ],
+          "errors": 14199587,
+          "bits": 90001920
+        },
+        "recursive_pilot_rw": {
+          "ber_mean_ci95_t": [
+            0.0003033713058565862,
+            0.00016926656158209075,
+            0.0004374760501310816
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            34.17003375796132,
+            34.07138118526255,
+            34.26868633066009
+          ],
+          "errors": 27304,
+          "bits": 90001920
+        },
+        "recursive_pilot_ar1": {
+          "ber_mean_ci95_t": [
+            0.00029934916943994083,
+            0.00016802206992720393,
+            0.00043067626895267774
+          ],
+          "elapsed_ms_mean_ci95_t": [
+            35.07210028674338,
+            34.98708464022184,
+            35.15711593326492
+          ],
+          "errors": 26942,
+          "bits": 90001920
+        }
+      },
+      "pairs": {
+        "recursive_pilot_rw|recursive_pilot_ar1": {
+          "ber_gain_mean_ci95_t": [
+            4.022136416645328e-06,
+            4.7117107809341137e-07,
+            7.573101755197245e-06
+          ],
+          "positive_sessions": 10
+        },
+        "acquisition_known_adapt_real_physics|recursive_pilot_rw": {
+          "ber_gain_mean_ci95_t": [
+            0.15746645182680546,
+            0.13008499914525706,
+            0.18484790450835387
+          ],
+          "positive_sessions": 10
+        },
+        "acquisition_known_adapt_real_physics|recursive_pilot_ar1": {
+          "ber_gain_mean_ci95_t": [
+            0.1574704739632221,
+            0.1300886451587868,
+            0.18485230276765743
+          ],
+          "positive_sessions": 10
+        }
+      },
+      "noise_ratio_mean_ci95_t": [
+        1.0006928363966083,
+        0.9817536737340908,
+        1.0196319990591258
+      ],
+      "noise_ratio_min_max": [
+        0.9573679474260931,
+        1.039979795353296
+      ]
+    }
+  },
+  "limitations": [
+    "开发实验，不作独立确认",
+    "首个Data Pilot前跳过过程预测",
+    "逐帧未保存合法观测残差及协方差诊断",
+    "未预先冻结并验证饱和等价容差",
+    "区间为跨会话未校正描述性95% t区间"
+  ]
+}

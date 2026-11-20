@@ -3834,7 +3834,7 @@
         234009,
         234010
       ],
-      "status": "running",
+      "status": "completed",
       "details": {
         "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
         "manifest": "docs/protocols/continual_v2_ar1_prediction_dev_20261119.json",
@@ -4059,7 +4059,12 @@
           "evaluation/receiver_diagnostics.py": "ed29b2bb94f14731298988a31d5f5fe5fe689827a9e13a545f60c49a31a1d9c4",
           "agent/unfolded_equalizer.py": "cabc7006d53c1519047f91486a82453109f006f35d6e51bb65f41971087b1e07",
           "env/linear_operator.py": "0b06279cbc0535c15446782f158af29aceafb452cdfec02d49cc5747dcf0bb1d"
-        }
+        },
+        "result_rows": 1406280,
+        "output_sha256": "b683c7e99a4f8ee7324f1c9a9b858f8063bcc3f77c59b45c871e97cd3b09ad10",
+        "rows_sha256": "cae2e6714b00eec34d1077c02431bb2724ca9072a453cdc4f3e7d82a99619f3b",
+        "completion_audit": "docs/results/continual_v2_ar1_prediction_dev_20261120/completion_audit.json",
+        "completion": "四SNR全部40会话完成并通过逐帧完整性与配对审计；属于开发证据，保留首帧预测遗漏及诊断缺失限制。"
       }
     },
     {
