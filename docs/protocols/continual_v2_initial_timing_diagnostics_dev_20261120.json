@@ -1,0 +1,152 @@
+{
+  "description": "P7短会话开发诊断：在新seed及流式schema 2下配对比较AR(1)首帧历史零间隔与修复的一间隔，核验合法Pilot观测诊断；同时保留Frozen、当前Pilot与递归RW。不能证明长程跟踪、后段回升原因或独立确认。",
+  "variants": [
+    {
+      "name": "acquisition_known_adapt_real_physics",
+      "arm": "acquisition",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "random_walk",
+      "initial_prediction_intervals": 1.0
+    },
+    {
+      "name": "current_pilot",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "random_walk",
+      "initial_prediction_intervals": 1.0
+    },
+    {
+      "name": "recursive_pilot_rw",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 1e-06,
+      "state_model": "random_walk",
+      "initial_prediction_intervals": 1.0
+    },
+    {
+      "name": "recursive_pilot_ar1_initial0",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 0.0
+    },
+    {
+      "name": "recursive_pilot_ar1",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0
+    }
+  ],
+  "pairs": [
+    [
+      "recursive_pilot_ar1_initial0",
+      "recursive_pilot_ar1"
+    ],
+    [
+      "current_pilot",
+      "recursive_pilot_rw"
+    ],
+    [
+      "current_pilot",
+      "recursive_pilot_ar1"
+    ],
+    [
+      "recursive_pilot_rw",
+      "recursive_pilot_ar1"
+    ],
+    [
+      "acquisition_known_adapt_real_physics",
+      "recursive_pilot_ar1"
+    ]
+  ],
+  "frames": 64,
+  "snrs": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "seeds": [
+    235001,
+    235002,
+    235003
+  ],
+  "state_split": "offline_train",
+  "noise_source": "acquisition_residual",
+  "timing": "current_pilot_then_decode",
+  "statistical_unit": "session",
+  "expected_stream_schema_version": 2,
+  "pre_registered_windows": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      4
+    ],
+    [
+      4,
+      16
+    ],
+    [
+      16,
+      64
+    ]
+  ],
+  "primary_comparison": [
+    "recursive_pilot_ar1_initial0",
+    "recursive_pilot_ar1"
+  ],
+  "diagnostics": [
+    "pilot_observations",
+    "pilot_innovation_mse",
+    "pilot_innovation_variance_mean",
+    "prior_covariance_trace",
+    "decode_covariance_trace",
+    "posterior_covariance_trace",
+    "noise_variance_used",
+    "pilot_updates",
+    "data_updates",
+    "neural_forwards",
+    "model_calls"
+  ],
+  "interpretation_constraints": [
+    "预定3seed×4SNR×64帧×5臂=3840行，全程完成后分析，不按中途BER停止或调参",
+    "固定帧仅使用108行完全已知Adapt观测，不能用Reward或Data标签补行",
+    "相位由同批Pilot拟合且P不含联合同步不确定性，残差能量比不作为已校准卡方统计量",
+    "历史对照显式initial_prediction_intervals=0，其他递归臂为1，后续每帧为1",
+    "短会话无法定位长程回升，不以未见差异声称首帧修复无影响",
+    "全会话按独立session统计，区间仅为未校正开发描述",
+    "没有预设最小实质阈值或饱和等价容差，不据本实验宣布增长或饱和"
+  ]
+}

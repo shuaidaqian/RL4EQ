@@ -4292,6 +4292,29 @@
         "rows_sha256": "7dc259bd09e892d9a2e4f53ad1506813c7a8fcea1391365720448b7afa541046",
         "completion": "CPU end-to-end plumbing smoke; 1 seed × 8 frames × 3 arms; not performance evidence"
       }
+    },
+    {
+      "experiment": "p7_initial_timing_diagnostics_dev_3x64",
+      "purpose": "development",
+      "seeds": [
+        235001,
+        235002,
+        235003
+      ],
+      "status": "reserved",
+      "details": {
+        "manifest": "docs/protocols/continual_v2_initial_timing_diagnostics_dev_20261120.json",
+        "frames": 64,
+        "snrs": [
+          0,
+          5,
+          10,
+          15
+        ],
+        "expected_rows": 3840,
+        "output": "docs/results/continual_v2_initial_timing_dev_20261120/diagnostics_3x64.json",
+        "purpose_detail": "首帧时序修复配对与合法观测诊断短会话开发；不能替代长程验证或确认"
+      }
     }
   ],
   "historical_reserved_ranges": [
