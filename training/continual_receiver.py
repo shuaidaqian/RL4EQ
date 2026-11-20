@@ -192,12 +192,39 @@ def _corrected(frame, positions, features):
     return frame.rx_symbols[positions] * torch.exp(-1j * phase)
 
 
-def pilot_update(frame, mean, covariance, noise, features):
+def _pilot_design(frame, mean):
+    """仅返回卷积窗口中全部符号均为合法 Adapt 的观测行。"""
+
     max_delay = mean.numel() - 1
     positions = torch.arange(max_delay, frame.rx_symbols.numel(), device=mean.device)
     known = _design(frame.adapt_mask, positions, max_delay).all(1)
     positions = positions[known]
     design = _design(frame.tx_symbols, positions, max_delay)
+    return positions, design
+
+
+def pilot_innovation_statistics(frame, mean, covariance, noise, features):
+    """记录更新前合法 Pilot 残差，不把同批 Pilot 拟合后的相位当已知真值。
+
+    预测方差只包含 CIR 先验和白噪声，不含同步不确定性；这些均值统计
+    不能作为已校准的卡方创新检验，也不回流接收状态或噪声估计。
+    """
+
+    positions, design = _pilot_design(frame, mean)
+    if positions.numel() == 0:
+        return {'pilot_observations': 0, 'pilot_innovation_mse': None,
+                'pilot_innovation_variance_mean': None}
+    residual = _corrected(frame, positions, features) - design @ mean
+    predicted_variance = ((design @ covariance) * design.conj()).sum(1).real + noise
+    return {
+        'pilot_observations': int(positions.numel()),
+        'pilot_innovation_mse': float(residual.abs().square().mean()),
+        'pilot_innovation_variance_mean': float(predicted_variance.mean()),
+    }
+
+
+def pilot_update(frame, mean, covariance, noise, features):
+    positions, design = _pilot_design(frame, mean)
     row_noise = torch.full((positions.numel(),), noise, device=mean.device)
     return gaussian_update(mean, covariance, design, _corrected(frame, positions, features), row_noise)
 
@@ -289,6 +316,9 @@ class ContinualReceiver:
                 transition_intervals=intervals,
             )
         features = self._phase_features(frame, mean)
+        pilot_statistics = pilot_innovation_statistics(
+            frame, mean, covariance, self.acquisition.noise_variance, features)
+        prior_covariance_trace = float(covariance.trace().real)
         if self.arm != "acquisition":
             mean, covariance = pilot_update(frame, mean, covariance,
                                             self.acquisition.noise_variance, features)
@@ -306,6 +336,7 @@ class ContinualReceiver:
         self.frames_seen += 1
         return logits, {
             "decode_cir": decode_mean, "decode_covariance_trace": float(decode_covariance.trace().real),
+            "prior_covariance_trace": prior_covariance_trace, **pilot_statistics,
             "posterior_covariance_trace": float(covariance.trace().real),
             "pilot_updates": int(self.arm != "acquisition"),
             "data_updates": int(self.arm == "recursive_soft"), "neural_forwards": 1,

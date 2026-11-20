@@ -40,6 +40,26 @@ from training.continual_offline import InputRecorder
 from training.pilot_transfer import frame_to_device
 
 
+STREAM_ROW_FIELDS = (
+    'seed', 'snr_db', 'frame_index', 'arm', 'errors', 'bits', 'elapsed_ms', 'rx_sha256',
+    'prior_covariance_trace', 'decode_covariance_trace', 'posterior_covariance_trace',
+    'pilot_observations', 'pilot_innovation_mse', 'pilot_innovation_variance_mean',
+    'noise_variance_used', 'pilot_updates', 'data_updates', 'neural_forwards', 'model_calls',
+)
+
+
+def compact_stream_row(row):
+    """新流式格式明确保留合法观测诊断；缺字段时拒绝静默丢弃。"""
+
+    missing = [key for key in STREAM_ROW_FIELDS if key not in row]
+    if missing:
+        raise ValueError(f'流式诊断记录缺少必要字段：{missing}')
+    compact = {key: row[key] for key in STREAM_ROW_FIELDS}
+    if 'shared_state_from' in row:
+        compact['shared_state_from'] = row['shared_state_from']
+    return compact
+
+
 def inspect_stream_for_resume(rows_output, *, snrs, seeds, arms, frames):
     """检查已有流文件，只允许完整会话加一个连续前缀会话。"""
     session_order = {(snr, seed): index
@@ -181,6 +201,8 @@ def main():
         recorders[row['name']] = InputRecorder(branch)
         models[row['name']] = ForwardCounter(recorders[row['name']])
     protocol = dict(vars(args), variants=variants, arms=[row['name'] for row in variants],
+                    stream_rows_schema_version=2 if args.stream_rows else None,
+                    pilot_innovation_diagnostic='clean_adapt_pre_update_phase_fitted_not_chi_square',
                     pairs=manifest.get('pairs', []), role='development', noise_source='acquisition_residual',
                     statistical_unit='session', timing='current_pilot_then_decode',
                     linear_operator_backend=os.environ.get('RL4EQ_LINEAR_OPERATOR_BACKEND', 'direct'),
@@ -223,6 +245,7 @@ def main():
             'output', 'device', 'stream_rows', 'checkpoint_interval', 'config_sha256',
             'manifest_sha256', 'checkpoint_sha256', 'variants', 'arms', 'pairs',
             'role', 'noise_source', 'statistical_unit', 'timing', 'linear_operator_backend',
+            'stream_rows_schema_version', 'pilot_innovation_diagnostic',
         )
         for field in compatible_fields:
             if previous_protocol.get(field) != protocol.get(field):
@@ -267,11 +290,9 @@ def main():
         nonlocal streamed_rows
         if args.stream_rows:
             if result['rows']:
+                compacted_rows = [compact_stream_row(row) for row in result['rows']]
                 with rows_output.open('a', encoding='utf8', newline='\n') as stream:
-                    for row in result['rows']:
-                        compact = {key:row[key] for key in (
-                            'seed', 'snr_db', 'frame_index', 'arm', 'errors', 'bits', 'elapsed_ms', 'rx_sha256',
-                        )}
+                    for compact in compacted_rows:
                         stream.write(json.dumps(compact, ensure_ascii=False, separators=(',', ':'))+'\n')
                     stream.flush()
                 streamed_rows += len(result['rows'])
