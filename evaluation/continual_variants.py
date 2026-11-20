@@ -35,6 +35,10 @@ def validate_variants(manifest):
         noise = row.get('process_noise', 1e-4)
         if not isinstance(noise, (float, int)) or not math.isfinite(noise) or noise < 0:
             raise ValueError('过程噪声须为非负有限数。')
+        initial_intervals = row.get('initial_prediction_intervals', 1.0)
+        if (not isinstance(initial_intervals, (float, int))
+                or not math.isfinite(initial_intervals) or initial_intervals < 0):
+            raise ValueError('首帧预测的转移间隔须为非负有限数。')
         state_model = row.get('state_model', 'random_walk')
         if state_model not in {'random_walk', 'ar1'}:
             raise ValueError('CIR 状态预测模型须为 random_walk 或 ar1。')

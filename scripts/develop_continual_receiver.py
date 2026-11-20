@@ -21,7 +21,9 @@ from env.comm_env import CommunicationEnvironment
 from env.experiment_config import build_comm_env_config
 from evaluation.pilot_transfer import _load_branch
 from evaluation.seed_registry import reserve_seeds
-from training.continual_receiver import ARMS, ContinualReceiver, estimate_acquisition, receiver_frame
+from training.continual_receiver import (
+    ARMS, ContinualReceiver, acquisition_transition_intervals, estimate_acquisition, receiver_frame,
+)
 from training.pilot_transfer import frame_to_device
 
 
@@ -86,13 +88,16 @@ def main():
     torch.set_num_threads(1)
     device = torch.device(args.device)
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    initial_intervals = acquisition_transition_intervals(
+        config['frame_duration_seconds'], config.get('acquisition_to_data_gap_seconds', 0.0))
     model, _ = _load_branch(Path(args.checkpoint), config, device)
     protocol = vars(args).copy()
     protocol.update({"config_sha256": fingerprint(args.config), "checkpoint_sha256": fingerprint(args.checkpoint),
                      "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
                      "receiver_sha256": fingerprint(ROOT / "training/continual_receiver.py"),
                      "torch_version": torch.__version__, "timing": "current_pilot_then_decode",
-                     "status": "development", "statistical_unit": "session"})
+                     "status": "development", "statistical_unit": "session",
+                     "initial_prediction_intervals": initial_intervals})
     reserve_seeds(ROOT, experiment=args.experiment, seeds=args.seeds,
                   purpose="development", details=protocol)
     result = {"protocol": protocol, "acquisitions": [], "rows": [], "status": "running"}
@@ -128,7 +133,8 @@ def main():
             acquisition = replace(acquisition, mean=acquisition.mean.to(device),
                                   covariance=acquisition.covariance.to(device))
             receivers = {arm: ContinualReceiver(acquisition, start.initial_soft_tail.to(device),
-                         arm=arm, process_noise=args.process_noise) for arm in args.arms}
+                         arm=arm, process_noise=args.process_noise,
+                         initial_prediction_intervals=initial_intervals) for arm in args.arms}
             for _ in range(args.frames):
                 original = frame_to_device(env.next_frame(), device)
                 visible = receiver_frame(original)

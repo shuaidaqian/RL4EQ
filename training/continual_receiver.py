@@ -23,14 +23,29 @@ from training.pilot_transfer import TransferContext, context_logits, tail_from_l
 ARMS = ("acquisition", "current_pilot", "recursive_pilot", "recursive_soft")
 
 
+def acquisition_transition_intervals(frame_duration_seconds, gap_seconds=0.0):
+    """acquisition 帧末的一次演化，加上已知额外空档的等效帧数。"""
+
+    duration, gap = float(frame_duration_seconds), float(gap_seconds)
+    if not math.isfinite(duration) or duration <= 0 or not math.isfinite(gap) or gap < 0:
+        raise ValueError("帧时长须为正有限数，acquisition 空档须为非负有限数。")
+    intervals = 1.0 + gap / duration
+    if not math.isfinite(intervals):
+        raise ValueError("acquisition 到首帧的等效转移间隔必须有限。")
+    return intervals
+
+
 def predict_cir_state(mean, covariance, *, state_model, process_noise, state_rho=None,
-                      stationary_power=None):
+                      stationary_power=None, transition_intervals=1.0):
     """应用冻结的随机游走或离线估计 AR(1) CIR 预测。"""
 
+    intervals = float(transition_intervals)
+    if not math.isfinite(intervals) or intervals < 0:
+        raise ValueError("状态预测的转移间隔须为非负有限数。")
     if state_model == "random_walk":
         if process_noise < 0 or not math.isfinite(process_noise):
             raise ValueError("随机游走过程噪声必须非负且有限。")
-        predicted_covariance = covariance + float(process_noise) * torch.eye(
+        predicted_covariance = covariance + intervals * float(process_noise) * torch.eye(
             mean.numel(), device=mean.device, dtype=mean.dtype
         )
         return mean, predicted_covariance
@@ -41,7 +56,7 @@ def predict_cir_state(mean, covariance, *, state_model, process_noise, state_rho
     power = torch.as_tensor(stationary_power, device=mean.device, dtype=mean.real.dtype)
     if power.ndim != 1 or power.numel() != mean.numel() or not bool(torch.isfinite(power).all()) or bool((power < 0).any()):
         raise ValueError("AR(1) stationary_power 必须是 CIR 维度一致的非负有限向量。")
-    rho = float(state_rho)
+    rho = float(state_rho) ** intervals
     stationary_covariance = torch.diag(power.to(dtype=covariance.dtype))
     predicted_mean = rho * mean
     predicted_covariance = rho**2 * covariance + (1.0 - rho**2) * stationary_covariance
@@ -219,7 +234,7 @@ class ContinualReceiver:
 
     def __init__(self, acquisition, tail, *, arm, process_noise=1e-4, phase_estimator="unwrap_median",
                  phase_reference_backend="vectorized", state_model="random_walk", state_rho=None,
-                 stationary_power=None):
+                 stationary_power=None, initial_prediction_intervals=1.0):
         if arm not in ARMS or not math.isfinite(process_noise) or process_noise < 0:
             raise ValueError("接收臂或过程噪声非法。")
         self.acquisition, self.arm = acquisition, arm
@@ -230,6 +245,9 @@ class ContinualReceiver:
         self.state_model = state_model
         self.state_rho = state_rho
         self.stationary_power = stationary_power
+        self.initial_prediction_intervals = float(initial_prediction_intervals)
+        if not math.isfinite(self.initial_prediction_intervals) or self.initial_prediction_intervals < 0:
+            raise ValueError("首帧预测的转移间隔须为非负有限数。")
         if state_model not in {"random_walk", "ar1"}:
             raise ValueError("未知 CIR 状态预测模型。")
         if state_model == "ar1":
@@ -262,10 +280,13 @@ class ContinualReceiver:
             covariance = self.acquisition.covariance.clone()
         else:
             mean, covariance = self.mean, self.covariance
-        if self.frames_seen and self.arm in {"recursive_pilot", "recursive_soft"}:
+        if self.arm in {"recursive_pilot", "recursive_soft"}:
+            # 首帧也须覆盖 acquisition 发送结束后的状态演化；0 仅供显式历史对照。
+            intervals = self.initial_prediction_intervals if self.frames_seen == 0 else 1.0
             mean, covariance = predict_cir_state(
                 mean, covariance, state_model=self.state_model, process_noise=self.process_noise,
                 state_rho=self.state_rho, stationary_power=self.stationary_power,
+                transition_intervals=intervals,
             )
         features = self._phase_features(frame, mean)
         if self.arm != "acquisition":
