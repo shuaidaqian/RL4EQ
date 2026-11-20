@@ -34,3 +34,5 @@ python scripts/report_long_mechanism.py --result docs/results/continual_v2_long_
 ```
 
 报告保留全部预登记窗口和逐会话配对差，分别列自身 BER、Frozen BER、增益及相邻窗变化，不作饱和或通过判定。分析代码指纹与运行代码指纹分开保存。当前仅用已完成P8a验证该分析链路，未对本轮生成性能报告。
+
+2026-11-20 19:46 +08:00：0/5 dB各两会话、10 dB首会话完整，共5/8个会话。固定字节前缀177,705行、59,235配对帧审计通过，见[首个10 dB完整性检查点](first_ten_db_integrity_checkpoint.json)。原进程78511继续第二个10 dB会话；全部13项运行源码仍匹配启动指纹。当前不分析中途性能、不读取运行中的主JSON，接收算法和预登记保持不变。
