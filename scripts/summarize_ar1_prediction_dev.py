@@ -12,6 +12,11 @@ from pathlib import Path
 from scipy.stats import t
 
 
+AUDITED_INITIAL_PREDICTION_OMISSION_SHA256 = (
+    "4fcc2dee9a70c944c9ed9382d2218f4e9d2dc6e093127cad558b624337074b81"
+)
+
+
 def _mean_ci(values):
     n = len(values)
     mean = sum(values) / n
@@ -59,6 +64,15 @@ def summarize(result_path: Path, manifest_path: Path):
 
     windows = [(0, 1), *[tuple(window) for window in manifest["pre_registered_windows"]]]
     pairs = [tuple(pair) for pair in manifest["pairs"]]
+    # 使用实验记录的源码指纹归类，不能从当前工作树或 BER 曲线推断旧实现。
+    receiver_sha256 = result["protocol"].get("sources", {}).get("training/continual_receiver.py")
+    timing_audit = {"receiver_sha256": receiver_sha256, "status": "not_classified"}
+    if receiver_sha256 == AUDITED_INITIAL_PREDICTION_OMISSION_SHA256:
+        timing_audit.update({
+            "status": "known_initial_prediction_omission",
+            "evidence": "docs/continual_v2_initial_prediction_audit_20261120.md",
+            "description": "已审计的接收器首个 Data Pilot 前跳过状态预测，第二个 Data 帧才开始预测。",
+        })
     summary = {
         "experiment": result["protocol"]["experiment"],
         "source_result": result_path.as_posix(),
@@ -71,6 +85,7 @@ def summarize(result_path: Path, manifest_path: Path):
         "pairs": [list(pair) for pair in pairs],
         "windows_are_zero_based_half_open": True,
         "confidence_intervals": "未校正的跨 session 双侧 95% t 区间，仅作开发描述",
+        "initial_state_timing_audit": timing_audit,
         "snrs": {},
     }
     report = [
@@ -169,6 +184,17 @@ def summarize(result_path: Path, manifest_path: Path):
     report += [
         "## 证据限制",
         "",
+    ]
+    if timing_audit["status"] == "known_initial_prediction_omission":
+        report += [
+            "记录的接收器源码指纹对应已审计的初始化遗漏：首个 Data Pilot 前没有状态预测，"
+            "第二个 Data 帧才开始预测。当前 P6 的生成器在发送 acquisition 后已演化一次 CIR；"
+            "因此不能将本实现描述为 acquisition 至首帧均已匹配的状态空间滤波。"
+            "两条递归臂都有此遗漏，不代表配对影响抵消；以首帧为参照的自身改善和增益增长尤其需要保留这一限制。"
+            "参见[首帧状态预测审计](../../continual_v2_initial_prediction_audit_20261120.md)。",
+            "",
+        ]
+    report += [
         "本实验用于开发筛查，不构成独立确认。逐帧文件没有保存接收器后验协方差迹，也没有实现合法观测残差字段；因此本报告只评价 BER、配对增益和耗时，不能对协方差校准或残差匹配作结论。未预设并验证饱和等价容差，不能把末窗差异不显著解释成饱和。",
         "",
     ]
