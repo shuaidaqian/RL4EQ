@@ -1,0 +1,31 @@
+{
+  "status": "passed",
+  "source_snapshot_sha256": "04631c5d52f99e1356181bfb9058b5f4c8fb382e3ff381560aa178bf7b122492",
+  "checks": [
+    {
+      "snr_db": 0,
+      "seed": 237001,
+      "fields_compared": 34,
+      "exact_match": true
+    },
+    {
+      "snr_db": 5,
+      "seed": 237001,
+      "fields_compared": 34,
+      "exact_match": true
+    },
+    {
+      "snr_db": 10,
+      "seed": 237001,
+      "fields_compared": 34,
+      "exact_match": true
+    },
+    {
+      "snr_db": 15,
+      "seed": 237001,
+      "fields_compared": 34,
+      "exact_match": true
+    }
+  ],
+  "interpretation": "真实入口首帧诊断及soft评分一致性；逐位logits/CIR另由单元测试验证；不是BER收益证明。"
+}
