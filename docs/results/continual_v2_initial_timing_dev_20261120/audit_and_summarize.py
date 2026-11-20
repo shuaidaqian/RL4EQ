@@ -82,4 +82,3 @@ audit=dict(status="completed_development_audit",sessions=12,rows=3840,paired_fra
 (out/"diagnostics_3x64_audit.json").write_text(json.dumps(audit,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
 
 print("P7全部3840行、768个配对帧及schema 2诊断审计通过，已生成diagnostics_3x64_audit.json。")
-

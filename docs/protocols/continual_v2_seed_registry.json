@@ -4688,6 +4688,27 @@
         "completion_audit": "docs/results/continual_v2_initial_timing_dev_20261120/diagnostics_3x64_audit.json",
         "completion": "四SNR五臂全部完成，schema2/108行Adapt/首帧协方差转移及配对完整性通过；短会话开发，不作长程或等价确认。"
       }
+    },
+    {
+      "experiment": "p8a_long_diagnostics_smoke_dev_1x8",
+      "purpose": "development",
+      "seeds": [
+        236001
+      ],
+      "status": "reserved",
+      "details": {
+        "manifest": "docs/protocols/continual_v2_long_diagnostic_smoke_dev_20261120.json",
+        "frames": 8,
+        "snrs": [
+          0,
+          5,
+          10,
+          15
+        ],
+        "expected_rows": 96,
+        "output": "docs/results/continual_v2_long_diagnostic_smoke_dev_20261120/smoke_1x8.json",
+        "purpose_detail": "schema3真实入口与CPU资源核验，不按BER调参"
+      }
     }
   ],
   "historical_reserved_ranges": [

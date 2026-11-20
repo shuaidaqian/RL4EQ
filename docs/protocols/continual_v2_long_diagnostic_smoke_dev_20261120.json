@@ -1,0 +1,91 @@
+{
+  "description": "P8a长程诊断入口短会话核验：不改变接收算法，在CPU上验证schema3事后状态/同步/波形评分真实落盘。只用于实现验证和运行资源规划，不调接收参数，不作性能确认。",
+  "variants": [
+    {
+      "name": "acquisition_known_adapt_real_physics",
+      "arm": "acquisition",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "random_walk",
+      "initial_prediction_intervals": 1.0
+    },
+    {
+      "name": "current_pilot",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "random_walk",
+      "initial_prediction_intervals": 1.0
+    },
+    {
+      "name": "recursive_pilot_ar1",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0
+    }
+  ],
+  "pairs": [
+    [
+      "current_pilot",
+      "recursive_pilot_ar1"
+    ],
+    [
+      "acquisition_known_adapt_real_physics",
+      "recursive_pilot_ar1"
+    ]
+  ],
+  "frames": 8,
+  "snrs": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "seeds": [
+    236001
+  ],
+  "state_split": "offline_train",
+  "noise_source": "acquisition_residual",
+  "timing": "current_pilot_then_decode",
+  "statistical_unit": "session",
+  "expected_stream_schema_version": 3,
+  "pre_registered_windows": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      4
+    ],
+    [
+      4,
+      8
+    ]
+  ],
+  "interpretation_constraints": [
+    "四SNR三臂全部完成后分析；禁止按中途BER选方法或停止",
+    "在线使用合法acquisition残差估噪，真值仅在接收步骤之外评分",
+    "接收算法与P7修复AR1相同，不用本短会话优化参数",
+    "包括实际解码器相位权重/缩放的同步评分，CIR相位规范先对齐",
+    "频谱平坦度仅描述物理难度，不是最优BER下界",
+    "本次为一个开发会话，不证明总体、增长、饱和或实时性"
+  ],
+  "device": "cpu"
+}

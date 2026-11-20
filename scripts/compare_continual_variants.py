@@ -30,7 +30,9 @@ from evaluation.continual_variants import (
     validate_variants,
 )
 from evaluation.pilot_transfer import _load_branch
-from evaluation.receiver_diagnostics import receiver_diagnostics
+from evaluation.receiver_diagnostics import (
+    LONG_DIAGNOSTIC_FIELDS, RECEIVER_SCORE_FIELDS, long_receiver_diagnostics, receiver_diagnostics,
+)
 from evaluation.seed_registry import reserve_seeds
 from scripts.develop_continual_receiver import fingerprint, summarize, synchronize
 from training.continual_receiver import (
@@ -48,13 +50,16 @@ STREAM_ROW_FIELDS = (
 )
 
 
-def compact_stream_row(row):
+def compact_stream_row(row, *, schema_version=2):
     """新流式格式明确保留合法观测诊断；缺字段时拒绝静默丢弃。"""
 
-    missing = [key for key in STREAM_ROW_FIELDS if key not in row]
+    if schema_version not in {2, 3}:
+        raise ValueError('未知流式诊断版本。')
+    fields = STREAM_ROW_FIELDS + (RECEIVER_SCORE_FIELDS + LONG_DIAGNOSTIC_FIELDS if schema_version == 3 else ())
+    missing = [key for key in fields if key not in row]
     if missing:
         raise ValueError(f'流式诊断记录缺少必要字段：{missing}')
-    compact = {key: row[key] for key in STREAM_ROW_FIELDS}
+    compact = {key: row[key] for key in fields}
     if 'shared_state_from' in row:
         compact['shared_state_from'] = row['shared_state_from']
     return compact
@@ -143,11 +148,14 @@ def main():
     parser.add_argument('--device', default='cuda')
     parser.add_argument('--stream-rows', action='store_true',
                         help='将逐帧结果追加到 JSONL，主 JSON 只保存协议与状态。')
+    parser.add_argument('--long-diagnostics', action='store_true',
+                        help='接收完成后保存实际解码输入、状态与同步的事后标量评分；流式格式为3。')
     parser.add_argument('--checkpoint-interval', type=int, default=8,
                         help='按多少帧原子保存一次；流式长会话可设为较大值。')
     parser.add_argument('--resume', action='store_true',
                         help='续跑已登记且中断的流式实验；验证已有前缀后只追加新帧。')
     args = parser.parse_args()
+    stream_schema = 3 if args.long_diagnostics else 2
     if args.frames < 1 or args.checkpoint_interval < 1 or not args.snrs or len(set(args.snrs)) != len(args.snrs):
         parser.error('需要正帧数和互异的 SNR。')
     output = Path(args.output)
@@ -159,6 +167,8 @@ def main():
         raise ValueError('禁止覆盖或隐式重跑旧实验。')
     config = json.loads(Path(args.config).read_text(encoding='utf8'))
     manifest = json.loads(Path(args.manifest).read_text(encoding='utf8'))
+    if args.stream_rows and manifest.get('expected_stream_schema_version', stream_schema) != stream_schema:
+        raise ValueError('命令行流式诊断版本与预登记协议不一致。')
     variants = manifest.get('variants', [])
     initial_intervals = acquisition_transition_intervals(
         config['frame_duration_seconds'], config.get('acquisition_to_data_gap_seconds', 0.0))
@@ -201,7 +211,8 @@ def main():
         recorders[row['name']] = InputRecorder(branch)
         models[row['name']] = ForwardCounter(recorders[row['name']])
     protocol = dict(vars(args), variants=variants, arms=[row['name'] for row in variants],
-                    stream_rows_schema_version=2 if args.stream_rows else None,
+                    stream_rows_schema_version=stream_schema if args.stream_rows else None,
+                    posthoc_diagnostic='actual_decoder_input_frozen_phase_replay_no_feedback' if args.long_diagnostics else None,
                     pilot_innovation_diagnostic='clean_adapt_pre_update_phase_fitted_not_chi_square',
                     pairs=manifest.get('pairs', []), role='development', noise_source='acquisition_residual',
                     statistical_unit='session', timing='current_pilot_then_decode',
@@ -214,7 +225,10 @@ def main():
                         'training/continual_receiver.py', 'training/continual_phase.py',
                         'evaluation/continual_variants.py', 'scripts/compare_continual_variants.py',
                         'evaluation/receiver_diagnostics.py',
-                        'agent/unfolded_equalizer.py', 'env/linear_operator.py']})
+                        'agent/unfolded_equalizer.py', 'env/linear_operator.py',
+                        'env/comm_env.py', 'env/extreme_delay_channel.py', 'env/impairments.py',
+                        'env/eme_channel_profiles.py', 'training/continual_offline.py',
+                        'training/pilot_transfer.py']})
     completed_sessions, partial_session, partial_rows = set(), None, None
     previous_acquisitions = {}
     if args.resume:
@@ -246,6 +260,7 @@ def main():
             'manifest_sha256', 'checkpoint_sha256', 'variants', 'arms', 'pairs',
             'role', 'noise_source', 'statistical_unit', 'timing', 'linear_operator_backend',
             'stream_rows_schema_version', 'pilot_innovation_diagnostic',
+            'long_diagnostics', 'posthoc_diagnostic',
         )
         for field in compatible_fields:
             if previous_protocol.get(field) != protocol.get(field):
@@ -290,7 +305,7 @@ def main():
         nonlocal streamed_rows
         if args.stream_rows:
             if result['rows']:
-                compacted_rows = [compact_stream_row(row) for row in result['rows']]
+                compacted_rows = [compact_stream_row(row, schema_version=stream_schema) for row in result['rows']]
                 with rows_output.open('a', encoding='utf8', newline='\n') as stream:
                     for compact in compacted_rows:
                         stream.write(json.dumps(compact, ensure_ascii=False, separators=(',', ':'))+'\n')
@@ -387,6 +402,11 @@ def main():
                         estimate = diagnostics.pop('decode_cir')
                         truth = original.true_cir.flatten()
                         scoring = receiver_diagnostics(logits, original.bits, mask, estimate, truth)
+                        if args.long_diagnostics:
+                            scoring.update(long_receiver_diagnostics(
+                                recorders[name].model, recorders[name].last_inputs, original,
+                                env.channel.last_phase_used(), env.state_metadata()['cfo_cycles_per_symbol'],
+                                10**(-snr/10)))
                         diagnostics['neural_forwards'] = (decoder.calls-before)*int(
                             row.get('decoder', 'neural') in {'neural', 'known_adapt_real_neural'}
                         )
