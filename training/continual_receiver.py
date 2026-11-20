@@ -261,10 +261,16 @@ class ContinualReceiver:
 
     def __init__(self, acquisition, tail, *, arm, process_noise=1e-4, phase_estimator="unwrap_median",
                  phase_reference_backend="vectorized", state_model="random_walk", state_rho=None,
-                 stationary_power=None, initial_prediction_intervals=1.0):
+                 stationary_power=None, initial_prediction_intervals=1.0,
+                 current_pilot_prior="acquisition"):
         if arm not in ARMS or not math.isfinite(process_noise) or process_noise < 0:
             raise ValueError("接收臂或过程噪声非法。")
         self.acquisition, self.arm = acquisition, arm
+        if current_pilot_prior not in {"acquisition", "aged_acquisition"}:
+            raise ValueError("当前 Pilot 先验须为 acquisition 或 aged_acquisition。")
+        if arm != "current_pilot" and current_pilot_prior != "acquisition":
+            raise ValueError("acquisition 老化先验选项只适用于 current_pilot 对照。")
+        self.current_pilot_prior = current_pilot_prior
         self.mean = acquisition.mean.clone()
         self.covariance = acquisition.covariance.clone()
         self.tail = tail.detach().clone()
@@ -307,7 +313,15 @@ class ContinualReceiver:
             covariance = self.acquisition.covariance.clone()
         else:
             mean, covariance = self.mean, self.covariance
-        if self.arm in {"recursive_pilot", "recursive_soft"}:
+        if self.arm == "current_pilot" and self.current_pilot_prior == "aged_acquisition":
+            # 只传播 acquisition 的信息，不能带入已处理普通帧的 CIR 后验。
+            # 首帧包含 acquisition 帧末及空档，后续按累计物理时间老化。
+            mean, covariance = predict_cir_state(
+                mean, covariance, state_model=self.state_model, process_noise=self.process_noise,
+                state_rho=self.state_rho, stationary_power=self.stationary_power,
+                transition_intervals=self.initial_prediction_intervals + self.frames_seen,
+            )
+        elif self.arm in {"recursive_pilot", "recursive_soft"}:
             # 首帧也须覆盖 acquisition 发送结束后的状态演化；0 仅供显式历史对照。
             intervals = self.initial_prediction_intervals if self.frames_seen == 0 else 1.0
             mean, covariance = predict_cir_state(

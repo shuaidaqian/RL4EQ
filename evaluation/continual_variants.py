@@ -22,6 +22,11 @@ def validate_variants(manifest):
     for row in variants:
         if row.get('arm') not in ARMS or not row.get('checkpoint'):
             raise ValueError('每个候选必须声明接收臂与 checkpoint。')
+        current_prior = row.get('current_pilot_prior', 'acquisition')
+        if current_prior not in {'acquisition', 'aged_acquisition'}:
+            raise ValueError('未知当前 Pilot 先验。')
+        if row['arm'] != 'current_pilot' and current_prior != 'acquisition':
+            raise ValueError('老化 acquisition 先验只适用于 current_pilot 对照。')
         if row.get('decoder', 'neural') not in {
             'neural', 'physics_branch', 'known_adapt_real_physics', 'known_adapt_real_neural',
         }:

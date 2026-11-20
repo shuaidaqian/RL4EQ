@@ -175,6 +175,7 @@ def main():
     for row in variants:
         # 显式写入实际采用的时序；0 仅用于另行登记的历史初始化对照。
         row.setdefault('initial_prediction_intervals', initial_intervals)
+        row.setdefault('current_pilot_prior', 'acquisition')
         if row.get('state_model', 'random_walk') == 'ar1' and row.get('dynamics_file'):
             dynamics_path = Path(row['dynamics_file'])
             if not dynamics_path.is_absolute():
@@ -360,7 +361,8 @@ def main():
                     state_model=row.get('state_model', 'random_walk'),
                     state_rho=row.get('state_rho'),
                     stationary_power=row.get('stationary_power_by_tap'),
-                    initial_prediction_intervals=row['initial_prediction_intervals']) for row in variants}
+                    initial_prediction_intervals=row['initial_prediction_intervals'],
+                    current_pilot_prior=row['current_pilot_prior']) for row in variants}
                 for _ in range(args.frames):
                     original = frame_to_device(env.next_frame(), device)
                     visible = receiver_frame(original)
