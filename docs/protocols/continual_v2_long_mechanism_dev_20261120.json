@@ -1,0 +1,131 @@
+{
+  "description": "P8长程机制开发诊断：两组独立新seed，四SNR，每会话11719帧约1200秒；不改接收算法，完整保存合法Pilot诊断、实际输入与事后状态/同步/波形标量评分。三臂为acquisition Frozen、当前Pilot、修复后的AR1。用于区分后段BER变化与状态、同步、物理难度的伴随关系，不能仅凭相关性宣布因果机制或研究目标完成。",
+  "variants": [
+    {
+      "name": "acquisition_known_adapt_real_physics",
+      "arm": "acquisition",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "random_walk",
+      "initial_prediction_intervals": 1.0
+    },
+    {
+      "name": "current_pilot",
+      "arm": "current_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "random_walk",
+      "initial_prediction_intervals": 1.0
+    },
+    {
+      "name": "recursive_pilot_ar1",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0
+    }
+  ],
+  "pairs": [
+    [
+      "current_pilot",
+      "recursive_pilot_ar1"
+    ],
+    [
+      "acquisition_known_adapt_real_physics",
+      "recursive_pilot_ar1"
+    ]
+  ],
+  "frames": 11719,
+  "snrs": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "seeds": [
+    236101,
+    236102
+  ],
+  "state_split": "offline_train",
+  "noise_source": "acquisition_residual",
+  "timing": "current_pilot_then_decode",
+  "statistical_unit": "session",
+  "expected_stream_schema_version": 3,
+  "pre_registered_windows": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      4
+    ],
+    [
+      4,
+      16
+    ],
+    [
+      16,
+      64
+    ],
+    [
+      64,
+      256
+    ],
+    [
+      256,
+      1024
+    ],
+    [
+      1024,
+      2048
+    ],
+    [
+      2048,
+      4096
+    ],
+    [
+      4096,
+      8192
+    ],
+    [
+      8192,
+      11719
+    ]
+  ],
+  "interpretation_constraints": [
+    "预定两seed四SNR三臂全部完成后分析；不得依中途BER调参、选方法、删会话或停止",
+    "连续处理每一帧并保持真实递归/tail轨迹，不以稀疏抽帧替代",
+    "主路径合法acquisition残差估噪；精确噪声、CIR、相位与Data符号只在接收结束后评分，不回流",
+    "事后真值数组不落盘，只保存标量，评分开销不计入接收步骤elapsed_ms",
+    "只报告预登记窗口及整会话；没有总体功效、最小实质差或饱和等价容差，不作独立确认",
+    "两会话仅作机制开发描述，不用不显著证明等价或保持，不用相关性证明机制因果",
+    "频谱平坦度与有效SNR仅表征物理难度，不是最优BER下界",
+    "物理解码分支不等于已证明Transformer或离线闭环训练贡献；四SNR完整研究目标保留"
+  ],
+  "device": "cpu",
+  "expected_rows": 281256,
+  "observation_duration_seconds": 1200.0256000000002,
+  "implementation_precondition": "p8a_long_diagnostics_smoke_v2_dev_1x8全部96行schema3真实入口核验通过",
+  "primary_questions": [
+    "自身BER后段回升是否伴随CIR对齐误差、合法Pilot残差或残差/预测能量比上升",
+    "是否伴随实际解码预处理后的公共相位或帧内相位误差上升",
+    "是否伴随有效信道功率、Data信号功率或频谱形状变化",
+    "递归AR1相对当前Pilot的增量是否保持及其会话差异"
+  ]
+}
