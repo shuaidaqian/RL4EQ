@@ -1,0 +1,54 @@
+{
+  "role": "integrity_only_no_performance_analysis",
+  "verified_at_local": "2026-11-20T19:17:11+08:00",
+  "file_size_at_snapshot": 171751,
+  "audited_byte_prefix": 171751,
+  "trailing_incomplete_line_bytes": 0,
+  "prefix_sha256": "27aee480b40ff0ecfa812dbf48cca61352c3e716e3343b4396b8e71e5553a0f4",
+  "rows": 96,
+  "paired_frames": 32,
+  "complete_sessions": [
+    {
+      "snr_db": 0,
+      "seed": 236002,
+      "arms": 3,
+      "rows": 24,
+      "paired_frames": 8
+    },
+    {
+      "snr_db": 5,
+      "seed": 236002,
+      "arms": 3,
+      "rows": 24,
+      "paired_frames": 8
+    },
+    {
+      "snr_db": 10,
+      "seed": 236002,
+      "arms": 3,
+      "rows": 24,
+      "paired_frames": 8
+    },
+    {
+      "snr_db": 15,
+      "seed": 236002,
+      "arms": 3,
+      "rows": 24,
+      "paired_frames": 8
+    }
+  ],
+  "last": {
+    "snr_db": 15,
+    "seed": 236002,
+    "frame_index": 7,
+    "arm": "recursive_pilot_ar1"
+  },
+  "all_expected_rows_saved": true,
+  "duplicates": 0,
+  "missing_within_saved_prefix": 0,
+  "hash_mismatches": 0,
+  "invalid_counts_or_checked_schema3_fields": 0,
+  "interpretation": "只说明保存前缀完整性，不证明进程存活、主结果completed或研究性能。",
+  "source_snapshot_sha256": "7b162a1dc1044239952fe86df5ed56238c64be41053661bf830f34b3a67ad715",
+  "run_git_commit": "01c94ffcdc9254d7a9138701b77ab036c809214b"
+}
