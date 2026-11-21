@@ -7383,6 +7383,85 @@
           "docs\\results\\continual_v2_channel_dynamics_20261119\\offline_estimate_10x11719.json": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29"
         }
       }
+    },
+    {
+      "experiment": "p12_ar1_long_horizon_neural_validation_6x256",
+      "purpose": "development",
+      "seeds": [
+        239001,
+        239002,
+        239003,
+        239004,
+        239005,
+        239006
+      ],
+      "status": "reserved",
+      "details": {
+        "manifest": "docs/protocols/continual_v2_p12_ar1_long_horizon_validation_20261121.json",
+        "frames": 256,
+        "snrs": [
+          0,
+          5,
+          10,
+          15
+        ],
+        "variants": [
+          "recursive_pilot_ar1_physics",
+          "untrained_recursive_pilot_ar1_neural",
+          "train_r0_acquisition_ar1_neural",
+          "train_r0_recursive_pilot_ar1_neural",
+          "train_r1_acquisition_ar1_neural",
+          "train_r1_recursive_pilot_ar1_neural",
+          "train_r2_acquisition_ar1_neural",
+          "train_r2_recursive_pilot_ar1_neural"
+        ],
+        "pairs": [
+          [
+            "recursive_pilot_ar1_physics",
+            "untrained_recursive_pilot_ar1_neural"
+          ],
+          [
+            "untrained_recursive_pilot_ar1_neural",
+            "train_r0_acquisition_ar1_neural"
+          ],
+          [
+            "untrained_recursive_pilot_ar1_neural",
+            "train_r0_recursive_pilot_ar1_neural"
+          ],
+          [
+            "untrained_recursive_pilot_ar1_neural",
+            "train_r1_acquisition_ar1_neural"
+          ],
+          [
+            "untrained_recursive_pilot_ar1_neural",
+            "train_r1_recursive_pilot_ar1_neural"
+          ],
+          [
+            "untrained_recursive_pilot_ar1_neural",
+            "train_r2_acquisition_ar1_neural"
+          ],
+          [
+            "untrained_recursive_pilot_ar1_neural",
+            "train_r2_recursive_pilot_ar1_neural"
+          ],
+          [
+            "train_r0_acquisition_ar1_neural",
+            "train_r0_recursive_pilot_ar1_neural"
+          ],
+          [
+            "train_r1_acquisition_ar1_neural",
+            "train_r1_recursive_pilot_ar1_neural"
+          ],
+          [
+            "train_r2_acquisition_ar1_neural",
+            "train_r2_recursive_pilot_ar1_neural"
+          ]
+        ],
+        "role": "development",
+        "statistical_unit": "session",
+        "timing": "current_pilot_then_decode",
+        "noise_source": "acquisition_residual"
+      }
     }
   ],
   "historical_reserved_ranges": [

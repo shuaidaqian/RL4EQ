@@ -1,0 +1,244 @@
+{
+  "description": "P12长时域AR(1)闭环离线训练的独立开发验证：比较物理、未训练神经、三重复acquisition训练与三重复递归Pilot训练；各神经候选共享同一递归Pilot物理接收上下文。",
+  "variants": [
+    {
+      "name": "recursive_pilot_ar1_physics",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "acquisition"
+    },
+    {
+      "name": "untrained_recursive_pilot_ar1_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_ar1_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "acquisition"
+    },
+    {
+      "name": "train_r0_acquisition_ar1_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_ar1_2048_20261121/repeat0_acquisition.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_ar1_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "acquisition",
+      "training_repeat": 0,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "train_r0_recursive_pilot_ar1_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_ar1_2048_20261121/repeat0_recursive_pilot.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_ar1_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "acquisition",
+      "training_repeat": 0,
+      "training_method": "recursive_pilot"
+    },
+    {
+      "name": "train_r1_acquisition_ar1_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_ar1_2048_20261121/repeat1_acquisition.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_ar1_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "acquisition",
+      "training_repeat": 1,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "train_r1_recursive_pilot_ar1_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_ar1_2048_20261121/repeat1_recursive_pilot.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_ar1_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "acquisition",
+      "training_repeat": 1,
+      "training_method": "recursive_pilot"
+    },
+    {
+      "name": "train_r2_acquisition_ar1_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_ar1_2048_20261121/repeat2_acquisition.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_ar1_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "acquisition",
+      "training_repeat": 2,
+      "training_method": "acquisition"
+    },
+    {
+      "name": "train_r2_recursive_pilot_ar1_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/continual_v2_p3_ar1_2048_20261121/repeat2_recursive_pilot.pt",
+      "decoder": "known_adapt_real_neural",
+      "context_source": "recursive_pilot_ar1_physics",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "acquisition",
+      "training_repeat": 2,
+      "training_method": "recursive_pilot"
+    }
+  ],
+  "pairs": [
+    [
+      "recursive_pilot_ar1_physics",
+      "untrained_recursive_pilot_ar1_neural"
+    ],
+    [
+      "untrained_recursive_pilot_ar1_neural",
+      "train_r0_acquisition_ar1_neural"
+    ],
+    [
+      "untrained_recursive_pilot_ar1_neural",
+      "train_r0_recursive_pilot_ar1_neural"
+    ],
+    [
+      "untrained_recursive_pilot_ar1_neural",
+      "train_r1_acquisition_ar1_neural"
+    ],
+    [
+      "untrained_recursive_pilot_ar1_neural",
+      "train_r1_recursive_pilot_ar1_neural"
+    ],
+    [
+      "untrained_recursive_pilot_ar1_neural",
+      "train_r2_acquisition_ar1_neural"
+    ],
+    [
+      "untrained_recursive_pilot_ar1_neural",
+      "train_r2_recursive_pilot_ar1_neural"
+    ],
+    [
+      "train_r0_acquisition_ar1_neural",
+      "train_r0_recursive_pilot_ar1_neural"
+    ],
+    [
+      "train_r1_acquisition_ar1_neural",
+      "train_r1_recursive_pilot_ar1_neural"
+    ],
+    [
+      "train_r2_acquisition_ar1_neural",
+      "train_r2_recursive_pilot_ar1_neural"
+    ]
+  ],
+  "frames": 256,
+  "seeds": [
+    239001,
+    239002,
+    239003,
+    239004,
+    239005,
+    239006
+  ],
+  "snrs": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "state_split": "offline_train",
+  "experiment": "p12_ar1_long_horizon_neural_validation_6x256",
+  "output": "docs/results/continual_v2_offline_20261121/ar1_neural_validation_6x256.json",
+  "device": "cuda",
+  "stream_rows": false,
+  "long_diagnostics": false,
+  "noise_source": "acquisition_residual",
+  "timing": "current_pilot_then_decode",
+  "statistical_unit": "session",
+  "pre_registered_windows": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      4
+    ],
+    [
+      4,
+      16
+    ],
+    [
+      16,
+      64
+    ],
+    [
+      64,
+      256
+    ]
+  ],
+  "expected_rows": 49152,
+  "primary_questions": [
+    "长时域闭环训练是否改变相同物理状态下的神经均衡BER",
+    "递归Pilot轨迹训练相对acquisition轨迹训练是否增加递归状态利用收益",
+    "结果是否在四SNR方向一致并对训练重复稳定"
+  ],
+  "interpretation_constraints": [
+    "训练与验证seed完全分离；每SNR六个独立开发会话",
+    "所有神经候选共享recursive_pilot_ar1_physics记录的合法物理接收输入，不读取Data/Reward标签",
+    "本验证只作开发诊断，不证明长会话增长、饱和保持或独立确认",
+    "不显著不能解释为等价；不能按单个训练重复或SNR选择结论"
+  ]
+}
