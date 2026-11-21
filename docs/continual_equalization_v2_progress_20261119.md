@@ -20,9 +20,9 @@
 
 按第一研究点现存 Doppler 脚本做了载频、速度与相干时间量级核算：历史代码中的 20 Hz、1500 Hz 和 5 kHz 来自不同脚本假设，部分注释与另处载频/速度对不上；不能把它们拼成当前 1200 s AR(1) 的物理标定。粗略 Jakes 标尺下，1200 s 相当于约 0.000353 Hz，但指数 AR(1) 与 Jakes 相关不同，且尚缺差分路径速度或独立 CIR 时间观测。故 P11/P12 仅代表指定慢变假设，快变适用性需独立边界协议验证。详见[物理映射审计第9.1节](continual_v2_physical_mapping_20261119.md#91-doppler-常数的量纲与时间尺度复核2026-11-21)；未改冻结主场景。
 
-## P12 冻结 AR(1) 长时域离线训练（运行中，2026-11-21）
+## P12 冻结 AR(1) 长时域离线训练与验证（已完成，2026-11-21）
 
-已预登记 `p12_ar1_long_horizon_training_3x2048`：训练会话 seed 238001–238048，训练随机种子 411001–411003，三重复；每 episode 2048 帧、16 个预定 Data 监督帧，acquisition 与 recursive Pilot 两种训练策略匹配波形与预算。状态转移使用 P11 相同冻结 AR(1) 文件及哈希，`process_noise=0`；训练、验证和未来确认 seed 分开。当前同一进程已完成5/48个训练 episode，其余按原计划继续；尚不根据训练输出改变训练规则。六个新验证 seed 239001–239006 与验证清单已独立预登记，待训练 checkpoint 全部完成后运行。该开发实验不作目标确认。
+已预登记并完成 `p12_ar1_long_horizon_training_3x2048`：训练会话 seed 238001–238048，训练随机种子 411001–411003，三重复；每 episode 2048 帧、16 个预定 Data 监督帧，acquisition 与 recursive Pilot 两种训练策略匹配波形与预算。状态转移使用 P11 相同冻结 AR(1) 文件及哈希，`process_noise=0`；训练、验证和未来确认 seed 分开。训练进程退出码0，报告状态为 `completed`，48个 episode 共96条记录；六个 checkpoint 均存在且文件SHA256与训练报告一致。随后按预登记协议完成独立开发验证 `p12_ar1_long_horizon_neural_validation_6x256`，使用新seed 239001–239006、四SNR、256帧、8个候选臂，共49,152条记录；进程退出码0，24个session完整，配对波形哈希一致。未训练神经与物理接收BER几乎相同；长时域训练没有带来四SNR一致的神经 BER 增益，recursive Pilot 训练在0 dB反而恶化BER，虽然低SNR的BCE/Brier有所改善。详见[P12归档](results/continual_v2_offline_20261121/README.md)和[数值审计](results/continual_v2_offline_20261121/p12_validation_audit_summary.json)。P12属开发验证，不证明长会话增长、饱和保持或独立确认；按用户要求，本阶段到此暂停后续实验。
 
 ## 已完成的仓库操作
 

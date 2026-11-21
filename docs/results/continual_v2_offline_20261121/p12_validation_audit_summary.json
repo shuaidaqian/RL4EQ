@@ -1,0 +1,208 @@
+{
+  "experiment": "p12_ar1_long_horizon_neural_validation_6x256",
+  "role": "development",
+  "status": "completed",
+  "protocol": {
+    "seeds": [
+      239001,
+      239002,
+      239003,
+      239004,
+      239005,
+      239006
+    ],
+    "snrs": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "frames_per_session": 256,
+    "arms": [
+      "recursive_pilot_ar1_physics",
+      "untrained_recursive_pilot_ar1_neural",
+      "train_r0_acquisition_ar1_neural",
+      "train_r0_recursive_pilot_ar1_neural",
+      "train_r1_acquisition_ar1_neural",
+      "train_r1_recursive_pilot_ar1_neural",
+      "train_r2_acquisition_ar1_neural",
+      "train_r2_recursive_pilot_ar1_neural"
+    ],
+    "expected_rows": 49152,
+    "observation_seconds_per_session": 26.2144,
+    "manifest_sha256": "3f3bd696f6ebb3a35655a070975bd77340c3f06ccd7d313e9496cc83787da0b5"
+  },
+  "audit": {
+    "rows": 49152,
+    "unique_keys": 49152,
+    "duplicates": 0,
+    "sessions": 24,
+    "rows_per_arm_session_unique": [
+      256
+    ],
+    "rx_hash_groups": 6144,
+    "rx_hash_mismatches": 0,
+    "acquisitions": 24,
+    "noise_estimate_matches_all_rows": true
+  },
+  "pooled_ber_by_snr_arm": {
+    "0": {
+      "recursive_pilot_ar1_physics": 0.11588033040364583,
+      "untrained_recursive_pilot_ar1_neural": 0.11590067545572917,
+      "train_r0_acquisition_ar1_neural": 0.11591000027126735,
+      "train_r0_recursive_pilot_ar1_neural": 0.11715443929036458,
+      "train_r1_acquisition_ar1_neural": 0.11585320366753472,
+      "train_r1_recursive_pilot_ar1_neural": 0.11633555094401042,
+      "train_r2_acquisition_ar1_neural": 0.1159727308485243,
+      "train_r2_recursive_pilot_ar1_neural": 0.11681959364149305
+    },
+    "5": {
+      "recursive_pilot_ar1_physics": 0.023111979166666668,
+      "untrained_recursive_pilot_ar1_neural": 0.023113674587673612,
+      "train_r0_acquisition_ar1_neural": 0.023078070746527776,
+      "train_r0_recursive_pilot_ar1_neural": 0.023207770453559026,
+      "train_r1_acquisition_ar1_neural": 0.023137410481770832,
+      "train_r1_recursive_pilot_ar1_neural": 0.023059421115451388,
+      "train_r2_acquisition_ar1_neural": 0.023084852430555556,
+      "train_r2_recursive_pilot_ar1_neural": 0.023150126139322918
+    },
+    "10": {
+      "recursive_pilot_ar1_physics": 0.0008689032660590278,
+      "untrained_recursive_pilot_ar1_neural": 0.0008697509765625,
+      "train_r0_acquisition_ar1_neural": 0.0008714463975694445,
+      "train_r0_recursive_pilot_ar1_neural": 0.0008739895290798611,
+      "train_r1_acquisition_ar1_neural": 0.0008663601345486111,
+      "train_r1_recursive_pilot_ar1_neural": 0.0008655124240451389,
+      "train_r2_acquisition_ar1_neural": 0.0008731418185763889,
+      "train_r2_recursive_pilot_ar1_neural": 0.0008748372395833334
+    },
+    "15": {
+      "recursive_pilot_ar1_physics": 0.00012630886501736112,
+      "untrained_recursive_pilot_ar1_neural": 0.00012630886501736112,
+      "train_r0_acquisition_ar1_neural": 0.00012461344401041666,
+      "train_r0_recursive_pilot_ar1_neural": 0.00012715657552083334,
+      "train_r1_acquisition_ar1_neural": 0.00012630886501736112,
+      "train_r1_recursive_pilot_ar1_neural": 0.00012291802300347222,
+      "train_r2_acquisition_ar1_neural": 0.00012800428602430556,
+      "train_r2_recursive_pilot_ar1_neural": 0.00012630886501736112
+    }
+  },
+  "session_paired_deltas": {
+    "0": {
+      "physics_minus_untrained": [
+        -1.52587890625e-05,
+        -3.0517578125e-05,
+        0.0,
+        -6.612141927082871e-05,
+        -2.0345052083342585e-05,
+        1.0172526041657415e-05
+      ],
+      "acquisition_trained_mean3_minus_untrained": {
+        "mean": 1.1302806712962707e-05,
+        "ci95_unadjusted": [
+          -0.0007019425702561279,
+          0.0007245481836820534
+        ],
+        "n_sessions": 6,
+        "negative_count": 2
+      },
+      "recursive_pilot_trained_mean3_minus_untrained": {
+        "mean": 0.0008691858362268462,
+        "ci95_unadjusted": [
+          0.000628756793680461,
+          0.0011096148787732314
+        ],
+        "n_sessions": 6,
+        "negative_count": 0
+      }
+    },
+    "5": {
+      "physics_minus_untrained": [
+        5.086263020835646e-06,
+        0.0,
+        -5.0862630208339116e-06,
+        0.0,
+        -1.52587890625e-05,
+        5.086263020835646e-06
+      ],
+      "acquisition_trained_mean3_minus_untrained": {
+        "mean": -1.3563368055555074e-05,
+        "ci95_unadjusted": [
+          -0.0002133580960533502,
+          0.00018623135994224005
+        ],
+        "n_sessions": 6,
+        "negative_count": 4
+      },
+      "recursive_pilot_trained_mean3_minus_untrained": {
+        "mean": 2.5431315104167535e-05,
+        "ci95_unadjusted": [
+          -0.00013350927271729444,
+          0.0001843719029256295
+        ],
+        "n_sessions": 6,
+        "negative_count": 3
+      }
+    },
+    "10": {
+      "physics_minus_untrained": [
+        0.0,
+        -5.086263020833261e-06,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "acquisition_trained_mean3_minus_untrained": {
+        "mean": 5.651403356481959e-07,
+        "ci95_unadjusted": [
+          -7.203960464360427e-06,
+          8.334241135656819e-06
+        ],
+        "n_sessions": 6,
+        "negative_count": 2
+      },
+      "recursive_pilot_trained_mean3_minus_untrained": {
+        "mean": 1.6954210069444069e-06,
+        "ci95_unadjusted": [
+          -1.3856357005973079e-05,
+          1.7247199019861893e-05
+        ],
+        "n_sessions": 6,
+        "negative_count": 3
+      }
+    },
+    "15": {
+      "physics_minus_untrained": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "acquisition_trained_mean3_minus_untrained": {
+        "mean": -2.2587545260114674e-21,
+        "ci95_unadjusted": [
+          -2.977229988760729e-06,
+          2.977229988760725e-06
+        ],
+        "n_sessions": 6,
+        "negative_count": 2
+      },
+      "recursive_pilot_trained_mean3_minus_untrained": {
+        "mean": -8.477105034722214e-07,
+        "ci95_unadjusted": [
+          -5.0203869840706e-06,
+          3.3249659771261567e-06
+        ],
+        "n_sessions": 6,
+        "negative_count": 2
+      }
+    }
+  },
+  "sha256": {
+    "validation_json": "0db43da5fe2a66bd91852e2495bbc32aae130073c58e0047c322b42aea08a50f",
+    "training_report": "1c8a989e8f593199599926abaab52f536c96759d51d09caf7791a502c18f0ae5"
+  }
+}
