@@ -23,6 +23,7 @@ from agent.unfolded_equalizer import UnfoldedConfig
 from env.comm_env import CommunicationEnvironment
 from env.experiment_config import build_comm_env_config
 from evaluation.seed_registry import reserve_seeds
+from evaluation.channel_dynamics import load_ar1_dynamics
 from training.checkpointing import save_checkpoint
 from training.continual_offline import InputRecorder, train_examples
 from training.continual_receiver import (
@@ -46,6 +47,9 @@ def main():
     parser.add_argument('--sample-frames', nargs='+', type=int, default=[0, 1, 3, 7])
     parser.add_argument('--learning-rate', type=float, default=1e-4)
     parser.add_argument('--process-noise', type=float, default=1e-4)
+    parser.add_argument('--state-model', choices=['random_walk', 'ar1'], default='random_walk')
+    parser.add_argument('--dynamics-file', default=None,
+                        help='AR(1) 离线冻结动态统计文件；只允许读取并记录指纹。')
     parser.add_argument('--phase-estimator', choices=['unwrap_median', 'circular_all', 'circular_clean'], default='unwrap_median')
     parser.add_argument('--operator-backend', choices=['direct', 'fft'], default='direct')
     parser.add_argument('--physics-real-bpsk-known-adapt', action='store_true',
@@ -66,6 +70,10 @@ def main():
         parser.error('训练帧选择必须非空、互异且位于接收会话内。')
     if not 0 < args.learning_rate < 1:
         parser.error('学习率须为零到一之间的有限数。')
+    if args.state_model == 'ar1' and not args.dynamics_file:
+        parser.error('AR(1) 训练必须指定冻结的 --dynamics-file。')
+    if args.state_model == 'random_walk' and args.dynamics_file:
+        parser.error('random_walk 训练不能同时指定 AR(1) 动态文件。')
     output = Path(args.output_dir)
     report = Path(args.report)
     if output.exists() or report.exists():
@@ -86,17 +94,32 @@ def main():
         model_config,
         physics_real_bpsk_known_adapt=bool(args.physics_real_bpsk_known_adapt),
     )
+    dynamics = None
+    if args.dynamics_file:
+        dynamics_path = Path(args.dynamics_file)
+        if not dynamics_path.is_absolute():
+            dynamics_path = ROOT / dynamics_path
+        dynamics = load_ar1_dynamics(
+            dynamics_path, tap_count=config['max_delay'] + 1,
+        )
+        args.dynamics_file = str(dynamics_path.relative_to(ROOT))
     protocol = dict(vars(args), role='training', repeats=repeats, episodes_per_repeat=episodes,
                     initial_prediction_intervals=initial_intervals,
                     methods=['acquisition', 'recursive_pilot'], snr_schedule=[0, 5, 10, 15]*(episodes//4),
                     supervision='仅离线 Data BCE，接收输入不含 Data/Reward 标签',
                     trajectory='每个会话内权重固定，轨迹结束后训练；历史状态截断梯度',
+                    state_rho=None if dynamics is None else dynamics['rho_estimate'],
+                    stationary_power_by_tap=None if dynamics is None else dynamics['stationary_power_by_tap'],
+                    dynamics_file_sha256=None if dynamics is None else dynamics['sha256'],
                     inference_mode='eval，保留梯度；在线部署权重冻结',
                     config_sha256=fingerprint(args.config), checkpoint_sha256=fingerprint(args.checkpoint),
                     git_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                     sources={name:fingerprint(ROOT/name) for name in [
                         'training/continual_receiver.py', 'training/continual_offline.py',
-                        'scripts/train_continual_offline.py', 'agent/unfolded_equalizer.py']})
+                        'scripts/train_continual_offline.py', 'agent/unfolded_equalizer.py',
+                        'evaluation/channel_dynamics.py']})
+    if dynamics is not None:
+        protocol['sources'][args.dynamics_file] = dynamics['sha256']
     reserve_seeds(ROOT, experiment=args.experiment, seeds=args.seeds+args.training_seeds,
                   purpose='training', details=protocol)
     output.mkdir(parents=True)
@@ -136,6 +159,9 @@ def main():
                                       covariance=acquisition.covariance.to(device))
                 receivers = {arm:ContinualReceiver(acquisition, start.initial_soft_tail.to(device),
                     arm=arm, process_noise=args.process_noise, phase_estimator=args.phase_estimator,
+                    state_model=args.state_model,
+                    state_rho=None if dynamics is None else dynamics['rho_estimate'],
+                    stationary_power=None if dynamics is None else dynamics['stationary_power_by_tap'],
                     initial_prediction_intervals=initial_intervals) for arm in models}
                 examples = {arm:[] for arm in models}
                 began = time.perf_counter()

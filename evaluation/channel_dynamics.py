@@ -1,58 +1,33 @@
 # -*- coding: utf-8 -*-
-"""从离线 CIR 轨迹估计一阶复信道动态统计。"""
+"""加载并验证可复用的离线 CIR 动态统计。"""
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+from pathlib import Path
 
-import torch
 
+def load_ar1_dynamics(path, *, expected_sha256=None, tap_count=None):
+    """读取冻结 AR(1) 参数并验证来源、有限性与 CIR 维度。"""
 
-def estimate_ar1_statistics(trajectories: list[torch.Tensor]) -> dict[str, torch.Tensor | float | int]:
-    """估计共同 AR(1) 系数和逐 tap 平稳功率。
-
-    每条轨迹形状为 [时间, tap]。实现假定复 CIR 的条件均值为零、创新跨 tap 不相关，
-    与 EME 生成器的复高斯 tap 演化相符。估计器仅用于离线训练集或开发集。
-    """
-
-    if not trajectories:
-        raise ValueError("至少需要一条 CIR 轨迹。")
-    length = trajectories[0].shape[-1]
-    if length < 1:
-        raise ValueError("CIR 轨迹必须至少包含一个 tap。")
-    cross = 0j
-    previous_energy = 0.0
-    power = torch.zeros(length, dtype=torch.float64)
-    state_count = 0
-    transition_count = 0
-    per_trajectory_rho = []
-    for trajectory in trajectories:
-        if trajectory.ndim != 2 or trajectory.shape[1] != length or trajectory.shape[0] < 2:
-            raise ValueError("每条 CIR 轨迹必须是相同 tap 数且至少两帧的二维张量。")
-        values = trajectory.to(dtype=torch.complex128, device="cpu")
-        previous, current = values[:-1], values[1:]
-        cross += torch.sum(previous.conj() * current).item()
-        previous_energy += torch.sum(previous.abs().square()).item()
-        trajectory_energy = torch.sum(previous.abs().square()).item()
-        if trajectory_energy > 0.0:
-            per_trajectory_rho.append(float((
-                torch.sum(previous.conj() * current).item() / trajectory_energy
-            ).real))
-        power += current.abs().square().sum(dim=0).to(torch.float64)
-        state_count += int(current.shape[0])
-        transition_count += int(previous.shape[0])
-    if previous_energy <= 0.0:
-        raise ValueError("CIR 轨迹能量为零，无法估计 AR(1) 系数。")
-    rho_pooled = float((cross / previous_energy).real)
-    rho = float(sum(per_trajectory_rho) / len(per_trajectory_rho))
-    if not math.isfinite(rho) or not 0.0 <= rho < 1.0:
-        raise ValueError(f"估计得到非法 AR(1) 系数 rho={rho}。")
-    stationary_power = power / state_count
-    return {
-        "rho": rho,
-        "rho_energy_weighted": rho_pooled,
-        "per_trajectory_rho": per_trajectory_rho,
-        "stationary_power": stationary_power,
-        "transition_count": transition_count,
-        "state_count": state_count,
-    }
+    source = Path(path)
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    if expected_sha256 is not None and digest != expected_sha256:
+        raise ValueError(f"AR(1) 动态文件指纹不匹配：{source}")
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    rho = payload.get("rho_estimate")
+    power = payload.get("stationary_power_by_tap")
+    if not isinstance(rho, (int, float)) or not math.isfinite(rho) or not 0 <= rho < 1:
+        raise ValueError("AR(1) rho_estimate 必须为 [0,1) 内有限数。")
+    if not isinstance(power, list) or not power:
+        raise ValueError("AR(1) stationary_power_by_tap 必须为非空列表。")
+    if tap_count is not None and len(power) != tap_count:
+        raise ValueError("AR(1) stationary_power_by_tap 长度与 CIR 维度不符。")
+    if any(not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0
+           for value in power):
+        raise ValueError("AR(1) stationary_power_by_tap 必须为非负有限数。")
+    return {"rho_estimate": float(rho),
+            "stationary_power_by_tap": [float(value) for value in power],
+            "sha256": digest}

@@ -29,6 +29,7 @@ from evaluation.continual_variants import (
     PhysicsBranch,
     validate_variants,
 )
+from evaluation.channel_dynamics import load_ar1_dynamics
 from evaluation.pilot_transfer import _load_branch
 from evaluation.receiver_diagnostics import (
     LONG_DIAGNOSTIC_FIELDS, RECEIVER_SCORE_FIELDS, long_receiver_diagnostics, receiver_diagnostics,
@@ -208,9 +209,12 @@ def main():
             if not dynamics_path.is_absolute():
                 dynamics_path = ROOT / dynamics_path
             expected_hash = row.get('dynamics_file_sha256')
-            if not expected_hash or fingerprint(dynamics_path) != expected_hash:
-                raise ValueError(f"AR(1) 离线统计文件指纹不匹配：{dynamics_path}")
-            dynamics = json.loads(dynamics_path.read_text(encoding='utf8'))
+            if not expected_hash:
+                raise ValueError(f"AR(1) 候选必须登记动态文件指纹：{dynamics_path}")
+            dynamics = load_ar1_dynamics(
+                dynamics_path, expected_sha256=expected_hash,
+                tap_count=config['max_delay'] + 1,
+            )
             row['state_rho'] = dynamics['rho_estimate']
             row['stationary_power_by_tap'] = dynamics['stationary_power_by_tap']
     variants = validate_variants(manifest)
@@ -254,6 +258,7 @@ def main():
                     sources={name:fingerprint(ROOT/name) for name in [
                         'training/continual_receiver.py', 'training/continual_phase.py',
                         'evaluation/continual_variants.py', 'scripts/compare_continual_variants.py',
+                        'evaluation/channel_dynamics.py',
                         'evaluation/receiver_diagnostics.py',
                         'agent/unfolded_equalizer.py', 'env/linear_operator.py',
                         'env/comm_env.py', 'env/extreme_delay_channel.py', 'env/impairments.py',
