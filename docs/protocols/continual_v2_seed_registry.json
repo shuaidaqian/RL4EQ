@@ -6706,7 +6706,7 @@
         237305,
         237306
       ],
-      "status": "running",
+      "status": "completed",
       "details": {
         "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
         "manifest": "docs/protocols/continual_v2_matched_history_long_dev_20261120.json",
@@ -7062,6 +7062,17 @@
           "env/eme_channel_profiles.py": "332b51e599aec09fcf4209713520e45fb18aed368d8a5bdc1b9f4d1f6b7a002b",
           "training/continual_offline.py": "83bb389304df5d75840f9affeef7ef9d030249de1999b4944a6af1f4e36a6102",
           "training/pilot_transfer.py": "6d9260783a29a5be12d272475e701d85177fbc2d0c1f96322156638b963b90a4"
+        },
+        "completion_audit": "docs/results/continual_v2_matched_history_long_dev_20261120/matched_long_6x11719_audit.json",
+        "completion_integrity": "docs/results/continual_v2_matched_history_long_dev_20261120/integrity_checkpoint.json",
+        "output_sha256": "f0e0c2293797271529bc0f56d6d6d3d0d359cf44dd570217041f4ae9f042c988",
+        "rows_sha256": "76a2c0d03bb7571a0ad51070ab488d1aa71bda8fe957cdcda5fbd41fc035c8aa",
+        "completion": {
+          "process_exit_code": 0,
+          "sessions": 24,
+          "paired_frames": 281256,
+          "verified_role": "development",
+          "interpretation": "完整流和源码快照审计通过；匹配历史Pilot递归增量的开发轨迹不证明四SNR自身改善、饱和保持、离线神经增量或独立确认。"
         }
       }
     }
