@@ -32,6 +32,8 @@
 
 GPU 吞吐基准（计时专用 seed 240012）显示：fft 后端下两臂解码器前向约 27–28 ms/臂，batch=2 约 29–31 ms，CUDA Graph 回放约 16.5 ms，logits 差 1.2e-7；Windows 上 `torch.compile` 无 Triton 不可用。仅作实现候选，不改变本阶段方法结论。见[基准归档](results/continual_v2_gpu_bench_20261122/README.md)。
 
+P5 功效规划（2026-11-23，只读）：用 P11 六个 session 的配对变化估计，0/5 dB 的 Online 自身改善按观测效应约需 134/260 个 session，若最小实质效应预先定为 0.005 绝对 BER 则约需 269/69 个；相对 Frozen 的优势只需 4–8 个 session，但会被 Frozen 退化放大，不能替代自身改善。10/15 dB 的绝对边界相对 BER 量级过大而无意义，相对量在早期 BER 近零时也不稳定，需要更长会话或基于错误计数的判据。n=6 的方差估计较宽，按 80% 上界所需 session 约 ×2.1。见[功效规划](results/continual_v2_p5_planning_20261122/README.md)。据此整理 [P5 确认框架草案](protocols/p5_confirmation_framework_draft_20261123.md)：多轨迹预登记与平衡、三项主张分开、固定样本量与 TOST 等价边界；**草案未冻结，未分配任何新 seed**。
+
 ## 已完成的仓库操作
 
 当前补充（2026-11-20）：P8已完整提交推送为a6e6d38，匹配老化先验对照整合为7e9d080，全量 **324 passed in 31.62s**。新seed237001的P9a四SNR四臂8帧共128行全部完成，完整schema3及源码原始字节核验通过；匹配两臂首帧保存的CIR/soft评分、误差和协方差诊断均精确一致，证据已提交推送为b96342b。单元测试另覆盖逐位logits/CIR一致性。短入口核验不作BER收益证明。
