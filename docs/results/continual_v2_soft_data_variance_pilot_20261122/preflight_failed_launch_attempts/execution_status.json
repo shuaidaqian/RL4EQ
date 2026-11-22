@@ -1,0 +1,35 @@
+{
+    "experiment":  "soft_data_variance_pilot_10x1024_20261122",
+    "status":  "failed",
+    "process_exit_code":  1,
+    "started_utc":  "2026-11-22T13:00:49.1112518+00:00",
+    "finished_utc":  "2026-11-22T13:00:53.7024708+00:00",
+    "elapsed_seconds":  5,
+    "hard_total_wall_limit_seconds":  81600,
+    "seeds":  [
+                  240002,
+                  240003,
+                  240004,
+                  240005,
+                  240006,
+                  240007,
+                  240008,
+                  240009,
+                  240010,
+                  240011
+              ],
+    "frames":  1024,
+    "snrs":  [
+                 0,
+                 5,
+                 10,
+                 15
+             ],
+    "device":  "cuda:0",
+    "output":  "docs\\results\\continual_v2_soft_data_variance_pilot_20261122\\variance_pilot.json",
+    "timeout_exit_codes":  [
+                               124,
+                               137
+                           ],
+    "note":  "Variance-only pilot; no efficacy inference; no extension or seed replacement."
+}

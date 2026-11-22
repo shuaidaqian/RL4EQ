@@ -1,0 +1,139 @@
+{
+  "protocol": {
+    "kind": "gpu_timing_only",
+    "description": "Timing only; no BER/NMSE scoring; excluded from planned screening.",
+    "seed": 240001,
+    "snrs": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "frames_per_snr": 10,
+    "warmup_frames_per_snr": 2,
+    "timed_frames_per_snr": 8,
+    "arms": [
+      "acquisition",
+      "recursive_pilot",
+      "recursive_soft"
+    ],
+    "device": "cuda:0",
+    "device_name": "NVIDIA GeForce GTX 1650",
+    "config": "configs\\eme_long_memory_v2_online_dd_tail_v1.json",
+    "checkpoint": "pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt",
+    "output": "docs\\results\\continual_v2_gpu_timing_20261122\\gpu_timing_ar1_only.json",
+    "git_commit": "f579bd4c7b70602e4098b0518327278d9884295b",
+    "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+    "dynamics_file": "docs\\results\\continual_v2_channel_dynamics_20261119\\offline_estimate_10x11719.json",
+    "dynamics_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+    "checkpoint_sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4",
+    "receiver_sha256": "1ace2030231f44bc273d36def0904b506d439df4cf79848bcb48ea3654787414",
+    "state_model": "ar1",
+    "state_rho": 0.9999149638055597,
+    "torch_version": "2.11.0+cu128",
+    "cuda_version": "12.8"
+  },
+  "status": "completed",
+  "result_type": "timing_only_no_quality_metrics",
+  "cuda_device_name": "NVIDIA GeForce GTX 1650",
+  "cuda_total_memory_bytes": 4294639616,
+  "elapsed_wall_seconds_including_model_load": 111.61617169994861,
+  "per_snr": {
+    "0": {
+      "acquisition_and_session_setup_seconds_cpu_inclusive": 0.4255883996374905,
+      "frame_generation_and_view_seconds_cpu_inclusive": 0.12360840057954192,
+      "arms": {
+        "acquisition": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 894.8939625988714,
+          "median_step_ms": 898.3180001378059,
+          "max_step_ms": 916.395100299269
+        },
+        "recursive_pilot": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 901.1869749519974,
+          "median_step_ms": 897.1508999820799,
+          "max_step_ms": 966.1908000707626
+        },
+        "recursive_soft": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 928.3748124726117,
+          "median_step_ms": 927.4190000724047,
+          "max_step_ms": 1003.7035997956991
+        }
+      }
+    },
+    "5": {
+      "acquisition_and_session_setup_seconds_cpu_inclusive": 0.04301439970731735,
+      "frame_generation_and_view_seconds_cpu_inclusive": 0.08429209981113672,
+      "arms": {
+        "acquisition": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 869.362325000111,
+          "median_step_ms": 866.9204998295754,
+          "max_step_ms": 950.3576001152396
+        },
+        "recursive_pilot": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 924.6923499158584,
+          "median_step_ms": 915.9465997945517,
+          "max_step_ms": 971.0733997635543
+        },
+        "recursive_soft": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 907.1441999985836,
+          "median_step_ms": 921.5304998215288,
+          "max_step_ms": 943.7803002074361
+        }
+      }
+    },
+    "10": {
+      "acquisition_and_session_setup_seconds_cpu_inclusive": 0.041859899647533894,
+      "frame_generation_and_view_seconds_cpu_inclusive": 0.08786370139569044,
+      "arms": {
+        "acquisition": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 877.5502124917693,
+          "median_step_ms": 880.5541500914842,
+          "max_step_ms": 913.6514998972416
+        },
+        "recursive_pilot": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 883.1686250050552,
+          "median_step_ms": 887.2799500823021,
+          "max_step_ms": 904.5816999860108
+        },
+        "recursive_soft": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 926.5963499783538,
+          "median_step_ms": 927.2975998464972,
+          "max_step_ms": 950.2996997907758
+        }
+      }
+    },
+    "15": {
+      "acquisition_and_session_setup_seconds_cpu_inclusive": 0.04417939996346831,
+      "frame_generation_and_view_seconds_cpu_inclusive": 0.09016480017453432,
+      "arms": {
+        "acquisition": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 887.8876625676639,
+          "median_step_ms": 882.5599499978125,
+          "max_step_ms": 931.7744001746178
+        },
+        "recursive_pilot": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 897.3725124960765,
+          "median_step_ms": 889.7422500886023,
+          "max_step_ms": 972.7261001244187
+        },
+        "recursive_soft": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 913.3657374768518,
+          "median_step_ms": 899.6496496256441,
+          "max_step_ms": 969.5898001082242
+        }
+      }
+    }
+  }
+}

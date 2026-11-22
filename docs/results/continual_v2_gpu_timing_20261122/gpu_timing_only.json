@@ -1,0 +1,135 @@
+{
+  "protocol": {
+    "kind": "gpu_timing_only",
+    "description": "Timing only; no BER/NMSE scoring; excluded from planned screening.",
+    "seed": 240000,
+    "snrs": [
+      0,
+      5,
+      10,
+      15
+    ],
+    "frames_per_snr": 10,
+    "warmup_frames_per_snr": 2,
+    "timed_frames_per_snr": 8,
+    "arms": [
+      "acquisition",
+      "recursive_pilot",
+      "recursive_soft"
+    ],
+    "device": "cuda:0",
+    "device_name": "NVIDIA GeForce GTX 1650",
+    "config": "configs\\eme_long_memory_v2_online_dd_tail_v1.json",
+    "checkpoint": "pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt",
+    "output": "docs\\results\\continual_v2_gpu_timing_20261122\\gpu_timing_only.json",
+    "git_commit": "f579bd4c7b70602e4098b0518327278d9884295b",
+    "config_sha256": "54fd230998d3f044884ecdb61d5b181525421f4c6f7d5fc109f7393c5a154e3c",
+    "checkpoint_sha256": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4",
+    "receiver_sha256": "1ace2030231f44bc273d36def0904b506d439df4cf79848bcb48ea3654787414",
+    "torch_version": "2.11.0+cu128",
+    "cuda_version": "12.8"
+  },
+  "status": "completed",
+  "result_type": "timing_only_no_quality_metrics",
+  "cuda_device_name": "NVIDIA GeForce GTX 1650",
+  "cuda_total_memory_bytes": 4294639616,
+  "elapsed_wall_seconds_including_model_load": 109.03457659995183,
+  "per_snr": {
+    "0": {
+      "acquisition_and_session_setup_seconds_cpu_inclusive": 0.15688659995794296,
+      "frame_generation_and_view_seconds_cpu_inclusive": 0.12063149968162179,
+      "arms": {
+        "acquisition": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 863.833662471734,
+          "median_step_ms": 865.5064001213759,
+          "max_step_ms": 885.4636996984482
+        },
+        "recursive_pilot": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 889.3766375258565,
+          "median_step_ms": 881.4158998429775,
+          "max_step_ms": 965.0941002182662
+        },
+        "recursive_soft": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 885.5851999833249,
+          "median_step_ms": 888.1894999649376,
+          "max_step_ms": 898.9518000744283
+        }
+      }
+    },
+    "5": {
+      "acquisition_and_session_setup_seconds_cpu_inclusive": 0.03923559980466962,
+      "frame_generation_and_view_seconds_cpu_inclusive": 0.08630609884858131,
+      "arms": {
+        "acquisition": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 861.3437375752255,
+          "median_step_ms": 862.4804501887411,
+          "max_step_ms": 905.2917999215424
+        },
+        "recursive_pilot": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 918.5801375424489,
+          "median_step_ms": 881.444200174883,
+          "max_step_ms": 1225.6316998973489
+        },
+        "recursive_soft": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 911.522975016851,
+          "median_step_ms": 904.4225497636944,
+          "max_step_ms": 969.5942001417279
+        }
+      }
+    },
+    "10": {
+      "acquisition_and_session_setup_seconds_cpu_inclusive": 0.03838729998096824,
+      "frame_generation_and_view_seconds_cpu_inclusive": 0.08663510018959641,
+      "arms": {
+        "acquisition": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 878.2204875024036,
+          "median_step_ms": 857.5314001645893,
+          "max_step_ms": 954.2525997385383
+        },
+        "recursive_pilot": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 879.6560376649722,
+          "median_step_ms": 878.121750196442,
+          "max_step_ms": 919.8923003859818
+        },
+        "recursive_soft": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 899.3410750408657,
+          "median_step_ms": 898.1531499885023,
+          "max_step_ms": 949.8313004150987
+        }
+      }
+    },
+    "15": {
+      "acquisition_and_session_setup_seconds_cpu_inclusive": 0.039294200018048286,
+      "frame_generation_and_view_seconds_cpu_inclusive": 0.0862143998965621,
+      "arms": {
+        "acquisition": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 900.6772998836823,
+          "median_step_ms": 867.0199997723103,
+          "max_step_ms": 1154.338899999857
+        },
+        "recursive_pilot": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 862.9699500161223,
+          "median_step_ms": 858.2654499914497,
+          "max_step_ms": 884.3121998943388
+        },
+        "recursive_soft": {
+          "n_timed_steps": 8,
+          "mean_step_ms": 895.2844249433838,
+          "median_step_ms": 899.3713499512523,
+          "max_step_ms": 919.4713998585939
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "description": "10-seed AR(1) soft Data variance pilot; session-level paired BER variance/covariance estimation only, no efficacy test.",
+  "variants": [
+    {
+      "name": "pilot_only_ar1_untrained_neural",
+      "arm": "recursive_pilot",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "neural",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "acquisition"
+    },
+    {
+      "name": "pilot_soft_ar1_untrained_neural",
+      "arm": "recursive_soft",
+      "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+      "decoder": "neural",
+      "phase_estimator": "circular_all",
+      "phase_reference_backend": "vectorized",
+      "operator_backend": "fft",
+      "process_noise": 0.0,
+      "state_model": "ar1",
+      "dynamics_file": "docs/results/continual_v2_channel_dynamics_20261119/offline_estimate_10x11719.json",
+      "dynamics_file_sha256": "392cae39e89b9ffdd564a77bf3c3ebf852200c81bec43edcfdf7bc690e5a2e29",
+      "initial_prediction_intervals": 1.0,
+      "current_pilot_prior": "acquisition"
+    }
+  ],
+  "pairs": [
+    ["pilot_only_ar1_untrained_neural", "pilot_soft_ar1_untrained_neural"]
+  ],
+  "frames": 1024,
+  "seeds": [240002, 240003, 240004, 240005, 240006, 240007, 240008, 240009, 240010, 240011],
+  "snrs": [0, 5, 10, 15],
+  "state_split": "offline_train",
+  "noise_source": "acquisition_residual",
+  "timing": "current_pilot_then_decode",
+  "device": "cuda",
+  "statistical_unit": "session",
+  "expected_stream_schema_version": 2,
+  "expected_rows": 81920,
+  "pre_registered_windows": [[0, 1], [1, 4], [4, 16], [16, 64], [64, 256], [256, 1024]],
+  "purpose": "variance_pilot_only_not_effect_test",
+  "variance_estimands": [
+    "per-SNR session-level paired absolute BER difference variance",
+    "per-SNR session-level paired relative BER difference variance",
+    "cross-SNR covariance of paired relative BER differences"
+  ],
+  "pilot_only_constraints": [
+    "Use only the existing frozen untrained checkpoint in both arms; do not train or select a P12 checkpoint.",
+    "Use four SNR values and 1024 frames per session with ten pre-registered new seeds.",
+    "The two arms share the same seed, generated waveform, acquisition estimate, and initial tail; their recursive states then evolve naturally under their respective policies.",
+    "Causal timing only: each frame is decoded before that frame's soft Data posterior can affect subsequent frames.",
+    "Use the pre-frozen AR(1) dynamics file and SHA-256 recorded in each candidate.",
+    "Purpose is session-level variance/covariance estimation only. Do not conduct efficacy, harm, or hypothesis tests; do not add seeds based on interim BER; do not include these seeds in the later formal screen.",
+    "All ten seeds complete before any variance summary is generated. If interrupted, preserve and report the incomplete status; no automatic rerun or seed replacement.",
+    "This pilot does not establish a BER benefit, no-harm conclusion, long-session saturation, hold, or physical transfer to measured EME links."
+  ]
+}
