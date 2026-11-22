@@ -8710,7 +8710,7 @@
         240010,
         240011
       ],
-      "status": "running",
+      "status": "completed",
       "details": {
         "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
         "manifest": "docs\\protocols\\continual_v2_soft_data_variance_pilot_10x1024_20261122.json",
@@ -9055,7 +9055,31 @@
           "training/pilot_transfer.py": "6d9260783a29a5be12d272475e701d85177fbc2d0c1f96322156638b963b90a4"
         }
       },
-      "preflight_recovery_note": "Three runner preflights failed before receiver execution or output creation; reconciled to canonical compare protocol for a single launch. No seeds were replaced."
+      "preflight_recovery_note": "Three runner preflights failed before receiver execution or output creation; reconciled to canonical compare protocol for a single launch. No seeds were replaced.",
+      "completion_note": "Completed 2026-11-22T14:56:32Z; 81,920 rows; integrity and per-frame waveform pairing audited."
+    },
+    {
+      "experiment": "soft_data_gpu_bench_20261122",
+      "purpose": "development",
+      "seeds": [
+        240012
+      ],
+      "status": "completed",
+      "details": {
+        "kind": "gpu_throughput_bench",
+        "description": "Timing only; no BER/NMSE scoring; excluded from planned screening.",
+        "seed": 240012,
+        "snr_db": 0,
+        "device": "NVIDIA GeForce GTX 1650",
+        "config": "configs/eme_long_memory_v2_online_dd_tail_v1.json",
+        "manifest": "docs/protocols/continual_v2_soft_data_variance_pilot_10x1024_20261122.json",
+        "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+        "linear_operator_backend": "fft",
+        "frames": 32,
+        "reps": 20,
+        "output": "docs/results/continual_v2_gpu_bench_20261122/bench_fft.json",
+        "git_commit": "92f873edf5d4ef8a6f3e73dfef3a0dc9eb17dced"
+      }
     }
   ],
   "historical_reserved_ranges": [

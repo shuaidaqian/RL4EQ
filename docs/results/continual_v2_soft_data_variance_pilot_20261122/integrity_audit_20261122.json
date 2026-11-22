@@ -1,0 +1,54 @@
+{
+  "experiment": "soft_data_variance_pilot_10x1024_20261122",
+  "status": "completed",
+  "row_count": 81920,
+  "jsonl_rows": 81920,
+  "sessions": 40,
+  "snrs": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "seeds": [
+    240002,
+    240003,
+    240004,
+    240005,
+    240006,
+    240007,
+    240008,
+    240009,
+    240010,
+    240011
+  ],
+  "arms_per_session": [
+    2
+  ],
+  "frames_per_arm_complete": true,
+  "per_frame_waveform_pairing_mismatches": 0,
+  "nonfinite_values": 0,
+  "bits_per_frame": [
+    768
+  ],
+  "checkpoint_sha256": {
+    "D:\\Research\\02_研究点二_神经均衡\\pretrained\\eme_bce_all_32_20260905_pilot256\\model_best.pt": "8cd3912d1c957c9689c51730aff9d27a8f74942186c802a7483e5781af65aec4"
+  },
+  "sources": {
+    "training/continual_receiver.py": "1ace2030231f44bc273d36def0904b506d439df4cf79848bcb48ea3654787414",
+    "training/continual_phase.py": "918470e6963c198d875cc4303474f973caa3757e5b2117bd350db47dce810ec7",
+    "evaluation/continual_variants.py": "c61efb46f37988ee2d4f40c43f488208f4b815f34238fab252749dfa65bc72b7",
+    "scripts/compare_continual_variants.py": "5baa3b3f98d693596c35b3cb929e1bec2785be48f4804e8f5c0795a7209bf63d",
+    "evaluation/channel_dynamics.py": "9d16e147429f90053d6508321dc27bdfd7d356308a4716f69a67ee5d68193fdc",
+    "evaluation/receiver_diagnostics.py": "300aaad7102bdfe7314e29a906b6679e9d50f3181bd000d587a7955117902fe8",
+    "agent/unfolded_equalizer.py": "e98b25bcb6d76a9fefeac05f0dcf24b48bf027f9d447a5c8a5fa2e9545b75183",
+    "env/linear_operator.py": "0b06279cbc0535c15446782f158af29aceafb452cdfec02d49cc5747dcf0bb1d",
+    "env/comm_env.py": "2357ca25c6ab052516de27f9d378982fa8600aff7501f0920f38c97bd5e956d6",
+    "env/extreme_delay_channel.py": "b65fb8b0191dec2561bf06bac9c04c3c52e6d7fb7d357951fca82004f564bc56",
+    "env/impairments.py": "ad17a1e666a4bab595492a8c206ba7d4c208b0b8a8a03dd33f614930732f4697",
+    "env/eme_channel_profiles.py": "332b51e599aec09fcf4209713520e45fb18aed368d8a5bdc1b9f4d1f6b7a002b",
+    "training/continual_offline.py": "83bb389304df5d75840f9affeef7ef9d030249de1999b4944a6af1f4e36a6102",
+    "training/pilot_transfer.py": "6d9260783a29a5be12d272475e701d85177fbc2d0c1f96322156638b963b90a4"
+  },
+  "git_commit": "f579bd4c7b70602e4098b0518327278d9884295b"
+}

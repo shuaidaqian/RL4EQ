@@ -24,3 +24,10 @@
 - 上述失败的状态文件归档于 [`preflight_failed_launch_attempts/`](preflight_failed_launch_attempts/)。
 - 包装脚本已移除重复登记；确认无输出后，将同一登记协调回 `reserved`（实验名、种子、purpose 均不变，未替换种子），由规范脚本重新登记并启动。
 - 该先导仅为方差/协方差估计，不构成 BER 有效性或无害结论。
+
+## 完成与审计（2026-11-22）
+
+- 状态 `completed`：40 个 session（4 SNR × 10 seed）× 1,024 帧 × 2 臂 = 81,920 条逐帧记录，用时 6,661 s，退出码 0。
+- 完整性审计见 [`integrity_audit_20261122.json`](integrity_audit_20261122.json)：session/帧齐全，两臂逐帧波形哈希 0 处不一致，无非有限值。
+- 预登记的 session 级方差/协方差见 [`variance_summary_20261122.json`](variance_summary_20261122.json)；只作方差估计，不做有效性或伤害检验，不据此补 seed。
+- seed registry 中本实验已置为 `completed`。

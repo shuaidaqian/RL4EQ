@@ -1,0 +1,57 @@
+{
+  "seed": 240012,
+  "snr_db": 0,
+  "device": "cuda",
+  "mode": "both",
+  "linear_operator_backend": "fft",
+  "step": {
+    "frames": 32,
+    "per_arm": {
+      "pilot_only_ar1_untrained_neural": {
+        "mean_ms": 101.15405629039742,
+        "median_ms": 64.21959982253611
+      },
+      "pilot_soft_ar1_untrained_neural": {
+        "mean_ms": 77.99515311489813,
+        "median_ms": 77.54790014587343
+      }
+    },
+    "frame_mean_ms": 179.28701563505456,
+    "frame_median_ms": 143.98599998094141,
+    "frames_per_second": 5.577648757540465
+  },
+  "forward": {
+    "single_pilot_only_ar1_untrained_neural": {
+      "mean_ms": 28.278450039215386,
+      "median_ms": 28.04080001078546,
+      "min_ms": 25.495500303804874,
+      "max_ms": 34.33310007676482,
+      "reps": 20
+    },
+    "single_pilot_soft_ar1_untrained_neural": {
+      "mean_ms": 27.599605009891093,
+      "median_ms": 27.418649988248944,
+      "min_ms": 25.559899862855673,
+      "max_ms": 29.817699920386076,
+      "reps": 20
+    },
+    "batch2": {
+      "mean_ms": 28.664115048013628,
+      "median_ms": 28.660150012001395,
+      "min_ms": 26.99129981920123,
+      "max_ms": 30.706600286066532,
+      "reps": 20
+    },
+    "batch2_logits_max_abs_diff": {
+      "pilot_only_ar1_untrained_neural": 1.1920928955078125e-07,
+      "pilot_soft_ar1_untrained_neural": 1.1920928955078125e-07
+    },
+    "batch2_cuda_graph": {
+      "mean_ms": 16.57514995895326,
+      "median_ms": 16.503699822351336,
+      "min_ms": 16.45249966531992,
+      "max_ms": 16.982699744403362,
+      "reps": 20
+    }
+  }
+}
