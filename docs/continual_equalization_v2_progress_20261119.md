@@ -24,6 +24,14 @@
 
 已预登记并完成 `p12_ar1_long_horizon_training_3x2048`：训练会话 seed 238001–238048，训练随机种子 411001–411003，三重复；每 episode 2048 帧、16 个预定 Data 监督帧，acquisition 与 recursive Pilot 两种训练策略匹配波形与预算。状态转移使用 P11 相同冻结 AR(1) 文件及哈希，`process_noise=0`；训练、验证和未来确认 seed 分开。训练进程退出码0，报告状态为 `completed`，48个 episode 共96条记录；六个 checkpoint 均存在且文件SHA256与训练报告一致。随后按预登记协议完成独立开发验证 `p12_ar1_long_horizon_neural_validation_6x256`，使用新seed 239001–239006、四SNR、256帧、8个候选臂，共49,152条记录；进程退出码0，24个session完整，配对波形哈希一致。未训练神经与物理接收BER几乎相同；长时域训练没有带来四SNR一致的神经 BER 增益，recursive Pilot 训练在0 dB反而恶化BER，虽然低SNR的BCE/Brier有所改善。详见[P12归档](results/continual_v2_offline_20261121/README.md)和[数值审计](results/continual_v2_offline_20261121/p12_validation_audit_summary.json)。P12属开发验证，不证明长会话增长、饱和保持或独立确认；按用户要求，本阶段到此暂停后续实验。
 
+## Soft Data 方差先导与后段回升归因（2026-11-22）
+
+已完成预登记先导 `soft_data_variance_pilot_10x1024_20261122`：新 seed 240002–240011、四 SNR、每会话 1,024 帧、recursive Pilot-only 与 recursive Pilot+soft Data 两臂，共 81,920 条逐帧记录，退出码 0，用时 6,661 s。完整性与逐帧波形配对审计通过。预登记用途仅为 session 级方差/协方差估计；描述性配对 BER 显示 soft Data 在 0 dB 与 5 dB 的 10/10 个 seed 都差于 Pilot-only（均值 +0.0073/+0.0027），10/15 dB 基本持平。该方向与既有低 SNR soft 负结果一致，但本先导不构成有效性或伤害检验。结果见[先导归档](results/continual_v2_soft_data_variance_pilot_20261122/README.md)。
+
+只读归因 P8/P9/P11 后段回升：按预登记窗口对齐后，P11 的 6 条 AR(1) 轨迹中 4 条晚段真实有效 ESNR 下降 0.69–0.80 dB，递归 Pilot 的 BER 全部回升；另 2 条 ESNR 上升 0.56–0.73 dB，递归 BER 反而下降。递归 ΔBER 与 ΔESNR 的 session 级相关为 −0.93/−0.95/−0.98（0/5/10 dB），与 Δ对齐 NMSE、Δ相位 RMS、Δ高置信错误率同向；当前 Pilot 臂即使信道变好仍变差。P8 两条独立轨迹晚段 ESNR 均上升，递归 ΔBER 为负而当前 Pilot 显著为正。故现有“Online 自身后段回升”主要混杂于有限长度 AR(1) 轨迹的真实变化，未发现递归估计器失稳证据；这是描述性归因（n=6、两组），不是因果或总体结论。见[归因归档](results/continual_v2_late_rebound_attribution_20261122/README.md)。对 P5 判据的含义：需在开发阶段预登记多轨迹/分层设计，避免用晚段变差的单组轨迹直接判定方法失效。
+
+GPU 吞吐基准（计时专用 seed 240012）显示：fft 后端下两臂解码器前向约 27–28 ms/臂，batch=2 约 29–31 ms，CUDA Graph 回放约 16.5 ms，logits 差 1.2e-7；Windows 上 `torch.compile` 无 Triton 不可用。仅作实现候选，不改变本阶段方法结论。见[基准归档](results/continual_v2_gpu_bench_20261122/README.md)。
+
 ## 已完成的仓库操作
 
 当前补充（2026-11-20）：P8已完整提交推送为a6e6d38，匹配老化先验对照整合为7e9d080，全量 **324 passed in 31.62s**。新seed237001的P9a四SNR四臂8帧共128行全部完成，完整schema3及源码原始字节核验通过；匹配两臂首帧保存的CIR/soft评分、误差和协方差诊断均精确一致，证据已提交推送为b96342b。单元测试另覆盖逐位logits/CIR一致性。短入口核验不作BER收益证明。
