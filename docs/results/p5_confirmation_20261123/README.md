@@ -30,13 +30,15 @@
 - 描述性：`adv_frozen`、10/15 dB 自身改善、真实 ESNR 漂移；10/15 dB 自身改善仍受开发门槛限制，不宣称确认。
 - 工具：`scripts/audit_p5_confirmation.py`（完整性）与 `scripts/analyze_p5_confirmation.py`（统计）。两者均流式读取，不在内存中保留全部逐帧数据。
 
-## 无人值守运行
+## 无人值守运行（按时段）
 
-- 自 2026-11-23 17:11 起，由独立（detached）监督进程 [`scripts/run_p5_confirmation_detached.ps1`](../../../scripts/run_p5_confirmation_detached.ps1) 执行；关闭 Claude 会话不影响运行。
-- 当前状态文件：`detached_status.json`（`state` / `experiment` / `updated_utc`），日志 `run_detached.log`。
-- 监督进程会跳过已完成实验；对 `running`/`failed` 的实验自动加 `--resume` 重放已有前缀后继续；每个实验成功后调用 `finalize_registry.py`。
+- 自 2026-11-24 00:06 起，由独立（detached）监督进程 [`scripts/run_p5_confirmation_scheduled.ps1`](../../../scripts/run_p5_confirmation_scheduled.ps1) 执行；关闭 Claude 会话不影响运行。
+- **运行时段：每天 08:00–24:00；00:00–08:00 暂停**，不影响夜间休息。到 23:58 左右监督进程用 `timeout` 停止接收并在次日 08:00 自动 `--resume`。
+- 当前状态文件：`scheduled_status.json`（`state` / `experiment` / `next_resume_local` / `updated_local`），日志 `run_scheduled.log`。
+- 按 16 h/天计，约 5 GPU 日的确认需要约 **7–8 个日历日**。
+- 监督进程会跳过已完成实验；对 `running`/`failed`/`interrupted` 的实验自动 `--resume` 重放已有前缀后继续；每个实验成功后调用 `finalize_registry.py`。
 - 机器重启、休眠唤醒或进程被杀后：重新运行同一监督脚本即可继续，不会覆盖已有结果、不换 seed。
-- 0 dB 实验在 2026-11-23 17:10 的断点处续跑：已重放第 30 个 session 至第 8,703 帧，状态 `running`。
+- 2026-11-24 00:05 在 0 dB 约 61.9 个 session 处按 24:00 时段暂停；主 JSON 与 JSONL 行数一致（2,176,833），次日 08:00 续跑。
 
 ## 中断与恢复
 
