@@ -71,7 +71,7 @@ def reserve_seeds(root, *, experiment, seeds, purpose, details):
         raise ValueError(f"种子已使用或属于历史保留范围：{collisions}")
     registry["experiments"].append({
         "experiment": experiment, "purpose": purpose, "seeds": list(seeds),
-        "status": "reserved", "details": details,
+        "status": "running", "details": details,
     })
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")

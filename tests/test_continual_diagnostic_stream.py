@@ -91,7 +91,7 @@ def test_receiver_diagnostics_reach_jsonl_schema_without_reconstruction(monkeypa
     diagnostics.pop('decode_cir')
     row = dict(seed=1, snr_db=0, frame_index=0, arm='candidate', errors=0, bits=64,
                elapsed_ms=1., rx_sha256='paired', noise_variance_used=.2, model_calls=1,
-               **diagnostics)
+               true_cir_norm_diagnostic=1., **diagnostics)
     saved = json.loads(json.dumps(compact_stream_row(row), allow_nan=False))
     assert saved['pilot_observations'] == 46
     assert saved['pilot_updates'] == 1

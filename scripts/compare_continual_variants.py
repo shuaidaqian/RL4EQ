@@ -49,9 +49,14 @@ STREAM_ROW_FIELDS = (
     'prior_covariance_trace', 'decode_covariance_trace', 'posterior_covariance_trace',
     'pilot_observations', 'pilot_innovation_mse', 'pilot_innovation_variance_mean',
     'noise_variance_used', 'pilot_updates', 'data_updates', 'neural_forwards', 'model_calls',
+    'true_cir_norm_diagnostic',
 )
 SOLVER_DIAGNOSTIC_FIELDS = (
     'physics_solver_iterations', 'physics_solver_relative_residual', 'physics_solver_rhs_norm',
+)
+MINIMAL_STREAM_FIELDS = (
+    'seed', 'snr_db', 'frame_index', 'arm', 'errors', 'bits', 'elapsed_ms', 'rx_sha256',
+    'true_cir_norm_diagnostic', 'model_calls', 'neural_forwards',
 )
 
 
@@ -77,9 +82,13 @@ def validate_solver_diagnostics(row, variant):
 def compact_stream_row(row, *, schema_version=2):
     """新流式格式明确保留合法观测诊断；缺字段时拒绝静默丢弃。"""
 
-    if schema_version not in {2, 3}:
+    if schema_version not in {2, 3, 4}:
         raise ValueError('未知流式诊断版本。')
-    fields = STREAM_ROW_FIELDS + (RECEIVER_SCORE_FIELDS + LONG_DIAGNOSTIC_FIELDS if schema_version == 3 else ())
+    if schema_version == 4:
+        fields = MINIMAL_STREAM_FIELDS
+    else:
+        fields = STREAM_ROW_FIELDS + (RECEIVER_SCORE_FIELDS + LONG_DIAGNOSTIC_FIELDS
+                                      if schema_version == 3 else ())
     missing = [key for key in fields if key not in row]
     if missing:
         raise ValueError(f'流式诊断记录缺少必要字段：{missing}')
@@ -185,8 +194,14 @@ def main():
                         help='续跑已登记且中断的流式实验；验证已有前缀后只追加新帧。')
     parser.add_argument('--accel', choices=['none', 'batch', 'graph'], default='none',
                         help='两臂合并前向（batch）或再叠加 CUDA Graph（graph）；默认关闭。')
+    parser.add_argument('--purpose', choices=['development', 'confirmation'], default='development',
+                        help='seed registry 中的实验角色；独立确认必须是 confirmation。')
+    parser.add_argument('--minimal-diagnostics', action='store_true',
+                        help='只记录确认分析所需字段（schema 4），跳过逐帧浮点诊断同步。')
     args = parser.parse_args()
-    stream_schema = 3 if args.long_diagnostics else 2
+    stream_schema = 4 if args.minimal_diagnostics else (3 if args.long_diagnostics else 2)
+    if args.minimal_diagnostics and (args.long_diagnostics or not args.stream_rows):
+        parser.error('最小诊断只支持流式记录，且不能与长诊断同时使用。')
     if args.frames < 1 or args.checkpoint_interval < 1 or not args.snrs or len(set(args.snrs)) != len(args.snrs):
         parser.error('需要正帧数和互异的 SNR。')
     output = Path(args.output)
@@ -251,11 +266,11 @@ def main():
     if args.accel != 'none':
         if not args.stream_rows or args.long_diagnostics:
             raise ValueError('加速模式只支持 schema 2 流式记录，不支持长诊断。')
-        if len(variants) != 2:
-            raise ValueError('加速模式要求恰好两条候选臂。')
+        if len(variants) < 2:
+            raise ValueError('加速模式至少需要两条候选臂。')
         if any(row.get('decoder', 'neural') != 'neural' or row.get('context_source')
                or row.get('physics_solver_diagnostics') for row in variants):
-            raise ValueError('加速模式只支持两条 neural 解码臂，且不支持共享上下文或求解诊断。')
+            raise ValueError('加速模式只支持 neural 解码臂，且不支持共享上下文或求解诊断。')
         if len(cache) != 1:
             raise ValueError('加速模式要求两条臂共享同一 checkpoint。')
         backends = {row.get('operator_backend', os.environ.get('RL4EQ_LINEAR_OPERATOR_BACKEND', 'direct'))
@@ -271,10 +286,11 @@ def main():
                          else GraphBatchedForward(accel_model))
     protocol = dict(vars(args), variants=variants, arms=[row['name'] for row in variants],
                     acceleration=args.accel, shared_forward=args.accel != 'none',
+                    minimal_diagnostics=args.minimal_diagnostics,
                     stream_rows_schema_version=stream_schema if args.stream_rows else None,
                     posthoc_diagnostic='actual_decoder_input_frozen_phase_replay_no_feedback' if args.long_diagnostics else None,
                     pilot_innovation_diagnostic='clean_adapt_pre_update_phase_fitted_not_chi_square',
-                    pairs=manifest.get('pairs', []), role='development', noise_source='acquisition_residual',
+                    pairs=manifest.get('pairs', []), role=args.purpose, noise_source='acquisition_residual',
                     statistical_unit='session', timing='current_pilot_then_decode',
                     linear_operator_backend=os.environ.get('RL4EQ_LINEAR_OPERATOR_BACKEND', 'direct'),
                     torch_version=torch.__version__, config_sha256=fingerprint(args.config),
@@ -298,7 +314,7 @@ def main():
         registration = next((row for row in registry['experiments']
                              if row.get('experiment') == args.experiment), None)
         if (registration is None or registration.get('status') != 'running'
-                or registration.get('purpose') != 'development'
+                or registration.get('purpose') != args.purpose
                 or registration.get('seeds') != args.seeds):
             raise ValueError('续跑只允许使用完全匹配且状态为 running 的开发登记。')
         metadata_candidates = [output.with_suffix('.tmp'), output]
@@ -321,7 +337,8 @@ def main():
             'manifest_sha256', 'checkpoint_sha256', 'variants', 'arms', 'pairs',
             'role', 'noise_source', 'statistical_unit', 'timing', 'linear_operator_backend',
             'stream_rows_schema_version', 'pilot_innovation_diagnostic',
-            'long_diagnostics', 'posthoc_diagnostic', 'accel',
+            'long_diagnostics', 'posthoc_diagnostic', 'accel', 'purpose',
+            'minimal_diagnostics',
         )
         for field in compatible_fields:
             if previous_protocol.get(field) != protocol.get(field):
@@ -356,7 +373,7 @@ def main():
         }
     else:
         reserve_seeds(ROOT, experiment=args.experiment, seeds=args.seeds,
-                      purpose='development', details=protocol)
+                      purpose=args.purpose, details=protocol)
         output.parent.mkdir(parents=True, exist_ok=True)
         result = dict(protocol=protocol, acquisitions=[], rows=[], status='running')
         streamed_rows = 0
@@ -435,7 +452,8 @@ def main():
                         os.environ['RL4EQ_LINEAR_OPERATOR_BACKEND'] = accelerated_backend
                         try:
                             for row in variants:
-                                prepared = receivers[row['name']].prepare(visible)
+                                prepared = receivers[row['name']].prepare(
+                                    visible, diagnostics=not args.minimal_diagnostics)
                                 prepared_steps[row['name']] = prepared
                                 calls.append(context_model_inputs(
                                     accel_model, prepared.context, visible='data'))
@@ -457,7 +475,8 @@ def main():
                         if accelerated is not None:
                             prepared_steps, batch_logits, shared_elapsed = accelerated
                             logits, diagnostics = receivers[name].finish(
-                                prepared_steps[name], batch_logits[index])
+                                prepared_steps[name], batch_logits[index],
+                                diagnostics=not args.minimal_diagnostics)
                             elapsed = shared_elapsed
                             model_calls = 1
                         else:
@@ -476,7 +495,9 @@ def main():
                                     diagnostics = dict(frame_diagnostics[source])
                                     diagnostics.update(pilot_updates=0, data_updates=0, shared_state_from=source)
                                 else:
-                                    logits, diagnostics = receivers[name].step(decoder, visible)
+                                    logits, diagnostics = receivers[name].step(
+                                        decoder, visible,
+                                        diagnostics=not args.minimal_diagnostics)
                             finally:
                                 if previous_backend is None:
                                     os.environ.pop('RL4EQ_LINEAR_OPERATOR_BACKEND', None)
@@ -497,6 +518,14 @@ def main():
                         session_key = (snr, seed, name)
                         session_errors[session_key] = session_errors.get(session_key, 0) + errors
                         session_bits[session_key] = session_bits.get(session_key, 0) + int(mask.sum())
+                        if args.minimal_diagnostics:
+                            result['rows'].append(dict(
+                                seed=seed, snr_db=snr, frame_index=original.frame_index,
+                                arm=name, errors=errors, bits=int(mask.sum()),
+                                elapsed_ms=elapsed, model_calls=model_calls,
+                                rx_sha256=rx_hash, neural_forwards=1,
+                                true_cir_norm_diagnostic=float(original.true_cir.flatten().norm())))
+                            continue
                         estimate = diagnostics.pop('decode_cir')
                         truth = original.true_cir.flatten()
                         scoring = receiver_diagnostics(logits, original.bits, mask, estimate, truth)

@@ -149,8 +149,8 @@ def main():
     torch.set_num_threads(1)
     device = torch.device(args.device)
     arms = [row['name'] for row in manifest['variants']]
-    if len(arms) != 2:
-        raise ValueError('等价性检查要求两条臂。')
+    if len(arms) < 2:
+        raise ValueError('等价性检查至少需要两条臂。')
     env, base_receivers = build_receivers(config, manifest, device, args.seed, args.snr)
     original = [env.next_frame() for _ in range(args.frames)]
     visible = [receiver_frame(frame_to_device(frame, device)) for frame in original]

@@ -6,6 +6,7 @@ import torch
 
 from agent.unfolded_equalizer import UnfoldedConfig, UnfoldedEqualizer
 from env.frame_structure import FrameConfig, FrameGenerator
+from scripts.compare_continual_variants import MINIMAL_STREAM_FIELDS, compact_stream_row
 from training.continual_accel import BatchedForward, merge_calls
 from training.continual_receiver import (
     ContinualReceiver, estimate_acquisition, receiver_frame,
@@ -73,3 +74,28 @@ def test_batched_forward_matches_individual_calls():
     torch.testing.assert_close(merged[0], singles[0], rtol=0, atol=1e-6)
     torch.testing.assert_close(merged[1], singles[1], rtol=0, atol=1e-6)
     assert batched.calls == 1
+
+
+def test_minimal_diagnostics_preserves_receiver_state():
+    model = _model()
+    full, frame = _fixture('recursive_soft')
+    minimal, frame2 = _fixture('recursive_soft')
+    expected, _ = full.step(model, frame)
+    prepared = minimal.prepare(frame2, diagnostics=False)
+    with torch.no_grad():
+        logits = context_logits(model, prepared.context, None, visible='data')
+    actual, info = minimal.finish(prepared, logits, diagnostics=False)
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+    torch.testing.assert_close(minimal.mean, full.mean, rtol=0, atol=0)
+    torch.testing.assert_close(minimal.tail, full.tail, rtol=0, atol=0)
+    assert info['prior_covariance_trace'] is None
+    assert info['posterior_covariance_trace'] is None
+    assert info['neural_forwards'] == 1
+
+
+def test_compact_minimal_schema_keeps_only_required_fields():
+    row = dict.fromkeys(MINIMAL_STREAM_FIELDS, 1)
+    row.update(arm='candidate', rx_sha256='waveform', true_cir_norm_diagnostic=.99)
+    saved = compact_stream_row(row, schema_version=4)
+    assert set(saved) == set(MINIMAL_STREAM_FIELDS)
+    assert saved['true_cir_norm_diagnostic'] == .99

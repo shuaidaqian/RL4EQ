@@ -16,6 +16,9 @@ def test_seed_registry_rejects_observed_reserved_and_duplicate_seeds(tmp_path):
         with pytest.raises(ValueError, match="已使用"):
             reserve_seeds(tmp_path, experiment="bad", seeds=[seed], purpose="development", details={})
     reserve_seeds(tmp_path, experiment="first", seeds=[210002], purpose="development", details={})
+    registry = json.loads((tmp_path / "docs/protocols/continual_v2_seed_registry.json").read_text())
+    entry = next(row for row in registry["experiments"] if row["experiment"] == "first")
+    assert entry["status"] == "running"
     with pytest.raises(ValueError, match="已使用"):
         reserve_seeds(tmp_path, experiment="second", seeds=[210002], purpose="confirmation", details={})
     with pytest.raises(ValueError, match="实验名"):

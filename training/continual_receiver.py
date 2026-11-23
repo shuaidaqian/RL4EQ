@@ -321,8 +321,11 @@ class ContinualReceiver:
         return circular_phase_features(frame, mean, self.tail, self.acquisition.cfo,
             clean_rows=self.phase_estimator == "circular_clean", reference_backend=self.phase_reference_backend)
 
-    def prepare(self, frame):
-        """完成本帧在神经前向之前的合法状态更新与上下文构造。"""
+    def prepare(self, frame, *, diagnostics=True):
+        """完成本帧在神经前向之前的合法状态更新与上下文构造。
+
+        ``diagnostics=False`` 跳过仅为记录服务的浮点同步；接收状态与上下文不变。
+        """
 
         if frame.true_cir is not None or frame.tail_symbols is not None or bool(frame.bits.any()):
             raise ValueError("接收机只接受剥离隐藏字段的接收视图。")
@@ -350,9 +353,10 @@ class ContinualReceiver:
                 transition_intervals=intervals,
             )
         features = self._phase_features(frame, mean)
-        pilot_statistics = pilot_innovation_statistics(
+        pilot_statistics = (pilot_innovation_statistics(
             frame, mean, covariance, self.acquisition.noise_variance, features)
-        prior_covariance_trace = float(covariance.trace().real)
+            if diagnostics else {})
+        prior_covariance_trace = float(covariance.trace().real) if diagnostics else None
         if self.arm != "acquisition":
             mean, covariance = pilot_update(frame, mean, covariance,
                                             self.acquisition.noise_variance, features)
@@ -362,13 +366,14 @@ class ContinualReceiver:
                                         self.acquisition.noise_variance, features)
         return PreparedStep(
             frame=frame, context=context, decode_mean=decode_mean,
-            decode_covariance_trace=float(decode_covariance.trace().real),
+            decode_covariance_trace=(float(decode_covariance.trace().real)
+                                     if diagnostics else None),
             prior_covariance_trace=prior_covariance_trace,
             pilot_statistics=pilot_statistics, mean=mean, covariance=covariance,
             features=features,
         )
 
-    def finish(self, prepared, logits):
+    def finish(self, prepared, logits, *, diagnostics=True):
         """用神经输出完成 tail/soft 状态更新并生成逐帧诊断。"""
 
         self.tail = tail_from_logits(logits, self.tail)
@@ -383,13 +388,14 @@ class ContinualReceiver:
             "decode_covariance_trace": prepared.decode_covariance_trace,
             "prior_covariance_trace": prepared.prior_covariance_trace,
             **prepared.pilot_statistics,
-            "posterior_covariance_trace": float(covariance.trace().real),
+            "posterior_covariance_trace": (float(covariance.trace().real)
+                                           if diagnostics else None),
             "pilot_updates": int(self.arm != "acquisition"),
             "data_updates": int(self.arm == "recursive_soft"), "neural_forwards": 1,
         }
 
-    def step(self, model, frame):
-        prepared = self.prepare(frame)
+    def step(self, model, frame, *, diagnostics=True):
+        prepared = self.prepare(frame, diagnostics=diagnostics)
         with torch.no_grad():
             logits = context_logits(model, prepared.context, None, visible="data")
-        return self.finish(prepared, logits)
+        return self.finish(prepared, logits, diagnostics=diagnostics)

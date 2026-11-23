@@ -1,0 +1,46 @@
+{
+  "seed": 240013,
+  "snr_db": 0,
+  "frames": 1024,
+  "device": "cuda",
+  "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+  "baseline_frame_mean_ms": 134.14806592027162,
+  "baseline_frame_median_ms": 130.54074998944998,
+  "modes": {
+    "graph": {
+      "steady_frame_mean_ms": 67.58787155056687,
+      "steady_frame_median_ms": 66.4976998232305,
+      "first_frame_ms_including_capture": 309.3845001421869,
+      "speedup_mean": 1.9847949468257295,
+      "speedup_median": 1.9630866982837576,
+      "ber": {
+        "frozen_acquisition": {
+          "error_differences": 0,
+          "frames_with_differing_errors": 0
+        },
+        "current_pilot_aged_ar1": {
+          "error_differences": 0,
+          "frames_with_differing_errors": 0
+        },
+        "recursive_pilot_ar1": {
+          "error_differences": 0,
+          "frames_with_differing_errors": 0
+        }
+      },
+      "per_arm": {
+        "frozen_acquisition": {
+          "max_logits_abs_diff": 1.9073486328125e-06,
+          "diagnostic_max_abs_diff": 2.384185791015625e-07
+        },
+        "current_pilot_aged_ar1": {
+          "max_logits_abs_diff": 1.9073486328125e-06,
+          "diagnostic_max_abs_diff": 3.5762786865234375e-07
+        },
+        "recursive_pilot_ar1": {
+          "max_logits_abs_diff": 3.2186508178710938e-06,
+          "diagnostic_max_abs_diff": 3.5762786865234375e-07
+        }
+      }
+    }
+  }
+}
