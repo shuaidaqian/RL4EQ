@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "description": "P5 独立确认：四 SNR、三臂（acquisition Frozen / 匹配老化当前 Pilot / 递归 Pilot），11719 帧，多轨迹分层 balanced seeds。",
-  "status": "frozen_pending_run",
+  "status": "running",
   "date": "2026-11-23",
   "purpose": "confirmation",
   "manifest": "docs/protocols/p5_confirmation_manifest_draft_20261123.json",
@@ -670,5 +670,7 @@
     "true_cir_norm_diagnostic",
     "model_calls",
     "neural_forwards"
-  ]
+  ],
+  "launched_utc": "2026-11-23T02:42:00Z",
+  "wrapper": "scripts/run_p5_confirmation_20261123.ps1"
 }

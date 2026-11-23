@@ -34,6 +34,14 @@ GPU 吞吐基准（计时专用 seed 240012）显示：fft 后端下两臂解码
 
 P5 功效规划（2026-11-23，只读）：用 P11 六个 session 的配对变化估计，0/5 dB 的 Online 自身改善按观测效应约需 134/260 个 session，若最小实质效应预先定为 0.005 绝对 BER 则约需 269/69 个；相对 Frozen 的优势只需 4–8 个 session，但会被 Frozen 退化放大，不能替代自身改善。10/15 dB 的绝对边界相对 BER 量级过大而无意义，相对量在早期 BER 近零时也不稳定，需要更长会话或基于错误计数的判据。n=6 的方差估计较宽，按 80% 上界所需 session 约 ×2.1。见[功效规划](results/continual_v2_p5_planning_20261122/README.md)。据此整理 [P5 确认框架草案](protocols/p5_confirmation_framework_draft_20261123.md)：多轨迹预登记与平衡、三项主张分开、固定样本量与 TOST 等价边界；**草案未冻结，未分配任何新 seed**。按用户确认的四 SNR 全确认范围，草案把可确认主张拆为：0/5 dB 自身改善（0.005 绝对边界）与四 SNR 相对匹配当前 Pilot 的增量；10/15 dB 自身改善在开发数据中无方向性证据（均值 +0.00002/+0.00008），保留为开发门槛后的可选确认。按半效应估计约 580 个 session、未优化实现约 12.8 GPU 日。已完成接收加速：`_design` 向量化、两臂 batch=2 与 CUDA Graph（`--accel graph`），32 帧等价性检查 BER 逐帧一致、logits 差 ≤3.3e-6，稳态约 46 ms/帧；含运行器开销估计 P5 约 5–6 GPU 日。见[加速等价性检查](results/continual_v2_accel_equivalence_20261122/README.md)。
 
+## P5 四 SNR 独立确认启动（2026-11-23）
+
+P5 确认已按冻结协议启动：三臂（acquisition Frozen / 匹配老化当前 Pilot / 递归 Pilot）、每会话 11,719 帧、四 SNR、527 个互不重叠新 seed（0 dB 269、5 dB 69、10 dB 73、15 dB 116）。种子按保持窗真实 ESNR 漂移匹配零均值对称目标，只使用信道生成器；选种记录见 [p5_seed_selection_20261123.json](protocols/p5_seed_selection_20261123.json)。协议见 [p5_confirmation_20261123.json](protocols/p5_confirmation_20261123.json)。
+
+实现使用 `--accel graph`（三臂 batch 前向 + CUDA Graph）与 `--minimal-diagnostics`（schema 4，只记录确认分析所需字段）。启动前完成了：三臂 1,024 帧等价性检查（BER 逐帧一致、logits 差 ≤3.2e-6、约 1.98×）、11,719 帧三臂预检（35,157 行完整、波形 0 错配）、中断续跑验证（1,024 帧恢复完成）、全量 359 tests passed。确认运行由 `scripts/run_p5_confirmation_20261123.ps1` 顺序执行四个 SNR；中断保留结果并可 `--resume`，不自动重跑。预计约 5–6 GPU 日。
+
+确认主张：四 SNR 相对匹配当前 Pilot 的增量为主族；0/5 dB 自身改善（最小效应 0.005 绝对）为次族；保持为第三族 TOST；10/15 dB 自身改善仍受开发门槛限制，只作描述性报告。
+
 ## 已完成的仓库操作
 
 当前补充（2026-11-20）：P8已完整提交推送为a6e6d38，匹配老化先验对照整合为7e9d080，全量 **324 passed in 31.62s**。新seed237001的P9a四SNR四臂8帧共128行全部完成，完整schema3及源码原始字节核验通过；匹配两臂首帧保存的CIR/soft评分、误差和协方差诊断均精确一致，证据已提交推送为b96342b。单元测试另覆盖逐位logits/CIR一致性。短入口核验不作BER收益证明。
