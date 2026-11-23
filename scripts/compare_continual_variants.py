@@ -39,8 +39,9 @@ from scripts.develop_continual_receiver import fingerprint, summarize, synchroni
 from training.continual_receiver import (
     ContinualReceiver, acquisition_transition_intervals, estimate_acquisition, receiver_frame,
 )
+from training.continual_accel import BatchedForward, GraphBatchedForward
 from training.continual_offline import InputRecorder
-from training.pilot_transfer import frame_to_device
+from training.pilot_transfer import context_model_inputs, frame_to_device
 
 
 STREAM_ROW_FIELDS = (
@@ -182,6 +183,8 @@ def main():
                         help='按多少帧原子保存一次；流式长会话可设为较大值。')
     parser.add_argument('--resume', action='store_true',
                         help='续跑已登记且中断的流式实验；验证已有前缀后只追加新帧。')
+    parser.add_argument('--accel', choices=['none', 'batch', 'graph'], default='none',
+                        help='两臂合并前向（batch）或再叠加 CUDA Graph（graph）；默认关闭。')
     args = parser.parse_args()
     stream_schema = 3 if args.long_diagnostics else 2
     if args.frames < 1 or args.checkpoint_interval < 1 or not args.snrs or len(set(args.snrs)) != len(args.snrs):
@@ -244,7 +247,30 @@ def main():
             branch = PhysicsBranch(model)
         recorders[row['name']] = InputRecorder(branch)
         models[row['name']] = ForwardCounter(recorders[row['name']])
+    accel_model, accel_decoder, accelerated_backend = None, None, None
+    if args.accel != 'none':
+        if not args.stream_rows or args.long_diagnostics:
+            raise ValueError('加速模式只支持 schema 2 流式记录，不支持长诊断。')
+        if len(variants) != 2:
+            raise ValueError('加速模式要求恰好两条候选臂。')
+        if any(row.get('decoder', 'neural') != 'neural' or row.get('context_source')
+               or row.get('physics_solver_diagnostics') for row in variants):
+            raise ValueError('加速模式只支持两条 neural 解码臂，且不支持共享上下文或求解诊断。')
+        if len(cache) != 1:
+            raise ValueError('加速模式要求两条臂共享同一 checkpoint。')
+        backends = {row.get('operator_backend', os.environ.get('RL4EQ_LINEAR_OPERATOR_BACKEND', 'direct'))
+                    for row in variants}
+        if len(backends) != 1:
+            raise ValueError('加速模式要求两条臂使用同一线性算子后端。')
+        accelerated_backend = backends.pop()
+        accel_model = next(iter(cache.values()))
+        accel_model.eval()
+        if args.accel == 'graph' and accel_model.config.enable_channel_state_branch:
+            raise ValueError('CUDA Graph 不支持按帧变化的 frame_index 输入。')
+        accel_decoder = (BatchedForward(accel_model) if args.accel == 'batch'
+                         else GraphBatchedForward(accel_model))
     protocol = dict(vars(args), variants=variants, arms=[row['name'] for row in variants],
+                    acceleration=args.accel, shared_forward=args.accel != 'none',
                     stream_rows_schema_version=stream_schema if args.stream_rows else None,
                     posthoc_diagnostic='actual_decoder_input_frozen_phase_replay_no_feedback' if args.long_diagnostics else None,
                     pilot_innovation_diagnostic='clean_adapt_pre_update_phase_fitted_not_chi_square',
@@ -263,7 +289,7 @@ def main():
                         'agent/unfolded_equalizer.py', 'env/linear_operator.py',
                         'env/comm_env.py', 'env/extreme_delay_channel.py', 'env/impairments.py',
                         'env/eme_channel_profiles.py', 'training/continual_offline.py',
-                        'training/pilot_transfer.py']})
+                        'training/continual_accel.py', 'training/pilot_transfer.py']})
     completed_sessions, partial_session, partial_rows = set(), None, None
     previous_acquisitions = {}
     if args.resume:
@@ -295,7 +321,7 @@ def main():
             'manifest_sha256', 'checkpoint_sha256', 'variants', 'arms', 'pairs',
             'role', 'noise_source', 'statistical_unit', 'timing', 'linear_operator_backend',
             'stream_rows_schema_version', 'pilot_innovation_diagnostic',
-            'long_diagnostics', 'posthoc_diagnostic',
+            'long_diagnostics', 'posthoc_diagnostic', 'accel',
         )
         for field in compatible_fields:
             if previous_protocol.get(field) != protocol.get(field):
@@ -402,33 +428,64 @@ def main():
                     visible = receiver_frame(original)
                     rx_hash = hashlib.sha256(original.rx_symbols.cpu().numpy().tobytes()).hexdigest()
                     frame_logits, frame_diagnostics = {}, {}
-                    for row in variants:
-                        name = row['name']
-                        decoder = models[name]
-                        before = decoder.calls
-                        synchronize(device)
-                        began = time.perf_counter()
+                    accelerated = None
+                    if accel_decoder is not None:
+                        prepared_steps, calls = {}, []
                         previous_backend = os.environ.get('RL4EQ_LINEAR_OPERATOR_BACKEND')
-                        os.environ['RL4EQ_LINEAR_OPERATOR_BACKEND'] = row.get('operator_backend', protocol['linear_operator_backend'])
+                        os.environ['RL4EQ_LINEAR_OPERATOR_BACKEND'] = accelerated_backend
                         try:
-                            if row.get('context_source'):
-                                source = row['context_source']
-                                actual_args, actual_kwargs = recorders[source].last_inputs
-                                with torch.no_grad():
-                                    batch_logits, _ = decoder(*actual_args, **actual_kwargs)
-                                logits = batch_logits.squeeze(0)
-                                diagnostics = dict(frame_diagnostics[source])
-                                diagnostics.update(pilot_updates=0, data_updates=0, shared_state_from=source)
-                            else:
-                                logits, diagnostics = receivers[name].step(decoder, visible)
+                            for row in variants:
+                                prepared = receivers[row['name']].prepare(visible)
+                                prepared_steps[row['name']] = prepared
+                                calls.append(context_model_inputs(
+                                    accel_model, prepared.context, visible='data'))
+                            synchronize(device)
+                            began = time.perf_counter()
+                            with torch.no_grad():
+                                batch_logits = accel_decoder(calls)
+                            synchronize(device)
+                            shared_elapsed = (time.perf_counter()-began)*1000
                         finally:
                             if previous_backend is None:
                                 os.environ.pop('RL4EQ_LINEAR_OPERATOR_BACKEND', None)
                             else:
                                 os.environ['RL4EQ_LINEAR_OPERATOR_BACKEND'] = previous_backend
-                        synchronize(device)
-                        elapsed = (time.perf_counter()-began)*1000
-                        if row.get('physics_solver_diagnostics', False):
+                        accelerated = (prepared_steps, batch_logits, shared_elapsed)
+                    for index, row in enumerate(variants):
+                        name = row['name']
+                        decoder = models[name]
+                        if accelerated is not None:
+                            prepared_steps, batch_logits, shared_elapsed = accelerated
+                            logits, diagnostics = receivers[name].finish(
+                                prepared_steps[name], batch_logits[index])
+                            elapsed = shared_elapsed
+                            model_calls = 1
+                        else:
+                            before = decoder.calls
+                            synchronize(device)
+                            began = time.perf_counter()
+                            previous_backend = os.environ.get('RL4EQ_LINEAR_OPERATOR_BACKEND')
+                            os.environ['RL4EQ_LINEAR_OPERATOR_BACKEND'] = row.get('operator_backend', protocol['linear_operator_backend'])
+                            try:
+                                if row.get('context_source'):
+                                    source = row['context_source']
+                                    actual_args, actual_kwargs = recorders[source].last_inputs
+                                    with torch.no_grad():
+                                        batch_logits, _ = decoder(*actual_args, **actual_kwargs)
+                                    logits = batch_logits.squeeze(0)
+                                    diagnostics = dict(frame_diagnostics[source])
+                                    diagnostics.update(pilot_updates=0, data_updates=0, shared_state_from=source)
+                                else:
+                                    logits, diagnostics = receivers[name].step(decoder, visible)
+                            finally:
+                                if previous_backend is None:
+                                    os.environ.pop('RL4EQ_LINEAR_OPERATOR_BACKEND', None)
+                                else:
+                                    os.environ['RL4EQ_LINEAR_OPERATOR_BACKEND'] = previous_backend
+                            synchronize(device)
+                            elapsed = (time.perf_counter()-began)*1000
+                            model_calls = decoder.calls-before
+                        if accelerated is None and row.get('physics_solver_diagnostics', False):
                             solver = recorders[name].model.last_solver_diagnostics
                             diagnostics.update(physics_solver_iterations=solver['iterations'],
                                 physics_solver_relative_residual=float(solver['relative_residual'].item()),
@@ -448,9 +505,10 @@ def main():
                                 recorders[name].model, recorders[name].last_inputs, original,
                                 env.channel.last_phase_used(), env.state_metadata()['cfo_cycles_per_symbol'],
                                 10**(-snr/10)))
-                        diagnostics['neural_forwards'] = (decoder.calls-before)*int(
-                            row.get('decoder', 'neural') in {'neural', 'known_adapt_real_neural'}
-                        )
+                        if accelerated is None:
+                            diagnostics['neural_forwards'] = (decoder.calls-before)*int(
+                                row.get('decoder', 'neural') in {'neural', 'known_adapt_real_neural'}
+                            )
                         paired_logits = {}
                         for baseline, online in protocol['pairs']:
                             if online == name and baseline in frame_logits:
@@ -461,7 +519,7 @@ def main():
                         frame_logits[name] = logits.detach()
                         result['rows'].append(dict(seed=seed, snr_db=snr, frame_index=original.frame_index,
                             arm=name, errors=errors, bits=int(mask.sum()), ber=errors/int(mask.sum()),
-                            elapsed_ms=elapsed, model_calls=decoder.calls-before, **scoring,
+                            elapsed_ms=elapsed, model_calls=model_calls, **scoring,
                             paired_logits_diagnostic=paired_logits,
                             noise_variance_used=acquisition.noise_variance, rx_sha256=rx_hash, **diagnostics))
                     if partial_session == session_id and original.frame_index <= max(

@@ -79,7 +79,10 @@ def receiver_frame(frame: Frame) -> Frame:
 
 
 def _design(symbols, positions, max_delay):
-    return torch.stack([symbols[positions - delay] for delay in range(max_delay + 1)], 1)
+    """一次 gather 构造卷积设计矩阵，避免逐 tap 的 Python 循环与多次启动。"""
+
+    delays = torch.arange(max_delay + 1, device=positions.device)
+    return symbols[positions[:, None] - delays[None, :]]
 
 
 def _hermitian(matrix):
@@ -256,6 +259,21 @@ def make_receiver_context(frame, mean, tail, noise, features):
     return TransferContext(frame, condition, tail, cfo=float(features[1]))
 
 
+@dataclass
+class PreparedStep:
+    """一帧接收在神经前向之前的全部合法状态，供批量前向后统一收尾。"""
+
+    frame: Frame
+    context: TransferContext
+    decode_mean: torch.Tensor
+    decode_covariance_trace: float
+    prior_covariance_trace: float
+    pilot_statistics: dict
+    mean: torch.Tensor
+    covariance: torch.Tensor
+    features: torch.Tensor
+
+
 class ContinualReceiver:
     """每帧一次前向；Pilot 只更新一次，Data 只影响后续帧。"""
 
@@ -303,7 +321,9 @@ class ContinualReceiver:
         return circular_phase_features(frame, mean, self.tail, self.acquisition.cfo,
             clean_rows=self.phase_estimator == "circular_clean", reference_backend=self.phase_reference_backend)
 
-    def step(self, model, frame):
+    def prepare(self, frame):
+        """完成本帧在神经前向之前的合法状态更新与上下文构造。"""
+
         if frame.true_cir is not None or frame.tail_symbols is not None or bool(frame.bits.any()):
             raise ValueError("接收机只接受剥离隐藏字段的接收视图。")
         if bool(frame.tx_symbols[~frame.adapt_mask].abs().any()) or frame.lookahead_rx_symbols is not None:
@@ -340,18 +360,36 @@ class ContinualReceiver:
         features = self._phase_features(frame, mean)
         context = make_receiver_context(frame, mean, self.tail,
                                         self.acquisition.noise_variance, features)
-        with torch.no_grad():
-            logits = context_logits(model, context, None, visible="data")
+        return PreparedStep(
+            frame=frame, context=context, decode_mean=decode_mean,
+            decode_covariance_trace=float(decode_covariance.trace().real),
+            prior_covariance_trace=prior_covariance_trace,
+            pilot_statistics=pilot_statistics, mean=mean, covariance=covariance,
+            features=features,
+        )
+
+    def finish(self, prepared, logits):
+        """用神经输出完成 tail/soft 状态更新并生成逐帧诊断。"""
+
         self.tail = tail_from_logits(logits, self.tail)
+        mean, covariance = prepared.mean, prepared.covariance
         if self.arm == "recursive_soft":
-            mean, covariance = soft_update(frame, logits, mean, covariance,
-                                           self.acquisition.noise_variance, features)
+            mean, covariance = soft_update(prepared.frame, logits, mean, covariance,
+                                           self.acquisition.noise_variance, prepared.features)
         self.mean, self.covariance = mean, covariance
         self.frames_seen += 1
         return logits, {
-            "decode_cir": decode_mean, "decode_covariance_trace": float(decode_covariance.trace().real),
-            "prior_covariance_trace": prior_covariance_trace, **pilot_statistics,
+            "decode_cir": prepared.decode_mean,
+            "decode_covariance_trace": prepared.decode_covariance_trace,
+            "prior_covariance_trace": prepared.prior_covariance_trace,
+            **prepared.pilot_statistics,
             "posterior_covariance_trace": float(covariance.trace().real),
             "pilot_updates": int(self.arm != "acquisition"),
             "data_updates": int(self.arm == "recursive_soft"), "neural_forwards": 1,
         }
+
+    def step(self, model, frame):
+        prepared = self.prepare(frame)
+        with torch.no_grad():
+            logits = context_logits(model, prepared.context, None, visible="data")
+        return self.finish(prepared, logits)

@@ -112,8 +112,8 @@ def frame_to_device(frame: Frame, device: torch.device | str) -> Frame:
     })
 
 
-def context_logits(model, context: TransferContext, parameters=None, *, visible="data"):
-    """显式选择接收输入；模型只获得 Adapt 已知符号，不获得 Data 标签。"""
+def context_model_inputs(model, context: TransferContext, *, visible="data"):
+    """构造一次实际前向的输入；供批量化接收复用，不改变信息边界。"""
 
     frame = context.frame
     view = _adapt_receiver_view(frame)
@@ -137,10 +137,23 @@ def context_logits(model, context: TransferContext, parameters=None, *, visible=
     }
     if model.config.enable_channel_state_branch:
         kwargs["frame_index"] = frame.frame_index
+    return args, kwargs
+
+
+def model_logits_from_inputs(model, args, kwargs):
+    """执行一次真实前向；返回未 squeeze 的 logits。"""
+
+    logits, _ = model(*args, **kwargs)
+    return logits
+
+
+def context_logits(model, context: TransferContext, parameters=None, *, visible="data"):
+    """显式选择接收输入；模型只获得 Adapt 已知符号，不获得 Data 标签。"""
+
+    args, kwargs = context_model_inputs(model, context, visible=visible)
     if parameters is None:
-        logits, _ = model(*args, **kwargs)
-    else:
-        logits, _ = functional_call(model, parameters, args, kwargs)
+        return model_logits_from_inputs(model, args, kwargs).squeeze(0)
+    logits, _ = functional_call(model, parameters, args, kwargs)
     return logits.squeeze(0)
 
 

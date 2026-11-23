@@ -1,0 +1,65 @@
+{
+  "seed": 240013,
+  "snr_db": 0,
+  "frames": 32,
+  "device": "cuda",
+  "checkpoint": "pretrained/eme_bce_all_32_20260905_pilot256/model_best.pt",
+  "baseline_frame_mean_ms": 119.48006559396163,
+  "baseline_frame_median_ms": 86.27884997986257,
+  "modes": {
+    "batch": {
+      "steady_frame_mean_ms": 59.560206463380204,
+      "steady_frame_median_ms": 59.13179973140359,
+      "first_frame_ms_including_capture": 94.65580014511943,
+      "speedup_mean": 2.0060384724727633,
+      "speedup_median": 1.4590939286774622,
+      "ber": {
+        "pilot_only_ar1_untrained_neural": {
+          "error_differences": 0,
+          "frames_with_differing_errors": 0
+        },
+        "pilot_soft_ar1_untrained_neural": {
+          "error_differences": 0,
+          "frames_with_differing_errors": 0
+        }
+      },
+      "per_arm": {
+        "pilot_only_ar1_untrained_neural": {
+          "max_logits_abs_diff": 2.1457672119140625e-06,
+          "diagnostic_max_abs_diff": 2.384185791015625e-07
+        },
+        "pilot_soft_ar1_untrained_neural": {
+          "max_logits_abs_diff": 3.337860107421875e-06,
+          "diagnostic_max_abs_diff": 8.344650268554688e-07
+        }
+      }
+    },
+    "graph": {
+      "steady_frame_mean_ms": 45.75182575612299,
+      "steady_frame_median_ms": 45.49869988113642,
+      "first_frame_ms_including_capture": 164.26369966939092,
+      "speedup_mean": 2.611481916171871,
+      "speedup_median": 1.896292645839611,
+      "ber": {
+        "pilot_only_ar1_untrained_neural": {
+          "error_differences": 0,
+          "frames_with_differing_errors": 0
+        },
+        "pilot_soft_ar1_untrained_neural": {
+          "error_differences": 0,
+          "frames_with_differing_errors": 0
+        }
+      },
+      "per_arm": {
+        "pilot_only_ar1_untrained_neural": {
+          "max_logits_abs_diff": 2.1457672119140625e-06,
+          "diagnostic_max_abs_diff": 2.384185791015625e-07
+        },
+        "pilot_soft_ar1_untrained_neural": {
+          "max_logits_abs_diff": 3.337860107421875e-06,
+          "diagnostic_max_abs_diff": 8.344650268554688e-07
+        }
+      }
+    }
+  }
+}

@@ -37,6 +37,10 @@
 - 与当前 Pilot 的配对优势更接近真实增量，0/5 dB 观测效应需 6/11 个 session，半效应需 16/37 个。
 - 保持等价：0/5 dB 在 0.002 BER 边界下需 413/133 个 session；0.005 边界下需 67/22 个。10/15 dB 的绝对边界同样需要按相对量重新定义。
 
+## 实现更新（2026-11-23）
+
+`_design` 已改为单次向量化 gather，接收 `step` 已拆为 `prepare`/`finish`，并实现两臂 batch=2 与 CUDA Graph（`--accel graph`）。32 帧等价性检查中 BER 逐帧一致、logits 差 ≤3.3e-6；稳态约 46 ms/帧，含运行器开销估计 60–80 ms/帧。按此实现，上述 580 个 session 的方案约需 **5–6 GPU 日**，而非未优化时的 12.8 日。见[加速等价性检查](../continual_v2_accel_equivalence_20261122/README.md)。
+
 ## 限制
 
 - 方差来自 6 个开发 session，估计很宽；真实确认若沿用这些 sd，所需 n 可能约 ×2.1。
