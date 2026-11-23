@@ -1,0 +1,196 @@
+{
+  "protocol": "C:/Users/SDQ/AppData/Local/Temp/preflight_protocol.json",
+  "role": "development_pipeline_test",
+  "windows": {
+    "early": [
+      64,
+      256
+    ],
+    "plateau": [
+      1024,
+      2048
+    ],
+    "late": [
+      4096,
+      8192
+    ],
+    "hold": [
+      8192,
+      11719
+    ]
+  },
+  "effect_sizes": {
+    "own_abs": 0.005
+  },
+  "margins": {
+    "hold_own_abs": 0.002,
+    "hold_own_rel": 0.1
+  },
+  "multiplicity": null,
+  "results": {
+    "0": {
+      "snr_db": 0,
+      "session_count": 1,
+      "sessions": [
+        {
+          "seed": 249002,
+          "windows": {
+            "frozen_acquisition": {
+              "early": {
+                "errors": 21404,
+                "bits": 147456,
+                "ber": 0.14515516493055555
+              },
+              "plateau": {
+                "errors": 158187,
+                "bits": 786432,
+                "ber": 0.20114517211914062
+              },
+              "late": {
+                "errors": 914404,
+                "bits": 3145728,
+                "ber": 0.2906812032063802
+              },
+              "hold": {
+                "errors": 1045542,
+                "bits": 2708736,
+                "ber": 0.3859888892826765
+              }
+            },
+            "current_pilot_aged_ar1": {
+              "early": {
+                "errors": 21089,
+                "bits": 147456,
+                "ber": 0.14301893446180555
+              },
+              "plateau": {
+                "errors": 129235,
+                "bits": 786432,
+                "ber": 0.16433080037434897
+              },
+              "late": {
+                "errors": 422938,
+                "bits": 3145728,
+                "ber": 0.13444836934407553
+              },
+              "hold": {
+                "errors": 477105,
+                "bits": 2708736,
+                "ber": 0.1761356588460448
+              }
+            },
+            "recursive_pilot_ar1": {
+              "early": {
+                "errors": 18191,
+                "bits": 147456,
+                "ber": 0.12336561414930555
+              },
+              "plateau": {
+                "errors": 103436,
+                "bits": 786432,
+                "ber": 0.13152567545572916
+              },
+              "late": {
+                "errors": 318234,
+                "bits": 3145728,
+                "ber": 0.10116386413574219
+              },
+              "hold": {
+                "errors": 373549,
+                "bits": 2708736,
+                "ber": 0.13790528128248747
+              }
+            }
+          },
+          "own_gain": 0.05599000718858507,
+          "adv_frozen": -0.03467814127604166,
+          "adv_current": -0.04782994588216147,
+          "hold_own": 0.18484371716353587,
+          "hold_own_rel": 0.9189567674736473,
+          "hold_adv_current": -0.17846411133677756
+        }
+      ],
+      "own_gain": {
+        "n": 1,
+        "mean": 0.05599000718858507,
+        "sd": NaN,
+        "ci95": [
+          NaN,
+          NaN
+        ]
+      },
+      "adv_current": {
+        "n": 1,
+        "mean": -0.04782994588216147,
+        "sd": NaN,
+        "ci95": [
+          NaN,
+          NaN
+        ]
+      },
+      "adv_frozen": {
+        "n": 1,
+        "mean": -0.03467814127604166,
+        "sd": NaN,
+        "ci95": [
+          NaN,
+          NaN
+        ]
+      },
+      "hold_own": {
+        "n": 1,
+        "mean": 0.18484371716353587,
+        "sd": NaN,
+        "ci95": [
+          NaN,
+          NaN
+        ]
+      },
+      "hold_adv_current": {
+        "n": 1,
+        "mean": -0.17846411133677756,
+        "sd": NaN,
+        "ci95": [
+          NaN,
+          NaN
+        ]
+      },
+      "tests": {
+        "own_gain": {
+          "statistic": NaN,
+          "pvalue": NaN,
+          "mu": 0.0,
+          "alternative": "two-sided"
+        },
+        "adv_current": {
+          "statistic": NaN,
+          "pvalue": NaN,
+          "mu": 0.0,
+          "alternative": "two-sided",
+          "holm_pvalue": 1.0
+        },
+        "adv_frozen": {
+          "statistic": NaN,
+          "pvalue": NaN,
+          "mu": 0.0,
+          "alternative": "two-sided"
+        },
+        "own_minimum_effect": {
+          "statistic": NaN,
+          "pvalue": NaN,
+          "mu": -0.005,
+          "alternative": "less",
+          "holm_pvalue": 1.0
+        },
+        "hold_tost": {
+          "margin": 0.002,
+          "p_upper": NaN,
+          "p_lower": NaN,
+          "pvalue": NaN,
+          "equivalent": false,
+          "holm_pvalue": 1.0
+        }
+      }
+    }
+  }
+}

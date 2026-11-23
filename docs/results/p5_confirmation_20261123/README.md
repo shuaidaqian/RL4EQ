@@ -30,6 +30,14 @@
 - 描述性：`adv_frozen`、10/15 dB 自身改善、真实 ESNR 漂移；10/15 dB 自身改善仍受开发门槛限制，不宣称确认。
 - 工具：`scripts/audit_p5_confirmation.py`（完整性）与 `scripts/analyze_p5_confirmation.py`（统计）。两者均流式读取，不在内存中保留全部逐帧数据。
 
+## 无人值守运行
+
+- 自 2026-11-23 17:11 起，由独立（detached）监督进程 [`scripts/run_p5_confirmation_detached.ps1`](../../../scripts/run_p5_confirmation_detached.ps1) 执行；关闭 Claude 会话不影响运行。
+- 当前状态文件：`detached_status.json`（`state` / `experiment` / `updated_utc`），日志 `run_detached.log`。
+- 监督进程会跳过已完成实验；对 `running`/`failed` 的实验自动加 `--resume` 重放已有前缀后继续；每个实验成功后调用 `finalize_registry.py`。
+- 机器重启、休眠唤醒或进程被杀后：重新运行同一监督脚本即可继续，不会覆盖已有结果、不换 seed。
+- 0 dB 实验在 2026-11-23 17:10 的断点处续跑：已重放第 30 个 session 至第 8,703 帧，状态 `running`。
+
 ## 中断与恢复
 
 - 任一实验中断：保留主 JSON/JSONL 与 registry；使用相同参数加 `--resume` 续跑，不覆盖、不换 seed。
