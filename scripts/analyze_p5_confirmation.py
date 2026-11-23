@@ -52,10 +52,10 @@ def load_stream(path, snr, seeds, arms, frames, windows):
             cell[0] += row['errors']
             cell[1] += row['bits']
         key = (seed, index)
-        hashes = pending.setdefault(key, set())
-        hashes.add(row['rx_sha256'])
+        hashes = pending.setdefault(key, {})
+        hashes[arm] = row['rx_sha256']
         if len(hashes) == len(arms):
-            if len(hashes) != 1:
+            if len(set(hashes.values())) != 1:
                 problems.append(f'波形不匹配：{seed} 帧 {index}')
             del pending[key]
     for seed in seeds:
@@ -137,7 +137,7 @@ def analyze_experiment(protocol, snr, spec):
     arms = ['frozen_acquisition', 'current_pilot_aged_ar1', 'recursive_pilot_ar1']
     windows = protocol['windows']
     frames = protocol['frames']
-    by = load_stream(ROOT / spec['stream'], snr, spec['seeds'], arms, frames)
+    by = load_stream(ROOT / spec['stream'], snr, spec['seeds'], arms, frames, windows)
     sessions = [session_metrics(by, snr, seed, arms, windows) for seed in spec['seeds']]
     own = [s['own_gain'] for s in sessions]
     adv_current = [s['adv_current'] for s in sessions]

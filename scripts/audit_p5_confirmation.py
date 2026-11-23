@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""P5 确认流完整性审计：会话/臂/帧齐全、逐帧波形配对、字段与数值合法。"""
+"""P5 确认流完整性审计：流式检查会话/臂/帧齐全、逐帧波形配对与有限值。"""
 
 from __future__ import annotations
 
@@ -13,42 +13,48 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def audit(protocol, snr, spec):
-    base = ROOT / spec['stream']
-    main = json.loads((ROOT / spec['output']).read_text(encoding='utf8'))
-    rows = [json.loads(line) for line in open(base, encoding='utf8')]
     arms = set(protocol['arms'])
     frames = protocol['frames']
-    by = collections.defaultdict(lambda: collections.defaultdict(dict))
-    rx = collections.defaultdict(lambda: collections.defaultdict(set))
+    seeds = set(spec['seeds'])
+    main = json.loads((ROOT / spec['output']).read_text(encoding='utf8'))
+    counts = collections.Counter()
+    pending = {}
+    problems = []
     bad = 0
-    for row in rows:
-        key = (row['snr_db'], row['seed'])
-        by[key][row['arm']][row['frame_index']] = row
-        rx[key][row['frame_index']].add(row['rx_sha256'])
+    rows_read = 0
+    for line in open(ROOT / spec['stream'], encoding='utf8'):
+        row = json.loads(line)
+        rows_read += 1
+        seed, arm, index = row['seed'], row['arm'], row['frame_index']
+        if seed not in seeds or arm not in arms or row['snr_db'] != snr:
+            problems.append(f'非法记录：seed={seed} arm={arm} snr={row["snr_db"]}')
+            continue
+        if counts[(seed, arm)] != index:
+            problems.append(f'帧顺序/缺失：{seed} {arm} 期望 {counts[(seed, arm)]} 实际 {index}')
+        counts[(seed, arm)] += 1
+        key = (seed, index)
+        hashes = pending.setdefault(key, {})
+        hashes[arm] = row['rx_sha256']
+        if len(hashes) == len(arms):
+            if len(set(hashes.values())) != 1:
+                problems.append(f'波形不匹配：{seed} 帧 {index}')
+            del pending[key]
         for field in ('errors', 'bits', 'elapsed_ms', 'true_cir_norm_diagnostic'):
             value = row[field]
             if not isinstance(value, (int, float)) or not math.isfinite(value):
                 bad += 1
-    problems = []
     for seed in spec['seeds']:
-        key = (snr, seed)
-        if key not in by:
-            problems.append(f'缺少 session {key}')
-            continue
-        if set(by[key]) != arms:
-            problems.append(f'{key} 臂不完整')
         for arm in arms:
-            if set(by[key].get(arm, {})) != set(range(frames)):
-                problems.append(f'{key} {arm} 帧不完整')
-        for index in range(frames):
-            if len(rx[key][index]) != 1:
-                problems.append(f'{key} 帧 {index} 波形不匹配')
-                break
+            if counts[(seed, arm)] != frames:
+                problems.append(f'帧数不完整：{seed} {arm} {counts[(seed, arm)]}')
+    if pending:
+        problems.append(f'存在未配对的帧：{len(pending)}')
     return {
         'snr_db': snr, 'experiment': spec['name'], 'status': main.get('status'),
-        'row_count': main.get('row_count'), 'rows_read': len(rows),
+        'row_count': main.get('row_count'), 'rows_read': rows_read,
         'expected_rows': len(spec['seeds']) * len(arms) * frames,
-        'sessions': len(by), 'expected_sessions': len(spec['seeds']),
+        'sessions': len({seed for seed, _ in counts}),
+        'expected_sessions': len(spec['seeds']),
         'nonfinite_values': bad, 'problems': problems[:20],
         'problem_count': len(problems),
     }
