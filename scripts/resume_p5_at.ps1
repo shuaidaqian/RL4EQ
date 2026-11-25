@@ -1,5 +1,6 @@
 param([string]$At = '')
 $ErrorActionPreference = 'Stop'
+$scheduled = Join-Path $PSScriptRoot 'run_p5_confirmation_scheduled.ps1'
 Set-Location (Resolve-Path (Join-Path $PSScriptRoot '..'))
 $OutDir = 'docs/results/p5_confirmation_20261123'
 $StatusPath = Join-Path $OutDir 'pause_status.json'
@@ -12,4 +13,4 @@ $payload = @{ state='paused'; next_resume_local=$target.ToString('o');
   (New-Object System.Text.UTF8Encoding($false)))
 if ($seconds -gt 0) { Start-Sleep -Seconds $seconds }
 Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass',
-  '-File','D:\Research\02_研究点二_神经均衡\scripts\run_p5_confirmation_scheduled.ps1' -WindowStyle Hidden
+  '-File',$scheduled -WindowStyle Hidden
