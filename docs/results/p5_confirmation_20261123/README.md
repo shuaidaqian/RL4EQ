@@ -30,9 +30,15 @@
 - 描述性：`adv_frozen`、10/15 dB 自身改善、真实 ESNR 漂移；10/15 dB 自身改善仍受开发门槛限制，不宣称确认。
 - 工具：`scripts/audit_p5_confirmation.py`（完整性）与 `scripts/analyze_p5_confirmation.py`（统计）。两者均流式读取，不在内存中保留全部逐帧数据。
 
-## 无人值守运行（按时段）
+## 无人值守运行（24 小时）
 
-- 自 2026-11-24 00:06 起，由独立（detached）监督进程 [`scripts/run_p5_confirmation_scheduled.ps1`](../../../scripts/run_p5_confirmation_scheduled.ps1) 执行；关闭 Claude 会话不影响运行。
+- **2026-11-26 10:17 起取消时段限制，改为全天连续运行**。当前由 [`scripts/run_p5_confirmation_detached.ps1`](../../../scripts/run_p5_confirmation_detached.ps1) 监督；状态文件 `detached_status.json`，日志 `run_detached.log`。
+- 按时段运行的 `run_p5_confirmation_scheduled.ps1` 与 `scheduled_status.json` 保留为历史记录，不再使用。
+- 重启/关机后重新运行 detached 监督脚本即可自动续跑；不换 seed、不覆盖结果。
+
+### 历史：按时段运行（2026-11-24 00:06 至 2026-11-26 10:17）
+
+- 由独立（detached）监督进程 [`scripts/run_p5_confirmation_scheduled.ps1`](../../../scripts/run_p5_confirmation_scheduled.ps1) 执行；关闭 Claude 会话不影响运行。
 - **运行时段：每天 08:00–24:00；00:00–08:00 暂停**，不影响夜间休息。到 23:58 左右监督进程用 `timeout` 停止接收并在次日 08:00 自动 `--resume`。
 - 当前状态文件：`scheduled_status.json`（`state` / `experiment` / `next_resume_local` / `updated_local`），日志 `run_scheduled.log`。
 - 按 16 h/天计，约 5 GPU 日的确认需要约 **7–8 个日历日**。
